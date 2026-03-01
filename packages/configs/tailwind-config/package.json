@@ -1,0 +1,16 @@
+{
+  "name": "@biu/tailwind-config",
+  "version": "1.0.0",
+  "main": "./theme.css",
+  "exports": {
+    ".": "./theme.css"
+  },
+  "peerDependencies": {
+    "tailwindcss": "catalog:"
+  },
+  "scripts": {
+    "test": "echo \"(@biu/tailwind-config) no tests\""
+  },
+  "license": "ISC",
+  "prettier": "@biu/prettier-config"
+}

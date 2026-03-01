@@ -1,0 +1,40 @@
+{
+  "name": "vite-app",
+  "version": "1.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --report-unused-disable-directives",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"(vite-app) no tests\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@biu/eslint-config": "workspace:*",
+    "@biu/postcss-config": "workspace:*",
+    "@biu/tailwind-config": "workspace:*",
+    "@biu/tsconfig": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^5.1.2",
+    "autoprefixer": "catalog:",
+    "eslint": "catalog:",
+    "postcss": "catalog:",
+    "postcss-nesting": "^14.0.0",
+    "rollup-plugin-visualizer": "^6.0.5",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "@biu/ui-lib": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "prettier": "@biu/prettier-config"
+}

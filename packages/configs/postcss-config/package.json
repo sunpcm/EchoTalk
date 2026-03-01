@@ -1,0 +1,19 @@
+{
+  "name": "@biu/postcss-config",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "peerDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "autoprefixer": "catalog:",
+    "tailwindcss": "catalog:"
+  },
+  "scripts": {
+    "test": "echo \"(@biu/postcss-config) no tests\""
+  },
+  "license": "ISC",
+  "prettier": "@biu/prettier-config"
+}

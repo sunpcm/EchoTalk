@@ -1,0 +1,50 @@
+{
+  "name": "monorepo-study-note",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:vite": "turbo dev --filter=vite-app",
+    "dev:webpack": "turbo dev --filter=webpack-app",
+    "build": "turbo build",
+    "build:analyze:vite": "cross-env ANALYZE=true turbo build --filter=vite-app",
+    "build:analyze:webpack": "cross-env ANALYZE=true SOURCE_MAP=true turbo build --filter=webpack-app",
+    "prepare": "husky",
+    "lint": "turbo lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "clean": "rimraf **/node_modules",
+    "clean:cache": "rimraf .turbo **/dist **/.vite **/.webpack_cache **/node_modules.vite",
+    "clean:all": "pnpm run clean:cache && pnpm run clean",
+    "gen": "plop",
+    "new:pkg": "plop --plopfile plopfile.cjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.26.0",
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@biu/eslint-config": "workspace:*",
+    "@biu/prettier-config": "workspace:*",
+    "cross-env": "^10.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "plop": "^4.0.1",
+    "prettier": "catalog:",
+    "rimraf": "^6.1.2",
+    "turbo": "^2.7.2"
+  },
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,css,md,json,yaml,yml}": [
+      "prettier --write"
+    ],
+    "**/*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ]
+  },
+  "prettier": "@biu/prettier-config"
+}

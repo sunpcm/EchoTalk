@@ -1,0 +1,29 @@
+{
+  "name": "@biu/ui-lib",
+  "version": "1.0.1",
+  "description": "",
+  "main": "index.tsx",
+  "types": "index.tsx",
+  "exports": {
+    ".": {
+      "types": "./index.tsx",
+      "default": "./index.tsx"
+    }
+  },
+  "scripts": {
+    "test": "echo \"(@biu/ui-lib) no tests\""
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "prettier": "@biu/prettier-config",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
