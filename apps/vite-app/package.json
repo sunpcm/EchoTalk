@@ -33,8 +33,12 @@
   },
   "dependencies": {
     "@biu/ui-lib": "workspace:*",
+    "@livekit/components-react": "^2.9.20",
+    "@livekit/components-styles": "^1.2.0",
+    "livekit-client": "^2.17.2",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "zustand": "^5.0.11"
   },
   "prettier": "@biu/prettier-config"
 }

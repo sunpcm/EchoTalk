@@ -61,5 +61,14 @@ pnpm-debug.log*
 ############################
 # In this repo, apps contain checked-in example envs like .env.development/.env.production.
 # So we only ignore local override variants.
+.env
 .env.local
 .env.*.local
+
+############################
+# Python / Backend
+############################
+__pycache__/
+*.py[cod]
+*.egg-info/
+backend/.venv/

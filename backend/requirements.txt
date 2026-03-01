@@ -1,0 +1,33 @@
+# 核心框架
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.34.0,<1.0.0
+
+# 数据库
+sqlalchemy[asyncio]>=2.0.0,<3.0.0
+asyncpg>=0.30.0,<1.0.0
+alembic>=1.14.0,<2.0.0
+
+# 配置与校验
+pydantic>=2.0.0,<3.0.0
+pydantic-settings>=2.0.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+
+# LLM（OpenAI SDK 兼容 SiliconFlow / OpenRouter，livekit-agents 要求 >=2）
+openai>=2.0.0,<3.0.0
+
+# LiveKit 实时语音
+livekit==1.1.2
+livekit-api==1.1.0
+livekit-agents==1.4.3
+livekit-plugins-deepgram==1.4.3
+livekit-plugins-cartesia==1.4.3
+livekit-plugins-openai==1.4.3
+livekit-plugins-silero==1.4.3
+
+# Auth 预留（Phase 2 接入真实 JWT）
+python-jose[cryptography]>=3.3.0,<4.0.0
+passlib[bcrypt]>=1.7.0,<2.0.0
+
+# 代码质量
+black>=24.0.0
+flake8>=7.0.0
