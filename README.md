@@ -22,23 +22,23 @@
 ## 技术架构
 
 ```
-┌─────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────┐
 │ 前端 (Vite + React 19 + TypeScript)                 │
-│  ├── Dashboard: 推荐场景卡片 + 每日进度 + 技能树     │
+│  ├── Dashboard: 推荐场景卡片 + 每日进度 + 技能树        │
 │  ├── LiveKit WebRTC 语音交互                         │
-│  ├── zustand 状态管理（视图流转 + 连接 + 评估）      │
-│  └── Tailwind CSS v4 样式                            │
+│  ├── zustand 状态管理（视图流转 + 连接 + 评估）         │
+│  └── Tailwind CSS v4 样式                           │
 ├─────────────────────────────────────────────────────┤
-│ 后端 (FastAPI + SQLAlchemy 2.0 async)               │
+│ 后端 (FastAPI + SQLAlchemy 2.0 async)              │
 │  ├── 对话管线: STT → LLM → TTS                      │
-│  ├── 情绪感知: 文本犹豫词 + 语速规则引擎            │
-│  ├── 发音评估: Needleman-Wunsch 音素对齐             │
-│  ├── 知识追踪: BKT 贝叶斯模型                       │
-│  ├── 语法检测: 正则规则引擎                          │
-│  └── 自适应 RAG: ChromaDB 向量检索 + Krashen i+1    │
+│  ├── 情绪感知: 文本犹豫词 + 语速规则引擎                │
+│  ├── 发音评估: Needleman-Wunsch 音素对齐              │
+│  ├── 知识追踪: BKT 贝叶斯模型                         │
+│  ├── 语法检测: 正则规则引擎                           │
+│  └── 自适应 RAG: ChromaDB 向量检索 + Krashen i+1     │
 ├─────────────────────────────────────────────────────┤
 │ 数据层 (PostgreSQL + asyncpg + ChromaDB)             │
-│  └── 8 张表: users, user_profiles, sessions,        │
+│  └── 8 张表: users, user_profiles, sessions,         │
 │      transcripts, skills, knowledge_states,         │
 │      pronunciation_assessments, grammar_errors      │
 └─────────────────────────────────────────────────────┘
