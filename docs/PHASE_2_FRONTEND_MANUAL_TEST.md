@@ -31,9 +31,16 @@ python livekit_agent/agent.py dev
 pnpm --filter vite-app dev
 ```
 
-应输出 `Local: http://localhost:5173/`。
+应输出 `Local: https://localhost:5173/`（注意是 **HTTPS**，`basicSsl` 插件自动生成自签名证书）。
 
-### 1.3 确认 .env 配置
+### 1.3 浏览器访问
+
+- **本机**：`https://localhost:5173/`
+- **局域网**：`https://<Ubuntu IP>:5173/`（如 `https://192.168.50.50:5173`）
+- 首次访问需接受浏览器的自签名证书安全警告
+- **重要**：必须通过 HTTPS 访问，否则浏览器拒绝 `getUserMedia()` 麦克风权限（WebRTC 安全上下文要求）
+
+### 1.4 确认 .env 配置
 
 确保项目根目录 `.env` 包含完整配置（LiveKit、Deepgram、Cartesia、LLM 等）。
 
@@ -232,14 +239,18 @@ curl -s http://localhost:8000/api/assessments/knowledge/states \
 
 ## 七、排障指南
 
-| 问题                   | 可能原因                  | 解决方案                                        |
-| ---------------------- | ------------------------- | ----------------------------------------------- |
-| 评估结果不显示         | 后端分析管线失败          | 检查后端终端日志是否有"会话分析失败"            |
-| 持续显示"正在分析发音" | API 持续返回 404          | 确认后端 `end_session` 是否正常触发分析         |
-| 音素全为绿色           | Mock 模式未注入替换错误   | 尝试说含 "th" 的词，Mock 会将 TH 替换为 S       |
-| 技能树为空             | 无知识状态数据            | 确认后端 `update_knowledge` 执行成功            |
-| Hover Tooltip 不显示   | Tailwind CSS 未扫描新文件 | 确认 `styles.css` 中 `@source` 包含新组件路径   |
-| TypeScript 报错        | 类型不匹配                | 运行 `pnpm --filter vite-app exec tsc --noEmit` |
+| 问题                       | 可能原因                  | 解决方案                                                             |
+| -------------------------- | ------------------------- | -------------------------------------------------------------------- |
+| 评估结果不显示             | 后端分析管线失败          | 检查后端终端日志是否有"会话分析失败"                                 |
+| 持续显示"正在分析发音"     | API 持续返回 404          | 确认后端 `end_session` 是否正常触发分析                              |
+| 音素全为绿色               | Mock 模式未注入替换错误   | 尝试说含 "th" 的词，Mock 会将 TH 替换为 S                            |
+| 技能树为空                 | 无知识状态数据            | 确认后端 `update_knowledge` 执行成功                                 |
+| Hover Tooltip 不显示       | Tailwind CSS 未扫描新文件 | 确认 `styles.css` 中 `@source` 包含新组件路径                        |
+| TypeScript 报错            | 类型不匹配                | 运行 `pnpm --filter vite-app exec tsc --noEmit`                      |
+| 麦克风无权限/无提示        | 非 HTTPS 访问             | 必须通过 `https://` 访问，非 localhost 的 HTTP 不支持 `getUserMedia` |
+| 卡在"正在连接"             | LiveKit WSS 连接失败      | 检查 `.env` 中 `LIVEKIT_URL` 配置，确认 Vite 代理生效                |
+| Agent 被踢出房间           | 前端未先连入房间          | 确认 `onConnected` 回调正确触发 `dispatchAgent`                      |
+| 反复请求 /settings/regions | SDK region routing 干扰   | 确认开发模式使用代理 URL（非 `.livekit.cloud` 域名）                 |
 
 ---
 

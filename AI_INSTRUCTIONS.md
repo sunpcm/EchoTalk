@@ -15,7 +15,7 @@
 
 ## 2. 架构与 Monorepo 规范
 
-- **Monorepo 结构**：本项目采用 Monorepo。前端为 `TypeScript + React (Next.js 15)`，后端为纯 `Python + FastAPI`。
+- **Monorepo 结构**：本项目采用 Monorepo。前端为 `TypeScript + React (Next.js 15)`，后端为纯 `Python + FastAPI`, 虚拟环境使用 `uv`。
 - **保护现有资产**：项目中**已经实现了 Login 和用户管理模块**。绝对不要重新去写注册、登录页面或 Auth 基础逻辑！每次写代码前，先确认存放目录。
 - **国际化 (i18n) 第一优先**：系统必须预留多语言能力。
   - 前端：任何硬编码的中文文案，必须通过 i18n 框架（如 `next-intl` 或 `react-i18next`）的 key 来映射。现阶段只需维护一份中文语言包（如 `zh-CN.json`），但代码结构必须是支持多语言的。

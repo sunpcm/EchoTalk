@@ -21,6 +21,7 @@
     "@biu/tsconfig": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
     "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "catalog:",
     "eslint": "catalog:",

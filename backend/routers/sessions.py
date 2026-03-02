@@ -5,7 +5,12 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from livekit.api import AccessToken, VideoGrants
+from livekit.api import (
+    AccessToken,
+    CreateAgentDispatchRequest,
+    LiveKitAPI,
+    VideoGrants,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -170,3 +175,43 @@ async def get_session_token(
     token = access_token.to_jwt()
 
     return {"token": token, "ws_url": settings.LIVEKIT_URL}
+
+
+@router.post("/sessions/{session_id}/dispatch")
+async def dispatch_agent(
+    session_id: uuid.UUID,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """前端已连接房间后调用，调度 Agent 加入。"""
+    stmt = select(Session).where(
+        Session.id == session_id,
+        Session.user_id == uuid.UUID(current_user["id"]),
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if session is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    if session.status != SessionStatus.active:
+        raise HTTPException(status_code=400, detail="会话已结束")
+
+    room_name = str(session.id)
+
+    try:
+        async with LiveKitAPI(
+            url=settings.LIVEKIT_URL,
+            api_key=settings.LIVEKIT_API_KEY,
+            api_secret=settings.LIVEKIT_API_SECRET,
+        ) as lk_api:
+            # 幂等：仅当房间无 dispatch 时才创建
+            existing = await lk_api.agent_dispatch.list_dispatch(room_name)
+            if not existing:
+                await lk_api.agent_dispatch.create_dispatch(
+                    CreateAgentDispatchRequest(room=room_name, agent_name="")
+                )
+    except Exception as e:
+        logger.error("Agent 调度失败: %s", e)
+        raise HTTPException(status_code=502, detail="语音服务暂时不可用，请稍后重试")
+
+    return {"dispatched": True}

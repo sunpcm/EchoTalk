@@ -110,6 +110,14 @@ created_at  TIMESTAMP
 | GET  | `/api/assessments/{session_id}`         | 发音评估结果      |
 | GET  | `/api/assessments/{session_id}/grammar` | 语法错误列表      |
 
+### 4.1 会话管理新增端点
+
+| 方法 | 路径                                  | 说明                             |
+| ---- | ------------------------------------- | -------------------------------- |
+| POST | `/api/sessions/{session_id}/dispatch` | Agent 调度（前端连入房间后触发） |
+
+> `dispatch` 端点独立于 `token` 端点。前端先通过 `GET /sessions/{id}/token` 获取令牌并连入 LiveKit 房间，连接成功后再调用 `POST /sessions/{id}/dispatch` 触发 Agent 加入。此顺序避免 Agent 先于用户到达空房间被 LiveKit Cloud 踢出。端点内部通过 `list_dispatch` 做幂等检查，防止重复调度。
+
 > **路由顺序**：`/knowledge/states` 和 `/knowledge/skills` 必须定义在 `/{session_id}` 之前，避免 FastAPI 把 `"knowledge"` 当作 UUID 解析。
 
 ---
@@ -278,6 +286,9 @@ end_session()
 4. **分析管线 try/except 包裹**：分析失败不阻塞会话结束，仅记录 warning 日志。
 5. **种子数据 lifespan 注入**：应用启动时自动检查并插入 10 个技能定义，使用 `merge` 语义避免重复。
 6. **JSON 列存储音素对齐**：`phoneme_alignment` 使用 PostgreSQL JSON 类型，方便前端直接消费整个数组。
+7. **Token 与 Dispatch 分离**：`GET /sessions/{id}/token` 仅签发令牌，不再创建房间或调度 Agent。`POST /sessions/{id}/dispatch` 独立端点由前端在 `LiveKitRoom.onConnected` 回调中触发，确保 Agent 加入时房间已有真人参与者。
+8. **Dispatch 幂等检查**：`dispatch_agent` 端点内部先调用 `list_dispatch` 查询已有调度，仅无调度时才创建新调度，防止网络重试导致的重复 Agent 加入。
+9. **Agent `.env` 加载**：Agent 进程通过 `python-dotenv` 加载 monorepo 根目录 `.env`，确保 `LIVEKIT_URL`、`LIVEKIT_API_KEY` 等环境变量可用（LiveKit SDK 依赖环境变量注册 Worker）。
 
 ---
 

@@ -134,6 +134,9 @@ importers:
       "@types/react-dom":
         specifier: "catalog:"
         version: 19.2.3(@types/react@19.2.8)
+      "@vitejs/plugin-basic-ssl":
+        specifier: ^2.1.4
+        version: 2.1.4(vite@7.3.1(@types/node@25.0.9)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(yaml@2.8.2))
       "@vitejs/plugin-react":
         specifier: ^5.1.2
         version: 5.1.2(vite@7.3.1(@types/node@25.0.9)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(yaml@2.8.2))
@@ -2907,6 +2910,15 @@ packages:
       {
         integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==,
       }
+
+  "@vitejs/plugin-basic-ssl@2.1.4":
+    resolution:
+      {
+        integrity: sha512-HXciTXN/sDBYWgeAD4V4s0DN0g72x5mlxQhHxtYu3Tt8BLa6MzcJZUyDVFCdtjNs3bfENVHVzOsmooTVuNgAAw==,
+      }
+    engines: { node: ^18.0.0 || ^20.0.0 || >=22.0.0 }
+    peerDependencies:
+      vite: ^6.0.0 || ^7.0.0
 
   "@vitejs/plugin-react@5.1.2":
     resolution:
@@ -10636,6 +10648,10 @@ snapshots:
       eslint-visitor-keys: 4.2.1
 
   "@ungap/structured-clone@1.3.0": {}
+
+  "@vitejs/plugin-basic-ssl@2.1.4(vite@7.3.1(@types/node@25.0.9)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(yaml@2.8.2))":
+    dependencies:
+      vite: 7.3.1(@types/node@25.0.9)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(yaml@2.8.2)
 
   "@vitejs/plugin-react@5.1.2(vite@7.3.1(@types/node@25.0.9)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(yaml@2.8.2))":
     dependencies:

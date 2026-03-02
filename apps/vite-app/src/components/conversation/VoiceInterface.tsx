@@ -18,6 +18,7 @@ import { ConnectionState } from "livekit-client";
 import { useConversationStore } from "@/store/conversation";
 import { useAssessmentStore } from "@/store/assessment";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
+import { dispatchAgent } from "@/lib/api";
 import { PronunciationFeedback } from "@/components/pronunciation/PronunciationFeedback";
 import { SkillTree } from "@/components/learning/SkillTree";
 import { zhCN } from "@/i18n/zh-CN";
@@ -27,7 +28,8 @@ const tAssess = zhCN.assessment;
 
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
-  const { connectionState, token, wsUrl, error, startSession, reset } = useConversationStore();
+  const { connectionState, sessionId, token, wsUrl, error, startSession, reset } =
+    useConversationStore();
 
   const handleStart = useCallback(() => {
     startSession("conversation");
@@ -46,13 +48,29 @@ export function VoiceInterface() {
   }
 
   // connecting（有 token）或 active 状态：渲染 LiveKit 房间
+  // 开发模式：通过 Vite 代理连接 LiveKit，绕过 SDK 的 region routing
+  const effectiveWsUrl = import.meta.env.DEV
+    ? `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`
+    : wsUrl;
+
   return (
     <LiveKitRoom
-      serverUrl={wsUrl ?? undefined}
+      serverUrl={effectiveWsUrl ?? undefined}
       token={token ?? undefined}
       connect={true}
       audio={true}
       video={false}
+      onConnected={() => {
+        if (sessionId) {
+          dispatchAgent(sessionId).catch((err) => console.error("Agent dispatch failed:", err));
+        }
+      }}
+      onError={(error) => {
+        console.error("LiveKit connection error:", error);
+      }}
+      onDisconnected={(reason) => {
+        console.log("LiveKit disconnected:", reason);
+      }}
       data-lk-theme="default"
       className="flex min-h-[60vh] flex-col items-center justify-center"
     >

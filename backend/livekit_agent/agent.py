@@ -12,7 +12,13 @@ import sys
 from pathlib import Path
 
 # 确保 backend/ 在 sys.path 中，以复用 config / database / services
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+_backend_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_backend_dir))
+
+# 将项目根 .env 加载为环境变量，供 LiveKit SDK 读取 LIVEKIT_URL 等配置
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(_backend_dir.parent / ".env", override=False)
 
 from livekit.agents import (  # noqa: E402
     Agent,
@@ -57,9 +63,14 @@ def _build_llm() -> lk_openai.LLM:
 
 async def entrypoint(ctx: JobContext):
     """LiveKit Agent 入口：等待参与者 -> 启动语音管线。"""
-    logger.info("Agent 收到任务，房间: %s", ctx.room.name)
+    logger.info(
+        "Agent 收到任务，房间: %s，连接地址: %s",
+        ctx.room.name,
+        ctx._info.url,
+    )
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+    logger.info("Agent 已连接到房间: %s", ctx.room.name)
 
     participant = await ctx.wait_for_participant()
     logger.info("参与者加入: %s", participant.identity)
@@ -95,5 +106,8 @@ async def entrypoint(ctx: JobContext):
 
 if __name__ == "__main__":
     cli.run_app(
-        WorkerOptions(entrypoint_fnc=entrypoint),
+        WorkerOptions(
+            entrypoint_fnc=entrypoint,
+            num_idle_processes=1,  # 预热一个进程，减少首次任务启动延迟
+        ),
     )

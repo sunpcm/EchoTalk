@@ -137,6 +137,13 @@ export function endSession(sessionId: string): Promise<Session> {
   });
 }
 
+/** 请求后端调度 AI Agent 进入房间（前端已连接后调用） */
+export function dispatchAgent(sessionId: string): Promise<{ dispatched: boolean }> {
+  return request<{ dispatched: boolean }>(`/sessions/${sessionId}/dispatch`, {
+    method: "POST",
+  });
+}
+
 // ─── 评估 API ───
 
 /** 获取发音评估结果 */

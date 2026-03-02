@@ -40,6 +40,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   error: null,
 
   startSession: async (mode: string) => {
+    // 防止重复调用（如双击或 StrictMode 双渲染）
+    if (get().connectionState !== "idle") return;
     set({ connectionState: "connecting", error: null });
     try {
       const session = await createSession(mode);

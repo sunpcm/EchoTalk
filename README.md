@@ -86,10 +86,12 @@ curl http://localhost:8000/api/health
 # 1. 安装依赖
 pnpm install
 
-# 2. 启动开发服务器（/api 代理至 localhost:8000）
+# 2. 启动开发服务器（HTTPS + /api 代理至 localhost:8000 + LiveKit WS 代理）
 pnpm --filter vite-app dev
 
-# 3. 访问 http://localhost:3000
+# 3. 访问 https://localhost:5173（本机）或 https://<Ubuntu IP>:5173（局域网）
+#    首次访问需接受自签名证书安全警告
+#    注意：必须使用 HTTPS，否则浏览器拒绝麦克风权限（getUserMedia 安全上下文要求）
 ```
 
 ---
@@ -122,6 +124,12 @@ pnpm --filter vite-app dev
 - **轮询机制**：指数退避轮询兼容未来 Celery 异步分析，404 时自动重试
 - **评估状态管理**：独立 zustand store，管理 idle/polling/loaded/error 四状态生命周期
 
+### Phase 2 — LiveKit 连接优化
+
+- **开发环境 HTTPS**：`@vitejs/plugin-basic-ssl` 自签名证书，满足 `getUserMedia` 安全上下文要求
+- **LiveKit WebSocket 代理**：Vite dev server 代理 `/livekit-ws` 路径到 LiveKit Cloud，绕过 SDK region routing
+- **延迟 Agent 调度**：前端先连入房间，再通过 `/dispatch` 端点触发 Agent 加入，避免空房间踢出
+
 ---
 
 ## API 端点一览
@@ -137,13 +145,14 @@ pnpm --filter vite-app dev
 
 ### 会话管理
 
-| 方法 | 路径                       | 说明                 |
-| ---- | -------------------------- | -------------------- |
-| POST | `/api/sessions`            | 创建会话             |
-| GET  | `/api/sessions`            | 会话列表             |
-| GET  | `/api/sessions/{id}`       | 会话详情（含转录）   |
-| POST | `/api/sessions/{id}/end`   | 结束会话（触发分析） |
-| GET  | `/api/sessions/{id}/token` | LiveKit 令牌         |
+| 方法 | 路径                          | 说明                 |
+| ---- | ----------------------------- | -------------------- |
+| POST | `/api/sessions`               | 创建会话             |
+| GET  | `/api/sessions`               | 会话列表             |
+| GET  | `/api/sessions/{id}`          | 会话详情（含转录）   |
+| POST | `/api/sessions/{id}/end`      | 结束会话（触发分析） |
+| GET  | `/api/sessions/{id}/token`    | LiveKit 令牌         |
+| POST | `/api/sessions/{id}/dispatch` | 调度 Agent 加入房间  |
 
 ### 对话
 
