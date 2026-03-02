@@ -118,7 +118,7 @@ docker compose down -v
 
 ### 前置条件
 
-- Python 3.12+
+- Python 3.12+ / [uv](https://docs.astral.sh/uv/)
 - Node.js 20+ / pnpm
 - PostgreSQL 15+
 
@@ -129,9 +129,8 @@ docker compose down -v
 cd backend
 
 # 2. 创建虚拟环境并安装依赖
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv venv && source .venv/bin/activate
+uv pip install -r requirements.txt
 
 # 3. 配置环境变量
 #    复制 .env.example 为 .env 并填写:
