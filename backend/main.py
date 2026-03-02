@@ -12,14 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import async_session_maker
 from dependencies import MOCK_USER_ID
+from models.knowledge import SEED_SKILLS, Skill
 from models.user import User
-from routers import conversation, health, sessions
+from routers import assessment, conversation, health, sessions
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期：启动时确保 Mock 测试用户存在。"""
+    """应用生命周期：启动时确保 Mock 测试用户和种子技能数据存在。"""
     async with async_session_maker() as session:
+        # 确保 Mock 测试用户存在
         mock_uuid = uuid.UUID(MOCK_USER_ID)
         existing = await session.get(User, mock_uuid)
         if not existing:
@@ -30,6 +32,13 @@ async def lifespan(app: FastAPI):
             )
             session.add(user)
             await session.commit()
+
+        # 种子技能数据（Phase 2）
+        for skill_data in SEED_SKILLS:
+            existing_skill = await session.get(Skill, skill_data["id"])
+            if not existing_skill:
+                session.add(Skill(**skill_data))
+        await session.commit()
     yield
 
 
@@ -53,3 +62,4 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["健康检查"])
 app.include_router(sessions.router, prefix="/api", tags=["会话管理"])
 app.include_router(conversation.router, prefix="/api", tags=["对话"])
+app.include_router(assessment.router, prefix="/api", tags=["发音评估与知识追踪"])

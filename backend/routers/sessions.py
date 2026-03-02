@@ -1,5 +1,6 @@
 """会话管理路由：创建、列表、详情、结束、令牌签发。"""
 
+import logging
 import uuid
 from datetime import datetime
 
@@ -14,6 +15,9 @@ from database import get_db
 from dependencies import get_current_user
 from models.session import Session, SessionMode, SessionStatus
 from schemas.session import SessionCreate, SessionListItem, SessionResponse
+from services.analysis_service import analyze_session, update_knowledge
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -116,6 +120,14 @@ async def end_session(
     session.ended_at = datetime.utcnow()
     await db.flush()
     await db.refresh(session)
+
+    # 触发分析管线（mock 模式下同步执行）
+    try:
+        await analyze_session(session.id, db)
+        await update_knowledge(session.id, uuid.UUID(current_user["id"]), db)
+        await db.flush()
+    except Exception as e:
+        logger.warning("会话分析失败: %s", e)
 
     return session
 
