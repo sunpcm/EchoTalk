@@ -4,6 +4,7 @@ RAG 服务层：基于 ChromaDB 向量检索 + Krashen i+1 难度过滤。
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,8 @@ CEFR_TO_NUM = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}
 NUM_TO_CEFR = {v: k for k, v in CEFR_TO_NUM.items()}
 
 # ChromaDB 配置
+CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 CHROMA_PATH = str(Path(__file__).resolve().parent.parent / ".chromadb")
 COLLECTION_NAME = "teaching_materials"
 
@@ -35,12 +38,21 @@ class RetrievedMaterial:
     distance: float
 
 
-def _get_collection() -> chromadb.Collection:
-    """获取 ChromaDB collection（懒加载，进程内复用）。"""
-    client = chromadb.PersistentClient(
+def _get_client() -> chromadb.ClientAPI:
+    """根据环境变量选择 ChromaDB 连接模式。"""
+    if CHROMA_HOST != "localhost":
+        logger.info("Using ChromaDB HttpClient → %s:%s", CHROMA_HOST, CHROMA_PORT)
+        return chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+    logger.info("Using ChromaDB PersistentClient → %s", CHROMA_PATH)
+    return chromadb.PersistentClient(
         path=CHROMA_PATH,
         settings=ChromaSettings(anonymized_telemetry=False),
     )
+
+
+def _get_collection() -> chromadb.Collection:
+    """获取 ChromaDB collection（懒加载，进程内复用）。"""
+    client = _get_client()
     return client.get_or_create_collection(
         name=COLLECTION_NAME,
         metadata={"description": "EchoTalk teaching materials for RAG"},

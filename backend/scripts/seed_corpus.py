@@ -3,6 +3,7 @@ Phase 4 语料种子脚本。
 将教学语料写入 ChromaDB，供 RAG 服务检索。
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -15,7 +16,9 @@ from chromadb.config import Settings as ChromaSettings  # noqa: E402
 # CEFR 等级 → 数值映射
 CEFR_MAP = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}
 
-# ChromaDB 持久化路径（项目根目录下 .chromadb/）
+# ChromaDB 配置
+CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 CHROMA_PATH = str(Path(__file__).resolve().parent.parent / ".chromadb")
 COLLECTION_NAME = "teaching_materials"
 
@@ -186,12 +189,21 @@ SEED_MATERIALS = [
 ]
 
 
-def seed():
-    """将种子语料写入 ChromaDB collection。"""
-    client = chromadb.PersistentClient(
+def _get_client() -> chromadb.ClientAPI:
+    """根据环境变量选择 ChromaDB 连接模式。"""
+    if CHROMA_HOST != "localhost":
+        print(f"[seed_corpus] Using ChromaDB HttpClient → {CHROMA_HOST}:{CHROMA_PORT}")
+        return chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+    print(f"[seed_corpus] Using ChromaDB PersistentClient → {CHROMA_PATH}")
+    return chromadb.PersistentClient(
         path=CHROMA_PATH,
         settings=ChromaSettings(anonymized_telemetry=False),
     )
+
+
+def seed():
+    """将种子语料写入 ChromaDB collection。"""
+    client = _get_client()
 
     # 获取或创建 collection（使用默认 embedding function）
     collection = client.get_or_create_collection(

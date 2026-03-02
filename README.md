@@ -46,7 +46,75 @@
 
 ---
 
-## 如何启动当前项目
+## Docker 容器化部署（生产环境推荐）
+
+### 前置条件
+
+- Docker Engine 20+
+- Docker Compose V2
+
+### 服务架构
+
+```
+docker-compose.yml 包含 7 个服务：
+
+  echotalk-postgres   ── PostgreSQL 15
+  echotalk-redis      ── Redis 7
+  echotalk-chroma     ── ChromaDB 向量数据库
+  echotalk-api        ── FastAPI (uvicorn × 4 workers)
+  echotalk-agent      ── LiveKit 语音 Agent
+  echotalk-worker     ── Celery 异步任务
+  echotalk-web        ── Nginx 静态前端 + API 反向代理
+```
+
+### 启动步骤
+
+```bash
+# 1. 确认 .env 文件已配置（API keys 等敏感信息）
+#    docker-compose 中的 DATABASE_URL / REDIS_URL / CHROMA_HOST
+#    已自动指向容器内部地址，无需手动修改
+
+# 2. 一键构建并启动全部服务（后台运行）
+docker compose up -d --build
+
+# 3. 查看服务状态
+docker compose ps
+
+# 4. 初始化 ChromaDB 语料种子（首次部署时执行）
+docker compose exec echotalk-api python scripts/seed_corpus.py
+
+# 5. 数据库迁移（首次部署时执行）
+docker compose exec echotalk-api alembic upgrade head
+```
+
+### 访问地址
+
+| 服务     | 地址                                                 |
+| -------- | ---------------------------------------------------- |
+| 前端     | `http://localhost:3000`                              |
+| API      | `http://localhost:3000/api/` （通过 Nginx 反向代理） |
+| 健康检查 | `http://localhost:3000/api/health`                   |
+
+### 常用运维命令
+
+```bash
+# 查看日志
+docker compose logs -f echotalk-api
+docker compose logs -f echotalk-agent
+
+# 重启单个服务
+docker compose restart echotalk-api
+
+# 停止全部服务
+docker compose down
+
+# 停止并清除数据卷（⚠️ 会丢失数据库数据）
+docker compose down -v
+```
+
+---
+
+## 本地开发启动
 
 ### 前置条件
 

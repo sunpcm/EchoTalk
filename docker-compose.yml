@@ -1,0 +1,124 @@
+services:
+  # ── 基础设施 ────────────────────────────────────────────────
+  echotalk-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: echotalk
+      POSTGRES_PASSWORD: echotalk_secret
+      POSTGRES_DB: echotalk
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - echotalk-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U echotalk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  echotalk-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - echotalk-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  echotalk-chroma:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    volumes:
+      - chroma-data:/chroma/chroma
+    networks:
+      - echotalk-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── 后端服务 ────────────────────────────────────────────────
+  echotalk-api:
+    build: ./backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
+      REDIS_URL: redis://echotalk-redis:6379/0
+      CHROMA_HOST: echotalk-chroma
+      CHROMA_PORT: 8000
+    depends_on:
+      echotalk-postgres:
+        condition: service_healthy
+      echotalk-redis:
+        condition: service_healthy
+      echotalk-chroma:
+        condition: service_healthy
+    networks:
+      - echotalk-net
+
+  echotalk-agent:
+    build: ./backend
+    command: python livekit_agent/agent.py start
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
+      REDIS_URL: redis://echotalk-redis:6379/0
+      CHROMA_HOST: echotalk-chroma
+      CHROMA_PORT: 8000
+    depends_on:
+      echotalk-postgres:
+        condition: service_healthy
+      echotalk-redis:
+        condition: service_healthy
+    networks:
+      - echotalk-net
+
+  echotalk-worker:
+    build: ./backend
+    command: celery -A workers.celery_app worker --loglevel=info
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
+      REDIS_URL: redis://echotalk-redis:6379/0
+      CHROMA_HOST: echotalk-chroma
+      CHROMA_PORT: 8000
+    depends_on:
+      echotalk-postgres:
+        condition: service_healthy
+      echotalk-redis:
+        condition: service_healthy
+    networks:
+      - echotalk-net
+
+  # ── 前端 ────────────────────────────────────────────────────
+  echotalk-web:
+    build:
+      context: .
+      dockerfile: apps/vite-app/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - echotalk-api
+    networks:
+      - echotalk-net
+
+# ── 网络与持久化卷 ──────────────────────────────────────────
+networks:
+  echotalk-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  chroma-data:

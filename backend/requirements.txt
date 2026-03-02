@@ -45,6 +45,10 @@ scikit-learn>=1.4.0,<2.0.0
 chromadb>=1.0.0
 sentence-transformers>=5.0.0
 
+# 异步任务队列
+
+celery[redis]>=5.3.0,<6.0.0
+
 # 代码质量
 
 black>=24.0.0
