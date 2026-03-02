@@ -72,3 +72,10 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 backend/.venv/
+
+############################
+# Vector Database & Data
+############################
+.chromadb/
+*.sqlite3
+*.db

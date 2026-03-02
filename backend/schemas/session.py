@@ -21,6 +21,7 @@ class TranscriptResponse(BaseModel):
     content: str
     audio_url: str | None = None
     timestamp_ms: int
+    emotion_state: dict | None = None  # Phase 3: 情绪状态快照
 
     model_config = {"from_attributes": True}
 

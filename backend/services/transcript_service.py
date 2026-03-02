@@ -18,6 +18,7 @@ async def save_transcript(
     role: str,
     content: str,
     timestamp_ms: int | None = None,
+    emotion_state: dict | None = None,
 ) -> Transcript | None:
     """
     保存一条转录记录到数据库。
@@ -27,6 +28,7 @@ async def save_transcript(
         role: "user" 或 "assistant"
         content: 转录文本内容
         timestamp_ms: 毫秒时间戳（默认取当前时间）
+        emotion_state: Phase 3 情绪状态快照（仅 user 角色有值）
 
     返回:
         创建的 Transcript 对象，失败返回 None。
@@ -44,15 +46,17 @@ async def save_transcript(
                 role=TranscriptRole(role),
                 content=content.strip(),
                 timestamp_ms=timestamp_ms,
+                emotion_state=emotion_state,
             )
             session.add(transcript)
             await session.commit()
             await session.refresh(transcript)
             logger.info(
-                "转录已保存: session=%s, role=%s, len=%d",
+                "转录已保存: session=%s, role=%s, len=%d, emotion=%s",
                 session_id,
                 role,
                 len(content),
+                "yes" if emotion_state else "no",
             )
             return transcript
     except Exception:

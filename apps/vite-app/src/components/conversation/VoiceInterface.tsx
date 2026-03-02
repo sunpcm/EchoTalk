@@ -2,6 +2,7 @@
  * 语音对话核心组件。
  * 管理 LiveKit 房间连接和语音交互界面。
  * Phase 2: 对话结束后展示发音评估和技能树。
+ * Phase 4: 由 Dashboard 驱动进入，结束后可返回主页。
  */
 
 import React, { useCallback, useEffect } from "react";
@@ -25,18 +26,27 @@ import { zhCN } from "@/i18n/zh-CN";
 
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
+const tDash = zhCN.dashboard;
 
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
-  const { connectionState, sessionId, token, wsUrl, error, startSession, reset } =
-    useConversationStore();
+  const { connectionState, sessionId, token, wsUrl, error, goHome } = useConversationStore();
 
-  const handleStart = useCallback(() => {
-    startSession("conversation");
-  }, [startSession]);
-
+  // idle 状态不应在 session 视图出现，作为安全回退
   if (connectionState === "idle") {
-    return <IdleView onStart={handleStart} error={error} />;
+    return (
+      <div className="flex flex-col items-center gap-6 py-12">
+        {error && (
+          <div className="w-full max-w-sm rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+            <p className="font-medium">{tConv.errorTitle}</p>
+            <p>{error}</p>
+          </div>
+        )}
+        <button onClick={goHome} className="btn-primary px-8 py-3 text-lg">
+          {tDash.goHome}
+        </button>
+      </div>
+    );
   }
 
   if (connectionState === "connecting" && !token) {
@@ -44,7 +54,7 @@ export function VoiceInterface() {
   }
 
   if (connectionState === "ended") {
-    return <EndedView onReset={reset} />;
+    return <EndedView />;
   }
 
   // connecting（有 token）或 active 状态：渲染 LiveKit 房间
@@ -80,34 +90,11 @@ export function VoiceInterface() {
   );
 }
 
-/** 空闲视图："开始练习"按钮 */
-function IdleView({ onStart, error }: { onStart: () => void; error: string | null }) {
-  return (
-    <div className="flex flex-col items-center gap-6 py-12">
-      <div className="text-center">
-        <h2 className="text-brand-600 mb-2 text-2xl font-bold">{tConv.title}</h2>
-        <p className="text-gray-500">{tConv.subtitle}</p>
-      </div>
-
-      {error && (
-        <div className="w-full max-w-sm rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
-          <p className="font-medium">{tConv.errorTitle}</p>
-          <p>{error}</p>
-        </div>
-      )}
-
-      <button onClick={onStart} className="btn-primary px-8 py-3 text-lg">
-        {tConv.startButton}
-      </button>
-    </div>
-  );
-}
-
 /** 连接中视图：loading 状态 */
 function ConnectingView() {
   return (
     <div className="flex flex-col items-center gap-4 py-12">
-      <div className="border-brand-500 h-10 w-10 animate-spin rounded-full border-4 border-t-transparent" />
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
       <p className="text-gray-500">{tConv.connecting}</p>
     </div>
   );
@@ -184,7 +171,7 @@ function AgentStatusText({ state }: { state: string }) {
 function AnalyzingView() {
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="border-brand-500 h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
       <p className="text-gray-500">{tAssess.analyzing}</p>
       <p className="text-sm text-gray-400">{tAssess.analyzingHint}</p>
     </div>
@@ -200,9 +187,10 @@ function AssessmentErrorView() {
   );
 }
 
-/** 已结束视图：展示评估结果和技能树 */
-function EndedView({ onReset }: { onReset: () => void }) {
+/** 已结束视图：展示评估结果和技能树，提供"返回主页"按钮 */
+function EndedView() {
   const sessionId = useConversationStore((s) => s.sessionId);
+  const goHome = useConversationStore((s) => s.goHome);
   const {
     assessment,
     grammarErrors,
@@ -213,10 +201,10 @@ function EndedView({ onReset }: { onReset: () => void }) {
   // 启动轮询
   const loadState = usePollingAssessment(sessionId);
 
-  const handleReset = useCallback(() => {
+  const handleGoHome = useCallback(() => {
     resetAssessment();
-    onReset();
-  }, [resetAssessment, onReset]);
+    goHome();
+  }, [resetAssessment, goHome]);
 
   return (
     <div className="flex flex-col items-center gap-6 py-8">
@@ -240,9 +228,9 @@ function EndedView({ onReset }: { onReset: () => void }) {
         </div>
       )}
 
-      {/* 操作按钮 */}
-      <button onClick={handleReset} className="btn-primary px-8 py-3 text-lg">
-        {tConv.retryButton}
+      {/* 返回主页按钮 */}
+      <button onClick={handleGoHome} className="btn-primary px-8 py-3 text-lg">
+        {tDash.goHome}
       </button>
     </div>
   );

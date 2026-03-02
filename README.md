@@ -6,14 +6,16 @@
 
 ## 项目当前状态与进度
 
-| Phase | 内容                        | 状态      |
-| ----- | --------------------------- | --------- |
-| 1     | 后端基础对话管线            | ✅ 已完成 |
-| 1     | 前端 Vite 语音 UI           | ✅ 已完成 |
-| 2     | 发音评估 + 知识追踪（后端） | ✅ 已完成 |
-| 2     | 发音高亮 + 技能树（前端）   | ✅ 已完成 |
-| 3     | 情绪感知 + 数字人           | 🔲 待开发 |
-| 4     | 自适应 RAG + 学习报告       | 🔲 待开发 |
+| Phase | 内容                          | 状态      |
+| ----- | ----------------------------- | --------- |
+| 1     | 后端基础对话管线              | ✅ 已完成 |
+| 1     | 前端 Vite 语音 UI             | ✅ 已完成 |
+| 2     | 发音评估 + 知识追踪（后端）   | ✅ 已完成 |
+| 2     | 发音高亮 + 技能树（前端）     | ✅ 已完成 |
+| 3     | 情绪感知（后端）              | ✅ 已完成 |
+| 3     | 数字人（前端）                | 🔲 待开发 |
+| 4     | 自适应 RAG + 学习报告（后端） | ✅ 已完成 |
+| 4     | 课程推荐 Dashboard（前端）    | ✅ 已完成 |
 
 ---
 
@@ -22,17 +24,20 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │ 前端 (Vite + React 19 + TypeScript)                 │
+│  ├── Dashboard: 推荐场景卡片 + 每日进度 + 技能树     │
 │  ├── LiveKit WebRTC 语音交互                         │
-│  ├── zustand 状态管理                                │
+│  ├── zustand 状态管理（视图流转 + 连接 + 评估）      │
 │  └── Tailwind CSS v4 样式                            │
 ├─────────────────────────────────────────────────────┤
 │ 后端 (FastAPI + SQLAlchemy 2.0 async)               │
 │  ├── 对话管线: STT → LLM → TTS                      │
+│  ├── 情绪感知: 文本犹豫词 + 语速规则引擎            │
 │  ├── 发音评估: Needleman-Wunsch 音素对齐             │
 │  ├── 知识追踪: BKT 贝叶斯模型                       │
-│  └── 语法检测: 正则规则引擎                          │
+│  ├── 语法检测: 正则规则引擎                          │
+│  └── 自适应 RAG: ChromaDB 向量检索 + Krashen i+1    │
 ├─────────────────────────────────────────────────────┤
-│ 数据层 (PostgreSQL + asyncpg)                       │
+│ 数据层 (PostgreSQL + asyncpg + ChromaDB)             │
 │  └── 8 张表: users, user_profiles, sessions,        │
 │      transcripts, skills, knowledge_states,         │
 │      pronunciation_assessments, grammar_errors      │
@@ -130,6 +135,32 @@ pnpm --filter vite-app dev
 - **LiveKit WebSocket 代理**：Vite dev server 代理 `/livekit-ws` 路径到 LiveKit Cloud，绕过 SDK region routing
 - **延迟 Agent 调度**：前端先连入房间，再通过 `/dispatch` 端点触发 Agent 加入，避免空房间踢出
 
+### Phase 3 — 情绪感知（后端）
+
+- **犹豫词检测**：正则匹配 STT 文本中的 filler words（uh/um/er/ah/hmm 等），计算频率（次/分钟）
+- **语速追踪**：2 分钟滑动窗口统计 WPM（词/分钟），低语速作为焦虑信号
+- **焦虑指数**：规则引擎综合犹豫词频率 + 语速，实时计算 anxiety_level（0~1）
+- **动态 Prompt**：anxiety_level > 0.6 时自动切换鼓励模式（简化语言、增加正向反馈、温和重述）
+- **情绪持久化**：每条用户转录附带 emotion_state JSON（anxiety_level, cognitive_load, hesitation_rate, wpm）
+- **零阻塞设计**：纯文本分析 <0.1ms，通过 Agent.on_user_turn_completed 钩子在 LLM 推理前完成
+
+### Phase 4 — 自适应 RAG + 学习报告（后端）
+
+- **RAG 语料检索**：ChromaDB 本地向量数据库，10 条教学语料种子（发音/语法/场景对话）
+- **Krashen i+1 过滤**：CEFR 数值化映射（A1=1~C2=6），metadata `$gte/$lte` 硬过滤 + 向量相似度软排序
+- **自适应课程推荐**：读取 BKT 最弱技能 → RAG 检索匹配语料 → 生成定制化 System Prompt 模板
+- **智能难度定位**：根据最弱技能掌握度自动推断目标 CEFR 等级（<0.3→A2, <0.6→B1, else→B2）
+- **周报骨架预留**：Celery 异步 `generate_weekly_report` 任务（技能趋势 / 发音准确率 / 语法频次 / 情绪摘要）
+
+### Phase 4 — 课程推荐 Dashboard（前端）
+
+- **Dashboard 视图**：Zustand `appView` 状态机驱动 Dashboard / Session 双视图切换，无需 react-router
+- **推荐卡片**：消费 `GET /api/curriculum/next`，渲染 1-3 个场景卡片（场景名称 + CEFR 等级色码 + 重点技能标签）
+- **每日进度**：聚合当日完成会话的转录轮次，进度条可视化 turns/20 目标值，达标变绿 + "Goal reached!"
+- **技能树集成**：Dashboard 挂载时自动加载 BKT 知识状态，展示全局技能掌握度
+- **完整流转**：进入练习 → LiveKit 对话 → 评估反馈 → 返回主页（自动刷新数据）
+- **i18n 规范**：新增文案统一提取至 `zhCN.dashboard` 命名空间
+
 ---
 
 ## API 端点一览
@@ -169,6 +200,12 @@ pnpm --filter vite-app dev
 | GET  | `/api/assessments/knowledge/states`     | 用户知识状态 |
 | GET  | `/api/assessments/knowledge/skills`     | 技能定义列表 |
 
+### 自适应课程推荐（Phase 4）
+
+| 方法 | 路径                   | 说明                   |
+| ---- | ---------------------- | ---------------------- |
+| GET  | `/api/curriculum/next` | 获取下一步推荐练习场景 |
+
 ---
 
 ## 项目结构
@@ -183,17 +220,23 @@ EchoTalk/
 │   ├── models/                        # ORM 模型（8 张表）
 │   ├── schemas/                       # Pydantic 响应模型
 │   ├── routers/                       # API 路由
-│   └── services/                      # 业务逻辑
-│       ├── llm_service.py             # LLM 调用
-│       ├── analysis_service.py        # 分析管线编排
-│       ├── pronunciation/             # NW 音素对齐
-│       └── knowledge/                 # BKT 模型 + 技能映射
+│   ├── services/                      # 业务逻辑
+│   │   ├── llm_service.py             # LLM 调用 + 动态 Prompt 构建
+│   │   ├── emotion_analyzer.py        # 情绪分析规则引擎
+│   │   ├── rag_service.py             # RAG 向量检索 + Krashen i+1
+│   │   ├── analysis_service.py        # 分析管线编排
+│   │   ├── pronunciation/             # NW 音素对齐
+│   │   └── knowledge/                 # BKT 模型 + 技能映射
+│   ├── workers/                       # Celery 异步任务
+│   │   └── report_tasks.py            # 周报生成（骨架预留）
+│   └── scripts/                       # 工具脚本
+│       └── seed_corpus.py             # RAG 语料种子写入
 ├── apps/vite-app/                     # Vite React 前端
 │   └── src/
 │       ├── components/
 │       │   ├── conversation/          # 语音对话组件
 │       │   ├── pronunciation/         # 发音反馈 + 音素可视化
-│       │   └── learning/              # 技能树
+│       │   └── learning/              # 技能树 + 推荐卡片 + 每日进度
 │       ├── store/                     # zustand 状态管理
 │       ├── hooks/                     # 自定义 Hook（轮询等）
 │       ├── lib/                       # API 客户端
@@ -207,14 +250,16 @@ EchoTalk/
 
 当前所有外部依赖均可 Mock 运行（`.env` 中 `USE_MOCK_*=True`）：
 
-| 服务   | Mock 行为                    | 生产环境接入方式                    |
-| ------ | ---------------------------- | ----------------------------------- |
-| LLM    | 返回固定回复文本             | `USE_MOCK_LLM=False` + API Key      |
-| TTS    | 返回 null（无音频）          | `USE_MOCK_TTS=False` + Cartesia Key |
-| 发音   | letter-by-letter + TH→S 注入 | CMU 词典 / ELSA API                 |
-| 语法   | 正则规则匹配                 | LLM 驱动检测                        |
-| Celery | 同步执行，无需 Redis         | `USE_MOCK_CELERY=False` + Redis     |
+| 服务   | Mock 行为                             | 生产环境接入方式                    |
+| ------ | ------------------------------------- | ----------------------------------- |
+| LLM    | 返回固定回复文本                      | `USE_MOCK_LLM=False` + API Key      |
+| TTS    | 返回 null（无音频）                   | `USE_MOCK_TTS=False` + Cartesia Key |
+| 发音   | letter-by-letter + TH→S 注入          | CMU 词典 / ELSA API                 |
+| 语法   | 正则规则匹配                          | LLM 驱动检测                        |
+| 情绪   | 文本犹豫词 + 语速规则引擎             | Hume EVI 3 原生情绪（Premium）      |
+| Celery | 同步执行，无需 Redis                  | `USE_MOCK_CELERY=False` + Redis     |
+| RAG    | ChromaDB 本地嵌入（all-MiniLM-L6-v2） | sentence-transformers 自定义模型    |
 
 ---
 
-_文档版本：Phase 2 前端完成（2026-03-02）_
+_文档版本：Phase 1-4 全栈开发完成（2026-03-02）_

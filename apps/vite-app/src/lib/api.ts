@@ -115,6 +115,34 @@ export interface SkillResponse {
   description: string | null;
 }
 
+// ─── 课程推荐相关类型 ───
+
+/** 单个课程推荐 */
+export interface CurriculumRecommendation {
+  scenario_name: string;
+  difficulty_cefr: string;
+  category: string;
+  focus_skills: string[];
+  system_prompt_template: string;
+}
+
+/** 课程推荐响应 */
+export interface CurriculumNextResponse {
+  weakest_skill: string;
+  weakest_skill_mastery: number;
+  target_level: string;
+  recommendations: CurriculumRecommendation[];
+}
+
+/** 会话列表项（不含转录） */
+export interface SessionListItem {
+  id: string;
+  mode: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
 // ─── 会话 API ───
 
 /** 创建会话 */
@@ -144,6 +172,16 @@ export function dispatchAgent(sessionId: string): Promise<{ dispatched: boolean 
   });
 }
 
+/** 列出当前用户的所有会话 */
+export function listSessions(): Promise<SessionListItem[]> {
+  return request<SessionListItem[]>("/sessions");
+}
+
+/** 获取会话详情（含转录记录） */
+export function getSessionDetail(sessionId: string): Promise<Session> {
+  return request<Session>(`/sessions/${sessionId}`);
+}
+
 // ─── 评估 API ───
 
 /** 获取发音评估结果 */
@@ -164,4 +202,11 @@ export function getKnowledgeStates(): Promise<KnowledgeStateResponse[]> {
 /** 获取技能列表 */
 export function getSkills(): Promise<SkillResponse[]> {
   return request<SkillResponse[]>("/assessments/knowledge/skills");
+}
+
+// ─── 课程推荐 API ───
+
+/** 获取自适应课程推荐 */
+export function getRecommendedCurriculum(): Promise<CurriculumNextResponse> {
+  return request<CurriculumNextResponse>("/curriculum/next");
 }

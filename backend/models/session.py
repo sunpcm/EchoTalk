@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -94,6 +94,8 @@ class Transcript(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     audio_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     timestamp_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Phase 3: 情绪状态快照（anxiety_level, cognitive_load, hesitation_rate, wpm）
+    emotion_state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # 关系
     session: Mapped["Session"] = relationship(back_populates="transcripts")
