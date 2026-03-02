@@ -34,11 +34,15 @@ services:
     image: chromadb/chroma:latest
     restart: unless-stopped
     volumes:
-      - chroma-data:/chroma/chroma
+      - chroma-data:/data
     networks:
       - echotalk-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      test:
+        [
+          "CMD-SHELL",
+          'python -c ''import urllib.request; urllib.request.urlopen("http://localhost:8000/api/v1/heartbeat")''',
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
