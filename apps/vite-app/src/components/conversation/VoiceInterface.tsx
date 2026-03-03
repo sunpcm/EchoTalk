@@ -30,7 +30,7 @@ const tDash = zhCN.dashboard;
 
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
-  const { connectionState, sessionId, token, wsUrl, error, goHome } = useConversationStore();
+  const { connectionState, sessionId, token, error, goHome } = useConversationStore();
 
   // idle 状态不应在 session 视图出现，作为安全回退
   if (connectionState === "idle") {
@@ -58,10 +58,10 @@ export function VoiceInterface() {
   }
 
   // connecting（有 token）或 active 状态：渲染 LiveKit 房间
-  // 开发模式：通过 Vite 代理连接 LiveKit，绕过 SDK 的 region routing
-  const effectiveWsUrl = import.meta.env.DEV
-    ? `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`
-    : wsUrl;
+  // dev: Vite proxy → LiveKit Cloud
+  // prod: nginx proxy → LiveKit Cloud
+  // 浏览器始终只连自己的服务器，由服务器代理到 LiveKit Cloud
+  const effectiveWsUrl = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`;
 
   return (
     <LiveKitRoom

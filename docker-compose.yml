@@ -54,6 +54,9 @@ services:
       REDIS_URL: redis://echotalk-redis:6379/0
       CHROMA_HOST: echotalk-chroma
       CHROMA_PORT: 8000
+    dns:
+      - 8.8.8.8
+      - 223.5.5.5
     depends_on:
       echotalk-postgres:
         condition: service_healthy
@@ -74,6 +77,9 @@ services:
       REDIS_URL: redis://echotalk-redis:6379/0
       CHROMA_HOST: echotalk-chroma
       CHROMA_PORT: 8000
+    dns:
+      - 8.8.8.8
+      - 223.5.5.5
     depends_on:
       echotalk-postgres:
         condition: service_healthy
@@ -106,6 +112,8 @@ services:
       context: .
       dockerfile: apps/vite-app/Dockerfile
     restart: unless-stopped
+    environment:
+      LIVEKIT_UPSTREAM: https://echotalk-5ccmxlxl.livekit.cloud
     ports:
       - "3000:80"
     depends_on:
