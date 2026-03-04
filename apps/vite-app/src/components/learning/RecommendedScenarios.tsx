@@ -8,6 +8,7 @@ import { getRecommendedCurriculum } from "@/lib/api";
 import type { CurriculumRecommendation, CurriculumNextResponse } from "@/lib/api";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
+import { formatTitle } from "@/utils/format";
 
 const t = zhCN.dashboard;
 
@@ -34,7 +35,9 @@ function ScenarioCard({
     <div className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
-        <h3 className="leading-tight font-semibold text-gray-800">{scenario.scenario_name}</h3>
+        <h3 className="leading-tight font-semibold text-gray-800">
+          {formatTitle(scenario.scenario_name)}
+        </h3>
         <span
           className={`ml-2 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cefrColor}`}
         >
@@ -51,7 +54,7 @@ function ScenarioCard({
               key={skill}
               className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700"
             >
-              {skill}
+              {formatTitle(skill)}
             </span>
           ))}
         </div>

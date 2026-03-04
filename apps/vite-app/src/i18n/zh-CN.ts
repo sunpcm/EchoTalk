@@ -50,4 +50,22 @@ export const zhCN = {
     loadError: "加载失败，请稍后重试",
     noSessions: "今天还没有练习记录，开始第一次对话吧！",
   },
+  chat: {
+    title: "对话记录",
+    you: "你",
+    aiCoach: "AI 外教",
+    empty: "对话开始后，实时字幕将显示在这里",
+  },
+  answerRecommendations: {
+    title: "回答推荐",
+    hint: "不知道怎么回答？试试以下表达：",
+    waiting: "等待 AI 提问中...",
+  },
+  connectionWarning: {
+    title: "语音通道连接失败",
+    message:
+      "如果您使用了 1Password、去广告插件或严格的代理路由，可能会误拦截我们的实时通信服务。请尝试使用无痕模式，或将本站加入插件白名单后重试。",
+    retry: "重新连接",
+    dismiss: "知道了",
+  },
 } as const;

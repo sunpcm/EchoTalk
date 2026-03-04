@@ -2,10 +2,11 @@
  * 语音对话核心组件。
  * 管理 LiveKit 房间连接和语音交互界面。
  * Phase 2: 对话结束后展示发音评估和技能树。
- * Phase 4: 由 Dashboard 驱动进入，结束后可返回主页。
+ * Phase 4: 左右分栏布局 — 左侧语音状态+回答推荐，右侧微信风格聊天流。
+ *          增加防拦截连接异常提示（1Password / 去广告插件 / 代理路由）。
  */
 
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -15,22 +16,27 @@ import {
   VoiceAssistantControlBar,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { ConnectionState } from "livekit-client";
+import { ConnectionState, DisconnectReason } from "livekit-client";
 import { useConversationStore } from "@/store/conversation";
 import { useAssessmentStore } from "@/store/assessment";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import { dispatchAgent } from "@/lib/api";
 import { PronunciationFeedback } from "@/components/pronunciation/PronunciationFeedback";
 import { SkillTree } from "@/components/learning/SkillTree";
+import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
+import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
 
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
 const tDash = zhCN.dashboard;
+const tWarn = zhCN.connectionWarning;
 
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
   const { connectionState, sessionId, token, error, goHome } = useConversationStore();
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showWarning, setShowWarning] = useState(false);
 
   // idle 状态不应在 session 视图出现，作为安全回退
   if (connectionState === "idle") {
@@ -58,35 +64,56 @@ export function VoiceInterface() {
   }
 
   // connecting（有 token）或 active 状态：渲染 LiveKit 房间
-  // dev: Vite proxy → LiveKit Cloud
-  // prod: nginx proxy → LiveKit Cloud
-  // 浏览器始终只连自己的服务器，由服务器代理到 LiveKit Cloud
   const effectiveWsUrl = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`;
 
   return (
-    <LiveKitRoom
-      serverUrl={effectiveWsUrl ?? undefined}
-      token={token ?? undefined}
-      connect={true}
-      audio={true}
-      video={false}
-      onConnected={() => {
-        if (sessionId) {
-          dispatchAgent(sessionId).catch((err) => console.error("Agent dispatch failed:", err));
-        }
-      }}
-      onError={(error) => {
-        console.error("LiveKit connection error:", error);
-      }}
-      onDisconnected={(reason) => {
-        console.log("LiveKit disconnected:", reason);
-      }}
-      data-lk-theme="default"
-      className="flex min-h-[60vh] flex-col items-center justify-center"
-    >
-      <ActiveView />
-      <RoomAudioRenderer />
-    </LiveKitRoom>
+    <>
+      {/* 防拦截警告 Toast */}
+      {showWarning && (
+        <ConnectionWarningToast
+          error={connectionError}
+          onDismiss={() => setShowWarning(false)}
+          onRetry={() => {
+            setShowWarning(false);
+            setConnectionError(null);
+            window.location.reload();
+          }}
+        />
+      )}
+
+      <LiveKitRoom
+        serverUrl={effectiveWsUrl ?? undefined}
+        token={token ?? undefined}
+        connect={true}
+        audio={true}
+        video={false}
+        onConnected={() => {
+          setConnectionError(null);
+          setShowWarning(false);
+          if (sessionId) {
+            dispatchAgent(sessionId).catch((err) => console.error("Agent dispatch failed:", err));
+          }
+        }}
+        onError={(error) => {
+          console.error("LiveKit connection error:", error);
+          setConnectionError(error.message);
+          setShowWarning(true);
+        }}
+        onDisconnected={(reason) => {
+          console.log("LiveKit disconnected:", reason);
+          // 非正常断开（如被插件拦截）时显示警告
+          if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) {
+            setConnectionError(String(reason));
+            setShowWarning(true);
+          }
+        }}
+        data-lk-theme="default"
+        className="flex min-h-[60vh] flex-col"
+      >
+        <ActiveView />
+        <RoomAudioRenderer />
+      </LiveKitRoom>
+    </>
   );
 }
 
@@ -100,7 +127,7 @@ function ConnectingView() {
   );
 }
 
-/** 对话中视图：LiveKit 房间内 */
+/** 对话中视图：左右分栏布局 */
 function ActiveView() {
   const connectionState = useConnectionState();
   const voiceAssistant = useVoiceAssistant();
@@ -119,32 +146,47 @@ function ActiveView() {
   }
 
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-6 py-8">
-      {/* 语音可视化 */}
-      <div className="h-32 w-full">
-        {voiceAssistant.audioTrack && (
-          <BarVisualizer
-            state={voiceAssistant.state}
-            trackRef={voiceAssistant.audioTrack}
-            barCount={7}
-            className="h-full w-full"
-          />
-        )}
+    <div className="flex w-full flex-1 flex-col gap-6 p-4 lg:flex-row">
+      {/* ===== 左侧：语音状态 + 回答推荐 ===== */}
+      <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
+        {/* 语音可视化 + 状态 */}
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 h-24 w-full">
+            {voiceAssistant.audioTrack && (
+              <BarVisualizer
+                state={voiceAssistant.state}
+                trackRef={voiceAssistant.audioTrack}
+                barCount={7}
+                className="h-full w-full"
+              />
+            )}
+          </div>
+
+          {/* Agent 状态文案 */}
+          <AgentStatusText state={voiceAssistant.state} />
+
+          {/* 控制栏 */}
+          <div className="mt-3">
+            <VoiceAssistantControlBar controls={{ leave: false }} />
+          </div>
+
+          {/* 结束对话按钮 */}
+          <button
+            onClick={endSession}
+            className="mt-3 w-full rounded-lg bg-red-500 px-6 py-2 text-white transition-colors hover:bg-red-600"
+          >
+            {tConv.endButton}
+          </button>
+        </div>
+
+        {/* 回答推荐面板（固定在左下） */}
+        <AnswerRecommendations />
       </div>
 
-      {/* Agent 状态文案 */}
-      <AgentStatusText state={voiceAssistant.state} />
-
-      {/* 控制栏 */}
-      <VoiceAssistantControlBar controls={{ leave: false }} />
-
-      {/* 结束对话按钮 */}
-      <button
-        onClick={endSession}
-        className="rounded-lg bg-red-500 px-6 py-2 text-white transition-colors hover:bg-red-600"
-      >
-        {tConv.endButton}
-      </button>
+      {/* ===== 右侧：微信风格聊天流 ===== */}
+      <div className="min-h-[50vh] flex-1 lg:min-h-0">
+        <ChatSubtitles />
+      </div>
     </div>
   );
 }
@@ -164,7 +206,57 @@ function AgentStatusText({ state }: { state: string }) {
     }
   })();
 
-  return <p className="text-lg font-medium text-gray-600">{text}</p>;
+  return <p className="text-center text-sm font-medium text-gray-600">{text}</p>;
+}
+
+/** 防拦截连接警告 Toast */
+function ConnectionWarningToast({
+  error,
+  onDismiss,
+  onRetry,
+}: {
+  error: string | null;
+  onDismiss: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="fixed inset-x-0 top-4 z-50 mx-auto max-w-lg animate-[slideDown_0.3s_ease-out] px-4">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-lg">
+        <div className="flex items-start gap-3">
+          {/* 警告图标 */}
+          <div className="mt-0.5 shrink-0">
+            <svg className="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-amber-800">{tWarn.title}</h4>
+            <p className="mt-1 text-xs leading-relaxed text-amber-700">{tWarn.message}</p>
+            {error && <p className="mt-1 font-mono text-xs text-amber-600/70">{error}</p>}
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={onRetry}
+                className="rounded-md bg-amber-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-600"
+              >
+                {tWarn.retry}
+              </button>
+              <button
+                onClick={onDismiss}
+                className="rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
+              >
+                {tWarn.dismiss}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** 正在分析视图 */
