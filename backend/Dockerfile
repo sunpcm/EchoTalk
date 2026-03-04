@@ -11,7 +11,12 @@ RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.li
 COPY requirements.txt .
 
 # 2. 为 pip 配置清华源，并增加超时时间以防大文件（如 livekit, chromadb）下载中断
-RUN pip install --no-cache-dir \
+# RUN pip install --no-cache-dir \
+#     --default-timeout=100 \
+#     -i https://pypi.tuna.tsinghua.edu.cn/simple \
+#     -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
     --default-timeout=100 \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     -r requirements.txt
