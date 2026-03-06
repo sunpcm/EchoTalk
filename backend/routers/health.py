@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from database import get_db
 from dependencies import get_current_user
-from models.user import UserSettings
+from models.user import SubscriptionTier, User
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -31,17 +32,24 @@ async def readiness_check(
     """
     errors: Dict[str, str] = {}
 
-    # 1. 检查数据库连通性并获取用户配置
+    # 1. 检查数据库连通性并获取用户及配置
+    user_obj = None
     user_settings = None
     try:
         if not settings.USE_MOCK_DB:
             await db.execute(text("SELECT 1"))
 
-            # 获取当前用户的配置（Step 2）
+            # 获取当前用户及其配置
             user_id = uuid.UUID(current_user["id"])
-            stmt = select(UserSettings).where(UserSettings.user_id == user_id)
+            stmt = (
+                select(User)
+                .where(User.id == user_id)
+                .options(selectinload(User.settings))
+            )
             result = await db.execute(stmt)
-            user_settings = result.scalar_one_or_none()
+            user_obj = result.scalar_one_or_none()
+            if user_obj:
+                user_settings = user_obj.settings
     except Exception as e:
         errors["database"] = f"DB connection failed: {str(e)}"
 
@@ -54,18 +62,25 @@ async def readiness_check(
         ):
             errors["livekit"] = "LiveKit credentials are not fully configured"
 
-    # 3. 检查 LLM 配置 (基于双轨制逻辑，Step 3)
-    if not settings.USE_MOCK_LLM:
-        is_custom_mode = user_settings.is_custom_mode if user_settings else False
-
-        if is_custom_mode:
-            # 分支 B: 自定义模式，检查用户是否提供了密钥
-            if not user_settings or not user_settings.encrypted_llm_key:
+    # 3. 检查鉴权与配置连通性
+    if not settings.USE_MOCK_LLM and user_obj and user_settings:
+        if user_settings.is_custom_mode:
+            # 分支 B: 自选模式，要求开启后对应的 verified 为 True
+            if not user_settings.is_custom_verified:
+                errors["config"] = (
+                    "自定义模式未验证通过。请在设置中提交有效的 API Key 进行拨测"
+                )
+            if not user_settings.encrypted_llm_key:
                 errors["llm"] = "自备密钥模式已开启，但未提供有效的 LLM API Key"
         else:
-            # 分支 A: 平台兜底模式，检查环境变量
-            if not settings.SILICONFLOW_API_KEY and not settings.OPENROUTER_API_KEY:
-                errors["llm"] = "No global LLM API key configured"
+            # 分支 A: 系统兜底模式，需要用户是 VIP
+            if user_obj.subscription_tier == SubscriptionTier.free:
+                errors["auth"] = (
+                    "高级服务器线路仅限 VIP 用户使用，免费用户请配置个人密钥"
+                )
+            elif not settings.SILICONFLOW_API_KEY and not settings.OPENROUTER_API_KEY:
+                # 检查系统环境变量兜底是否完整
+                errors["llm"] = "系统默认 LLM API key 未配置，服务暂时不可用"
 
     if errors:
         raise HTTPException(

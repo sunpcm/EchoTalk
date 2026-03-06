@@ -29,6 +29,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    console.log(JSON.stringify(body.detail));
+    console.log(body.detail);
     throw new ApiError(res.status, body.detail || `请求失败: ${res.status}`);
   }
 
@@ -227,6 +229,8 @@ export function getRecommendedCurriculum(): Promise<CurriculumNextResponse> {
 /** 用户双轨制配置（GET 响应） */
 export interface UserSettingsResponse {
   is_custom_mode: boolean;
+  is_custom_verified?: boolean;
+  subscription_tier?: string;
   stt_provider: string | null;
   llm_provider: string | null;
   llm_model: string | null;

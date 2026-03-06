@@ -99,7 +99,10 @@ class UserSettings(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
     )
     is_custom_mode: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    is_custom_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
     )
 
     # 提供商选择

@@ -40,7 +40,9 @@ class UserSettingsUpdate(BaseModel):
 class UserSettingsResponse(BaseModel):
     """GET /api/user/settings 响应体。密钥仅返回布尔标识，绝不暴露明文。"""
 
-    is_custom_mode: bool = False
+    is_custom_mode: bool = True
+    is_custom_verified: bool = False
+    subscription_tier: str = "free"
 
     stt_provider: str | None = None
     llm_provider: str | None = None

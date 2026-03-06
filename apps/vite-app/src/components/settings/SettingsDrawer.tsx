@@ -61,6 +61,15 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     }
   }, [settings]);
 
+  const handleToggleCustomMode = () => {
+    // 试图关闭自备密钥时（即 isCustomMode 从 true 变为 false）拦截校验
+    if (isCustomMode && settings?.subscription_tier === "free") {
+      alert("该功能仅限 VIP 用户使用（或引导升级）。由于您是普通用户，请继续使用自定义模式。");
+      return;
+    }
+    setIsCustomMode(!isCustomMode);
+  };
+
   const handleSave = useCallback(async () => {
     const data: UserSettingsUpdate = { is_custom_mode: isCustomMode };
 
@@ -138,7 +147,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 <button
                   role="switch"
                   aria-checked={isCustomMode}
-                  onClick={() => setIsCustomMode(!isCustomMode)}
+                  onClick={handleToggleCustomMode}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                     isCustomMode ? "bg-indigo-500" : "bg-gray-300"
                   }`}

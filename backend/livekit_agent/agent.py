@@ -314,7 +314,9 @@ async def entrypoint(ctx: JobContext):
     try:
         user_settings = await _fetch_user_settings(session_id)
     except Exception as e:
-        logger.error("查询用户配置失败: session_id=%s, error=%s", session_id, e, exc_info=True)
+        logger.error(
+            "查询用户配置失败: session_id=%s, error=%s", session_id, e, exc_info=True
+        )
         await _send_error_and_disconnect(
             ctx,
             "ERR_SESSION_NOT_FOUND",
@@ -366,8 +368,8 @@ async def entrypoint(ctx: JobContext):
         此处仅负责 assistant 消息的持久化。
         """
         item = event.item
-        if item.role == "assistant": # type: ignore TODO: SDK 类型定义不完善，缺少 role 属性
-            text = item.text_content # type: ignore TODO: SDK 类型定义不完善，缺少 text_content 属性
+        if item.role == "assistant":  # type: ignore TODO: SDK 类型定义不完善，缺少 role 属性
+            text = item.text_content  # type: ignore TODO: SDK 类型定义不完善，缺少 text_content 属性
             if text:
                 asyncio.ensure_future(save_transcript(session_id, "assistant", text))
 
@@ -385,7 +387,9 @@ async def entrypoint(ctx: JobContext):
             getattr(inner_error, "type", "unknown"),
             getattr(inner_error, "recoverable", "N/A"),
             actual_exception,
-            exc_info=actual_exception if isinstance(actual_exception, Exception) else None,
+            exc_info=(
+                actual_exception if isinstance(actual_exception, Exception) else None
+            ),
         )
 
         if not is_custom:
@@ -397,7 +401,9 @@ async def entrypoint(ctx: JobContext):
             is_auth_error = actual_exception.status_code in (401, 403)
         elif isinstance(actual_exception, Exception):
             err_str = str(actual_exception).lower()
-            is_auth_error = "401" in err_str or "403" in err_str or "unauthorized" in err_str
+            is_auth_error = (
+                "401" in err_str or "403" in err_str or "unauthorized" in err_str
+            )
 
         if is_auth_error:
             logger.error(
@@ -440,8 +446,7 @@ async def entrypoint(ctx: JobContext):
         )
         error_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
         error_msg = (
-            f"语音管线启动失败: {e}" if is_custom
-            else "语音管线启动失败，请稍后重试。"
+            f"语音管线启动失败: {e}" if is_custom else "语音管线启动失败，请稍后重试。"
         )
         await _send_error_and_disconnect(ctx, error_code, error_msg)
         return
