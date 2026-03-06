@@ -169,3 +169,125 @@ await ctx.room.disconnect()  # 发送后断连
 | `backend/livekit_agent/plugin_factory.py` | PluginFactory + PluginInitError |
 | `backend/livekit_agent/agent.py`          | 双轨路由重构                    |
 | `docs/PHASE_5_TECH_STACK.md`              | 本文档                          |
+
+### Phase 5 Step 3 新增/修改
+
+| 文件                                                       | 说明                                     |
+| ---------------------------------------------------------- | ---------------------------------------- |
+| `apps/vite-app/src/lib/api.ts`                             | 新增 UserSettings 类型与 API 函数        |
+| `apps/vite-app/src/store/settings.ts`                      | Zustand 设置 Store（水合 + 更新）        |
+| `apps/vite-app/src/store/conversation.ts`                  | 新增 agentError 字段与 setAgentError     |
+| `apps/vite-app/src/i18n/zh-CN.ts`                          | 新增 settings / agentError i18n 命名空间 |
+| `apps/vite-app/src/styles.css`                             | 新增 slideInRight 动画关键帧             |
+| `apps/vite-app/src/components/settings/SettingsDrawer.tsx` | 设置抽屉组件（Switch + 表单 + 保存）     |
+| `apps/vite-app/src/App.tsx`                                | 集成设置抽屉 + 齿轮图标 + 水合           |
+
+### Phase 5 Step 4 新增/修改
+
+| 文件                                                           | 说明                                                       |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| `apps/vite-app/src/components/conversation/VoiceInterface.tsx` | DataChannel 错误拦截 + EndedView 错误卡片 + 防重复警告守卫 |
+
+---
+
+## 7. 前端状态管理与水合
+
+### useSettingsStore (`store/settings.ts`)
+
+Zustand store，管理双轨制配置的前后端同步：
+
+| 字段/方法          | 类型                                             | 说明                                        |
+| ------------------ | ------------------------------------------------ | ------------------------------------------- |
+| `settings`         | `UserSettingsResponse \| null`                   | 从后端获取的最新配置                        |
+| `loading`          | `boolean`                                        | GET 请求加载中                              |
+| `saving`           | `boolean`                                        | PUT 请求保存中                              |
+| `error`            | `string \| null`                                 | 最近一次操作的错误消息                      |
+| `fetchSettings()`  | `() => Promise<void>`                            | 调用 GET /api/user/settings 并水合 settings |
+| `updateSettings()` | `(data: UserSettingsUpdate) => Promise<boolean>` | 调用 PUT /api/user/settings，成功返回 true  |
+| `reset()`          | `() => void`                                     | 重置到初始状态                              |
+
+**水合时机**：`App.tsx` 的 `useEffect` 在应用挂载时调用 `fetchSettings()`。
+
+### useConversationStore 扩展
+
+新增字段：
+
+| 字段/方法         | 类型                                                 | 说明                                            |
+| ----------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| `agentError`      | `{ code: string; message: string } \| null`          | DataChannel 接收到的 Agent 错误                 |
+| `setAgentError()` | `(error: { code: string; message: string }) => void` | 设置 agentError 并将 connectionState 切到 ended |
+
+`setAgentError()` 将 `connectionState` 设为 `"ended"`，触发 `<LiveKitRoom>` 卸载，从根本上阻止自动重连。
+
+---
+
+## 8. 前端设置抽屉 (SettingsDrawer)
+
+**文件**: `apps/vite-app/src/components/settings/SettingsDrawer.tsx`
+
+### UI 结构
+
+```
+Overlay（半透明黑背景，点击关闭）
+└── 抽屉面板（从右侧滑入，max-w-sm）
+    ├── 头部：「自定义模型设置」 + 关闭按钮
+    ├── Switch 开关：is_custom_mode（核心控制）
+    ├── 分割线
+    ├── Provider 配置区（is_custom_mode=false 时 disabled + opacity-50）
+    │   ├── STT Provider: <select>（deepgram）
+    │   ├── STT API Key: <input type="password"> + 「已配置」徽章
+    │   ├── LLM Provider: <select>（siliconflow / openrouter）
+    │   ├── LLM Model: <input type="text">
+    │   ├── LLM API Key: <input type="password"> + 「已配置」徽章
+    │   ├── TTS Provider: <select>（cartesia）
+    │   └── TTS API Key: <input type="password"> + 「已配置」徽章
+    └── 保存按钮（全宽）+ 成功/错误提示
+```
+
+### 关键行为
+
+- 打开时调用 `fetchSettings()` 拉取最新配置
+- API Key 为 `type="password"`，仅在用户输入新值时发送后端（空=不更新）
+- `has_xxx_key=true` 且用户未输入新值时，显示绿色「已配置」徽章
+- 动画：`slideInRight` CSS 关键帧（0.25s ease-out）
+
+---
+
+## 9. DataChannel 错误拦截（前端）
+
+### 监听入口
+
+`ActiveView` 组件内使用 `@livekit/components-react` 的 `useDataChannel` hook：
+
+```typescript
+useDataChannel("agent_error", (msg) => {
+  const text = new TextDecoder().decode(msg.payload);
+  const parsed = JSON.parse(text);
+  if (parsed.type === "agent_error") {
+    setAgentError({ code: parsed.code, message: parsed.message });
+  }
+});
+```
+
+### 自动重连阻止机制
+
+```
+DataChannel 消息到达 (reliable=True, 保证先于 disconnect)
+  ↓
+setAgentError() → connectionState = "ended"
+  ↓
+VoiceInterface 重渲染 → EndedView 替代 LiveKitRoom
+  ↓
+LiveKitRoom 卸载 → WebRTC 连接释放 → 自动重连不可能
+```
+
+### EndedView 双模式
+
+| 模式       | 触发条件              | UI 渲染                                        |
+| ---------- | --------------------- | ---------------------------------------------- |
+| 正常结束   | `agentError === null` | 评估轮询 + 发音反馈 + 技能树 + 返回主页        |
+| Agent 错误 | `agentError !== null` | 红色错误卡片（标题 + 消息 + 错误码）+ 返回主页 |
+
+### onDisconnected 守卫
+
+`onDisconnected` 回调在检测到 `agentError` 已设置时提前 `return`，避免与红色错误卡片重叠显示琥珀色连接警告。

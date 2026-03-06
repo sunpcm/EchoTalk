@@ -6,42 +6,48 @@
 
 ## 项目当前状态与进度
 
-| Phase | 内容                          | 状态      |
-| ----- | ----------------------------- | --------- |
-| 1     | 后端基础对话管线              | ✅ 已完成 |
-| 1     | 前端 Vite 语音 UI             | ✅ 已完成 |
-| 2     | 发音评估 + 知识追踪（后端）   | ✅ 已完成 |
-| 2     | 发音高亮 + 技能树（前端）     | ✅ 已完成 |
-| 3     | 情绪感知（后端）              | ✅ 已完成 |
-| 3     | 数字人（前端）                | 🔲 待开发 |
-| 4     | 自适应 RAG + 学习报告（后端） | ✅ 已完成 |
-| 4     | 课程推荐 Dashboard（前端）    | ✅ 已完成 |
+| Phase | 内容                              | 状态      |
+| ----- | --------------------------------- | --------- |
+| 1     | 后端基础对话管线                  | ✅ 已完成 |
+| 1     | 前端 Vite 语音 UI                 | ✅ 已完成 |
+| 2     | 发音评估 + 知识追踪（后端）       | ✅ 已完成 |
+| 2     | 发音高亮 + 技能树（前端）         | ✅ 已完成 |
+| 3     | 情绪感知（后端）                  | ✅ 已完成 |
+| 3     | 数字人（前端）                    | 🔲 待开发 |
+| 4     | 自适应 RAG + 学习报告（后端）     | ✅ 已完成 |
+| 4     | 课程推荐 Dashboard（前端）        | ✅ 已完成 |
+| 5     | 双轨制 BYOK — 数据层 + Agent      | ✅ 已完成 |
+| 5     | 双轨制 BYOK — 设置抽屉 + 错误拦截 | ✅ 已完成 |
 
 ---
 
 ## 技术架构
 
 ```
-┌────────────────────────────────────────────────────┐
-│ 前端 (Vite + React 19 + TypeScript)                 │
-│  ├── Dashboard: 推荐场景卡片 + 每日进度 + 技能树        │
-│  ├── LiveKit WebRTC 语音交互                         │
-│  ├── zustand 状态管理（视图流转 + 连接 + 评估）         │
-│  └── Tailwind CSS v4 样式                           │
-├─────────────────────────────────────────────────────┤
-│ 后端 (FastAPI + SQLAlchemy 2.0 async)              │
-│  ├── 对话管线: STT → LLM → TTS                      │
-│  ├── 情绪感知: 文本犹豫词 + 语速规则引擎                │
-│  ├── 发音评估: Needleman-Wunsch 音素对齐              │
-│  ├── 知识追踪: BKT 贝叶斯模型                         │
-│  ├── 语法检测: 正则规则引擎                           │
-│  └── 自适应 RAG: ChromaDB 向量检索 + Krashen i+1     │
-├─────────────────────────────────────────────────────┤
-│ 数据层 (PostgreSQL + asyncpg + ChromaDB)             │
-│  └── 8 张表: users, user_profiles, sessions,         │
-│      transcripts, skills, knowledge_states,         │
-│      pronunciation_assessments, grammar_errors      │
-└─────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│ 前端 (Vite + React 19 + TypeScript)                      │
+│  ├── Dashboard: 推荐场景卡片 + 每日进度 + 技能树           │
+│  ├── LiveKit WebRTC 语音交互                              │
+│  ├── zustand 状态管理（视图流转 + 连接 + 评估 + 设置）       │
+│  ├── 设置抽屉: 双轨制 Switch + Provider/Key 配置           │
+│  ├── DataChannel 错误拦截 + 自动重连阻止                   │
+│  └── Tailwind CSS v4 样式                                │
+├────────────────────────────────────────────────────────┤
+│ 后端 (FastAPI + SQLAlchemy 2.0 async)                   │
+│  ├── 对话管线: STT → LLM → TTS                           │
+│  ├── 双轨路由: 基础轨(.env) / 自定义轨(BYOK) + Fail-Fast  │
+│  ├── PluginFactory: 插件工厂（动态实例化 STT/LLM/TTS）     │
+│  ├── 情绪感知: 文本犹豫词 + 语速规则引擎                    │
+│  ├── 发音评估: Needleman-Wunsch 音素对齐                   │
+│  ├── 知识追踪: BKT 贝叶斯模型                              │
+│  ├── 语法检测: 正则规则引擎                                │
+│  └── 自适应 RAG: ChromaDB 向量检索 + Krashen i+1          │
+├────────────────────────────────────────────────────────┤
+│ 数据层 (PostgreSQL + asyncpg + ChromaDB)                  │
+│  └── 9 张表: users, user_profiles, user_settings,         │
+│      sessions, transcripts, skills, knowledge_states,     │
+│      pronunciation_assessments, grammar_errors            │
+└────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -136,7 +142,8 @@ uv pip install -r requirements.txt
 #    复制 .env.example 为 .env 并填写:
 #    - DATABASE_URL=postgresql://user:pass@localhost:5432/echotalk
 #    - SILICONFLOW_API_KEY 或 OPENROUTER_API_KEY
-#    - JWT_SECRET_KEY（任意字符串）
+#    - DEEPGRAM_API_KEY, CARTESIA_API_KEY（基础轨语音服务）
+#    - JWT_SECRET_KEY（任意字符串，同时用于 Phase 5 Fernet 密钥派生）
 
 # 4. 数据库迁移
 alembic upgrade head
@@ -228,6 +235,27 @@ pnpm --filter vite-app dev
 - **完整流转**：进入练习 → LiveKit 对话 → 评估反馈 → 返回主页（自动刷新数据）
 - **i18n 规范**：新增文案统一提取至 `zhCN.dashboard` 命名空间
 
+### Phase 5 — 双轨制 BYOK 数据层与 Agent 路由（后端）
+
+- **用户设置表**：`user_settings` 一对一关联 `users`，存储双轨制开关 `is_custom_mode` 与加密 API Key
+- **Fernet 对称加密**：`cryptography.fernet` 加密用户 API Key，密钥由 `SHA-256(JWT_SECRET_KEY)` 派生
+- **设置 API**：`GET/PUT /api/user/settings`，密钥仅返回 `has_xxx_key: bool`，部分更新支持
+- **PluginFactory 插件工厂**：统一实例化 STT/LLM/TTS/VAD 插件，预检 Provider + Key 有效性
+- **双轨路由**：Agent 根据 `is_custom_mode` 选择基础轨（`.env` 系统密钥）或自定义轨（DB 解密密钥）
+- **Fail-Fast 不降级**：自定义轨失败后通过 DataChannel 发送 `agent_error` JSON + 断连，绝不回落到系统默认配置
+- **错误码协议**：`ERR_CUSTOM_KEY_INVALID` / `ERR_UNSUPPORTED_*_PROVIDER`，`reliable=True` TCP 语义保证送达
+- **LLM Provider 映射**：支持 SiliconFlow (`api.siliconflow.cn`) 和 OpenRouter (`openrouter.ai`)
+
+### Phase 5 — 设置抽屉与 DataChannel 错误拦截（前端）
+
+- **设置抽屉 (SettingsDrawer)**：右侧滑入式抽屉，Switch 切换双轨模式，Provider 下拉 + API Key 密码输入
+- **已配置徽章**：`has_xxx_key=true` 时显示绿色「已配置」标识，空提交不覆盖已有密钥
+- **设置 Store**：Zustand `useSettingsStore`，应用启动时自动水合（GET），保存时部分更新（PUT）
+- **DataChannel 错误拦截**：`useDataChannel("agent_error")` 监听 Agent 错误消息，解析 JSON 并展示红色错误卡片
+- **自动重连阻止**：`setAgentError()` 将 `connectionState` 切到 `"ended"`，卸载 `<LiveKitRoom>` 根本阻断 WebRTC 重连
+- **onDisconnected 守卫**：检测到 `agentError` 时跳过琥珀色连接警告，避免重叠错误提示
+- **i18n 规范**：新增 `settings` + `agentError` 两个命名空间
+
 ---
 
 ## API 端点一览
@@ -273,6 +301,13 @@ pnpm --filter vite-app dev
 | ---- | ---------------------- | ---------------------- |
 | GET  | `/api/curriculum/next` | 获取下一步推荐练习场景 |
 
+### 用户设置（Phase 5）
+
+| 方法 | 路径                 | 说明                                       |
+| ---- | -------------------- | ------------------------------------------ |
+| GET  | `/api/user/settings` | 获取双轨制配置状态，密钥仅返回 has_xxx_key |
+| PUT  | `/api/user/settings` | 部分更新双轨制配置，明文 Key 加密后入库    |
+
 ---
 
 ## 项目结构
@@ -284,7 +319,7 @@ EchoTalk/
 │   ├── config.py                      # 环境配置
 │   ├── database.py                    # 异步数据库引擎
 │   ├── dependencies.py                # Mock 鉴权
-│   ├── models/                        # ORM 模型（8 张表）
+│   ├── models/                        # ORM 模型（9 张表）
 │   ├── schemas/                       # Pydantic 响应模型
 │   ├── routers/                       # API 路由
 │   ├── services/                      # 业务逻辑
@@ -294,6 +329,11 @@ EchoTalk/
 │   │   ├── analysis_service.py        # 分析管线编排
 │   │   ├── pronunciation/             # NW 音素对齐
 │   │   └── knowledge/                 # BKT 模型 + 技能映射
+│   ├── utils/                         # 工具模块
+│   │   └── crypto.py                  # Fernet API Key 加解密
+│   ├── livekit_agent/                 # LiveKit 语音 Agent
+│   │   ├── agent.py                   # 双轨路由入口
+│   │   └── plugin_factory.py          # PluginFactory 插件工厂
 │   ├── workers/                       # Celery 异步任务
 │   │   └── report_tasks.py            # 周报生成（骨架预留）
 │   └── scripts/                       # 工具脚本
@@ -301,10 +341,11 @@ EchoTalk/
 ├── apps/vite-app/                     # Vite React 前端
 │   └── src/
 │       ├── components/
-│       │   ├── conversation/          # 语音对话组件
+│       │   ├── conversation/          # 语音对话组件 + DataChannel 错误拦截
+│       │   ├── settings/              # 设置抽屉（双轨制配置 UI）
 │       │   ├── pronunciation/         # 发音反馈 + 音素可视化
 │       │   └── learning/              # 技能树 + 推荐卡片 + 每日进度
-│       ├── store/                     # zustand 状态管理
+│       ├── store/                     # zustand 状态管理（conversation + assessment + settings）
 │       ├── hooks/                     # 自定义 Hook（轮询等）
 │       ├── lib/                       # API 客户端
 │       └── i18n/                      # 中文字符串
@@ -329,4 +370,4 @@ EchoTalk/
 
 ---
 
-_文档版本：Phase 1-4 全栈开发完成（2026-03-02）_
+_文档版本：Phase 1-5 全栈开发完成（2026-03-06）_
