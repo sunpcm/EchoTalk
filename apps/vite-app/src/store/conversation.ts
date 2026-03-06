@@ -30,6 +30,8 @@ interface ConversationStore {
   error: string | null;
   /** 用户选中的推荐场景 */
   selectedScenario: CurriculumRecommendation | null;
+  /** Agent DataChannel 错误（自定义轨 fail-fast） */
+  agentError: { code: string; message: string } | null;
 
   /** 开始新会话：创建 session -> 获取 token -> 切换到 session 视图 */
   startSession: (mode: string) => Promise<void>;
@@ -39,6 +41,8 @@ interface ConversationStore {
   setActive: () => void;
   /** 设置选中的推荐场景 */
   setSelectedScenario: (scenario: CurriculumRecommendation | null) => void;
+  /** 记录 Agent DataChannel 错误，同时切换到 ended 状态以卸载 LiveKitRoom */
+  setAgentError: (error: { code: string; message: string }) => void;
   /** 重置连接状态（不切换视图） */
   reset: () => void;
   /** 返回主页：重置所有状态并切换到 Dashboard */
@@ -53,6 +57,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   wsUrl: null,
   error: null,
   selectedScenario: null,
+  agentError: null,
 
   startSession: async (mode: string) => {
     // 防止重复调用（如双击或 StrictMode 双渲染）
@@ -96,6 +101,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     set({ selectedScenario: scenario });
   },
 
+  setAgentError: (error) => {
+    set({ agentError: error, connectionState: "ended" });
+  },
+
   reset: () => {
     set({
       connectionState: "idle",
@@ -103,6 +112,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       token: null,
       wsUrl: null,
       error: null,
+      agentError: null,
     });
   },
 
@@ -115,6 +125,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       wsUrl: null,
       error: null,
       selectedScenario: null,
+      agentError: null,
     });
   },
 }));

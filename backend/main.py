@@ -14,7 +14,7 @@ from database import async_session_maker
 from dependencies import MOCK_USER_ID
 from models.knowledge import SEED_SKILLS, Skill
 from models.user import User
-from routers import assessment, conversation, curriculum, health, sessions
+from routers import assessment, conversation, curriculum, health, sessions, user
 
 
 @asynccontextmanager
@@ -64,3 +64,4 @@ app.include_router(sessions.router, prefix="/api", tags=["会话管理"])
 app.include_router(conversation.router, prefix="/api", tags=["对话"])
 app.include_router(assessment.router, prefix="/api", tags=["发音评估与知识追踪"])
 app.include_router(curriculum.router, prefix="/api", tags=["自适应课程推荐"])
+app.include_router(user.router, prefix="/api", tags=["用户设置"])

@@ -4,6 +4,8 @@
  * Phase 2: 对话结束后展示发音评估和技能树。
  * Phase 4: 左右分栏布局 — 左侧语音状态+回答推荐，右侧微信风格聊天流。
  *          增加防拦截连接异常提示（1Password / 去广告插件 / 代理路由）。
+ * Phase 5: DataChannel 错误拦截 — 自定义轨 fail-fast 错误通过 agent_error topic 接收，
+ *          显示红色错误卡片并阻止自动重连。
  */
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -12,6 +14,7 @@ import {
   RoomAudioRenderer,
   useConnectionState,
   useVoiceAssistant,
+  useDataChannel,
   BarVisualizer,
   VoiceAssistantControlBar,
 } from "@livekit/components-react";
@@ -31,6 +34,7 @@ const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
 const tDash = zhCN.dashboard;
 const tWarn = zhCN.connectionWarning;
+const tAgentErr = zhCN.agentError;
 
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
@@ -101,6 +105,8 @@ export function VoiceInterface() {
         }}
         onDisconnected={(reason) => {
           console.log("LiveKit disconnected:", reason);
+          // Agent 错误已通过 DataChannel 处理，跳过重复警告
+          if (useConversationStore.getState().agentError) return;
           // 非正常断开（如被插件拦截）时显示警告
           if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) {
             setConnectionError(String(reason));
@@ -131,7 +137,21 @@ function ConnectingView() {
 function ActiveView() {
   const connectionState = useConnectionState();
   const voiceAssistant = useVoiceAssistant();
-  const { setActive, endSession } = useConversationStore();
+  const { setActive, endSession, setAgentError } = useConversationStore();
+
+  // Phase 5: 监听 agent_error DataChannel 消息（自定义轨 fail-fast）
+  useDataChannel("agent_error", (msg) => {
+    try {
+      const text = new TextDecoder().decode(msg.payload);
+      const parsed = JSON.parse(text);
+      if (parsed.type === "agent_error" && parsed.code && parsed.message) {
+        console.error("Agent error received via DataChannel:", parsed);
+        setAgentError({ code: parsed.code, message: parsed.message });
+      }
+    } catch {
+      // 格式异常的消息，忽略
+    }
+  });
 
   // LiveKit 连接成功后，将 store 状态切换到 active
   useEffect(() => {
@@ -279,10 +299,11 @@ function AssessmentErrorView() {
   );
 }
 
-/** 已结束视图：展示评估结果和技能树，提供"返回主页"按钮 */
+/** 已结束视图：展示评估结果和技能树，或 Agent 错误卡片 */
 function EndedView() {
   const sessionId = useConversationStore((s) => s.sessionId);
   const goHome = useConversationStore((s) => s.goHome);
+  const agentError = useConversationStore((s) => s.agentError);
   const {
     assessment,
     grammarErrors,
@@ -290,13 +311,44 @@ function EndedView() {
     reset: resetAssessment,
   } = useAssessmentStore();
 
-  // 启动轮询
-  const loadState = usePollingAssessment(sessionId);
+  // 启动轮询（仅在非 Agent 错误时）
+  const loadState = usePollingAssessment(agentError ? null : sessionId);
 
   const handleGoHome = useCallback(() => {
     resetAssessment();
     goHome();
   }, [resetAssessment, goHome]);
+
+  // Agent 错误：显示红色错误卡片
+  if (agentError) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-8">
+        <div className="w-full max-w-sm rounded-xl border border-red-200 bg-red-50 p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 shrink-0">
+              <svg className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-800">{tAgentErr.title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-red-700">{agentError.message}</p>
+              <p className="mt-0.5 font-mono text-xs text-red-500/70">{agentError.code}</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={handleGoHome} className="btn-primary px-6 py-2.5">
+            {tAgentErr.goHome}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-6 py-8">

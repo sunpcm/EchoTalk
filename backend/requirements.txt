@@ -33,6 +33,7 @@ livekit-plugins-silero==1.4.3
 
 python-jose[cryptography]>=3.3.0,<4.0.0
 passlib[bcrypt]>=1.7.0,<2.0.0
+cryptography>=43.0.0
 
 # Phase 3 情绪分析（音频特征预留，本阶段仅用文本规则引擎）
 

@@ -210,3 +210,44 @@ export function getSkills(): Promise<SkillResponse[]> {
 export function getRecommendedCurriculum(): Promise<CurriculumNextResponse> {
   return request<CurriculumNextResponse>("/curriculum/next");
 }
+
+// ─── 用户设置相关类型 ───
+
+/** 用户双轨制配置（GET 响应） */
+export interface UserSettingsResponse {
+  is_custom_mode: boolean;
+  stt_provider: string | null;
+  llm_provider: string | null;
+  llm_model: string | null;
+  tts_provider: string | null;
+  has_stt_key: boolean;
+  has_llm_key: boolean;
+  has_tts_key: boolean;
+}
+
+/** 用户双轨制配置更新（PUT 请求体） */
+export interface UserSettingsUpdate {
+  is_custom_mode?: boolean;
+  stt_provider?: "deepgram";
+  llm_provider?: "siliconflow" | "openrouter";
+  llm_model?: string;
+  tts_provider?: "cartesia";
+  stt_key?: string;
+  llm_key?: string;
+  tts_key?: string;
+}
+
+// ─── 用户设置 API ───
+
+/** 获取当前用户的双轨制配置 */
+export function getUserSettings(): Promise<UserSettingsResponse> {
+  return request<UserSettingsResponse>("/user/settings");
+}
+
+/** 更新当前用户的双轨制配置（部分更新） */
+export function updateUserSettings(data: UserSettingsUpdate): Promise<UserSettingsResponse> {
+  return request<UserSettingsResponse>("/user/settings", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
