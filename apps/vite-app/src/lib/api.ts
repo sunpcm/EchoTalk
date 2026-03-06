@@ -7,12 +7,15 @@ const BASE_URL = "/api";
 
 /** API 错误类，携带 HTTP 状态码用于区分 404 等场景 */
 export class ApiError extends Error {
+  public data?: any;
   constructor(
     public readonly status: number,
     message: string,
+    data?: any,
   ) {
     super(message);
     this.name = "ApiError";
+    this.data = data;
   }
 }
 
@@ -29,9 +32,36 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    console.log(JSON.stringify(body.detail));
-    console.log(body.detail);
-    throw new ApiError(res.status, body.detail || `请求失败: ${res.status}`);
+
+    let message = `请求失败: ${res.status}`;
+    if (body) {
+      if (typeof body.detail === "string") {
+        // 1. 标准 FastAPI 异常 (HTTPException(detail="xxx"))
+        message = body.detail;
+      } else if (Array.isArray(body.detail) && body.detail.length > 0) {
+        // 2. FastAPI 验证异常 (422 Unprocessable Entity - validation errors)
+        const firstError = body.detail[0];
+        const errorLoc = firstError.loc ? firstError.loc.join(".") : "Unknown";
+        message = `数据验证失败 (${errorLoc}): ${firstError.msg}`;
+      } else if (body.detail && typeof body.detail === "object") {
+        // 3. 嵌套的自定义字典对象 (如 /health/ready 的 detail: { errors: {...} })
+        if (body.detail.errors && typeof body.detail.errors === "object") {
+          message = (Object.values(body.detail.errors)[0] as string) || message;
+        } else if (body.detail.message && typeof body.detail.message === "string") {
+          message = body.detail.message;
+        } else {
+          message = JSON.stringify(body.detail); // 兜底返回完整 JSON 字符串避免 [object Object]
+        }
+      } else if (body.errors && typeof body.errors === "object") {
+        // 4. 其他结构或未通过 detail 包装的字典
+        message = (Object.values(body.errors)[0] as string) || message;
+      } else if (typeof body.message === "string") {
+        // 5. 兜底解析 message 字段
+        message = body.message;
+      }
+    }
+
+    throw new ApiError(res.status, message, body);
   }
 
   return res.json();

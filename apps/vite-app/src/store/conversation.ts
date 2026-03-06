@@ -74,12 +74,12 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     try {
       await checkHealthReady();
     } catch (err) {
-      console.log(JSON.stringify(err));
+      console.error("Health check failed:", err);
 
       set({
         connectionState: "idle",
         appView: "dashboard",
-        error: "服务不可用，请稍后再试或检查相关配置",
+        error: err instanceof Error ? err.message : "服务不可用，请稍后再试或检查相关配置",
       });
       return;
     }
