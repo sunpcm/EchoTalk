@@ -5,11 +5,16 @@
  */
 
 import { create } from "zustand";
-import { createSession, getSessionToken, endSession as apiEndSession } from "@/lib/api";
+import {
+  createSession,
+  getSessionToken,
+  endSession as apiEndSession,
+  checkHealthReady,
+} from "@/lib/api";
 import type { CurriculumRecommendation } from "@/lib/api";
 
 /** 连接状态枚举 */
-export type ConnectionState = "idle" | "connecting" | "active" | "ended";
+export type ConnectionState = "idle" | "checking_health" | "connecting" | "active" | "ended";
 
 /** 顶层视图枚举 */
 export type AppView = "dashboard" | "session";
@@ -62,6 +67,24 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   startSession: async (mode: string) => {
     // 防止重复调用（如双击或 StrictMode 双渲染）
     if (get().connectionState !== "idle") return;
+
+    // 1. 先置为检查状态，不切换视图
+    set({ connectionState: "checking_health", error: null });
+
+    try {
+      await checkHealthReady();
+    } catch (err: any) {
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error:
+          "服务不可用，请稍后再试或检查相关配置，error: " +
+          (err instanceof Error ? err.message : String(err)),
+      });
+      return;
+    }
+
+    // 2. 检查可用后再切换到 session 视图并创建实际会话
     set({ connectionState: "connecting", appView: "session", error: null });
     try {
       const session = await createSession(mode);

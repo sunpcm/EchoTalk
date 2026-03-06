@@ -143,6 +143,17 @@ export interface SessionListItem {
   ended_at: string | null;
 }
 
+// ─── 健康检查 API ───
+
+export interface HealthReadyResponse {
+  status: string;
+}
+
+/** 深度健康检查，验证 DB、LiveKit 等是否已就绪 */
+export function checkHealthReady(): Promise<HealthReadyResponse> {
+  return request<HealthReadyResponse>("/health/ready");
+}
+
 // ─── 会话 API ───
 
 /** 创建会话 */

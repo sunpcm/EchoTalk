@@ -373,8 +373,15 @@ function EndedView() {
       )}
 
       {/* 返回主页按钮 */}
-      <button onClick={handleGoHome} className="btn-primary px-8 py-3 text-lg">
-        {tDash.goHome}
+      <button
+        onClick={handleGoHome}
+        disabled={loadState === "polling"}
+        className="btn-primary inline-flex items-center gap-2 px-8 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {loadState === "polling" && (
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        )}
+        {loadState === "polling" ? tAssess.analyzing : tDash.goHome}
       </button>
     </div>
   );

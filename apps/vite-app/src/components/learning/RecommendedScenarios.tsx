@@ -24,9 +24,11 @@ const cefrColorMap: Record<string, string> = {
 
 function ScenarioCard({
   scenario,
+  isChecking,
   onEnter,
 }: {
   scenario: CurriculumRecommendation;
+  isChecking?: boolean;
   onEnter: (scenario: CurriculumRecommendation) => void;
 }) {
   const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-gray-100 text-gray-700";
@@ -61,8 +63,38 @@ function ScenarioCard({
       </div>
 
       {/* Enter button */}
-      <button onClick={() => onEnter(scenario)} className="btn-primary w-full text-center">
-        {t.enterPractice}
+      <button
+        onClick={() => onEnter(scenario)}
+        disabled={isChecking}
+        className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
+      >
+        {isChecking ? (
+          <>
+            <svg
+              className="mr-2 h-4 w-4 animate-spin text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            检测服务中...
+          </>
+        ) : (
+          t.enterPractice
+        )}
       </button>
     </div>
   );
@@ -75,6 +107,8 @@ export function RecommendedScenarios() {
 
   const startSession = useConversationStore((s) => s.startSession);
   const setSelectedScenario = useConversationStore((s) => s.setSelectedScenario);
+  const connectionState = useConversationStore((s) => s.connectionState);
+  const isChecking = connectionState === "checking_health";
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +154,12 @@ export function RecommendedScenarios() {
       <h2 className="mb-4 text-lg font-bold text-gray-800">{t.recommendTitle}</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {data.recommendations.slice(0, 3).map((rec) => (
-          <ScenarioCard key={rec.scenario_name} scenario={rec} onEnter={handleEnter} />
+          <ScenarioCard
+            key={rec.scenario_name}
+            scenario={rec}
+            isChecking={isChecking}
+            onEnter={handleEnter}
+          />
         ))}
       </div>
     </section>
