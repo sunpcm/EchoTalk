@@ -40,3 +40,11 @@
 
 - **设置更改后未生效 / 403**: 检查 `users` 表中用户的 `subscription_tier` 的记录。这很可能是目前你以 `free` 身份在操作。
 - **Agent 报 401 Unauthorized 失联**: 如果配置保存了并强行跳过了验证，LiveKit Agent 现在监听了 `ErrorEvent`。日志将会打印形如：`自定义轨运行时认证失败: session_id=xxx, error=xxx`。这归功于新增的环境变量 `_SENSITIVE_ENV_VARS` 临时清除保护。
+
+### Test Case 4: 增量式局部保存与状态可视化 (UI & Partial Update)
+
+- **前置条件**: STT、LLM、TTS 的 Key 皆未填，处于初始状态。
+- **操作A (提交局部正确 Key)**: 在 STT (Deepgram) 输入有效 Key，留空 LLM 与 TTS，点击保存。
+- **预期结果A**: 保存后页面上方**弹出保存成功提示**。此时整体 `is_custom_verified` 仍为 false (无法进入录音室)。但在设置抽屉中，STT 的标题旁会出现绿色的 `已连通` 徽章，而 LLM 与 TTS 保持灰色的 `未配置`。
+- **操作B (增量提交错误 Key)**: 在 STT 绿色的情况下，在 LLM 输入随意乱打的无效密钥并点击保存。
+- **预期结果B**: 保存被阻断。界面上方滑出红色的报错 Toast 提示 "LLM 密钥验证未通过"。由于拦截在此处，STT 这边的合法校验依然存在不被覆盖污染。

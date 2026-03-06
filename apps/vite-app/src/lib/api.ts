@@ -268,6 +268,10 @@ export interface UserSettingsResponse {
   has_stt_key: boolean;
   has_llm_key: boolean;
   has_tts_key: boolean;
+
+  stt_status: "verified" | "error" | "unconfigured";
+  llm_status: "verified" | "error" | "unconfigured";
+  tts_status: "verified" | "error" | "unconfigured";
 }
 
 /** 用户双轨制配置更新（PUT 请求体） */

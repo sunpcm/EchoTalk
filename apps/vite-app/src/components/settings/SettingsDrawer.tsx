@@ -37,6 +37,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   const [llmKey, setLlmKey] = useState("");
   const [ttsKey, setTtsKey] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [toastError, setToastError] = useState<string | null>(null);
 
   // 打开时加载设置
   useEffect(() => {
@@ -87,10 +88,16 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       if (ttsKey.trim()) data.tts_key = ttsKey.trim();
     }
 
-    const ok = await updateSettings(data);
-    if (ok) {
+    // 清除上一次的toast
+    setToastError(null);
+
+    const result = await updateSettings(data);
+    if (result.success) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
+    } else {
+      setToastError(result.error || "保存失败");
+      setTimeout(() => setToastError(null), 3000);
     }
   }, [
     isCustomMode,
@@ -115,6 +122,26 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
       {/* Drawer */}
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm animate-[slideInRight_0.25s_ease-out] overflow-y-auto bg-white shadow-xl">
+        {/* Toast 提示 (顶置悬浮) */}
+        {toastError && (
+          <div className="absolute top-4 right-4 left-4 z-[60] rounded-lg bg-red-50 p-4 shadow-lg ring-1 ring-red-200">
+            <div className="flex gap-3">
+              <svg
+                className="h-5 w-5 shrink-0 text-red-500"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <p className="text-sm font-medium text-red-800">{toastError}</p>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-800">{t.title}</h2>
@@ -174,6 +201,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     apiKey={sttKey}
                     onKeyChange={setSttKey}
                     hasKey={settings?.has_stt_key ?? false}
+                    status={settings?.stt_status}
                   />
 
                   {/* LLM */}
@@ -185,6 +213,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     apiKey={llmKey}
                     onKeyChange={setLlmKey}
                     hasKey={settings?.has_llm_key ?? false}
+                    status={settings?.llm_status}
                   >
                     {/* LLM Model */}
                     <div>
@@ -210,6 +239,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     apiKey={ttsKey}
                     onKeyChange={setTtsKey}
                     hasKey={settings?.has_tts_key ?? false}
+                    status={settings?.tts_status}
                   />
                 </div>
               </fieldset>
@@ -236,6 +266,38 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   );
 }
 
+function KeyStatusBadge({ status }: { status?: "verified" | "error" | "unconfigured" }) {
+  if (status === "verified") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+        <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+          <path
+            fillRule="evenodd"
+            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+            clipRule="evenodd"
+          />
+        </svg>
+        已连通
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
+        <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+          <path
+            fillRule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+            clipRule="evenodd"
+          />
+        </svg>
+        未连通
+      </span>
+    );
+  }
+  return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">未配置</span>;
+}
+
 /** 单个 Provider 配置组：下拉选择 + API Key 输入 */
 function ProviderGroup({
   label,
@@ -245,6 +307,7 @@ function ProviderGroup({
   apiKey,
   onKeyChange,
   hasKey,
+  status,
   children,
 }: {
   label: string;
@@ -254,13 +317,17 @@ function ProviderGroup({
   apiKey: string;
   onKeyChange: (v: string) => void;
   hasKey: boolean;
+  status?: "verified" | "error" | "unconfigured";
   children?: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      {/* Provider 下拉 */}
+      {/* Provider 下拉及状态 Badge */}
+      <div className="mb-1 flex items-center justify-between">
+        <label className="block text-xs font-medium text-gray-600">{label}</label>
+        <KeyStatusBadge status={status} />
+      </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -281,11 +348,6 @@ function ProviderGroup({
       <div>
         <div className="mb-1 flex items-center gap-2">
           <label className="text-xs font-medium text-gray-600">{t.apiKey}</label>
-          {hasKey && !apiKey && (
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
-              {t.apiKeyConfigured}
-            </span>
-          )}
         </div>
         <input
           type="password"

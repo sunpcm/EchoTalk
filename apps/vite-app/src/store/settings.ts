@@ -25,8 +25,8 @@ interface SettingsStore {
 
   /** 从后端获取当前用户设置（水合） */
   fetchSettings: () => Promise<void>;
-  /** 部分更新用户设置，成功返回 true */
-  updateSettings: (data: UserSettingsUpdate) => Promise<boolean>;
+  /** 部分更新用户设置，返回包含成功与否和错误信息的对象 */
+  updateSettings: (data: UserSettingsUpdate) => Promise<{ success: boolean; error?: string }>;
   /** 重置到初始状态 */
   reset: () => void;
 }
@@ -55,14 +55,23 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ saving: true, error: null });
     try {
       const settings = await updateUserSettings(data);
+
+      // 如果后端验证未通过，但 HTTP 请求成功返回了，我们需要视为"校验失败"
+      if (settings.is_custom_mode && !settings.is_custom_verified) {
+        const errorMsg = "密钥验证未通过，请检查提供的 API Key 是否有效。";
+        set({ settings, saving: false, error: errorMsg });
+        return { success: false, error: errorMsg };
+      }
+
       set({ settings, saving: false });
-      return true;
+      return { success: true };
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "保存失败";
       set({
         saving: false,
-        error: err instanceof Error ? err.message : "保存失败",
+        error: errorMessage,
       });
-      return false;
+      return { success: false, error: errorMessage };
     }
   },
 
