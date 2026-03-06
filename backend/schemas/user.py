@@ -52,5 +52,9 @@ class UserSettingsResponse(BaseModel):
     has_stt_key: bool = False
     has_llm_key: bool = False
     has_tts_key: bool = False
+    
+    stt_status: Literal["verified", "error", "unconfigured"] = "unconfigured"
+    llm_status: Literal["verified", "error", "unconfigured"] = "unconfigured"
+    tts_status: Literal["verified", "error", "unconfigured"] = "unconfigured"
 
     model_config = {"from_attributes": True}

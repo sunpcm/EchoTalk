@@ -1,0 +1,112 @@
+--- /home/niu/code/EchoTalk/backend/routers/user.py
++++ /home/niu/code/EchoTalk/backend/routers/user.py
+@@ -1,7 +1,7 @@
+ import uuid
+ 
+ from fastapi import APIRouter, Depends, HTTPException, status
+-from sqlalchemy import select
++from sqlalchemy import select, update
+ from sqlalchemy.ext.asyncio import AsyncSession
+ 
+ from database import get_db
+@@ -37,6 +37,13 @@
+         stt_k = decrypt_api_key(row.encrypted_stt_key)
+         llm_k = decrypt_api_key(row.encrypted_llm_key)
+         tts_k = decrypt_api_key(row.encrypted_tts_key)
++        
++    def get_status(has_key, is_valid):
++        if not has_key:
++            return 'unconfigured'
++        if is_valid:
++            return 'verified'
++        return 'error'
+ 
+     return UserSettingsResponse(
+         is_custom_mode=row.is_custom_mode,
+@@ -49,6 +56,9 @@
+         has_stt_key=row.encrypted_stt_key is not None,
+         has_llm_key=row.encrypted_llm_key is not None,
+         has_tts_key=row.encrypted_tts_key is not None,
++        stt_status=get_status(row.encrypted_stt_key is not None, row.stt_is_valid),
++        llm_status=get_status(row.encrypted_llm_key is not None, row.llm_is_valid),
++        tts_status=get_status(row.encrypted_tts_key is not None, row.tts_is_valid),
+     )
+ 
+ 
+@@ -74,74 +84,84 @@
+     if row is None:
+         row = UserSettings(user_id=user_id)
+         db.add(row)
+-
+-    # 提取用于拨测的上下文（合并新的和旧的配置）
+-    stt_p = body.stt_provider or (row.stt_provider.value if row.stt_provider else None)
+-    llm_p = body.llm_provider or (row.llm_provider.value if row.llm_provider else None)
+-    tts_p = body.tts_provider or (row.tts_provider.value if row.tts_provider else None)
+-
+-    stt_k = (
+-        body.stt_key
+-        if body.stt_key is not None
+-        else (decrypt_api_key(row.encrypted_stt_key) if row.encrypted_stt_key else None)
+-    )
+-    llm_k = (
+-        body.llm_key
+-        if body.llm_key is not None
+-        else (decrypt_api_key(row.encrypted_llm_key) if row.encrypted_llm_key else None)
+-    )
+-    tts_k = (
+-        body.tts_key
+-        if body.tts_key is not None
+-        else (decrypt_api_key(row.encrypted_tts_key) if row.encrypted_tts_key else None)
+-    )
+-
+-    # 执行拨测
+-    if stt_p and llm_p and tts_p and stt_k and llm_k and tts_k:
+-        is_valid = await ProviderValidationService.validate_all(
+-            stt_p, stt_k, llm_p, llm_k, tts_p, tts_k
+-        )
+-        row.is_custom_verified = is_valid
+-    else:
+-        # 信息不全，不可能通过拨测
+-        row.is_custom_verified = False
+-
+-    # 更新非密钥字段（仅当请求中提供了该字段时）
+-    if body.is_custom_mode is not None:
+-        row.is_custom_mode = body.is_custom_mode
+-    if body.stt_provider is not None:
+-        row.stt_provider = body.stt_provider
+-    if body.llm_provider is not None:
+-        row.llm_provider = body.llm_provider
+-    if body.llm_model is not None:
+-        row.llm_model = body.llm_model
+-    if body.tts_provider is not None:
+-        row.tts_provider = body.tts_provider
+-
+-    # 加密并更新密钥字段
+-    if body.stt_key is not None:
+-        row.encrypted_stt_key = encrypt_api_key(body.stt_key)
+-    if body.llm_key is not None:
+-        row.encrypted_llm_key = encrypt_api_key(body.llm_key)
+-    if body.tts_key is not None:
+-        row.encrypted_tts_key = encrypt_api_key(body.tts_key)
+-
+-    await db.flush()
+-    await db.refresh(row)
+-
+-    # 重新获取用户实体以取得最新 tier（虽然本接口不改 tier）
+-    user_stmt2 = select(User).where(User.id == user_id)
+-    user_result2 = await db.execute(user_stmt2)
+-    user_obj_db = user_result2.scalar_one_or_none()
+-    tier = user_obj_db.subscription_tier.value if user_obj_db else "free"
+-
+-    return UserSettingsResponse(
+-        is_custom_mode=row.is_custom_mode,
+-        is_custom_verified=row.is_custom_verified,
+-        subscription_tier=tier,
+-        stt_provider=row.stt_provider.value if row.stt_provider else None,
+-        llm_provider=row.llm_provider.value if row.llm_provider else None,
+-        llm_model=row.llm_model,
+-        tts_provider=row.tts_provider.value if row.tts_provider else None,
+-        has_stt_key=row.encrypted_stt_key is not None,
+-        has_llm_key=row.encrypted_llm_key is not None,
+-        has_tts_key=row.encrypted_tts_key is not None,
+-    )

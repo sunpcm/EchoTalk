@@ -119,8 +119,17 @@ class UserSettings(Base):
 
     # 加密后的 API Key（Fernet token）
     encrypted_stt_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stt_is_valid: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     encrypted_llm_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llm_is_valid: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     encrypted_tts_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tts_is_valid: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         default=datetime.utcnow, onupdate=datetime.utcnow
