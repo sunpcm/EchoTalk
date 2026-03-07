@@ -249,7 +249,7 @@ pnpm --filter vite-app dev
 - **错误码协议**：`ERR_CUSTOM_KEY_INVALID` / `ERR_UNSUPPORTED_*_PROVIDER`，`reliable=True` TCP 语义保证送达
 - **LLM Provider 映射**：支持 SiliconFlow (`api.siliconflow.cn`) 和 OpenRouter (`openrouter.ai`)
 
-### Phase 5 — 设置抽屉与 DataChannel 错误拦截（前端）
+### Phase 5.1 — 设置抽屉与 DataChannel 错误拦截（前端）
 
 - **设置抽屉 (SettingsDrawer)**：右侧滑入式抽屉，Switch 切换双轨模式，Provider 下拉 + API Key 密码输入
 - **已配置徽章**：`has_xxx_key=true` 时显示绿色「已配置」标识，空提交不覆盖已有密钥
