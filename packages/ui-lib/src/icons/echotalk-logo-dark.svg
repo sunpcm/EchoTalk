@@ -1,0 +1,20 @@
+<!-- SVG Primary Logo Dark -->
+                    <svg width="260" height="80" viewBox="0 0 260 80" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="markGradDark" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#818CF8"></stop>
+                                <stop offset="100%" stop-color="#22D3EE"></stop>
+                            </linearGradient>
+                        </defs>
+                        
+                        <!-- Icon Mark -->
+                        <g transform="translate(0, 0)">
+                            <path d="M 10,40 A 30,30 0 1,1 70,40 A 30,30 0 0,1 55,66 L 50,80 L 36,70 A 30,30 0 0,1 10,40 Z" fill="none" stroke="url(#markGradDark)" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"></path>
+                            <rect x="25" y="32" width="6" height="16" rx="3" fill="url(#markGradDark)"></rect>
+                            <rect x="37" y="24" width="6" height="32" rx="3" fill="url(#markGradDark)"></rect>
+                            <rect x="49" y="32" width="6" height="16" rx="3" fill="url(#markGradDark)"></rect>
+                        </g>
+
+                        <!-- Typography -->
+                        <text x="85" y="54" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-weight="800" font-size="42" fill="#FFFFFF" letter-spacing="-1">Echo<tspan fill="#818CF8">Talk</tspan></text>
+                    </svg>

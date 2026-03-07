@@ -1,0 +1,24 @@
+<!-- SVG App Icon -->
+                    <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#6366f1"></stop>
+                                <stop offset="100%" stop-color="#06b6d4"></stop>
+                            </linearGradient>
+                            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                                <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.15"></feDropShadow>
+                            </filter>
+                        </defs>
+                        <!-- Rounded Background -->
+                        <rect width="120" height="120" rx="28" fill="url(#bgGrad)" filter="url(#shadow)"></rect>
+                        
+                        <!-- Icon Mark -->
+                        <g transform="translate(20, 20)">
+                            <!-- Bubble Outline -->
+                            <path d="M 10,40 A 30,30 0 1,1 70,40 A 30,30 0 0,1 55,66 L 50,80 L 36,70 A 30,30 0 0,1 10,40 Z" fill="none" stroke="#ffffff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"></path>
+                            <!-- Soundwaves -->
+                            <rect x="25" y="32" width="6" height="16" rx="3" fill="#ffffff"></rect>
+                            <rect x="37" y="24" width="6" height="32" rx="3" fill="#ffffff"></rect>
+                            <rect x="49" y="32" width="6" height="16" rx="3" fill="#ffffff"></rect>
+                        </g>
+                    </svg>

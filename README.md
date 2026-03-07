@@ -1,4 +1,7 @@
-# EchoTalk — AI 英语口语练习平台
+<div align="center">
+  <img src="packages/ui-lib/src/icons/echotalk-app-icon.svg" width="128" height="128" alt="EchoTalk Logo" />
+  <h1>EchoTalk — AI 英语口语练习平台</h1>
+</div>
 
 基于 LiveKit WebRTC 的实时语音对话系统，集成发音评估、语法检测与 BKT 知识追踪。
 
