@@ -92,4 +92,30 @@ export const zhCN = {
     goSettings: "前往设置",
     goHome: "返回主页",
   },
+  docChat: {
+    title: "文档对话",
+    subtitle: "上传文档，与 AI 进行基于文档内容的深度语音对话",
+    uploadHint: "上传 .md 或 .txt 文件，或直接粘贴内容",
+    promptLabel: "对话指令",
+    promptPlaceholder: "输入自定义对话指令，或点击下方预设按钮快速填充",
+    presets: {
+      interview: "模拟面试",
+      interviewPrompt:
+        "你现在是一名资深HR面试官，根据这份文档对我进行面试，一次只问一个问题，等我回答后再问下一个。",
+      paper: "论文研讨",
+      paperPrompt:
+        "你是一名学术导师，我们正在讨论这篇论文。请围绕论文的创新点、方法论和结论对我进行提问和讨论。",
+      free: "自由讨论",
+      freePrompt: "请基于这份文档与我进行自由的英语口语对话，帮助我练习用英语表达文档中的内容。",
+    },
+    charCount: "字符",
+    charMax: "50,000",
+    charOverLimit: "文档内容超过 50,000 字符限制",
+    startButton: "开始对话",
+    emptyDocError: "请先上传或粘贴文档内容",
+    goBack: "返回主页",
+    fileName: "已选文件",
+    dashboardEntry: "文档对话 (DocTalk)",
+    dashboardDesc: "上传文档，与 AI 进行基于内容的语音对话练习",
+  },
 } as const;

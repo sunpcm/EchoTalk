@@ -2,6 +2,7 @@
  * 应用根组件。
  * Phase 4: Dashboard（推荐场景 + 每日进度 + 技能树）与 Session 视图切换。
  * Phase 5: 设置抽屉 + 设置水合。
+ * Phase 7: DocChat 设置视图。
  */
 
 import React, { useEffect, useState } from "react";
@@ -13,10 +14,12 @@ import { SettingsDrawer } from "@/components/settings/SettingsDrawer";
 import { RecommendedScenarios } from "@/components/learning/RecommendedScenarios";
 import { DailyProgress } from "@/components/learning/DailyProgress";
 import { SkillTree } from "@/components/learning/SkillTree";
+import { DocChatSetup } from "@/components/doc-chat/DocChatSetup";
 import { zhCN } from "@/i18n/zh-CN";
 
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
+const tDocChat = zhCN.docChat;
 
 /** Dashboard 视图：推荐场景 + 每日进度 + 技能树 */
 function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -58,6 +61,41 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
       )}
 
+      {/* DocTalk Entry Card */}
+      <section>
+        <button
+          onClick={() => useConversationStore.setState({ appView: "doc-chat-setup" })}
+          className="flex w-full items-center gap-4 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50 p-5 text-left shadow-sm transition-shadow hover:shadow-md"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-indigo-100">
+            <svg
+              className="h-6 w-6 text-indigo-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+              />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-indigo-700">{tDocChat.dashboardEntry}</h3>
+            <p className="text-sm text-gray-500">{tDocChat.dashboardDesc}</p>
+          </div>
+          <svg className="h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fillRule="evenodd"
+              d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
+      </section>
+
       {/* Recommended Scenarios */}
       <RecommendedScenarios />
 
@@ -90,6 +128,8 @@ const App = () => {
       <div className="mx-auto max-w-3xl">
         {appView === "dashboard" ? (
           <Dashboard onOpenSettings={() => setDrawerOpen(true)} />
+        ) : appView === "doc-chat-setup" ? (
+          <DocChatSetup />
         ) : (
           <VoiceInterface />
         )}

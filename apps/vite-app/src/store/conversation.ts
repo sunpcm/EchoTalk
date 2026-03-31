@@ -11,13 +11,13 @@ import {
   endSession as apiEndSession,
   checkHealthReady,
 } from "@/lib/api";
-import type { CurriculumRecommendation } from "@/lib/api";
+import type { CurriculumRecommendation, DocContext } from "@/lib/api";
 
 /** 连接状态枚举 */
 export type ConnectionState = "idle" | "checking_health" | "connecting" | "active" | "ended";
 
 /** 顶层视图枚举 */
-export type AppView = "dashboard" | "session";
+export type AppView = "dashboard" | "session" | "doc-chat-setup";
 
 /** Store 类型定义 */
 interface ConversationStore {
@@ -39,7 +39,7 @@ interface ConversationStore {
   agentError: { code: string; message: string } | null;
 
   /** 开始新会话：创建 session -> 获取 token -> 切换到 session 视图 */
-  startSession: (mode: string) => Promise<void>;
+  startSession: (mode: string, docContext?: DocContext) => Promise<void>;
   /** 结束当前会话 */
   endSession: () => Promise<void>;
   /** LiveKit 房间连接成功后调用，切换到 active 状态 */
@@ -64,7 +64,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   selectedScenario: null,
   agentError: null,
 
-  startSession: async (mode: string) => {
+  startSession: async (mode: string, docContext?: DocContext) => {
     // 防止重复调用（如双击或 StrictMode 双渲染）
     if (get().connectionState !== "idle") return;
 
@@ -87,7 +87,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     // 2. 检查可用后再切换到 session 视图并创建实际会话
     set({ connectionState: "connecting", appView: "session", error: null });
     try {
-      const session = await createSession(mode);
+      const session = await createSession(mode, docContext);
       const { token, ws_url } = await getSessionToken(session.id);
       set({
         sessionId: session.id,

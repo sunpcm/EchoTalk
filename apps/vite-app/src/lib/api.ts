@@ -188,11 +188,28 @@ export function checkHealthReady(): Promise<HealthReadyResponse> {
 
 // ─── 会话 API ───
 
+/** 文档对话上下文 */
+export interface DocContext {
+  content_type: string;
+  raw_text: string;
+  prompt: string;
+}
+
+/** 创建会话请求体 */
+export interface CreateSessionBody {
+  mode: string;
+  doc_context?: DocContext;
+}
+
 /** 创建会话 */
-export function createSession(mode: string): Promise<Session> {
+export function createSession(mode: string, docContext?: DocContext): Promise<Session> {
+  const body: CreateSessionBody = { mode };
+  if (docContext) {
+    body.doc_context = docContext;
+  }
   return request<Session>("/sessions", {
     method: "POST",
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify(body),
   });
 }
 
