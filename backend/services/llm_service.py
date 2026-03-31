@@ -42,16 +42,26 @@ SYSTEM_PROMPT = (
 def build_dynamic_prompt(
     anxiety_level: float,
     weak_skills: list[str] | None = None,
+    custom_prompt: str | None = None,
+    document_content: str | None = None,
 ) -> str:
     """
-    根据实时情绪和薄弱技能构建动态 System Prompt。
+    根据实时情绪和薄弱技能构建动态 System Prompt（三层架构）。
 
     Phase 3 新增：emotion-aware instructions。
+    Phase 7 新增：custom_prompt / document_content 支持文档对话模式。
     Agent 在 on_user_turn_completed 钩子中调用，仅当焦虑模式切换时更新。
+
+    三层架构:
+        Layer 1 — 角色与情绪: 基础角色定义 + 情绪模式 + 薄弱技能 + 自定义指令
+        Layer 2 — 文档上下文: 用户上传的文档（不受情绪切换影响）
+        Layer 3 — 通用指令: 对话风格与语言规范
 
     参数:
         anxiety_level: 0.0~1.0 的焦虑指数
         weak_skills: BKT 识别的薄弱技能列表（Phase 4 RAG 后扩展）
+        custom_prompt: 用户自定义角色指令（doc_chat 模式）
+        document_content: 用户上传的文档原文（doc_chat 模式）
     """
     parts: list[str] = [
         "You are a friendly and patient AI English speaking coach.\n",
@@ -88,7 +98,19 @@ def build_dynamic_prompt(
         skills_str = ", ".join(weak_skills)
         parts.append(f"[Weak Skills] Focus practice on: {skills_str}\n")
 
-    # 通用指令
+    # Layer 1 补充: 用户自定义角色指令
+    if custom_prompt:
+        parts.append(f"[Custom Role Instruction]\n{custom_prompt}\n")
+
+    # Layer 2: 文档上下文（持久层，不受情绪切换影响）
+    if document_content:
+        parts.append(
+            "[Reference Document] 以下文档是本次对话的核心上下文，"
+            "请基于此文档进行提问和回应：\n"
+            "<document>\n" + document_content + "\n</document>\n"
+        )
+
+    # Layer 3: 通用指令
     parts.append(
         "[Guidelines]\n"
         "- Keep responses concise (2-4 sentences) "

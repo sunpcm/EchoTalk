@@ -19,6 +19,7 @@ class SessionMode(str, enum.Enum):
     conversation = "conversation"
     scenario = "scenario"
     exam_prep = "exam_prep"
+    doc_chat = "doc_chat"  # Phase 7: 文档对话模式
 
 
 class SessionStatus(str, enum.Enum):
@@ -77,6 +78,9 @@ class Session(Base):
         order_by="Transcript.timestamp_ms",
         lazy="selectin",
     )
+    context: Mapped["SessionContext | None"] = relationship(
+        "SessionContext", back_populates="session", uselist=False, lazy="selectin"
+    )
 
 
 class Transcript(Base):
@@ -99,3 +103,20 @@ class Transcript(Base):
 
     # 关系
     session: Mapped["Session"] = relationship(back_populates="transcripts")
+
+
+class SessionContext(Base):
+    """会话上下文扩展表（一对一关联 sessions）。用于存储 doc_chat 等模式的文档/Prompt。"""
+
+    __tablename__ = "session_contexts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), unique=True, nullable=False
+    )
+    custom_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    document_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_type: Mapped[str] = mapped_column(String(50), default="text/markdown")
+
+    # 关系
+    session: Mapped["Session"] = relationship(back_populates="context")

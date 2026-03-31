@@ -6,10 +6,19 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
+class DocContext(BaseModel):
+    """文档对话上下文。"""
+
+    content_type: str = "text/markdown"
+    raw_text: str
+    prompt: str
+
+
 class SessionCreate(BaseModel):
     """创建会话请求体。"""
 
-    mode: str  # "conversation", "pronunciation", "free_talk", "scenario", "exam_prep"
+    mode: str
+    doc_context: DocContext | None = None  # 仅 mode=doc_chat 时必填
 
 
 class TranscriptResponse(BaseModel):

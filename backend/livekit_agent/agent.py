@@ -49,10 +49,10 @@ from sqlalchemy import select  # noqa: E402
 from config import settings  # noqa: E402
 from database import async_session_maker  # noqa: E402
 from livekit_agent.plugin_factory import PluginFactory, PluginInitError  # noqa: E402
-from models.session import Session  # noqa: E402
+from models.session import Session, SessionContext  # noqa: E402
 from models.user import UserSettings  # noqa: E402
 from services.emotion_analyzer import EmotionAnalyzer  # noqa: E402
-from services.llm_service import SYSTEM_PROMPT, build_dynamic_prompt  # noqa: E402
+from services.llm_service import build_dynamic_prompt  # noqa: E402
 from services.transcript_service import save_transcript  # noqa: E402
 from utils.crypto import decrypt_api_key  # noqa: E402
 
@@ -97,6 +97,28 @@ async def _fetch_user_settings(session_id: str) -> UserSettings | None:
 
         # user_id → UserSettings
         stmt = select(UserSettings).where(UserSettings.user_id == user_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+
+async def _fetch_session_context(session_id: str) -> SessionContext | None:
+    """
+    根据 session_id 查询会话文档上下文。
+
+    参数:
+        session_id: 房间名，即 Session 表的 UUID 主键字符串
+
+    返回:
+        SessionContext 行，未找到则返回 None。
+    """
+    try:
+        sid = uuid.UUID(session_id)
+    except ValueError:
+        logger.warning("无效的 session_id 格式: '%s'", session_id)
+        return None
+
+    async with async_session_maker() as db:
+        stmt = select(SessionContext).where(SessionContext.session_id == sid)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -239,9 +261,17 @@ class EchoTalkAgent(Agent):
     3. 将带 emotion_state 的转录异步写入数据库
     """
 
-    def __init__(self, session_id: str, **kwargs):
+    def __init__(
+        self,
+        session_id: str,
+        custom_prompt: str | None = None,
+        document_content: str | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._session_id = session_id
+        self._custom_prompt = custom_prompt
+        self._document_content = document_content
         self._emotion_analyzer = EmotionAnalyzer()
         self._current_mode = "normal"  # "normal" | "encouragement"
 
@@ -275,7 +305,13 @@ class EchoTalkAgent(Agent):
         if new_mode != self._current_mode:
             logger.info("教学模式切换: %s → %s", self._current_mode, new_mode)
             self._current_mode = new_mode
-            await self.update_instructions(build_dynamic_prompt(emotion.anxiety_level))
+            await self.update_instructions(
+                build_dynamic_prompt(
+                    emotion.anxiety_level,
+                    custom_prompt=self._custom_prompt,
+                    document_content=self._document_content,
+                )
+            )
 
         # 3. 异步持久化用户转录 + 情绪状态（不阻塞 LLM 推理）
         asyncio.ensure_future(
@@ -336,6 +372,11 @@ async def entrypoint(ctx: JobContext):
 
     is_custom = user_settings.is_custom_mode
 
+    # ── 1b. 查询文档上下文 ────────────────────────────────────
+    session_context = await _fetch_session_context(session_id)
+    custom_prompt = session_context.custom_prompt if session_context else None
+    document_content = session_context.document_content if session_context else None
+
     # ── 2. 根据模式构建插件 ────────────────────────────────────
     if is_custom:
         logger.info("自定义轨模式: session_id=%s", session_id)
@@ -350,9 +391,17 @@ async def entrypoint(ctx: JobContext):
         plugins = PluginFactory.from_system_defaults()
 
     # ── 3. 创建情绪感知 Agent ──────────────────────────────────
+    initial_prompt = build_dynamic_prompt(
+        anxiety_level=0.0,
+        custom_prompt=custom_prompt,
+        document_content=document_content,
+    )
+
     agent = EchoTalkAgent(
         session_id=session_id,
-        instructions=SYSTEM_PROMPT,
+        custom_prompt=custom_prompt,
+        document_content=document_content,
+        instructions=initial_prompt,
         **plugins,
     )
 

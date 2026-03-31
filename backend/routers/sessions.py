@@ -18,7 +18,7 @@ from sqlalchemy.orm import selectinload
 from config import settings
 from database import get_db
 from dependencies import get_current_user
-from models.session import Session, SessionMode, SessionStatus
+from models.session import Session, SessionContext, SessionMode, SessionStatus
 from models.user import SubscriptionTier, User
 from schemas.session import SessionCreate, SessionListItem, SessionResponse
 from services.analysis_service import analyze_session, update_knowledge
@@ -45,6 +45,19 @@ async def create_session(
             detail=f"无效的 mode 值: '{body.mode}'。有效值: {valid_modes}",
         )
 
+    # doc_chat 模式校验
+    if mode == SessionMode.doc_chat:
+        if not body.doc_context or not body.doc_context.raw_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="doc_chat 模式必须提供文档内容",
+            )
+        if len(body.doc_context.raw_text) > 50000:
+            raise HTTPException(
+                status_code=400,
+                detail="文档内容超过 50,000 字符限制",
+            )
+
     session = Session(
         id=uuid.uuid4(),
         user_id=uuid.UUID(current_user["id"]),
@@ -54,6 +67,18 @@ async def create_session(
     )
     db.add(session)
     await db.flush()
+
+    # 创建关联的 SessionContext
+    if mode == SessionMode.doc_chat and body.doc_context:
+        ctx = SessionContext(
+            session_id=session.id,
+            custom_prompt=body.doc_context.prompt,
+            document_content=body.doc_context.raw_text,
+            content_type=body.doc_context.content_type,
+        )
+        db.add(ctx)
+        await db.flush()
+
     await db.refresh(session)
 
     return session

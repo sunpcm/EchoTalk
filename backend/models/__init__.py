@@ -6,7 +6,7 @@ Alembic 的 env.py 通过导入此模块来发现所有表的 metadata。
 from models.base import Base
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
-from models.session import Session, Transcript
+from models.session import Session, SessionContext, Transcript
 from models.user import (
     LLMProvider,
     STTProvider,
@@ -25,6 +25,7 @@ __all__ = [
     "LLMProvider",
     "TTSProvider",
     "Session",
+    "SessionContext",
     "Transcript",
     "Skill",
     "KnowledgeState",
