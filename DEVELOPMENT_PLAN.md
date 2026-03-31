@@ -107,6 +107,41 @@
 - 开发 Settings Drawer UI：包含模式开关以及模型提供商/密钥配置面板。
 - 实现前端的异常捕获与优雅提示，精准拦截并展示自定义通道错误（例如欠费/密钥无效）。
 
+### Phase 6：BYOK 鉴权与连通性验证重构 (安全加固)
+
+**目标**： 对 Phase 5 的双轨制进行安全防御升级，强推 BYOK 模式、增加服务级 API Key 拨测、VIP 等级鉴权隔离。
+
+**后端任务**：
+
+- 新增 `ValidationService`，对第三方 Provider 进行真实 HTTP 探测。
+- 增加 `is_custom_verified` 字段与增量式局部保存逻辑。
+- 在 Token 签发前增加连通性检查和 VIP 准入保护。
+
+**前端任务**：
+
+- 在切换关闭 BYOK 时注入 VIP 拦截提示。
+- 增加预检服务健康检查状态机 (`checking_health`)。
+- 密钥状态可视化徽章（已连通 / 验证失败 / 未配置）。
+
+### Phase 7：文档对话 DocTalk (功能拓展) ✅ Completed
+
+**目标**： 允许用户上传自定义文档（Markdown/TXT），与 AI 基于文档内容进行实时语音对话。核心解决情绪模式切换时文档上下文被覆盖的问题。
+
+**后端任务**：
+
+- 扩展 `SessionMode` 枚举，新增 `doc_chat` 模式。
+- 新建 `SessionContext` 一对一关联表，存储文档原文与自定义 Prompt。
+- 扩展 `POST /api/sessions` 接口，处理 `doc_chat` 模式的文档上下文。
+- **核心重构**：实现三层 Prompt 架构 (`build_dynamic_prompt`)，确保情绪切换时文档上下文锁定不丢失。
+- `EchoTalkAgent` 持久化 `_custom_prompt` / `_document_content`，`entrypoint` 新增 `_fetch_session_context`。
+
+**前端任务**：
+
+- Zustand Store 扩展 `AppView` 新增 `"doc-chat-setup"` 状态。
+- 开发 `DocUploadCard`（FileReader 纯客户端读取）、`PromptBuilder`（三预设按钮）、`DocChatSetup`（页面容器）组件。
+- Dashboard 新增 DocTalk 入口卡片，App 组件三向视图分发。
+- 新增 `zhCN.docChat` i18n 命名空间。
+
 ## 三、 阶段交付物标准
 
 在每一个 Phase 完成后，必须产出以下交付物，方可进入下一阶段：
