@@ -28,26 +28,26 @@ function SkillRow({ state }: { state: KnowledgeStateResponse }) {
   const pct = Math.round(state.p_mastery * 100);
   const mastered = state.p_mastery >= 0.95;
   const barColor = mastered
-    ? "bg-green-500"
+    ? "bg-success"
     : state.p_mastery >= 0.6
-      ? "bg-green-400"
+      ? "bg-mid-green"
       : state.p_mastery >= 0.3
-        ? "bg-yellow-400"
-        : "bg-red-400";
+        ? "bg-warning-bar"
+        : "bg-danger";
 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-sm text-gray-700">{state.skill_name}</span>
+        <span className="text-text-default text-sm">{state.skill_name}</span>
         {mastered ? (
-          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+          <span className="bg-success-bg text-success-text rounded-full px-2 py-0.5 text-xs font-medium">
             {t.mastered}
           </span>
         ) : (
-          <span className="text-xs text-gray-500">{pct}%</span>
+          <span className="text-text-muted text-xs">{pct}%</span>
         )}
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+      <div className="bg-surface-alt h-2 w-full overflow-hidden rounded-full">
         <div
           className={`h-full rounded-full transition-all ${barColor}`}
           style={{ width: `${pct}%` }}
@@ -70,7 +70,7 @@ export function SkillTree({ states }: SkillTreeProps) {
 
         return (
           <div key={category}>
-            <h3 className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase">
+            <h3 className="text-text-faint mb-3 text-sm font-semibold tracking-wide uppercase">
               {category === "pronunciation" ? t.pronunciation : t.grammar}
             </h3>
             <div className="space-y-3">

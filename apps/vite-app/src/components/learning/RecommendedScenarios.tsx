@@ -14,12 +14,12 @@ const t = zhCN.dashboard;
 
 /** CEFR 等级对应的配色 */
 const cefrColorMap: Record<string, string> = {
-  A1: "bg-green-100 text-green-700",
-  A2: "bg-green-100 text-green-700",
-  B1: "bg-blue-100 text-blue-700",
-  B2: "bg-blue-100 text-blue-700",
-  C1: "bg-purple-100 text-purple-700",
-  C2: "bg-purple-100 text-purple-700",
+  A1: "bg-success-bg text-success-text",
+  A2: "bg-success-bg text-success-text",
+  B1: "bg-warning-bg text-warning",
+  B2: "bg-accent-soft-bg text-accent-soft-text",
+  C1: "bg-accent-soft-bg text-accent-soft-text",
+  C2: "bg-accent-soft-bg text-accent-soft-text",
 };
 
 function ScenarioCard({
@@ -31,13 +31,13 @@ function ScenarioCard({
   isChecking?: boolean;
   onEnter: (scenario: CurriculumRecommendation) => void;
 }) {
-  const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-gray-100 text-gray-700";
+  const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-surface-alt text-text-muted";
 
   return (
-    <div className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+    <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
-        <h3 className="leading-tight font-semibold text-gray-800">
+        <h3 className="text-text-default leading-tight font-semibold">
           {formatTitle(scenario.scenario_name)}
         </h3>
         <span
@@ -49,12 +49,12 @@ function ScenarioCard({
 
       {/* Focus skills */}
       <div className="mb-4 flex-1">
-        <p className="mb-1.5 text-xs text-gray-500">{t.focusSkills}</p>
+        <p className="text-text-muted mb-1.5 text-xs">{t.focusSkills}</p>
         <div className="flex flex-wrap gap-1.5">
           {scenario.focus_skills.map((skill) => (
             <span
               key={skill}
-              className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700"
+              className="bg-accent-soft-bg text-accent-soft-text rounded-md px-2 py-0.5 text-xs"
             >
               {formatTitle(skill)}
             </span>
@@ -71,7 +71,7 @@ function ScenarioCard({
         {isChecking ? (
           <>
             <svg
-              className="mr-2 h-4 w-4 animate-spin text-white"
+              className="text-accent-contrast mr-2 h-4 w-4 animate-spin"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -134,24 +134,24 @@ export function RecommendedScenarios() {
 
   if (loading) {
     return (
-      <div className="py-8 text-center text-gray-400">
-        <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-transparent" />
+      <div className="text-text-faint py-8 text-center">
+        <div className="border-border-default mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
         {t.loading}
       </div>
     );
   }
 
   if (error || !data) {
-    return <div className="py-8 text-center text-sm text-gray-400">{t.loadError}</div>;
+    return <div className="text-text-faint py-8 text-center text-sm">{t.loadError}</div>;
   }
 
   if (data.recommendations.length === 0) {
-    return <div className="py-8 text-center text-sm text-gray-400">{t.noRecommendations}</div>;
+    return <div className="text-text-faint py-8 text-center text-sm">{t.noRecommendations}</div>;
   }
 
   return (
     <section>
-      <h2 className="mb-4 text-lg font-bold text-gray-800">{t.recommendTitle}</h2>
+      <h2 className="text-text-default mb-4 text-lg font-bold">{t.recommendTitle}</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {data.recommendations.slice(0, 3).map((rec) => (
           <ScenarioCard

@@ -1,0 +1,128 @@
+/**
+ * EchoTalk 三主题语义化设计 Token（Phase 8.1）
+ * warm 写在 :root 上作为默认；cool / dark 用 [data-theme] 覆盖。
+ * 运行时切换 <html data-theme="cool|dark"> 即全站生效。
+ * 组件不直接引用这些变量，而是通过 theme.css 的 @theme 桥接层用
+ * bg-surface / text-muted / bg-accent 这类 utility class。
+ */
+
+/* ============ 暖色（默认，橙色系）============ */
+:root {
+  --bg: #fbf7f1;
+  --surface: #ffffff;
+  --surface-alt: #fbf7f1;
+  --border: #efe7dc;
+  --border-soft: #f0e7da;
+  --text: #2c2620;
+  --text-muted: #8a8178;
+  --text-faint: #b0a69a;
+  --accent: #f76b4a;
+  --accent-hover: #e85632;
+  --accent-grad-1: #fb9268;
+  --accent-soft-bg: #fdebe3;
+  --accent-soft-bg-strong: #fbdccd;
+  --accent-soft-text: #c9482a;
+  --accent-soft-border: #f9c7b4;
+  --accent-contrast: #ffffff;
+  --accent-shadow: rgba(247, 107, 74, 0.45);
+  --card-shadow: rgba(80, 50, 20, 0.18);
+  --panel-gradient: linear-gradient(105deg, #fdebe3 0%, #fce3d6 55%, #fbefd6 100%);
+  --scrollbar-thumb: #e7dccb;
+  --header-bg: rgba(251, 247, 241, 0.82);
+  --success: #37a56e;
+  --success-bg: #e4f3ea;
+  --success-border: #bee3cd;
+  --success-text: #1f5c3d;
+  --warning-bar: #f2a63b;
+  --warning: #b87a17;
+  --warning-bg: #fbefd6;
+  --warning-border: #f0d399;
+  --danger: #e24c4c;
+  --danger-hover: #ce3b3b;
+  --danger-bg: #fbe7e4;
+  --danger-border: #f1c4bd;
+  --danger-text: #b83a3a;
+  --danger-shadow: rgba(226, 76, 76, 0.45);
+  --mid-green: #5fbe8a;
+}
+
+/* ============ 冷色（蓝色系）============ */
+:root[data-theme="cool"] {
+  --bg: #f1f5fb;
+  --surface: #ffffff;
+  --surface-alt: #e7eff9;
+  --border: #dce6f2;
+  --border-soft: #e3ecf6;
+  --text: #202634;
+  --text-muted: #74808f;
+  --text-faint: #9ba7b5;
+  --accent: #3d6fe0;
+  --accent-hover: #2e58be;
+  --accent-grad-1: #6d93ee;
+  --accent-soft-bg: #e1eafb;
+  --accent-soft-bg-strong: #cfe0fb;
+  --accent-soft-text: #2c4f9e;
+  --accent-soft-border: #c4d6f6;
+  --accent-contrast: #ffffff;
+  --accent-shadow: rgba(61, 111, 224, 0.45);
+  --card-shadow: rgba(40, 70, 120, 0.16);
+  --panel-gradient: linear-gradient(105deg, #e7eefb 0%, #dce7fa 55%, #e1eafb 100%);
+  --scrollbar-thumb: #d7e2ef;
+  --header-bg: rgba(241, 245, 251, 0.82);
+  /* 语义色沿用暖色数值：两套浅色主题共享成功/警告/危险色 */
+  --success: #37a56e;
+  --success-bg: #e4f3ea;
+  --success-border: #bee3cd;
+  --success-text: #1f5c3d;
+  --warning-bar: #f2a63b;
+  --warning: #b87a17;
+  --warning-bg: #fbefd6;
+  --warning-border: #f0d399;
+  --danger: #e24c4c;
+  --danger-hover: #ce3b3b;
+  --danger-bg: #fbe7e4;
+  --danger-border: #f1c4bd;
+  --danger-text: #b83a3a;
+  --danger-shadow: rgba(226, 76, 76, 0.45);
+  --mid-green: #5fbe8a;
+}
+
+/* ============ 黑色（深色系，金色点缀）============ */
+:root[data-theme="dark"] {
+  --bg: #17181b;
+  --surface: #202227;
+  --surface-alt: #26282e;
+  --border: #33353c;
+  --border-soft: #2b2d33;
+  --text: #edebe6;
+  --text-muted: #97949e;
+  --text-faint: #726f78;
+  --accent: #e8a23d;
+  --accent-hover: #f2b156;
+  --accent-grad-1: #f2c16b;
+  --accent-soft-bg: #3a2e1a;
+  --accent-soft-bg-strong: #4e3c22;
+  --accent-soft-text: #f0be72;
+  --accent-soft-border: #4a3a20;
+  --accent-contrast: #1c1408;
+  --accent-shadow: rgba(232, 162, 61, 0.45);
+  --card-shadow: rgba(0, 0, 0, 0.55);
+  --panel-gradient: linear-gradient(105deg, #2a2313 0%, #332815 55%, #241f14 100%);
+  --scrollbar-thumb: #3a3c43;
+  --header-bg: rgba(23, 24, 27, 0.82);
+  --success: #45b37f;
+  --success-bg: #17301f;
+  --success-border: #26492f;
+  --success-text: #7bdda8;
+  --warning-bar: #e0a63a;
+  --warning: #e0a63a;
+  --warning-bg: #302711;
+  --warning-border: #4a3b18;
+  --danger: #e5646a;
+  --danger-hover: #ef7a80;
+  --danger-bg: #32191b;
+  --danger-border: #4a2427;
+  --danger-text: #f0898d;
+  --danger-shadow: rgba(229, 100, 106, 0.45);
+  --mid-green: #4fa87a;
+}

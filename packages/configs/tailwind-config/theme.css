@@ -3,6 +3,10 @@
  * 在各应用的 CSS 中 @import 使用
  */
 
+/* Phase 8：先加载三主题语义变量，再在 @theme 桥接。
+ * 放这里而非 styles.css，随包一起被消费，无需额外 exports 子路径。 */
+@import "./theme-tokens.css";
+
 @theme {
   /* 自定义颜色 */
   --color-brand-50: #eff6ff;
@@ -19,4 +23,45 @@
   /* 自定义间距 */
   --spacing-18: 4.5rem;
   --spacing-88: 22rem;
+
+  /* ===== Phase 8：三主题语义色桥接 =====
+   * 指向 theme-tokens.css 里的语义变量，组件用 bg-surface / text-muted /
+   * bg-accent 等 utility，运行时换 data-theme 全站颜色跟着变。
+   * 命名带语义后缀，避免与上面的 brand-* 冲突。 */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-border-default: var(--border);
+  --color-border-soft: var(--border-soft);
+
+  --color-text-default: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-grad-1: var(--accent-grad-1);
+  --color-accent-soft-bg: var(--accent-soft-bg);
+  --color-accent-soft-bg-strong: var(--accent-soft-bg-strong);
+  --color-accent-soft-text: var(--accent-soft-text);
+  --color-accent-soft-border: var(--accent-soft-border);
+  --color-accent-contrast: var(--accent-contrast);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-success-text: var(--success-text);
+
+  --color-warning: var(--warning);
+  --color-warning-bar: var(--warning-bar);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-danger-text: var(--danger-text);
+
+  --color-mid-green: var(--mid-green);
 }

@@ -123,21 +123,21 @@ export function AnswerRecommendations() {
   const isWaiting = !latestQuestion || state === "thinking" || state === "speaking";
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
-      <h3 className="mb-2 text-sm font-semibold text-emerald-800">{t.title}</h3>
+    <div className="border-success-border bg-success-bg rounded-[20px] border p-4 shadow-[0_6px_22px_-14px_var(--card-shadow)]">
+      <h3 className="text-success-text mb-2 text-sm font-semibold">{t.title}</h3>
 
       {isWaiting ? (
-        <p className="text-xs text-emerald-600/70">{t.waiting}</p>
+        <p className="text-success text-xs">{t.waiting}</p>
       ) : (
         <>
-          <p className="mb-3 text-xs text-emerald-600/80">{t.hint}</p>
+          <p className="text-success mb-3 text-xs">{t.hint}</p>
           <div className="space-y-2">
             {recommendations.map((rec, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-900 transition-colors hover:border-emerald-400 hover:bg-emerald-50"
+                className="border-success-border bg-surface text-success-text hover:border-success rounded-[12px] border px-3 py-2 text-sm transition-colors"
               >
-                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white">
+                <span className="bg-success mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white">
                   {i + 1}
                 </span>
                 {rec}

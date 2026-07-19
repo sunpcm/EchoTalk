@@ -23,7 +23,7 @@ interface PromptBuilderProps {
 export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-gray-700">{t.promptLabel}</label>
+      <label className="text-text-default block text-sm font-medium">{t.promptLabel}</label>
 
       {/* Preset buttons */}
       <div className="flex flex-wrap gap-2">
@@ -32,7 +32,7 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
             key={preset.label}
             type="button"
             onClick={() => onChange(preset.prompt)}
-            className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong rounded-full border px-3 py-1 text-xs font-medium transition-colors"
           >
             {preset.label}
           </button>
@@ -45,7 +45,7 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={t.promptPlaceholder}
         rows={3}
-        className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-200 focus:outline-none"
+        className="border-border-default focus:ring-accent-soft-bg w-full resize-y rounded-[14px] border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
       />
     </div>
   );

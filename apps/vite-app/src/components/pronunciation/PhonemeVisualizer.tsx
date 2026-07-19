@@ -17,13 +17,13 @@ interface PhonemeVisualizerProps {
 function getColorClasses(type: PhonemeAlignmentItem["type"]): string {
   switch (type) {
     case "correct":
-      return "bg-green-100 text-green-800 border-green-300";
+      return "bg-success-bg text-success-text border-success-border";
     case "substitution":
-      return "bg-red-100 text-red-800 border-red-300";
+      return "bg-danger-bg text-danger-text border-danger-border";
     case "deletion":
-      return "bg-red-100 text-red-800 border-dashed border-red-400";
+      return "bg-danger-bg text-danger-text border-dashed border-danger-border";
     case "insertion":
-      return "bg-amber-100 text-amber-800 border-amber-300";
+      return "bg-warning-bg text-warning border-warning-border";
   }
 }
 
@@ -54,7 +54,7 @@ function PhonemeBlock({ item }: { item: PhonemeAlignmentItem }) {
       >
         {item.phoneme}
       </span>
-      <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded bg-gray-800 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="bg-text-default text-bg pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded px-2 py-1 text-xs whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100">
         {tooltipText}
       </span>
     </div>

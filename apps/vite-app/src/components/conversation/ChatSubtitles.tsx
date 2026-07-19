@@ -78,16 +78,16 @@ export function ChatSubtitles() {
   }, [messages]);
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div className="border-border-default bg-surface flex h-full flex-col rounded-[20px] border shadow-[0_6px_22px_-14px_var(--card-shadow)]">
       {/* 标题栏 */}
-      <div className="border-b border-gray-100 px-4 py-3">
-        <h3 className="text-sm font-semibold text-gray-700">{t.title}</h3>
+      <div className="border-border-soft border-b px-4 py-3">
+        <h3 className="text-text-default text-sm font-semibold">{t.title}</h3>
       </div>
 
       {/* 消息列表 */}
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">{t.empty}</p>
+          <p className="text-text-faint py-8 text-center text-sm">{t.empty}</p>
         ) : (
           messages.map((msg) => <ChatBubble key={msg.id} message={msg} />)
         )}
@@ -103,11 +103,13 @@ function ChatBubble({ message }: { message: ChatMessage }) {
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={`max-w-[80%] rounded-lg p-3 ${
-          isUser ? "bg-green-500 text-white" : "bg-gray-100 text-gray-800"
+          isUser ? "bg-accent text-accent-contrast" : "bg-surface-alt text-text-default"
         } ${!message.isFinal ? "opacity-70" : ""}`}
       >
         {/* 发送者标签 */}
-        <p className={`mb-1 text-xs font-medium ${isUser ? "text-green-100" : "text-gray-400"}`}>
+        <p
+          className={`mb-1 text-xs font-medium ${isUser ? "text-accent-contrast/80" : "text-text-faint"}`}
+        >
           {isUser ? t.you : t.aiCoach}
         </p>
         {/* 消息文本 */}
