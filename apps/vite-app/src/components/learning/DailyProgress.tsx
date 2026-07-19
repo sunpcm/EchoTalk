@@ -54,7 +54,7 @@ export function DailyProgress() {
   }, []);
 
   if (loading) {
-    return <div className="py-4 text-center text-sm text-gray-400">{t.loading}</div>;
+    return <div className="text-text-faint py-4 text-center text-sm">{t.loading}</div>;
   }
 
   if (!stats) return null;
@@ -66,18 +66,18 @@ export function DailyProgress() {
 
   return (
     <section>
-      <h2 className="mb-4 text-lg font-bold text-gray-800">{t.dailyProgressTitle}</h2>
+      <h2 className="text-text-default mb-4 text-lg font-bold">{t.dailyProgressTitle}</h2>
 
       {/* Progress bar */}
       <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="text-gray-600">
+        <span className="text-text-muted">
           {t.turnsGoal}: {totalTurns} / {DAILY_GOAL}
         </span>
-        {goalReached && <span className="font-semibold text-green-600">{t.goalReached}</span>}
+        {goalReached && <span className="text-success font-semibold">{t.goalReached}</span>}
       </div>
-      <div className="mb-4 h-3 w-full overflow-hidden rounded-full bg-gray-200">
+      <div className="bg-surface-alt mb-4 h-3 w-full overflow-hidden rounded-full">
         <div
-          className={`h-full rounded-full transition-all ${goalReached ? "bg-green-500" : "bg-indigo-500"}`}
+          className={`h-full rounded-full transition-all ${goalReached ? "bg-success" : "bg-accent"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -85,15 +85,15 @@ export function DailyProgress() {
       {/* Session list */}
       {sessions.length > 0 ? (
         <div>
-          <h3 className="mb-2 text-sm font-medium text-gray-500">{t.sessionsTitle}</h3>
+          <h3 className="text-text-muted mb-2 text-sm font-medium">{t.sessionsTitle}</h3>
           <ul className="space-y-2">
             {sessions.map((s) => (
               <li
                 key={s.id}
-                className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"
+                className="bg-surface-alt flex items-center justify-between rounded-[12px] px-3 py-2 text-sm"
               >
-                <span className="text-gray-700">{s.mode}</span>
-                <span className="text-gray-400">
+                <span className="text-text-default">{s.mode}</span>
+                <span className="text-text-faint">
                   {new Date(s.started_at).toLocaleTimeString("zh-CN", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -104,7 +104,7 @@ export function DailyProgress() {
           </ul>
         </div>
       ) : (
-        <p className="text-sm text-gray-400">{t.noSessions}</p>
+        <p className="text-text-faint text-sm">{t.noSessions}</p>
       )}
     </section>
   );

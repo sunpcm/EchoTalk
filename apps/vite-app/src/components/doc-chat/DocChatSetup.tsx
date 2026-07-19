@@ -54,7 +54,7 @@ export function DocChatSetup() {
       <div className="relative text-center">
         <button
           onClick={goHome}
-          className="absolute top-0 left-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="text-text-muted hover:bg-surface-alt hover:text-accent absolute top-0 left-0 rounded-lg p-2 transition-colors"
           title={t.goBack}
         >
           <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -65,13 +65,15 @@ export function DocChatSetup() {
             />
           </svg>
         </button>
-        <h1 className="mb-1 text-3xl font-bold text-indigo-600">{t.title}</h1>
-        <p className="text-gray-500">{t.subtitle}</p>
+        <h1 className="text-accent mb-1 text-3xl font-bold">{t.title}</h1>
+        <p className="text-text-muted">{t.subtitle}</p>
       </div>
 
       {/* Error feedback */}
       {error && (
-        <div className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">{error}</div>
+        <div className="bg-danger-bg text-danger-text rounded-lg p-4 text-center text-sm">
+          {error}
+        </div>
       )}
 
       {/* Document upload */}
@@ -89,7 +91,7 @@ export function DocChatSetup() {
         {isLoading ? (
           <>
             <svg
-              className="mr-2 h-4 w-4 animate-spin text-white"
+              className="text-accent-contrast mr-2 h-4 w-4 animate-spin"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"

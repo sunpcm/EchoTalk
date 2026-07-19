@@ -5,11 +5,18 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useSettingsStore } from "@/store/settings";
+import { useSettingsStore, type ThemeName } from "@/store/settings";
 import { zhCN } from "@/i18n/zh-CN";
 import type { UserSettingsUpdate } from "@/lib/api";
 
 const t = zhCN.settings;
+
+/** Phase 8.5：外观主题色板预览 */
+const THEME_SWATCHES: { value: ThemeName; label: string; bg: string; accent: string }[] = [
+  { value: "warm", label: "暖色", bg: "#FBF7F1", accent: "#F76B4A" },
+  { value: "cool", label: "冷色", bg: "#F1F5FB", accent: "#3D6FE0" },
+  { value: "dark", label: "黑色", bg: "#17181B", accent: "#E8A23D" },
+];
 
 interface SettingsDrawerProps {
   open: boolean;
@@ -26,6 +33,8 @@ const TTS_OPTIONS = [{ value: "cartesia", label: "Cartesia" }] as const;
 
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   const { settings, loading, saving, error, fetchSettings, updateSettings } = useSettingsStore();
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
 
   // 本地表单状态
   const [isCustomMode, setIsCustomMode] = useState(false);
@@ -121,33 +130,29 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       <div className="fixed inset-0 z-40 bg-black/30 transition-opacity" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm animate-[slideInRight_0.25s_ease-out] overflow-y-auto bg-white shadow-xl">
+      <div className="bg-bg fixed inset-y-0 right-0 z-50 w-full max-w-sm animate-[slideInRight_0.25s_ease-out] overflow-y-auto shadow-xl">
         {/* Toast 提示 (顶置悬浮) */}
         {toastError && (
-          <div className="absolute top-4 right-4 left-4 z-[60] rounded-lg bg-red-50 p-4 shadow-lg ring-1 ring-red-200">
+          <div className="bg-danger-bg ring-danger-border absolute top-4 right-4 left-4 z-[60] rounded-lg p-4 shadow-lg ring-1">
             <div className="flex gap-3">
-              <svg
-                className="h-5 w-5 shrink-0 text-red-500"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
+              <svg className="text-danger h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
                   clipRule="evenodd"
                 />
               </svg>
-              <p className="text-sm font-medium text-red-800">{toastError}</p>
+              <p className="text-danger-text text-sm font-medium">{toastError}</p>
             </div>
           </div>
         )}
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-800">{t.title}</h2>
+        <div className="border-border-default flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-text-default text-lg font-semibold">{t.title}</h2>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="text-text-faint hover:bg-surface-alt hover:text-text-default rounded-md p-1 transition-colors"
           >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
@@ -159,24 +164,61 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           {/* 加载状态 */}
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+              <div className="border-accent h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
             </div>
           )}
 
           {!loading && (
             <>
+              {/* Phase 8.5：外观主题切换 */}
+              <div className="space-y-2">
+                <div>
+                  <p className="text-text-default text-sm font-medium">外观主题</p>
+                  <p className="text-text-muted text-xs">选择暖色、冷色或黑色界面风格</p>
+                </div>
+                <div className="flex gap-2">
+                  {THEME_SWATCHES.map((s) => {
+                    const active = theme === s.value;
+                    return (
+                      <button
+                        key={s.value}
+                        onClick={() => setTheme(s.value)}
+                        className={`flex flex-1 items-center gap-2 rounded-[14px] px-3 py-2.5 transition-colors ${
+                          active
+                            ? "border-accent border-2"
+                            : "border-border-default hover:border-accent-soft-border border"
+                        }`}
+                      >
+                        <span
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                          style={{ background: s.bg, border: `2px solid ${s.accent}` }}
+                        >
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ background: s.accent }}
+                          />
+                        </span>
+                        <span className="text-text-default text-sm font-semibold">{s.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <hr className="border-border-default" />
+
               {/* Switch: is_custom_mode */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-800">{t.customModeLabel}</p>
-                  <p className="text-xs text-gray-500">{t.customModeDesc}</p>
+                  <p className="text-text-default text-sm font-medium">{t.customModeLabel}</p>
+                  <p className="text-text-muted text-xs">{t.customModeDesc}</p>
                 </div>
                 <button
                   role="switch"
                   aria-checked={isCustomMode}
                   onClick={handleToggleCustomMode}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-                    isCustomMode ? "bg-indigo-500" : "bg-gray-300"
+                    isCustomMode ? "bg-accent" : "bg-border-default"
                   }`}
                 >
                   <span
@@ -187,7 +229,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 </button>
               </div>
 
-              <hr className="border-gray-200" />
+              <hr className="border-border-default" />
 
               {/* Provider 配置区域 */}
               <fieldset disabled={disabled} className={disabled ? "opacity-50" : ""}>
@@ -217,7 +259,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   >
                     {/* LLM Model */}
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">
+                      <label className="text-text-muted mb-1 block text-xs font-medium">
                         {t.llmModel}
                       </label>
                       <input
@@ -225,7 +267,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                         value={llmModel}
                         onChange={(e) => setLlmModel(e.target.value)}
                         placeholder={t.llmModelPlaceholder}
-                        className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                        className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
                       />
                     </div>
                   </ProviderGroup>
@@ -248,16 +290,16 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="w-full rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="bg-accent text-accent-contrast hover:bg-accent-hover w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? t.saving : t.save}
               </button>
 
               {/* 保存成功提示 */}
-              {saveSuccess && <p className="text-center text-sm text-green-600">{t.saveSuccess}</p>}
+              {saveSuccess && <p className="text-success text-center text-sm">{t.saveSuccess}</p>}
 
               {/* 错误提示 */}
-              {error && <p className="text-center text-sm text-red-600">{error}</p>}
+              {error && <p className="text-danger text-center text-sm">{error}</p>}
             </>
           )}
         </div>
@@ -269,7 +311,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 function KeyStatusBadge({ status }: { status?: "verified" | "error" | "unconfigured" }) {
   if (status === "verified") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+      <span className="bg-success-bg text-success-text flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
         <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
           <path
             fillRule="evenodd"
@@ -283,7 +325,7 @@ function KeyStatusBadge({ status }: { status?: "verified" | "error" | "unconfigu
   }
   if (status === "error") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
+      <span className="bg-danger-bg text-danger-text flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
         <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
           <path
             fillRule="evenodd"
@@ -295,7 +337,9 @@ function KeyStatusBadge({ status }: { status?: "verified" | "error" | "unconfigu
       </span>
     );
   }
-  return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">未配置</span>;
+  return (
+    <span className="bg-surface-alt text-text-muted rounded-full px-2 py-0.5 text-xs">未配置</span>
+  );
 }
 
 /** 单个 Provider 配置组：下拉选择 + API Key 输入 */
@@ -324,14 +368,14 @@ function ProviderGroup({
     <div className="space-y-2">
       {/* Provider 下拉及状态 Badge */}
       <div className="mb-1 flex items-center justify-between">
-        <label className="block text-xs font-medium text-gray-600">{label}</label>
+        <label className="text-text-muted block text-xs font-medium">{label}</label>
         <KeyStatusBadge status={status} />
       </div>
       <div>
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm transition-colors outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+          className="border-border-default bg-surface focus:border-accent-soft-border focus:ring-accent-soft-border w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
         >
           {options.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -347,14 +391,14 @@ function ProviderGroup({
       {/* API Key 输入 */}
       <div>
         <div className="mb-1 flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-600">{t.apiKey}</label>
+          <label className="text-text-muted text-xs font-medium">{t.apiKey}</label>
         </div>
         <input
           type="password"
           value={apiKey}
           onChange={(e) => onKeyChange(e.target.value)}
           placeholder={hasKey ? "••••••••（留空保持不变）" : t.apiKeyPlaceholder}
-          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+          className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
         />
       </div>
     </div>

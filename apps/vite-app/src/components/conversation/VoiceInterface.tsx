@@ -47,7 +47,7 @@ export function VoiceInterface() {
     return (
       <div className="flex flex-col items-center gap-6 py-12">
         {error && (
-          <div className="w-full max-w-sm rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+          <div className="bg-danger-bg text-danger-text w-full max-w-sm rounded-lg p-4 text-center text-sm">
             <p className="font-medium">{tConv.errorTitle}</p>
             <p>{error}</p>
           </div>
@@ -127,8 +127,8 @@ export function VoiceInterface() {
 function ConnectingView() {
   return (
     <div className="flex flex-col items-center gap-4 py-12">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
-      <p className="text-gray-500">{tConv.connecting}</p>
+      <div className="border-accent h-10 w-10 animate-spin rounded-full border-4 border-t-transparent" />
+      <p className="text-text-muted">{tConv.connecting}</p>
     </div>
   );
 }
@@ -170,7 +170,7 @@ function ActiveView() {
       {/* ===== 左侧：语音状态 + 回答推荐 ===== */}
       <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
         {/* 语音可视化 + 状态 */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="border-border-default bg-surface rounded-[20px] border p-4 shadow-[0_6px_22px_-14px_var(--card-shadow)]">
           <div className="mb-4 h-24 w-full">
             {voiceAssistant.audioTrack && (
               <BarVisualizer
@@ -193,7 +193,7 @@ function ActiveView() {
           {/* 结束对话按钮 */}
           <button
             onClick={endSession}
-            className="mt-3 w-full rounded-lg bg-red-500 px-6 py-2 text-white transition-colors hover:bg-red-600"
+            className="bg-danger hover:bg-danger-hover mt-3 w-full rounded-[14px] px-6 py-2 text-white transition-colors"
           >
             {tConv.endButton}
           </button>
@@ -226,7 +226,7 @@ function AgentStatusText({ state }: { state: string }) {
     }
   })();
 
-  return <p className="text-center text-sm font-medium text-gray-600">{text}</p>;
+  return <p className="text-text-muted text-center text-sm font-medium">{text}</p>;
 }
 
 /** 防拦截连接警告 Toast */
@@ -241,11 +241,11 @@ function ConnectionWarningToast({
 }) {
   return (
     <div className="fixed inset-x-0 top-4 z-50 mx-auto max-w-lg animate-[slideDown_0.3s_ease-out] px-4">
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-lg">
+      <div className="border-warning-border bg-warning-bg rounded-[20px] border p-4 shadow-lg">
         <div className="flex items-start gap-3">
           {/* 警告图标 */}
           <div className="mt-0.5 shrink-0">
-            <svg className="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+            <svg className="text-warning-bar h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path
                 fillRule="evenodd"
                 d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z"
@@ -255,19 +255,19 @@ function ConnectionWarningToast({
           </div>
 
           <div className="flex-1">
-            <h4 className="text-sm font-semibold text-amber-800">{tWarn.title}</h4>
-            <p className="mt-1 text-xs leading-relaxed text-amber-700">{tWarn.message}</p>
-            {error && <p className="mt-1 font-mono text-xs text-amber-600/70">{error}</p>}
+            <h4 className="text-warning text-sm font-semibold">{tWarn.title}</h4>
+            <p className="text-warning mt-1 text-xs leading-relaxed">{tWarn.message}</p>
+            {error && <p className="text-warning mt-1 font-mono text-xs">{error}</p>}
             <div className="mt-3 flex gap-2">
               <button
                 onClick={onRetry}
-                className="rounded-md bg-amber-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-600"
+                className="bg-warning-bar hover:bg-warning rounded-md px-3 py-1 text-xs font-medium text-white transition-colors"
               >
                 {tWarn.retry}
               </button>
               <button
                 onClick={onDismiss}
-                className="rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
+                className="border-warning-border text-warning hover:bg-warning-bg rounded-md border px-3 py-1 text-xs font-medium transition-colors"
               >
                 {tWarn.dismiss}
               </button>
@@ -283,9 +283,9 @@ function ConnectionWarningToast({
 function AnalyzingView() {
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
-      <p className="text-gray-500">{tAssess.analyzing}</p>
-      <p className="text-sm text-gray-400">{tAssess.analyzingHint}</p>
+      <div className="border-accent h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
+      <p className="text-text-muted">{tAssess.analyzing}</p>
+      <p className="text-text-faint text-sm">{tAssess.analyzingHint}</p>
     </div>
   );
 }
@@ -293,8 +293,8 @@ function AnalyzingView() {
 /** 加载失败视图 */
 function AssessmentErrorView() {
   return (
-    <div className="rounded-lg bg-red-50 p-4 text-center">
-      <p className="text-sm text-red-600">{tAssess.loadError}</p>
+    <div className="bg-danger-bg rounded-lg p-4 text-center">
+      <p className="text-danger text-sm">{tAssess.loadError}</p>
     </div>
   );
 }
@@ -323,10 +323,10 @@ function EndedView() {
   if (agentError) {
     return (
       <div className="flex flex-col items-center gap-6 py-8">
-        <div className="w-full max-w-sm rounded-xl border border-red-200 bg-red-50 p-6 shadow-sm">
+        <div className="border-danger-border bg-danger-bg w-full max-w-sm rounded-[20px] border p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 shrink-0">
-              <svg className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="text-danger h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
@@ -335,9 +335,9 @@ function EndedView() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-red-800">{tAgentErr.title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-red-700">{agentError.message}</p>
-              <p className="mt-0.5 font-mono text-xs text-red-500/70">{agentError.code}</p>
+              <h3 className="text-danger-text text-sm font-semibold">{tAgentErr.title}</h3>
+              <p className="text-danger-text mt-1 text-sm leading-relaxed">{agentError.message}</p>
+              <p className="text-danger mt-0.5 font-mono text-xs">{agentError.code}</p>
             </div>
           </div>
         </div>
@@ -354,7 +354,7 @@ function EndedView() {
     <div className="flex flex-col items-center gap-6 py-8">
       {/* 标题 */}
       <div className="text-center">
-        <h2 className="mb-2 text-2xl font-bold text-gray-700">{tConv.ended}</h2>
+        <h2 className="text-text-default mb-2 text-2xl font-bold">{tConv.ended}</h2>
       </div>
 
       {/* 评估内容 */}
@@ -365,7 +365,9 @@ function EndedView() {
           <PronunciationFeedback assessment={assessment} grammarErrors={grammarErrors} />
           {knowledgeStates.length > 0 && (
             <div>
-              <h3 className="mb-3 text-lg font-semibold text-gray-700">{tAssess.skillTreeTitle}</h3>
+              <h3 className="text-text-default mb-3 text-lg font-semibold">
+                {tAssess.skillTreeTitle}
+              </h3>
               <SkillTree states={knowledgeStates} />
             </div>
           )}
@@ -379,7 +381,7 @@ function EndedView() {
         className="btn-primary inline-flex items-center gap-2 px-8 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loadState === "polling" && (
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          <span className="border-accent-contrast h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
         )}
         {loadState === "polling" ? tAssess.analyzing : tDash.goHome}
       </button>

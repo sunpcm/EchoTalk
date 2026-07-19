@@ -12,6 +12,25 @@ import {
   type UserSettingsUpdate,
 } from "@/lib/api";
 
+/** Phase 8：界面主题 */
+export type ThemeName = "warm" | "cool" | "dark";
+
+const THEME_STORAGE_KEY = "echotalk-theme";
+
+/** 读取本地持久化的主题（无则回退暖色） */
+export function readStoredTheme(): ThemeName {
+  if (typeof window === "undefined") return "warm";
+  const v = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return v === "cool" || v === "dark" ? v : "warm";
+}
+
+/** 把主题写到 <html data-theme> 上（warm 为默认，仍显式写便于调试） */
+export function applyThemeAttr(theme: ThemeName): void {
+  if (typeof document !== "undefined") {
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+}
+
 /** Store 类型定义 */
 interface SettingsStore {
   /** 当前用户设置（从后端获取） */
@@ -22,6 +41,11 @@ interface SettingsStore {
   saving: boolean;
   /** 错误信息 */
   error: string | null;
+  /** Phase 8：当前界面主题 */
+  theme: ThemeName;
+
+  /** Phase 8：切换主题——更新 store + <html data-theme> + 本地持久化 */
+  setTheme: (theme: ThemeName) => void;
 
   /** 从后端获取当前用户设置（水合） */
   fetchSettings: () => Promise<void>;
@@ -36,6 +60,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   loading: false,
   saving: false,
   error: null,
+  theme: readStoredTheme(),
+
+  setTheme: (theme: ThemeName) => {
+    applyThemeAttr(theme);
+    if (typeof window !== "undefined") {
+      // TODO: 接入 user_settings.theme 字段，改为后端持久化
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }
+    set({ theme });
+  },
 
   fetchSettings: async () => {
     if (get().loading) return;

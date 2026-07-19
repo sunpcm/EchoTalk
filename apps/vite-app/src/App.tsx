@@ -35,12 +35,12 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
     <div className="space-y-8">
       {/* Header */}
       <div className="relative text-center">
-        <h1 className="mb-1 text-3xl font-bold text-indigo-600">{tConv.title}</h1>
-        <p className="text-gray-500">{tConv.subtitle}</p>
+        <h1 className="text-accent mb-1 text-3xl font-bold">{tConv.title}</h1>
+        <p className="text-text-muted">{tConv.subtitle}</p>
         {/* 设置按钮 */}
         <button
           onClick={onOpenSettings}
-          className="absolute top-0 right-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="text-text-muted hover:bg-surface-alt hover:text-accent absolute top-0 right-0 rounded-lg p-2 transition-colors"
           title={zhCN.settings.title}
         >
           <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -55,7 +55,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
 
       {/* Connection error feedback */}
       {error && (
-        <div className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+        <div className="bg-danger-bg text-danger-text rounded-lg p-4 text-center text-sm">
           <p className="font-medium">{tConv.errorTitle}</p>
           <p>{error}</p>
         </div>
@@ -65,11 +65,12 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
       <section>
         <button
           onClick={() => useConversationStore.setState({ appView: "doc-chat-setup" })}
-          className="flex w-full items-center gap-4 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50 p-5 text-left shadow-sm transition-shadow hover:shadow-md"
+          style={{ background: "var(--panel-gradient)" }}
+          className="border-accent-soft-border flex w-full items-center gap-4 rounded-[20px] border p-5 text-left shadow-[0_8px_26px_-14px_var(--accent-shadow)] transition-shadow hover:shadow-[0_12px_30px_-12px_var(--accent-shadow)]"
         >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-indigo-100">
+          <div className="bg-surface flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] shadow-[0_4px_10px_-4px_var(--accent-shadow)]">
             <svg
-              className="h-6 w-6 text-indigo-600"
+              className="text-accent h-6 w-6"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -83,10 +84,10 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-indigo-700">{tDocChat.dashboardEntry}</h3>
-            <p className="text-sm text-gray-500">{tDocChat.dashboardDesc}</p>
+            <h3 className="text-accent-soft-text font-semibold">{tDocChat.dashboardEntry}</h3>
+            <p className="text-text-muted text-sm">{tDocChat.dashboardDesc}</p>
           </div>
-          <svg className="h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+          <svg className="text-text-faint h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
             <path
               fillRule="evenodd"
               d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
@@ -105,7 +106,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
       {/* Skill Tree */}
       {knowledgeStates.length > 0 && (
         <section>
-          <h2 className="mb-4 text-lg font-bold text-gray-800">{tAssess.skillTreeTitle}</h2>
+          <h2 className="text-text-default mb-4 text-lg font-bold">{tAssess.skillTreeTitle}</h2>
           <SkillTree states={knowledgeStates} />
         </section>
       )}
@@ -116,6 +117,8 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
 const App = () => {
   const appView = useConversationStore((s) => s.appView);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Phase 5: 应用启动时水合用户设置
@@ -123,8 +126,14 @@ const App = () => {
     void fetchSettings();
   }, [fetchSettings]);
 
+  // Phase 8: 启动即应用主题，避免刷新后闪一下默认主题
+  useEffect(() => {
+    setTheme(theme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-12">
+    <div className="bg-bg min-h-screen px-4 py-12">
       <div className="mx-auto max-w-3xl">
         {appView === "dashboard" ? (
           <Dashboard onOpenSettings={() => setDrawerOpen(true)} />

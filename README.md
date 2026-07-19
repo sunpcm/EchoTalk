@@ -21,6 +21,7 @@
 | 4     | 课程推荐 Dashboard（前端）        | ✅ 已完成 |
 | 5     | 双轨制 BYOK — 数据层 + Agent      | ✅ 已完成 |
 | 5     | 双轨制 BYOK — 设置抽屉 + 错误拦截 | ✅ 已完成 |
+| 8     | 三主题切换（暖色/冷色/黑色）      | ✅ 已完成 |
 
 ---
 
@@ -258,6 +259,15 @@ pnpm --filter vite-app dev
 - **自动重连阻止**：`setAgentError()` 将 `connectionState` 切到 `"ended"`，卸载 `<LiveKitRoom>` 根本阻断 WebRTC 重连
 - **onDisconnected 守卫**：检测到 `agentError` 时跳过琥珀色连接警告，避免重叠错误提示
 - **i18n 规范**：新增 `settings` + `agentError` 两个命名空间
+
+### Phase 8 — 三主题切换（暖色/冷色/黑色）（前端）
+
+- **三套可切换主题**：暖色（默认，橙色系）/ 冷色（蓝色系）/ 黑色（深色，金色点缀），运行时即时切换、无需刷新
+- **技术方案**：`data-theme` + CSS 语义变量（`theme-tokens.css`）+ Tailwind v4 `@theme` 桥接，组件写 `bg-surface`/`text-muted`/`bg-accent` 等语义 utility；相比 `dark:` 二值变体可支持任意数量主题，加第 4 套仅需新增一个 `[data-theme]` 块
+- **持久化**：`useSettingsStore.setTheme` 写 `<html data-theme>` + `localStorage`，启动时水合并对齐，避免刷新闪烁（预留接入后端 `user_settings.theme` 的 TODO）
+- **设置抽屉切换器**：「外观主题」色板按钮，预览色块 + 2px `accent` 选中描边
+- **视觉升级**：标题字体 `Baloo 2` + 正文 `Plus Jakarta Sans`，卡片圆角 20px + 语义化阴影；11 个组件从 `indigo-*`/`gray-*` 硬编码色迁移到语义 Token
+- 详见 [PHASE_8_TECH_STACK.md](docs/PHASE_8_TECH_STACK.md) 与 [PHASE_8_MANUAL_TEST.md](docs/PHASE_8_MANUAL_TEST.md)
 
 ---
 
