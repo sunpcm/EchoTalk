@@ -77,7 +77,7 @@ export function DailyProgress() {
       </div>
       <div className="bg-surface-alt mb-4 h-3 w-full overflow-hidden rounded-full">
         <div
-          className={`h-full rounded-full transition-all ${goalReached ? "bg-success" : "bg-accent"}`}
+          className={`h-full rounded-full transition-all ${goalReached ? "bg-success" : "bg-[linear-gradient(90deg,var(--accent-grad-1),var(--accent))]"}`}
           style={{ width: `${pct}%` }}
         />
       </div>

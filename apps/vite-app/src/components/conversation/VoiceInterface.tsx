@@ -261,7 +261,7 @@ function ConnectionWarningToast({
             <div className="mt-3 flex gap-2">
               <button
                 onClick={onRetry}
-                className="bg-warning-bar hover:bg-warning rounded-md px-3 py-1 text-xs font-medium text-white transition-colors"
+                className="bg-warning-bg text-warning border-warning-border hover:bg-warning-border rounded-md border px-3 py-1 text-xs font-medium transition-colors"
               >
                 {tWarn.retry}
               </button>

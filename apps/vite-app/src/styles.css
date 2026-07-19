@@ -1,5 +1,6 @@
 @import "@biu/tailwind-config";
 @import "tailwindcss";
+@import "./fonts.css";
 
 /* Tailwind v4 CSS-first: 把扫描路径写在 CSS 里（替代 tailwind.config.js 的 content） */
 @source "./**/*.{js,jsx,ts,tsx}";
