@@ -1,0 +1,21 @@
+/**
+ * Phase 8 P1-1：自托管字体（去 Google 外链，国内可稳定加载）。
+ * latin 子集为可变字体（单文件覆盖全字重），中文由 PingFang SC 系统兜底。
+ * 文件位于 public/fonts/，构建时拷至 dist 根，引用路径 /fonts/*。
+ */
+
+@font-face {
+  font-family: "Baloo 2";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/baloo-2-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+}

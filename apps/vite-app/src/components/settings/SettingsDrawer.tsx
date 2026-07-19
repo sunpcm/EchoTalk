@@ -161,6 +161,43 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
         </div>
 
         <div className="space-y-6 px-6 py-6">
+          {/* Phase 8.5：外观主题切换（纯前端能力，不受设置加载态影响，始终可用） */}
+          <div className="space-y-2">
+            <div>
+              <p className="text-text-default text-sm font-medium">外观主题</p>
+              <p className="text-text-muted text-xs">选择暖色、冷色或黑色界面风格</p>
+            </div>
+            <div className="flex gap-2" role="radiogroup" aria-label="外观主题">
+              {THEME_SWATCHES.map((s) => {
+                const active = theme === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={`${s.label}主题`}
+                    onClick={() => setTheme(s.value)}
+                    className={`flex flex-1 items-center gap-2 rounded-[14px] px-3 py-2.5 transition-colors ${
+                      active
+                        ? "border-accent border-2"
+                        : "border-border-default hover:border-accent-soft-border border"
+                    }`}
+                  >
+                    <span
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: s.bg, border: `2px solid ${s.accent}` }}
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.accent }} />
+                    </span>
+                    <span className="text-text-default text-sm font-semibold">{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <hr className="border-border-default" />
+
           {/* 加载状态 */}
           {loading && (
             <div className="flex items-center justify-center py-8">
@@ -170,43 +207,6 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
           {!loading && (
             <>
-              {/* Phase 8.5：外观主题切换 */}
-              <div className="space-y-2">
-                <div>
-                  <p className="text-text-default text-sm font-medium">外观主题</p>
-                  <p className="text-text-muted text-xs">选择暖色、冷色或黑色界面风格</p>
-                </div>
-                <div className="flex gap-2">
-                  {THEME_SWATCHES.map((s) => {
-                    const active = theme === s.value;
-                    return (
-                      <button
-                        key={s.value}
-                        onClick={() => setTheme(s.value)}
-                        className={`flex flex-1 items-center gap-2 rounded-[14px] px-3 py-2.5 transition-colors ${
-                          active
-                            ? "border-accent border-2"
-                            : "border-border-default hover:border-accent-soft-border border"
-                        }`}
-                      >
-                        <span
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                          style={{ background: s.bg, border: `2px solid ${s.accent}` }}
-                        >
-                          <span
-                            className="h-2.5 w-2.5 rounded-full"
-                            style={{ background: s.accent }}
-                          />
-                        </span>
-                        <span className="text-text-default text-sm font-semibold">{s.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <hr className="border-border-default" />
-
               {/* Switch: is_custom_mode */}
               <div className="flex items-center justify-between">
                 <div>

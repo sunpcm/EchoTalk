@@ -126,7 +126,7 @@ const App = () => {
     void fetchSettings();
   }, [fetchSettings]);
 
-  // Phase 8: 启动即应用主题，避免刷新后闪一下默认主题
+  // Phase 8: 兜底对齐 store 与 <html data-theme>（首帧防闪由 index.html 内联脚本负责）
   useEffect(() => {
     setTheme(theme);
     // eslint-disable-next-line react-hooks/exhaustive-deps
