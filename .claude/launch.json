@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vite-app",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "vite-app", "dev"],
+      "port": 5173
+    }
+  ]
+}
