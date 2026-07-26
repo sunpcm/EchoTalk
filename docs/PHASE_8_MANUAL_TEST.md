@@ -93,4 +93,4 @@
 - [x] `pnpm --filter vite-app typecheck` 通过
 - [x] `pnpm --filter vite-app lint` 通过（仅剩 `src/lib/api.ts` 既有 warning）
 - [x] Prettier 格式化通过（含 Tailwind class 排序）
-- [ ] Session / 评估 两界面在完整后端 + LiveKit 环境下补验（⏳ 用例）
+- ⏳ Session / 评估两界面仍需在完整后端 + LiveKit 环境补验；进度统一跟踪于根目录 [TODO.md](../TODO.md)。
