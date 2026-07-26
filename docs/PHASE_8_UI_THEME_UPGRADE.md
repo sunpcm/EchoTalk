@@ -162,7 +162,7 @@
 
 ## 7. Phase 8.6 — 测试与交付
 
-按仓库 `AI_INSTRUCTIONS.md` 的强制交付物规范：
+按仓库当前文档规范交付：
 
 - `docs/PHASE_8_TECH_STACK.md`：记录新增的 `theme-tokens.css`、`settings.ts` 的 `theme` 字段、涉及改动的组件清单。
 - `docs/PHASE_8_MANUAL_TEST.md`：至少覆盖——
