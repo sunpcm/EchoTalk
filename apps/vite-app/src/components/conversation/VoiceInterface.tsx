@@ -29,6 +29,7 @@ import { SkillTree } from "@/components/learning/SkillTree";
 import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
 import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
+import { detectPlatform, getApiBaseUrl } from "@/utils/env";
 
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
@@ -38,7 +39,7 @@ const tAgentErr = zhCN.agentError;
 
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
-  const { connectionState, sessionId, token, error, goHome } = useConversationStore();
+  const { connectionState, sessionId, token, wsUrl, error, goHome } = useConversationStore();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showWarning, setShowWarning] = useState(false);
 
@@ -67,8 +68,43 @@ export function VoiceInterface() {
     return <EndedView />;
   }
 
-  // connecting（有 token）或 active 状态：渲染 LiveKit 房间
-  const effectiveWsUrl = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`;
+  // connecting（有 token）或 active 状态：解析并渲染 LiveKit 房间
+  const isNative = detectPlatform() !== "web";
+
+  // 原生端代理兜底：仅在需要时惰性求值；无有效 API Host 时返回 null，由上层报配置错误，不静默产出 localhost 死地址
+  const getNativeProxyWsUrl = (): string | null => {
+    try {
+      const apiOrigin = new URL(getApiBaseUrl(), location.href).origin;
+      return `${apiOrigin.replace(/^http/, "ws")}/livekit-ws`;
+    } catch {
+      return null;
+    }
+  };
+
+  const effectiveWsUrl = isNative
+    ? import.meta.env.VITE_LIVEKIT_FORCE_PROXY === "true"
+      ? getNativeProxyWsUrl()
+      : wsUrl || import.meta.env.VITE_LIVEKIT_URL
+    : import.meta.env.VITE_LIVEKIT_DIRECT === "true"
+      ? wsUrl || import.meta.env.VITE_LIVEKIT_URL
+      : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`;
+
+  // 若 effectiveWsUrl 为空（如原生强制代理但未配置有效 Host），直接展示错误卡片
+  if (!effectiveWsUrl) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-12">
+        <div className="bg-danger-bg text-danger-text w-full max-w-sm rounded-[20px] p-6 text-center text-sm">
+          <p className="font-semibold">{tConv.errorTitle}</p>
+          <p className="mt-1">
+            无法获取有效的 WebSocket 服务器地址，请检查 VITE_API_BASE_URL 配置。
+          </p>
+        </div>
+        <button onClick={goHome} className="btn-primary px-6 py-2.5">
+          {tDash.goHome}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>

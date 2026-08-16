@@ -3,7 +3,15 @@
  * 所有对 FastAPI 后端的请求通过此模块统一管理。
  */
 
-const BASE_URL = "/api";
+import { getApiBaseUrl } from "@/utils/env";
+
+let cachedBaseUrl: string | null = null;
+export function getBaseUrl(): string {
+  if (cachedBaseUrl === null) {
+    cachedBaseUrl = getApiBaseUrl();
+  }
+  return cachedBaseUrl;
+}
 
 /** API 错误类，携带 HTTP 状态码用于区分 404 等场景 */
 export class ApiError extends Error {
@@ -21,7 +29,8 @@ export class ApiError extends Error {
 
 /** 通用请求封装 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const baseUrl = getBaseUrl();
+  const res = await fetch(`${baseUrl}${path}`, {
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer mock-token",

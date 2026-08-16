@@ -130,7 +130,13 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       <div className="fixed inset-0 z-40 bg-black/30 transition-opacity" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="bg-bg fixed inset-y-0 right-0 z-50 w-full max-w-sm animate-[slideInRight_0.25s_ease-out] overflow-y-auto shadow-xl">
+      <div
+        className="bg-bg fixed inset-y-0 right-0 z-50 w-full max-w-sm animate-[slideInRight_0.25s_ease-out] overflow-y-auto shadow-xl"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
         {/* Toast 提示 (顶置悬浮) */}
         {toastError && (
           <div className="bg-danger-bg ring-danger-border absolute top-4 right-4 left-4 z-[60] rounded-lg p-4 shadow-lg ring-1">
