@@ -18,7 +18,8 @@
     "@biu/eslint-config": "workspace:*",
     "@biu/postcss-config": "workspace:*",
     "@biu/tailwind-config": "workspace:*",
-    "@biu/tsconfig": "workspace:*",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
@@ -40,6 +41,7 @@
   },
   "dependencies": {
     "@biu/ui-lib": "workspace:*",
+    "@capacitor/core": "^8.5.0",
     "@livekit/components-react": "^2.9.20",
     "@livekit/components-styles": "^1.2.0",
     "livekit-client": "^2.17.2",

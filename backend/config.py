@@ -30,7 +30,15 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "dev-secret-key-change-in-production"
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "capacitor://localhost",
+        "http://localhost",
+        "https://localhost",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ]
 
     # LLM
     SILICONFLOW_API_KEY: str = ""

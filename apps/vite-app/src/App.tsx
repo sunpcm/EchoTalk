@@ -133,7 +133,15 @@ const App = () => {
   }, []);
 
   return (
-    <div className="bg-bg min-h-screen px-4 py-12">
+    <div
+      className="bg-bg min-h-screen px-4"
+      style={{
+        paddingTop: "max(1.5rem, env(safe-area-inset-top))",
+        paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))",
+        paddingLeft: "max(1rem, env(safe-area-inset-left))",
+        paddingRight: "max(1rem, env(safe-area-inset-right))",
+      }}
+    >
       <div className="mx-auto max-w-3xl">
         {appView === "dashboard" ? (
           <Dashboard onOpenSettings={() => setDrawerOpen(true)} />
