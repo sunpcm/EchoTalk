@@ -10,7 +10,7 @@
     "build:analyze": "cross-env NODE_ENV=production ANALYZE=true SOURCE_MAP=true webpack --config config/webpack.prod.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --report-unused-disable-directives",
-    "test": "echo \"(webpack-app) no tests\""
+    "test": "echo \"(webpack-app) no tests\" && exit 0"
   },
   "keywords": [],
   "author": "",
