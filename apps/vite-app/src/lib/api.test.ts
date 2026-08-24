@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { checkHealthReady, ApiError } from "./api";
 
 describe("API client", () => {
-  const originalFetch = global.fetch;
+  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
@@ -27,7 +27,7 @@ describe("API client", () => {
           },
         }),
     };
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    (globalThis.fetch as any).mockResolvedValue(mockResponse);
 
     try {
       await checkHealthReady();
@@ -54,7 +54,7 @@ describe("API client", () => {
           ],
         }),
     };
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    (globalThis.fetch as any).mockResolvedValue(mockResponse);
 
     try {
       await checkHealthReady();
@@ -75,7 +75,7 @@ describe("API client", () => {
           detail: "会话不存在",
         }),
     };
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    (globalThis.fetch as any).mockResolvedValue(mockResponse);
 
     try {
       await checkHealthReady();
@@ -98,7 +98,7 @@ describe("API client", () => {
           },
         }),
     };
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    (globalThis.fetch as any).mockResolvedValue(mockResponse);
 
     try {
       await checkHealthReady();

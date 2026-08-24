@@ -18,6 +18,7 @@
     "@biu/eslint-config": "workspace:*",
     "@biu/postcss-config": "workspace:*",
     "@biu/tailwind-config": "workspace:*",
+    "@biu/tsconfig": "workspace:*",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@playwright/test": "^1.62.1",
