@@ -461,6 +461,11 @@ App.addListener("appStateChange", ({ isActive }) => {
 
 ### 3.0 交付工作量评估与推进顺序 (Effort & Sequencing)
 
+> **移动端设计稿**：[EchoTalk 移动端界面](https://claude.ai/code/artifact/21051810-7621-4626-ae2f-2554079ac4fc)
+> —— 首页、设置 Bottom Sheet、会话页折叠、空态与错误态、移动端规格，共 5 块画板。
+> 样式取自 `packages/configs/tailwind-config/theme-tokens.css`，未引入新色值。
+> 该链接为过渡产物，落地进代码后以组件源码为准。
+
 > **本节结论**：移动端「真机跑通」iOS 单端 **4~6 人日**，iOS + Android **6~8 人日**（日历约 1.5~2 周）。
 > 「可对外分发」在此之上另需 **7~11 人日**。估算前提：1 名熟悉本仓库的开发者、已有 Mac 与真机、Apple 开发者账号就绪。
 
