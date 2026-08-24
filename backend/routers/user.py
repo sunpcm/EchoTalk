@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user
-from models.user import User, UserSettings, SubscriptionTier
+from models.user import User, UserSettings, SubscriptionTier, STTProvider, LLMProvider, TTSProvider
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
 from utils.crypto import encrypt_api_key, decrypt_api_key
 from services.validation_service import ProviderValidationService
@@ -152,13 +152,13 @@ async def update_user_settings(
     if body.is_custom_mode is not None:
         row.is_custom_mode = body.is_custom_mode
     if body.stt_provider is not None:
-        row.stt_provider = body.stt_provider
+        row.stt_provider = STTProvider(body.stt_provider)
     if body.llm_provider is not None:
-        row.llm_provider = body.llm_provider
+        row.llm_provider = LLMProvider(body.llm_provider)
     if body.llm_model is not None:
         row.llm_model = body.llm_model
     if body.tts_provider is not None:
-        row.tts_provider = body.tts_provider
+        row.tts_provider = TTSProvider(body.tts_provider)
 
     if body.stt_key is not None:
         row.encrypted_stt_key = encrypt_api_key(body.stt_key)
