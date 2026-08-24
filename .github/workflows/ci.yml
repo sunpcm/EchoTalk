@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test (Vitest)
+        run: pnpm run test
+
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/vite-app
+
+      - name: E2E Test (Playwright)
+        run: pnpm exec playwright test
+        working-directory: apps/vite-app
+
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Create Virtual Environment and Install Dependencies
+        run: |
+          cd backend
+          uv venv
+          source .venv/bin/activate
+          uv pip install -r requirements.txt
+          uv pip install pytest pytest-cov pytest-asyncio httpx sqlalchemy[asyncio]
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          source .venv/bin/activate
+          pytest
