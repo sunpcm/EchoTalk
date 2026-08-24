@@ -79,3 +79,12 @@ backend/.venv/
 .chromadb/
 *.sqlite3
 *.db
+
+############################
+# Mobile / iOS (Capacitor / Xcode)
+############################
+**/DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcuserdatad
+**/ios/App/App/public/

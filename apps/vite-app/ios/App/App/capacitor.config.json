@@ -1,0 +1,10 @@
+{
+  "appId": "com.echotalk.app",
+  "appName": "EchoTalk",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "capacitor"
+  },
+  "packageClassList": []
+}
