@@ -72,6 +72,8 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 backend/.venv/
+.coverage
+.coverage.*
 
 ############################
 # Vector Database & Data
