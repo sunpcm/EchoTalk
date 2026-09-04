@@ -5,7 +5,13 @@ from database import get_db
 from models.user import SubscriptionTier
 from unittest.mock import AsyncMock, patch, MagicMock
 from config import settings
+from dependencies import MOCK_USER_ID
+from jose import jwt
 import uuid
+
+TEST_USER_ID = MOCK_USER_ID
+TEST_TOKEN = jwt.encode({"sub": TEST_USER_ID, "email": "test@example.com"}, settings.JWT_SECRET_KEY, algorithm="HS256")
+AUTH_HEADERS = {"Authorization": f"Bearer {TEST_TOKEN}"}
 
 class MockUser:
     def __init__(self, id, tier):
@@ -23,7 +29,7 @@ async def test_health_ready_success():
     mock_db = AsyncMock()
 
     mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.premium)
+    mock_user = MockUser(id=uuid.UUID(TEST_USER_ID), tier=SubscriptionTier.premium)
     mock_settings = MockUserSettings(is_custom_mode=False)
     mock_user.settings = mock_settings
     mock_user_result.scalar_one_or_none.return_value = mock_user
@@ -46,7 +52,7 @@ async def test_health_ready_success():
         settings.SILICONFLOW_API_KEY = "test"
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get("/api/health/ready")
+            response = await client.get("/api/health/ready", headers=AUTH_HEADERS)
 
         assert response.status_code == 200
     finally:
@@ -60,7 +66,7 @@ async def test_health_ready_fail_custom_mode_not_verified():
     mock_db = AsyncMock()
 
     mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
+    mock_user = MockUser(id=uuid.UUID(TEST_USER_ID), tier=SubscriptionTier.free)
     mock_settings = MockUserSettings(
         is_custom_mode=True,
         is_custom_verified=False,
@@ -86,7 +92,7 @@ async def test_health_ready_fail_custom_mode_not_verified():
         settings.LIVEKIT_API_SECRET = "test"
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get("/api/health/ready")
+            response = await client.get("/api/health/ready", headers=AUTH_HEADERS)
 
         assert response.status_code == 503
         data = response.json()
@@ -103,7 +109,7 @@ async def test_health_ready_fail_free_user_no_custom_mode():
     mock_db = AsyncMock()
 
     mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
+    mock_user = MockUser(id=uuid.UUID(TEST_USER_ID), tier=SubscriptionTier.free)
     mock_settings = MockUserSettings(
         is_custom_mode=False
     )
@@ -127,7 +133,7 @@ async def test_health_ready_fail_free_user_no_custom_mode():
         settings.LIVEKIT_API_SECRET = "test"
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get("/api/health/ready")
+            response = await client.get("/api/health/ready", headers=AUTH_HEADERS)
 
         assert response.status_code == 503
         data = response.json()
