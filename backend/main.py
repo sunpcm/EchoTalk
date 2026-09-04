@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 from config import settings
 from database import async_session_maker
@@ -34,11 +35,16 @@ async def lifespan(app: FastAPI):
             await session.commit()
 
         # 种子技能数据（Phase 2）
-        for skill_data in SEED_SKILLS:
-            existing_skill = await session.get(Skill, skill_data["id"])
-            if not existing_skill:
-                session.add(Skill(**skill_data))
-        await session.commit()
+        if SEED_SKILLS:
+            seed_ids = [s["id"] for s in SEED_SKILLS]
+            stmt = select(Skill.id).where(Skill.id.in_(seed_ids))
+            result = await session.execute(stmt)
+            existing_ids = set(result.scalars().all())
+
+            for skill_data in SEED_SKILLS:
+                if skill_data["id"] not in existing_ids:
+                    session.add(Skill(**skill_data))
+            await session.commit()
     yield
 
 
