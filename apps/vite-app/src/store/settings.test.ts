@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useSettingsStore, THEME_STORAGE_KEY } from "./settings";
 import * as apiModule from "@/lib/api";
 
