@@ -4,13 +4,16 @@ from httpx import AsyncClient, ASGITransport
 import uuid
 
 from main import app
-from models.user import SubscriptionTier, STTProvider, LLMProvider, TTSProvider
+from models.user import SubscriptionTier
 from database import get_db
+from dependencies import create_access_token
+
 
 class MockUser:
     def __init__(self, id, tier):
         self.id = id
         self.subscription_tier = tier
+
 
 class MockUserSettings:
     def __init__(self, **kwargs):
@@ -27,13 +30,15 @@ class MockUserSettings:
         self.llm_is_valid = False
         self.tts_is_valid = False
 
+
 @pytest.mark.asyncio
 @patch("routers.user.select")
 async def test_get_user_settings(mock_select):
     mock_db = AsyncMock()
 
+    mock_user_id = uuid.uuid4()
     mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
+    mock_user = MockUser(id=mock_user_id, tier=SubscriptionTier.free)
     mock_user_result.scalar_one_or_none.return_value = mock_user
 
     mock_settings_result = MagicMock()
@@ -44,8 +49,13 @@ async def test_get_user_settings(mock_select):
 
     app.dependency_overrides[get_db] = lambda: mock_db
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/user/settings")
+    token = create_access_token({"sub": str(mock_user_id), "email": "test@example.com"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/user/settings", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -55,21 +65,31 @@ async def test_get_user_settings(mock_select):
 
     app.dependency_overrides = {}
 
+
 @pytest.mark.asyncio
 @patch("routers.user.select")
-@patch("routers.user.ProviderValidationService.validate_stt_key", new_callable=AsyncMock)
-@patch("routers.user.ProviderValidationService.validate_llm_key", new_callable=AsyncMock)
-@patch("routers.user.ProviderValidationService.validate_tts_key", new_callable=AsyncMock)
-async def test_update_user_settings(mock_val_tts, mock_val_llm, mock_val_stt, mock_select):
+@patch(
+    "routers.user.ProviderValidationService.validate_stt_key", new_callable=AsyncMock
+)
+@patch(
+    "routers.user.ProviderValidationService.validate_llm_key", new_callable=AsyncMock
+)
+@patch(
+    "routers.user.ProviderValidationService.validate_tts_key", new_callable=AsyncMock
+)
+async def test_update_user_settings(
+    mock_val_tts, mock_val_llm, mock_val_stt, mock_select
+):
     mock_db = AsyncMock()
 
+    mock_user_id = uuid.uuid4()
     mock_settings_result = MagicMock()
     mock_settings = MockUserSettings(is_custom_mode=False, is_custom_verified=False)
 
     mock_settings_result.scalar_one_or_none.return_value = mock_settings
 
     mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
+    mock_user = MockUser(id=mock_user_id, tier=SubscriptionTier.free)
     mock_user_result.scalar_one_or_none.return_value = mock_user
 
     mock_db.execute.side_effect = [mock_settings_result, mock_user_result]
@@ -80,14 +100,20 @@ async def test_update_user_settings(mock_val_tts, mock_val_llm, mock_val_stt, mo
     mock_val_llm.return_value = True
     mock_val_tts.return_value = True
 
+    token = create_access_token({"sub": str(mock_user_id), "email": "test@example.com"})
+    headers = {"Authorization": f"Bearer {token}"}
+
     with patch("routers.user.encrypt_api_key", return_value="encrypted_key"):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             response = await client.put(
                 "/api/user/settings",
                 json={
                     "stt_provider": "deepgram",
                     "stt_key": "new_key",
-                }
+                },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -97,25 +123,33 @@ async def test_update_user_settings(mock_val_tts, mock_val_llm, mock_val_stt, mo
 
     app.dependency_overrides = {}
 
+
 @pytest.mark.asyncio
 @patch("routers.user.select")
-async def test_update_user_settings_cannot_disable_custom_mode_on_free_tier(mock_select):
+async def test_update_user_settings_cannot_disable_custom_mode_on_free_tier(
+    mock_select,
+):
     mock_db = AsyncMock()
 
+    mock_user_id = uuid.uuid4()
     mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
+    mock_user = MockUser(id=mock_user_id, tier=SubscriptionTier.free)
     mock_user_result.scalar_one_or_none.return_value = mock_user
 
     mock_db.execute.return_value = mock_user_result
 
     app.dependency_overrides[get_db] = lambda: mock_db
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    token = create_access_token({"sub": str(mock_user_id), "email": "test@example.com"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         response = await client.put(
             "/api/user/settings",
-            json={
-                "is_custom_mode": False
-            }
+            json={"is_custom_mode": False},
+            headers=headers,
         )
 
     assert response.status_code == 403
