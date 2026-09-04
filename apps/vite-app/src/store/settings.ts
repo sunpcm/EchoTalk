@@ -15,7 +15,7 @@ import {
 /** Phase 8：界面主题 */
 export type ThemeName = "warm" | "cool" | "dark";
 
-const THEME_STORAGE_KEY = "echotalk-theme";
+export const THEME_STORAGE_KEY = "echotalk-theme";
 
 /** 读取本地持久化的主题（无则回退暖色） */
 export function readStoredTheme(): ThemeName {
@@ -65,10 +65,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setTheme: (theme: ThemeName) => {
     applyThemeAttr(theme);
     if (typeof window !== "undefined") {
-      // TODO: 接入 user_settings.theme 字段，改为后端持久化
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
     set({ theme });
+
+    // 尝试异步同步到后端 user_settings.theme 字段
+    updateUserSettings({ theme }).catch(() => {
+      // 忽略切换主题时的网络或未鉴权错误，以本地存储为准
+    });
   },
 
   fetchSettings: async () => {
@@ -76,7 +80,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const settings = await getUserSettings();
-      set({ settings, loading: false });
+      if (settings.theme === "warm" || settings.theme === "cool" || settings.theme === "dark") {
+        const backendTheme = settings.theme as ThemeName;
+        applyThemeAttr(backendTheme);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(THEME_STORAGE_KEY, backendTheme);
+        }
+        set({ settings, theme: backendTheme, loading: false });
+      } else {
+        set({ settings, loading: false });
+      }
     } catch (err) {
       set({
         loading: false,

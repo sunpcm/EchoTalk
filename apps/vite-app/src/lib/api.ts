@@ -287,6 +287,7 @@ export interface UserSettingsResponse {
   is_custom_mode: boolean;
   is_custom_verified?: boolean;
   subscription_tier?: string;
+  theme?: string;
   stt_provider: string | null;
   llm_provider: string | null;
   llm_model: string | null;
@@ -303,6 +304,7 @@ export interface UserSettingsResponse {
 /** 用户双轨制配置更新（PUT 请求体） */
 export interface UserSettingsUpdate {
   is_custom_mode?: boolean;
+  theme?: "warm" | "cool" | "dark";
   stt_provider?: "deepgram";
   llm_provider?: "siliconflow" | "openrouter";
   llm_model?: string;

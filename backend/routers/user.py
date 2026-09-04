@@ -51,6 +51,7 @@ async def get_user_settings(
         is_custom_mode=row.is_custom_mode,
         is_custom_verified=row.is_custom_verified,
         subscription_tier=tier,
+        theme=row.theme if getattr(row, "theme", None) else "warm",
         stt_provider=row.stt_provider.value if row.stt_provider else None,
         llm_provider=row.llm_provider.value if row.llm_provider else None,
         llm_model=row.llm_model,
@@ -151,6 +152,8 @@ async def update_user_settings(
 
     if body.is_custom_mode is not None:
         row.is_custom_mode = body.is_custom_mode
+    if body.theme is not None:
+        row.theme = body.theme
     if body.stt_provider is not None:
         row.stt_provider = STTProvider(body.stt_provider)
     if body.llm_provider is not None:
@@ -183,6 +186,7 @@ async def update_user_settings(
         is_custom_mode=row.is_custom_mode,
         is_custom_verified=row.is_custom_verified,
         subscription_tier=tier,
+        theme=row.theme if getattr(row, "theme", None) else "warm",
         stt_provider=row.stt_provider.value if row.stt_provider else None,
         llm_provider=row.llm_provider.value if row.llm_provider else None,
         llm_model=row.llm_model,

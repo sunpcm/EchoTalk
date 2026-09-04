@@ -105,6 +105,10 @@ class UserSettings(Base):
         Boolean, default=False, server_default="false", nullable=False
     )
 
+    theme: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default="warm", server_default="warm"
+    )
+
     # 提供商选择
     stt_provider: Mapped[STTProvider | None] = mapped_column(
         Enum(STTProvider, name="stt_provider_enum"), nullable=True
