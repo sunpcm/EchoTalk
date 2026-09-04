@@ -3,8 +3,10 @@ EchoTalk 后端配置模块。
 使用 pydantic-settings 从项目根目录 .env 文件读取环境变量。
 """
 
+import secrets
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -27,7 +29,9 @@ class Settings(BaseSettings):
     USE_MOCK_ELSA: bool = True
 
     # Auth
-    JWT_SECRET_KEY: str = "dev-secret-key-change-in-production"
+    JWT_SECRET_KEY: str = Field(
+        default_factory=lambda: secrets.token_hex(32)
+    )
 
     # CORS
     CORS_ORIGINS: list[str] = [
