@@ -90,8 +90,6 @@ EchoTalk 基于现有的 **React 19 + TypeScript + Zustand + Tailwind CSS** 前�
 CORS_ORIGINS: list[str] = [
     "http://localhost:3000",        # Web 本地开发
     "capacitor://localhost",        # iOS Capacitor 默认 Origin
-    "http://localhost",             # Android Capacitor 默认 Origin
-    "https://localhost",            # Android Capacitor HTTPS 配置 Origin
     "tauri://localhost",            # macOS Tauri v2 默认 Origin
     "http://tauri.localhost",       # Windows Tauri v2 默认 Origin
     "https://tauri.localhost",      # Windows Tauri v2 HTTPS Origin

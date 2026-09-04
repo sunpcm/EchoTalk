@@ -33,8 +33,6 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "capacitor://localhost",
-        "http://localhost",
-        "https://localhost",
         "tauri://localhost",
         "http://tauri.localhost",
         "https://tauri.localhost",
