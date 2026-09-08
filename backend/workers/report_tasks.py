@@ -114,15 +114,19 @@ async def get_top_grammar_errors(
     return top_errors
 
 
-async def generate_weekly_report_async(user_id: str) -> dict:
+async def generate_weekly_report_async(user_id: str, db: AsyncSession | None = None) -> dict:
     """
     异步生成用户周度多维学习报告。
+    可以在异步 API 或已有 AsyncSession 的上下文中直接 await 调用。
     """
     logger.info("generate_weekly_report_async called for user_id=%s", user_id)
     u_uuid = uuid.UUID(user_id)
 
-    async with async_session_maker() as db:
+    if db is not None:
         top_grammar_errors = await get_top_grammar_errors(db, u_uuid, limit=3, days=7)
+    else:
+        async with async_session_maker() as session:
+            top_grammar_errors = await get_top_grammar_errors(session, u_uuid, limit=3, days=7)
 
     return {
         "user_id": user_id,
@@ -137,24 +141,8 @@ async def generate_weekly_report_async(user_id: str) -> dict:
 
 def generate_weekly_report(user_id: str) -> dict:
     """
-    生成用户周度多维学习报告（Celery 任务入口）。
-
-    参数:
-        user_id: 用户 UUID 字符串
-
-    返回:
-        报告数据字典（供前端渲染或导出 PDF）
+    生成用户周度多维学习报告（Celery 同步任务入口）。
+    仅在 worker 边界调用 asyncio.run。
     """
     logger.info("generate_weekly_report called for user_id=%s", user_id)
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        # 如果已在运行事件循环中，使用 create_task 或 run_until_complete (若在独立线程)
-        import nest_asyncio
-        nest_asyncio.apply()
-        return loop.run_until_complete(generate_weekly_report_async(user_id))
-    else:
-        return asyncio.run(generate_weekly_report_async(user_id))
+    return asyncio.run(generate_weekly_report_async(user_id))

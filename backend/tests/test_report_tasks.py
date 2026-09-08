@@ -3,7 +3,7 @@ Unit tests for report_tasks.py (Grammar error aggregation and report generation)
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,6 +11,7 @@ from workers.report_tasks import (
     _generate_suggestion,
     get_top_grammar_errors,
     generate_weekly_report_async,
+    generate_weekly_report,
 )
 
 
@@ -69,6 +70,33 @@ async def test_generate_weekly_report_async():
         }
     ]
 
+    mock_db = AsyncMock()
+    with patch("workers.report_tasks.get_top_grammar_errors", new_callable=AsyncMock) as mock_get_top:
+        mock_get_top.return_value = mock_top_errors
+
+        report = await generate_weekly_report_async(user_id, db=mock_db)
+
+        assert report["user_id"] == user_id
+        assert report["status"] == "partial"
+        assert "grammar_errors_summary" in report
+        assert report["grammar_errors_summary"]["total_top_errors_count"] == 4
+        assert len(report["grammar_errors_summary"]["top_errors"]) == 1
+
+
+def test_generate_weekly_report_celery_entrypoint():
+    user_id = str(uuid.uuid4())
+
+    mock_top_errors = [
+        {
+            "skill_tag": "verb_tense_past",
+            "error_type": "wrong_tense",
+            "count": 4,
+            "sample_original": "I go yesterday",
+            "sample_corrected": "I went yesterday",
+            "suggestion": "注意过去时态的使用。",
+        }
+    ]
+
     with patch("workers.report_tasks.async_session_maker") as mock_session_maker, patch(
         "workers.report_tasks.get_top_grammar_errors", new_callable=AsyncMock
     ) as mock_get_top:
@@ -76,10 +104,8 @@ async def test_generate_weekly_report_async():
         mock_session_maker.return_value.__aenter__.return_value = mock_db
         mock_get_top.return_value = mock_top_errors
 
-        report = await generate_weekly_report_async(user_id)
+        report = generate_weekly_report(user_id)
 
         assert report["user_id"] == user_id
         assert report["status"] == "partial"
-        assert "grammar_errors_summary" in report
         assert report["grammar_errors_summary"]["total_top_errors_count"] == 4
-        assert len(report["grammar_errors_summary"]["top_errors"]) == 1
