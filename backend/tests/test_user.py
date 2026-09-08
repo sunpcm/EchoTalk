@@ -1,7 +1,7 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from httpx import AsyncClient, ASGITransport
 import uuid
+from unittest.mock import AsyncMock, patch, MagicMock
+import pytest
+from httpx import AsyncClient, ASGITransport
 
 from main import app
 from models.user import SubscriptionTier
@@ -45,7 +45,12 @@ async def test_get_user_settings(mock_select):
     mock_settings = MockUserSettings(is_custom_mode=False, is_custom_verified=False)
     mock_settings_result.scalar_one_or_none.return_value = mock_settings
 
-    mock_db.execute.side_effect = [mock_user_result, mock_settings_result]
+    # 1. get_current_user DB user check, 2. router get user, 3. router get settings
+    mock_db.execute.side_effect = [
+        mock_user_result,
+        mock_user_result,
+        mock_settings_result,
+    ]
 
     app.dependency_overrides[get_db] = lambda: mock_db
 
@@ -92,7 +97,12 @@ async def test_update_user_settings(
     mock_user = MockUser(id=mock_user_id, tier=SubscriptionTier.free)
     mock_user_result.scalar_one_or_none.return_value = mock_user
 
-    mock_db.execute.side_effect = [mock_settings_result, mock_user_result]
+    # 1. get_current_user DB user check, 2. router get settings, 3. router get user
+    mock_db.execute.side_effect = [
+        mock_user_result,
+        mock_settings_result,
+        mock_user_result,
+    ]
 
     app.dependency_overrides[get_db] = lambda: mock_db
 
