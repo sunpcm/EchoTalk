@@ -3,7 +3,7 @@ from httpx import AsyncClient, ASGITransport
 from main import app
 from database import get_db
 from models.user import SubscriptionTier
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from config import settings
 import uuid
 

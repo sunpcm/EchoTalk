@@ -39,6 +39,13 @@ class Settings(BaseSettings):
         "http://tauri.localhost",
         "https://tauri.localhost",
     ]
+    CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    CORS_ALLOW_HEADERS: list[str] = [
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "X-Requested-With",
+    ]
 
     # LLM
     SILICONFLOW_API_KEY: str = ""
