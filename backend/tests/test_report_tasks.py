@@ -30,10 +30,26 @@ async def test_fetch_emotion_summary_no_data():
         result = await fetch_emotion_summary(valid_uuid)
 
     assert result["status"] == "no_data"
-    assert result["avg_anxiety_index"] == 0.0
-    assert result["avg_wpm"] == 0.0
-    assert result["avg_hesitation_rate"] == 0.0
+    assert result["avg_anxiety_index"] is None
+    assert result["avg_wpm"] is None
+    assert result["avg_hesitation_rate"] is None
     assert result["sample_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_fetch_emotion_summary_error():
+    valid_uuid = str(uuid.uuid4())
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = Exception("DB Connection Error")
+
+    with patch("workers.report_tasks.async_session_maker") as mock_maker:
+        mock_maker.return_value.__aenter__.return_value = mock_session
+        result = await fetch_emotion_summary(valid_uuid)
+
+    assert result["status"] == "error"
+    assert result["avg_anxiety_index"] is None
+    assert result["sample_count"] == 0
+    assert "DB Connection Error" in result["error_detail"]
 
 
 @pytest.mark.asyncio

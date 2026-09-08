@@ -43,25 +43,36 @@ async def fetch_emotion_summary(user_id: str, days: int = 7) -> dict:
 
     cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
-    async with async_session_maker() as session:
-        stmt = (
-            select(Transcript.emotion_state)
-            .join(Session, Transcript.session_id == Session.id)
-            .where(
-                Session.user_id == user_uuid,
-                Session.started_at >= cutoff_date,
-                Transcript.role == TranscriptRole.user,
-                Transcript.emotion_state.isnot(None),
+    try:
+        async with async_session_maker() as session:
+            stmt = (
+                select(Transcript.emotion_state)
+                .join(Session, Transcript.session_id == Session.id)
+                .where(
+                    Session.user_id == user_uuid,
+                    Session.started_at >= cutoff_date,
+                    Transcript.role == TranscriptRole.user,
+                    Transcript.emotion_state.isnot(None),
+                )
             )
-        )
-        result = await session.execute(stmt)
-        emotion_states = result.scalars().all()
+            result = await session.execute(stmt)
+            emotion_states = result.scalars().all()
+    except Exception as e:
+        logger.exception("Database query failed in fetch_emotion_summary for user_id=%s: %s", user_id, e)
+        return {
+            "avg_anxiety_index": None,
+            "avg_wpm": None,
+            "avg_hesitation_rate": None,
+            "sample_count": 0,
+            "status": "error",
+            "error_detail": str(e),
+        }
 
     if not emotion_states:
         return {
-            "avg_anxiety_index": 0.0,
-            "avg_wpm": 0.0,
-            "avg_hesitation_rate": 0.0,
+            "avg_anxiety_index": None,
+            "avg_wpm": None,
+            "avg_hesitation_rate": None,
             "sample_count": 0,
             "status": "no_data",
         }
@@ -82,13 +93,13 @@ async def fetch_emotion_summary(user_id: str, days: int = 7) -> dict:
     avg_anxiety = (
         round(sum(anxiety_levels) / len(anxiety_levels), 2)
         if anxiety_levels
-        else 0.0
+        else None
     )
-    avg_wpm = round(sum(wpms) / len(wpms), 1) if wpms else 0.0
+    avg_wpm = round(sum(wpms) / len(wpms), 1) if wpms else None
     avg_hesitation = (
         round(sum(hesitation_rates) / len(hesitation_rates), 2)
         if hesitation_rates
-        else 0.0
+        else None
     )
 
     return {
@@ -98,6 +109,16 @@ async def fetch_emotion_summary(user_id: str, days: int = 7) -> dict:
         "sample_count": len(emotion_states),
         "status": "success",
     }
+
+
+def _run_async(coro):
+    """Safely run async coroutine from synchronous code execution contexts."""
+    try:
+        return asyncio.run(coro)
+    except RuntimeError:
+        # Fallback if an event loop is already running in the current thread
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(coro)
 
 
 def generate_weekly_report(user_id: str) -> dict:
@@ -126,30 +147,18 @@ def generate_weekly_report(user_id: str) -> dict:
     # TODO: 查询 grammar_errors 统计高频错误
     # TODO: 调用 RAG 服务生成下周推荐
 
-    # 查询 transcripts.emotion_state 汇总情绪数据
+    # 在 Celery 同步运行边界调用 fetch_emotion_summary
     try:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            import nest_asyncio
-
-            nest_asyncio.apply()
-            emotion_summary = loop.run_until_complete(
-                fetch_emotion_summary(user_id)
-            )
-        else:
-            emotion_summary = asyncio.run(fetch_emotion_summary(user_id))
+        emotion_summary = _run_async(fetch_emotion_summary(user_id))
     except Exception as e:
         logger.exception("Failed to fetch emotion summary for user_id=%s: %s", user_id, e)
         emotion_summary = {
-            "avg_anxiety_index": 0.0,
-            "avg_wpm": 0.0,
-            "avg_hesitation_rate": 0.0,
+            "avg_anxiety_index": None,
+            "avg_wpm": None,
+            "avg_hesitation_rate": None,
             "sample_count": 0,
             "status": "error",
+            "error_detail": str(e),
         }
 
     return {
