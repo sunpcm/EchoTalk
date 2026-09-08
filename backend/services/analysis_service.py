@@ -247,21 +247,27 @@ async def update_knowledge(
     result = await db.execute(stmt)
     valid_skills = {row[0] for row in result.all()}
 
-    # 4. 对每个技能执行 BKT 更新
+    if not valid_skills:
+        logger.info("会话 %s 无有效技能需更新", session_id)
+        return
+
+    # 4. 批量查询用户在 valid_skills 中的现有 KnowledgeState，避免 N+1 查询
+    stmt = select(KnowledgeState).where(
+        KnowledgeState.user_id == user_id,
+        KnowledgeState.skill_id.in_(valid_skills),
+    )
+    result = await db.execute(stmt)
+    existing_states = {
+        state.skill_id: state for state in result.scalars().all()
+    }
+
     params = BKTParams()
 
     for skill_id, obs_list in observations.items():
         if skill_id not in valid_skills:
             continue
 
-        # 获取或创建 KnowledgeState
-        stmt = select(KnowledgeState).where(
-            KnowledgeState.user_id == user_id,
-            KnowledgeState.skill_id == skill_id,
-        )
-        result = await db.execute(stmt)
-        state = result.scalar_one_or_none()
-
+        state = existing_states.get(skill_id)
         if state is None:
             state = KnowledgeState(
                 id=uuid.uuid4(),
@@ -270,6 +276,7 @@ async def update_knowledge(
                 p_mastery=params.p_init,
             )
             db.add(state)
+            existing_states[skill_id] = state
 
         # 逐条观察更新
         for correct in obs_list:
