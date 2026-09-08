@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useSettingsStore, THEME_STORAGE_KEY } from "./settings";
 import * as apiModule from "@/lib/api";
 
@@ -13,6 +13,7 @@ vi.mock("@/lib/api", async () => {
 
 describe("useSettingsStore", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     useSettingsStore.setState({
       settings: null,
       loading: false,
@@ -25,7 +26,11 @@ describe("useSettingsStore", () => {
     vi.clearAllMocks();
   });
 
-  it("setTheme updates store, localStorage, document attribute and calls updateUserSettings", async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("setTheme updates store, localStorage, document attribute and calls updateUserSettings after debounce", async () => {
     vi.mocked(apiModule.updateUserSettings).mockResolvedValue({
       is_custom_mode: true,
       theme: "dark",
@@ -46,7 +51,37 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().theme).toBe("dark");
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+    expect(apiModule.updateUserSettings).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(300);
+
     expect(apiModule.updateUserSettings).toHaveBeenCalledWith({ theme: "dark" });
+  });
+
+  it("rapid setTheme calls debounce into a single updateUserSettings call with the latest theme", async () => {
+    vi.mocked(apiModule.updateUserSettings).mockResolvedValue({
+      is_custom_mode: true,
+      theme: "cool",
+      stt_provider: null,
+      llm_provider: null,
+      llm_model: null,
+      tts_provider: null,
+      has_stt_key: false,
+      has_llm_key: false,
+      has_tts_key: false,
+      stt_status: "unconfigured",
+      llm_status: "unconfigured",
+      tts_status: "unconfigured",
+    });
+
+    useSettingsStore.getState().setTheme("dark");
+    useSettingsStore.getState().setTheme("cool");
+
+    vi.advanceTimersByTime(300);
+
+    expect(apiModule.updateUserSettings).toHaveBeenCalledTimes(1);
+    expect(apiModule.updateUserSettings).toHaveBeenCalledWith({ theme: "cool" });
   });
 
   it("fetchSettings updates theme in store, localStorage, and document attribute when returned from backend", async () => {

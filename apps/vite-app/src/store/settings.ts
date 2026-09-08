@@ -17,6 +17,27 @@ export type ThemeName = "warm" | "cool" | "dark";
 
 export const THEME_STORAGE_KEY = "echotalk-theme";
 
+let themeSyncTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSyncedTheme: ThemeName | null = null;
+
+function debouncedSyncThemeToBackend(theme: ThemeName): void {
+  if (themeSyncTimer) {
+    clearTimeout(themeSyncTimer);
+  }
+  themeSyncTimer = setTimeout(() => {
+    themeSyncTimer = null;
+    lastSyncedTheme = theme;
+    updateUserSettings({ theme }).then((settings) => {
+      // 序列化保护：仅当后端响应对应的 theme 属于最新设定的主题时，才写回 store settings
+      if (lastSyncedTheme === theme && settings) {
+        useSettingsStore.setState({ settings });
+      }
+    }).catch(() => {
+      // 忽略切换主题时的网络或未鉴权错误，以本地存储为准
+    });
+  }, 300);
+}
+
 /** 读取本地持久化的主题（无则回退暖色） */
 export function readStoredTheme(): ThemeName {
   if (typeof window === "undefined") return "warm";
@@ -69,10 +90,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
     set({ theme });
 
-    // 尝试异步同步到后端 user_settings.theme 字段
-    updateUserSettings({ theme }).catch(() => {
-      // 忽略切换主题时的网络或未鉴权错误，以本地存储为准
-    });
+    // 防抖与 Sequence 保护：300ms 内快速多次切换只向后端发送最后一次设置
+    debouncedSyncThemeToBackend(theme);
   },
 
   fetchSettings: async () => {
