@@ -4,7 +4,7 @@ from httpx import AsyncClient, ASGITransport
 import uuid
 
 from main import app
-from models.user import SubscriptionTier, STTProvider, LLMProvider, TTSProvider
+from models.user import SubscriptionTier
 from database import get_db
 
 class MockUser:
