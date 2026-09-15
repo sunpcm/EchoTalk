@@ -1,7 +1,7 @@
 services:
   # ── 基础设施 ────────────────────────────────────────────────
   echotalk-postgres:
-    image: postgres:15-alpine
+    image: postgres:15.19-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: echotalk
@@ -31,7 +31,7 @@ services:
       retries: 5
 
   echotalk-chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:1.5.9
     restart: unless-stopped
     volumes:
       - chroma-data:/data
