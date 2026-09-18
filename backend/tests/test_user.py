@@ -122,3 +122,51 @@ async def test_update_user_settings_cannot_disable_custom_mode_on_free_tier(mock
     assert response.json()["detail"] == "Free tier users cannot disable custom mode."
 
     app.dependency_overrides = {}
+
+
+from pydantic import ValidationError
+from schemas.user import UserSettingsUpdate
+
+
+def test_user_settings_update_model_must_not_be_empty():
+    """测试 UserSettingsUpdate 中的 model_must_not_be_empty 校验器"""
+    # 允许为 None
+    obj_none = UserSettingsUpdate(llm_model=None)
+    assert obj_none.llm_model is None
+
+    # 正常字符串且去除首尾空格
+    obj_valid = UserSettingsUpdate(llm_model="  gpt-4o  ")
+    assert obj_valid.llm_model == "gpt-4o"
+
+    # 空字符串提示 ValueError
+    with pytest.raises(ValidationError) as exc_info:
+        UserSettingsUpdate(llm_model="")
+    assert "模型名称不能为空字符串" in str(exc_info.value)
+
+    # 仅含空白字符提示 ValueError
+    with pytest.raises(ValidationError) as exc_info:
+        UserSettingsUpdate(llm_model="   ")
+    assert "模型名称不能为空字符串" in str(exc_info.value)
+
+
+def test_user_settings_update_key_must_not_be_empty():
+    """测试 UserSettingsUpdate 中的 key_must_not_be_empty 校验器"""
+    # 允许为 None
+    obj_none = UserSettingsUpdate(stt_key=None, llm_key=None, tts_key=None)
+    assert obj_none.stt_key is None
+    assert obj_none.llm_key is None
+    assert obj_none.tts_key is None
+
+    # 正常字符串且去除首尾空格
+    obj_valid = UserSettingsUpdate(
+        stt_key="  stt_val  ", llm_key="  llm_val  ", tts_key="  tts_val  "
+    )
+    assert obj_valid.stt_key == "stt_val"
+    assert obj_valid.llm_key == "llm_val"
+    assert obj_valid.tts_key == "tts_val"
+
+    # 空字符串提示 ValueError
+    for key_field in ["stt_key", "llm_key", "tts_key"]:
+        with pytest.raises(ValidationError) as exc_info:
+            UserSettingsUpdate(**{key_field: "   "})
+        assert "API Key 不能为空字符串" in str(exc_info.value)
