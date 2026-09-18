@@ -6,6 +6,7 @@ import uuid
 from main import app
 from models.user import SubscriptionTier
 from database import get_db
+from routers.user import get_key_status
 
 class MockUser:
     def __init__(self, id, tier):
@@ -122,3 +123,18 @@ async def test_update_user_settings_cannot_disable_custom_mode_on_free_tier(mock
     assert response.json()["detail"] == "Free tier users cannot disable custom mode."
 
     app.dependency_overrides = {}
+
+
+@pytest.mark.parametrize(
+    "has_key, is_valid, expected_status",
+    [
+        (False, None, "unconfigured"),
+        (False, False, "unconfigured"),
+        (False, True, "unconfigured"),
+        (True, False, "error"),
+        (True, True, "verified"),
+        (True, None, "unconfigured"),
+    ],
+)
+def test_get_key_status(has_key: bool, is_valid: bool | None, expected_status: str):
+    assert get_key_status(has_key, is_valid) == expected_status
