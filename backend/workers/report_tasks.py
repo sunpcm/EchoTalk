@@ -5,40 +5,144 @@
 依赖: Celery + Redis（USE_MOCK_CELERY=True 时同步执行）
 """
 
+import asyncio
 import logging
+import uuid
+from datetime import datetime, timezone, timedelta
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import async_session_maker
+from models.exercise import GrammarError
+from models.session import Session
 
 logger = logging.getLogger(__name__)
+
+# 预设的针对语法错误的改善建议映射
+_SUGGESTION_MAP = {
+    "verb_tense_past": (
+        "注意过去时态的使用。提及过去发生的事情或带有 yesterday, ago, last 等时间状语时，请使用动词过去式。"
+    ),
+    "subject_verb_agreement": (
+        "注意主谓一致。当主语为第三人称单数 (he, she, it) 时，一般现在时动词需变单三形式 (如 goes, has, does)。"
+    ),
+    "article_usage": (
+        "注意冠词 (a, an, the) 的用法。单数可数名词前需加冠词，元音音素开头的单词前使用 an。"
+    ),
+    "preposition_error": (
+        "注意介词固定搭配 (如 depend on, listen to, arrive at/in)。"
+    ),
+    "plural_noun": (
+        "注意可数名词复数形式及不规则复数变化。"
+    ),
+}
+
+_DEFAULT_SUGGESTION = "建议多复习相关语法规则并在口语练习中多加巩固。"
+
+
+def _generate_suggestion(skill_tag: str, error_type: str) -> str:
+    """根据 skill_tag 与 error_type 生成个性化语法改善建议。"""
+    if skill_tag in _SUGGESTION_MAP:
+        return _SUGGESTION_MAP[skill_tag]
+    return f"经常出现 {error_type or skill_tag} 类型的语法错误，{_DEFAULT_SUGGESTION}"
+
+
+async def get_top_grammar_errors(
+    db: AsyncSession,
+    user_id: uuid.UUID | str,
+    limit: int = 3,
+    days: int | None = 7,
+) -> list[dict]:
+    """
+    查询用户在指定时间段内（默认近7天）出现频次最高的语法错误 Top-N 并生成改善建议。
+
+    参数:
+        db: 异步数据库会话
+        user_id: 用户 UUID
+        limit: 返回的错误类型数量（默认 3）
+        days: 统计最近多少天的数据（None 表示全量）
+
+    返回:
+        语法错误统计列表，包含 skill_tag, error_type, count, sample_original, sample_corrected, suggestion
+    """
+    if isinstance(user_id, str):
+        user_id = uuid.UUID(user_id)
+
+    # 1. 构建基础查询，关联 sessions 表过滤 user_id
+    query = (
+        select(
+            GrammarError.skill_tag,
+            GrammarError.error_type,
+            func.count(GrammarError.id).label("error_count"),
+            func.max(GrammarError.original).label("sample_original"),
+            func.max(GrammarError.corrected).label("sample_corrected"),
+        )
+        .join(Session, GrammarError.session_id == Session.id)
+        .where(Session.user_id == user_id)
+    )
+
+    if days is not None:
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        query = query.where(GrammarError.created_at >= since)
+
+    # 2. 按 skill_tag, error_type 分组，按频次降序，限制数量
+    query = (
+        query.group_by(GrammarError.skill_tag, GrammarError.error_type)
+        .order_by(func.count(GrammarError.id).desc())
+        .limit(limit)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # 3. 组装返回结果
+    top_errors = []
+    for row in rows:
+        skill_tag, error_type, count, sample_orig, sample_corr = row
+        top_errors.append(
+            {
+                "skill_tag": skill_tag,
+                "error_type": error_type,
+                "count": count,
+                "sample_original": sample_orig,
+                "sample_corrected": sample_corr,
+                "suggestion": _generate_suggestion(skill_tag, error_type),
+            }
+        )
+
+    return top_errors
+
+
+async def generate_weekly_report_async(user_id: str, db: AsyncSession | None = None) -> dict:
+    """
+    异步生成用户周度多维学习报告。
+    可以在异步 API 或已有 AsyncSession 的上下文中直接 await 调用。
+    """
+    logger.info("generate_weekly_report_async called for user_id=%s", user_id)
+    u_uuid = uuid.UUID(user_id)
+
+    if db is not None:
+        top_grammar_errors = await get_top_grammar_errors(db, u_uuid, limit=3, days=7)
+    else:
+        async with async_session_maker() as session:
+            top_grammar_errors = await get_top_grammar_errors(session, u_uuid, limit=3, days=7)
+
+    return {
+        "user_id": user_id,
+        "status": "partial",
+        "grammar_errors_summary": {
+            "top_errors": top_grammar_errors,
+            "total_top_errors_count": sum(e["count"] for e in top_grammar_errors),
+        },
+        "message": "Report generation with top grammar errors completed",
+    }
 
 
 def generate_weekly_report(user_id: str) -> dict:
     """
-    生成用户周度多维学习报告。
-
-    TODO: 实现以下报告维度
-    - 本周练习时长 & 会话次数统计
-    - 各技能 p_mastery 趋势（环比上周变化）
-    - 发音准确率趋势（按 session 聚合）
-    - 语法错误频次 Top-3 及改善建议
-    - Krashen i+1 推荐下周学习重点
-    - 情绪分析摘要（平均焦虑指数、语速趋势）
-
-    参数:
-        user_id: 用户 UUID 字符串
-
-    返回:
-        报告数据字典（供前端渲染或导出 PDF）
+    生成用户周度多维学习报告（Celery 同步任务入口）。
+    仅在 worker 边界调用 asyncio.run。
     """
     logger.info("generate_weekly_report called for user_id=%s", user_id)
-
-    # TODO: 查询 sessions 表统计本周练习数据
-    # TODO: 查询 knowledge_states 计算技能趋势
-    # TODO: 查询 pronunciation_assessments 计算发音趋势
-    # TODO: 查询 grammar_errors 统计高频错误
-    # TODO: 调用 RAG 服务生成下周推荐
-    # TODO: 查询 transcripts.emotion_state 汇总情绪数据
-
-    return {
-        "user_id": user_id,
-        "status": "skeleton",
-        "message": "Report generation not yet implemented",
-    }
+    return asyncio.run(generate_weekly_report_async(user_id))
