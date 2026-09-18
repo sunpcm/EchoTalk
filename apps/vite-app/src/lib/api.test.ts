@@ -30,6 +30,8 @@ describe("API client", () => {
     vi.restoreAllMocks();
   });
 
+  const fetchMock = () => vi.mocked(globalThis.fetch);
+
   describe("Error handling", () => {
     it("parses health check errors correctly", async () => {
       const mockResponse = {
@@ -45,15 +47,17 @@ describe("API client", () => {
             },
           }),
       };
-      (globalThis.fetch as any).mockResolvedValue(mockResponse);
+      fetchMock().mockResolvedValue(mockResponse as unknown as Response);
 
       try {
         await checkHealthReady();
         expect.fail("Should have thrown");
-      } catch (e: any) {
+      } catch (e: unknown) {
         expect(e).toBeInstanceOf(ApiError);
-        expect(e.status).toBe(503);
-        expect(e.message).toBe("自定义模式未验证通过。");
+        if (e instanceof ApiError) {
+          expect(e.status).toBe(503);
+          expect(e.message).toBe("自定义模式未验证通过。");
+        }
       }
     });
 
@@ -72,15 +76,17 @@ describe("API client", () => {
             ],
           }),
       };
-      (globalThis.fetch as any).mockResolvedValue(mockResponse);
+      fetchMock().mockResolvedValue(mockResponse as unknown as Response);
 
       try {
         await checkHealthReady();
         expect.fail("Should have thrown");
-      } catch (e: any) {
+      } catch (e: unknown) {
         expect(e).toBeInstanceOf(ApiError);
-        expect(e.status).toBe(422);
-        expect(e.message).toBe("数据验证失败 (body.mode): field required");
+        if (e instanceof ApiError) {
+          expect(e.status).toBe(422);
+          expect(e.message).toBe("数据验证失败 (body.mode): field required");
+        }
       }
     });
 
@@ -93,15 +99,17 @@ describe("API client", () => {
             detail: "会话不存在",
           }),
       };
-      (globalThis.fetch as any).mockResolvedValue(mockResponse);
+      fetchMock().mockResolvedValue(mockResponse as unknown as Response);
 
       try {
         await checkHealthReady();
         expect.fail("Should have thrown");
-      } catch (e: any) {
+      } catch (e: unknown) {
         expect(e).toBeInstanceOf(ApiError);
-        expect(e.status).toBe(404);
-        expect(e.message).toBe("会话不存在");
+        if (e instanceof ApiError) {
+          expect(e.status).toBe(404);
+          expect(e.message).toBe("会话不存在");
+        }
       }
     });
 
@@ -116,15 +124,17 @@ describe("API client", () => {
             },
           }),
       };
-      (globalThis.fetch as any).mockResolvedValue(mockResponse);
+      fetchMock().mockResolvedValue(mockResponse as unknown as Response);
 
       try {
         await checkHealthReady();
         expect.fail("Should have thrown");
-      } catch (e: any) {
+      } catch (e: unknown) {
         expect(e).toBeInstanceOf(ApiError);
-        expect(e.status).toBe(500);
-        expect(e.message).toBe('{"someField":"someValue"}');
+        if (e instanceof ApiError) {
+          expect(e.status).toBe(500);
+          expect(e.message).toBe('{"someField":"someValue"}');
+        }
       }
     });
   });
@@ -132,10 +142,10 @@ describe("API client", () => {
   describe("Health check API", () => {
     it("calls checkHealthReady successfully", async () => {
       const mockResult = { status: "ready" };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockResult),
-      });
+      } as unknown as Response);
 
       const res = await checkHealthReady();
       expect(res).toEqual(mockResult);
@@ -162,10 +172,10 @@ describe("API client", () => {
         ended_at: null,
         transcripts: [],
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockSession),
-      });
+      } as unknown as Response);
 
       const res = await createSession("free_talk");
       expect(res).toEqual(mockSession);
@@ -193,10 +203,10 @@ describe("API client", () => {
         ended_at: null,
         transcripts: [],
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockSession),
-      });
+      } as unknown as Response);
 
       const res = await createSession("doc_chat", docContext);
       expect(res).toEqual(mockSession);
@@ -211,10 +221,10 @@ describe("API client", () => {
 
     it("fetches session token", async () => {
       const mockToken = { token: "token-123", ws_url: "wss://livekit.example.com" };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockToken),
-      });
+      } as unknown as Response);
 
       const res = await getSessionToken("sess-1");
       expect(res).toEqual(mockToken);
@@ -234,10 +244,10 @@ describe("API client", () => {
         ended_at: "2025-01-01T00:10:00Z",
         transcripts: [],
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockSession),
-      });
+      } as unknown as Response);
 
       const res = await endSession("sess-1");
       expect(res).toEqual(mockSession);
@@ -249,10 +259,10 @@ describe("API client", () => {
 
     it("dispatches agent", async () => {
       const mockDispatch = { dispatched: true };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockDispatch),
-      });
+      } as unknown as Response);
 
       const res = await dispatchAgent("sess-1");
       expect(res).toEqual(mockDispatch);
@@ -272,10 +282,10 @@ describe("API client", () => {
           ended_at: "2025-01-01T00:10:00Z",
         },
       ];
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockList),
-      });
+      } as unknown as Response);
 
       const res = await listSessions();
       expect(res).toEqual(mockList);
@@ -304,10 +314,10 @@ describe("API client", () => {
           },
         ],
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockDetail),
-      });
+      } as unknown as Response);
 
       const res = await getSessionDetail("sess-1");
       expect(res).toEqual(mockDetail);
@@ -328,10 +338,10 @@ describe("API client", () => {
         elsa_response: null,
         created_at: "2025-01-01T00:00:00Z",
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockAssessment),
-      });
+      } as unknown as Response);
 
       const res = await getAssessment("sess-1");
       expect(res).toEqual(mockAssessment);
@@ -353,10 +363,10 @@ describe("API client", () => {
           created_at: "2025-01-01T00:00:00Z",
         },
       ];
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockGrammarErrors),
-      });
+      } as unknown as Response);
 
       const res = await getGrammarErrors("sess-1");
       expect(res).toEqual(mockGrammarErrors);
@@ -378,10 +388,10 @@ describe("API client", () => {
           updated_at: "2025-01-01T00:00:00Z",
         },
       ];
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockKnowledge),
-      });
+      } as unknown as Response);
 
       const res = await getKnowledgeStates();
       expect(res).toEqual(mockKnowledge);
@@ -400,10 +410,10 @@ describe("API client", () => {
           description: "Use of past tense verbs",
         },
       ];
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockSkills),
-      });
+      } as unknown as Response);
 
       const res = await getSkills();
       expect(res).toEqual(mockSkills);
@@ -430,10 +440,10 @@ describe("API client", () => {
           },
         ],
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockCurriculum),
-      });
+      } as unknown as Response);
 
       const res = await getRecommendedCurriculum();
       expect(res).toEqual(mockCurriculum);
@@ -459,10 +469,10 @@ describe("API client", () => {
         llm_status: "verified",
         tts_status: "verified",
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockSettings),
-      });
+      } as unknown as Response);
 
       const res = await getUserSettings();
       expect(res).toEqual(mockSettings);
@@ -491,10 +501,10 @@ describe("API client", () => {
         llm_status: "verified",
         tts_status: "verified",
       };
-      (globalThis.fetch as any).mockResolvedValue({
+      fetchMock().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockResponse),
-      });
+      } as unknown as Response);
 
       const res = await updateUserSettings(updateData);
       expect(res).toEqual(mockResponse);
