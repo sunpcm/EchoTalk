@@ -26,6 +26,7 @@ class MockUserSettings:
         self.stt_is_valid = False
         self.llm_is_valid = False
         self.tts_is_valid = False
+        self.theme = "warm"
 
 @pytest.mark.asyncio
 @patch("routers.user.select")
@@ -94,6 +95,38 @@ async def test_update_user_settings(mock_val_tts, mock_val_llm, mock_val_stt, mo
         data = response.json()
         assert data["stt_provider"] == "deepgram"
         assert data["has_stt_key"] is True
+
+    app.dependency_overrides = {}
+
+@pytest.mark.asyncio
+@patch("routers.user.select")
+async def test_update_user_settings_theme(mock_select):
+    mock_db = AsyncMock()
+
+    mock_settings_result = MagicMock()
+    mock_settings = MockUserSettings(is_custom_mode=False, is_custom_verified=False, theme="warm")
+    mock_settings_result.scalar_one_or_none.return_value = mock_settings
+
+    mock_user_result = MagicMock()
+    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
+    mock_user_result.scalar_one_or_none.return_value = mock_user
+
+    mock_db.execute.side_effect = [mock_settings_result, mock_user_result]
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.put(
+            "/api/user/settings",
+            json={
+                "theme": "dark",
+            }
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["theme"] == "dark"
+    assert mock_settings.theme == "dark"
 
     app.dependency_overrides = {}
 

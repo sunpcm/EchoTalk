@@ -9,6 +9,7 @@ class UserSettingsUpdate(BaseModel):
     """PUT /api/user/settings 请求体。所有字段可选，仅更新提供的字段。"""
 
     is_custom_mode: bool | None = None
+    theme: Literal["warm", "cool", "dark"] | None = None
 
     stt_provider: Literal["deepgram"] | None = None
     llm_provider: Literal["siliconflow", "openrouter"] | None = None
@@ -43,6 +44,7 @@ class UserSettingsResponse(BaseModel):
     is_custom_mode: bool = True
     is_custom_verified: bool = False
     subscription_tier: str = "free"
+    theme: str = "warm"
 
     stt_provider: str | None = None
     llm_provider: str | None = None
