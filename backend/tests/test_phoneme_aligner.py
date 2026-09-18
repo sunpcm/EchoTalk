@@ -1,5 +1,7 @@
-import pytest
-from services.pronunciation.phoneme_aligner import align_phonemes, compute_pronunciation_score
+from services.pronunciation.phoneme_aligner import (
+    align_phonemes,
+    compute_pronunciation_score,
+)
 
 
 def test_align_phonemes_exact_match():
