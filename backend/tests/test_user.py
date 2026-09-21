@@ -1,11 +1,14 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from httpx import AsyncClient, ASGITransport
 import uuid
+from unittest.mock import AsyncMock, patch, MagicMock
 
+import pytest
+from httpx import AsyncClient, ASGITransport
+from pydantic import ValidationError
+
+from database import get_db
 from main import app
 from models.user import SubscriptionTier
-from database import get_db
+from schemas.user import UserSettingsUpdate
 
 class MockUser:
     def __init__(self, id, tier):
@@ -122,10 +125,6 @@ async def test_update_user_settings_cannot_disable_custom_mode_on_free_tier(mock
     assert response.json()["detail"] == "Free tier users cannot disable custom mode."
 
     app.dependency_overrides = {}
-
-
-from pydantic import ValidationError
-from schemas.user import UserSettingsUpdate
 
 
 def test_user_settings_update_model_must_not_be_empty():
