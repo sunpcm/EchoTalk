@@ -7,6 +7,8 @@ import {
   dispatchAgent,
   listSessions,
   getSessionDetail,
+  getAnalysisStatus,
+  retryAnalysis,
   getAssessment,
   getGrammarErrors,
   getKnowledgeStates,
@@ -321,6 +323,52 @@ describe("API client", () => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
         `${getBaseUrl()}/sessions/sess-1`,
         expect.anything(),
+      );
+    });
+
+    it("gets explicit analysis status", async () => {
+      const status = {
+        session_id: "sess-1",
+        status: "running",
+        attempt_count: 1,
+        error_code: null,
+        retryable: false,
+        started_at: "2025-01-01T00:00:01Z",
+        finished_at: null,
+        updated_at: "2025-01-01T00:00:01Z",
+      };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(status),
+      } as unknown as Response);
+
+      await expect(getAnalysisStatus("sess-1")).resolves.toEqual(status);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions/sess-1/analysis-status`,
+        expect.anything(),
+      );
+    });
+
+    it("retries a failed analysis", async () => {
+      const status = {
+        session_id: "sess-1",
+        status: "pending",
+        attempt_count: 3,
+        error_code: null,
+        retryable: false,
+        started_at: "2025-01-01T00:00:01Z",
+        finished_at: null,
+        updated_at: "2025-01-01T00:01:00Z",
+      };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(status),
+      } as unknown as Response);
+
+      await expect(retryAnalysis("sess-1")).resolves.toEqual(status);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions/sess-1/analysis-retry`,
+        expect.objectContaining({ method: "POST" }),
       );
     });
   });

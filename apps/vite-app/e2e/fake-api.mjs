@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 const host = "127.0.0.1";
 const port = Number(process.env.E2E_API_PORT ?? 18181);
 const sessions = new Map();
+const analysisJobs = new Map();
 
 function sendJson(response, status, body) {
   response.writeHead(status, {
@@ -124,28 +125,80 @@ const server = createServer(async (request, response) => {
     }
     session.status = "completed";
     session.ended_at = new Date().toISOString();
+    analysisJobs.set(session.id, "pending");
     sendJson(response, 200, session);
+    return;
+  }
+
+  const analysisStatusMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/analysis-status$/);
+  if (method === "GET" && analysisStatusMatch) {
+    const sessionId = analysisStatusMatch[1];
+    const queuedStatus = analysisJobs.get(sessionId);
+    const status = queuedStatus
+      ? queuedStatus
+      : sessionId === "analysis-success"
+        ? "succeeded"
+        : sessionId === "analysis-failure"
+          ? "failed"
+          : sessionId === "analysis-pending"
+            ? "pending"
+            : sessionId === "analysis-running"
+              ? "running"
+              : undefined;
+    if (!status) {
+      sendJson(response, 404, { detail: "Analysis job not found" });
+      return;
+    }
+    sendJson(response, 200, {
+      session_id: sessionId,
+      status,
+      attempt_count: status === "failed" ? 3 : status === "pending" ? 0 : 1,
+      error_code: status === "failed" ? "analysis_failed" : null,
+      retryable: status === "failed",
+      started_at: status === "pending" ? null : new Date().toISOString(),
+      finished_at: status === "succeeded" || status === "failed" ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    });
+    if (sessionId === "analysis-failure" && status === "pending") {
+      analysisJobs.set(sessionId, "succeeded");
+    }
+    return;
+  }
+
+  const analysisRetryMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/analysis-retry$/);
+  if (method === "POST" && analysisRetryMatch) {
+    const sessionId = analysisRetryMatch[1];
+    analysisJobs.set(sessionId, "pending");
+    sendJson(response, 200, {
+      session_id: sessionId,
+      status: "pending",
+      attempt_count: 3,
+      error_code: null,
+      retryable: false,
+      started_at: null,
+      finished_at: null,
+      updated_at: new Date().toISOString(),
+    });
     return;
   }
 
   if (
     method === "GET" &&
-    (pathname === "/api/assessments/analysis-failure" ||
+    (pathname === "/api/assessments/analysis-success/grammar" ||
       pathname === "/api/assessments/analysis-failure/grammar")
   ) {
-    sendJson(response, 503, { detail: "Fake analysis failed" });
-    return;
-  }
-
-  if (method === "GET" && pathname === "/api/assessments/analysis-success/grammar") {
     sendJson(response, 200, []);
     return;
   }
 
-  if (method === "GET" && pathname === "/api/assessments/analysis-success") {
+  if (
+    method === "GET" &&
+    (pathname === "/api/assessments/analysis-success" ||
+      pathname === "/api/assessments/analysis-failure")
+  ) {
     sendJson(response, 200, {
       id: randomUUID(),
-      session_id: "analysis-success",
+      session_id: pathname.endsWith("analysis-failure") ? "analysis-failure" : "analysis-success",
       overall_score: 88,
       phoneme_alignment: [
         {

@@ -94,15 +94,15 @@ jobs:
         working-directory: backend
         run: .venv/bin/ruff check .
 
-      - name: Test with coverage
-        working-directory: backend
-        run: .venv/bin/pytest --cov=. --cov-report=term-missing
-
       - name: Upgrade empty PostgreSQL database
         working-directory: backend
         run: |
           .venv/bin/alembic upgrade head
           .venv/bin/alembic current
+
+      - name: Test with coverage
+        working-directory: backend
+        run: .venv/bin/pytest --cov=. --cov-report=term-missing
 
   ci:
     name: CI

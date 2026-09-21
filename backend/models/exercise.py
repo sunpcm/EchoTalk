@@ -19,7 +19,7 @@ class PronunciationAssessment(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("sessions.id"), unique=True, nullable=False
     )
     overall_score: Mapped[float] = mapped_column(Float, nullable=False)
     phoneme_alignment = mapped_column(JSON, nullable=False)

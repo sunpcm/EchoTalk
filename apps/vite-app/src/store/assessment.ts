@@ -6,9 +6,12 @@
 import { create } from "zustand";
 import {
   getAssessment,
+  getAnalysisStatus,
   getGrammarErrors,
   getKnowledgeStates,
-  ApiError,
+  retryAnalysis,
+  type AnalysisJobStatus,
+  type AnalysisStatusResponse,
   type AssessmentResponse,
   type GrammarErrorResponse,
   type KnowledgeStateResponse,
@@ -17,8 +20,10 @@ import {
 /** 评估数据加载状态 */
 export type AssessmentLoadState =
   | "idle" // 未开始获取
-  | "polling" // 正在轮询中（404 → 分析尚未完成）
+  | "pending" // 分析任务排队中
+  | "running" // Worker 正在分析
   | "loaded" // 数据加载完成
+  | "failed" // 分析任务最终失败，可人工重试
   | "error"; // 非 404 的真实错误
 
 /** Store 类型定义 */
@@ -33,12 +38,17 @@ interface AssessmentStore {
   knowledgeStates: KnowledgeStateResponse[];
   /** 错误信息 */
   error: string | null;
+  /** 后端持久化任务状态 */
+  job: AnalysisStatusResponse | null;
+  /** 人工重试后触发 Hook 重建轮询循环 */
+  pollVersion: number;
 
   /**
-   * 获取评估数据。
-   * 返回 true 表示加载成功，false 表示 404（需要重试），throw 表示真实错误。
+   * 刷新持久化任务状态；成功后并行加载评估和语法结果。
    */
-  fetchAssessment: (sessionId: string) => Promise<boolean>;
+  refreshAnalysis: (sessionId: string) => Promise<AnalysisJobStatus>;
+  /** 人工重试最终失败或超时任务 */
+  retryFailedAnalysis: (sessionId: string) => Promise<void>;
   /** 获取知识状态（静默，失败不阻塞） */
   fetchKnowledgeStates: () => Promise<void>;
   /** 重置 store（新一轮对话时调用） */
@@ -51,10 +61,25 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
   grammarErrors: [],
   knowledgeStates: [],
   error: null,
+  job: null,
+  pollVersion: 0,
 
-  fetchAssessment: async (sessionId: string): Promise<boolean> => {
-    set({ loadState: "polling", error: null });
+  refreshAnalysis: async (sessionId: string): Promise<AnalysisJobStatus> => {
     try {
+      const job = await getAnalysisStatus(sessionId);
+      if (job.status === "pending" || job.status === "running") {
+        set({ loadState: job.status, job, error: null });
+        return job.status;
+      }
+      if (job.status === "failed") {
+        set({
+          loadState: "failed",
+          job,
+          error: job.error_code ?? "analysis_failed",
+        });
+        return job.status;
+      }
+
       const [assessment, grammarErrors] = await Promise.all([
         getAssessment(sessionId),
         getGrammarErrors(sessionId),
@@ -63,17 +88,32 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
         loadState: "loaded",
         assessment,
         grammarErrors,
+        job,
+        error: null,
       });
-      return true;
+      return job.status;
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        // 分析尚未完成，保持 polling 状态，让调用者决定是否重试
-        return false;
-      }
-      // 真实错误
       set({
         loadState: "error",
         error: err instanceof Error ? err.message : "加载评估数据失败",
+      });
+      throw err;
+    }
+  },
+
+  retryFailedAnalysis: async (sessionId: string) => {
+    try {
+      const job = await retryAnalysis(sessionId);
+      set((state) => ({
+        loadState: "pending",
+        job,
+        error: null,
+        pollVersion: state.pollVersion + 1,
+      }));
+    } catch (err) {
+      set({
+        loadState: "error",
+        error: err instanceof Error ? err.message : "重试分析失败",
       });
       throw err;
     }
@@ -95,6 +135,8 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
       grammarErrors: [],
       knowledgeStates: [],
       error: null,
+      job: null,
+      pollVersion: 0,
     });
   },
 }));

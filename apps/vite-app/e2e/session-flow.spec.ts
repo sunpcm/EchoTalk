@@ -40,6 +40,13 @@ test("real web proxies health, create-session, and end-session requests to the f
     id: session.id,
     status: "completed",
   });
+
+  const analysis = await request.get(`/api/sessions/${session.id}/analysis-status`);
+  expect(analysis.ok()).toBeTruthy();
+  await expect(analysis.json()).resolves.toMatchObject({
+    session_id: session.id,
+    status: "pending",
+  });
 });
 
 test("renders a successful analysis from the fake API", async ({ page }) => {
@@ -50,10 +57,23 @@ test("renders a successful analysis from the fake API", async ({ page }) => {
   await expect(page.getByRole("button", { name: "返回主页" })).toBeEnabled();
 });
 
+for (const state of ["pending", "running"] as const) {
+  test(`lets the user leave while analysis is ${state}`, async ({ page }) => {
+    await showEndedSession(page, `analysis-${state}`);
+
+    const goHome = page.getByRole("button", { name: "返回主页" });
+    await expect(goHome).toBeEnabled();
+    await goHome.click();
+    await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
+  });
+}
+
 test("shows an analysis failure and lets the user exit to the dashboard", async ({ page }) => {
   await showEndedSession(page, "analysis-failure");
 
-  await expect(page.getByText("加载评估数据失败")).toBeVisible();
+  await expect(page.getByText("分析失败，请重试或返回主页")).toBeVisible();
+  await page.getByRole("button", { name: "重新分析" }).click();
+  await expect(page.getByText("发音评分")).toBeVisible();
   const goHome = page.getByRole("button", { name: "返回主页" });
   await expect(goHome).toBeEnabled();
   await goHome.click();

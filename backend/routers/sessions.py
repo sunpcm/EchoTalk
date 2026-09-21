@@ -18,10 +18,22 @@ from sqlalchemy.orm import selectinload
 from config import settings
 from database import get_db
 from dependencies import get_current_user
+from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.session import Session, SessionContext, SessionMode, SessionStatus
 from models.user import SubscriptionTier, User
-from schemas.session import SessionCreate, SessionListItem, SessionResponse
-from services.analysis_service import analyze_session, update_knowledge
+from schemas.session import (
+    AnalysisStatusResponse,
+    SessionCreate,
+    SessionListItem,
+    SessionResponse,
+)
+from services.analysis_jobs import (
+    STALE_AFTER,
+    InvalidAnalysisTransition,
+    create_analysis_job,
+    retry_job,
+    utc_now,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +150,7 @@ async def end_session(
             Session.user_id == uuid.UUID(current_user["id"]),
         )
         .options(selectinload(Session.transcripts))
+        .with_for_update()
     )
     result = await db.execute(stmt)
     session = result.scalar_one_or_none()
@@ -149,18 +162,78 @@ async def end_session(
 
     session.status = SessionStatus.completed
     session.ended_at = datetime.utcnow()
+    await create_analysis_job(session.id, db)
     await db.flush()
     await db.refresh(session)
 
-    # 触发分析管线（mock 模式下同步执行）
-    try:
-        await analyze_session(session.id, db)
-        await update_knowledge(session.id, uuid.UUID(current_user["id"]), db)
-        await db.flush()
-    except Exception as e:
-        logger.warning("会话分析失败: %s", e)
-
     return session
+
+
+def _analysis_status_response(job: AnalysisJob) -> AnalysisStatusResponse:
+    return AnalysisStatusResponse(
+        session_id=job.session_id,
+        status=job.status.value,
+        attempt_count=job.attempt_count,
+        error_code=job.last_error_code,
+        retryable=job.status == AnalysisJobStatus.failed,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        updated_at=job.updated_at,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/analysis-status",
+    response_model=AnalysisStatusResponse,
+)
+async def get_analysis_status(
+    session_id: uuid.UUID,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return an explicit analysis state instead of using assessment 404s."""
+    stmt = (
+        select(AnalysisJob)
+        .join(Session, AnalysisJob.session_id == Session.id)
+        .where(
+            AnalysisJob.session_id == session_id,
+            Session.user_id == uuid.UUID(current_user["id"]),
+        )
+    )
+    job = (await db.execute(stmt)).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="分析任务不存在")
+    return _analysis_status_response(job)
+
+
+@router.post(
+    "/sessions/{session_id}/analysis-retry",
+    response_model=AnalysisStatusResponse,
+)
+async def retry_analysis(
+    session_id: uuid.UUID,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Requeue only a failed job or a running job past its stale deadline."""
+    stmt = (
+        select(AnalysisJob)
+        .join(Session, AnalysisJob.session_id == Session.id)
+        .where(
+            AnalysisJob.session_id == session_id,
+            Session.user_id == uuid.UUID(current_user["id"]),
+        )
+        .with_for_update()
+    )
+    job = (await db.execute(stmt)).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="分析任务不存在")
+    try:
+        retry_job(job, now=utc_now(), stale_after=STALE_AFTER)
+    except InvalidAnalysisTransition as exc:
+        raise HTTPException(status_code=409, detail="当前分析状态不可重试") from exc
+    await db.flush()
+    return _analysis_status_response(job)
 
 
 @router.get("/sessions/{session_id}/token")

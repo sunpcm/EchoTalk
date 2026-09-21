@@ -20,8 +20,12 @@ export const zhCN = {
     micPermission: "请允许浏览器使用麦克风",
   },
   assessment: {
+    pending: "分析任务排队中...",
+    pendingHint: "你可以先返回主页，稍后再查看结果",
     analyzing: "正在分析发音...",
     analyzingHint: "评估数据正在生成中，请稍候",
+    failed: "分析失败，请重试或返回主页",
+    retry: "重新分析",
     loadError: "加载评估数据失败",
     scoreLabel: "发音评分",
     phonemeTitle: "音素对齐详情",

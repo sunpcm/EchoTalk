@@ -184,6 +184,19 @@ export interface SessionListItem {
   ended_at: string | null;
 }
 
+export type AnalysisJobStatus = "pending" | "running" | "succeeded" | "failed";
+
+export interface AnalysisStatusResponse {
+  session_id: string;
+  status: AnalysisJobStatus;
+  attempt_count: number;
+  error_code: string | null;
+  retryable: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string;
+}
+
 // ─── 健康检查 API ───
 
 export interface HealthReadyResponse {
@@ -249,6 +262,18 @@ export function listSessions(): Promise<SessionListItem[]> {
 /** 获取会话详情（含转录记录） */
 export function getSessionDetail(sessionId: string): Promise<Session> {
   return request<Session>(`/sessions/${sessionId}`);
+}
+
+/** 获取持久化分析任务状态 */
+export function getAnalysisStatus(sessionId: string): Promise<AnalysisStatusResponse> {
+  return request<AnalysisStatusResponse>(`/sessions/${sessionId}/analysis-status`);
+}
+
+/** 重试最终失败或已超时的分析任务 */
+export function retryAnalysis(sessionId: string): Promise<AnalysisStatusResponse> {
+  return request<AnalysisStatusResponse>(`/sessions/${sessionId}/analysis-retry`, {
+    method: "POST",
+  });
 }
 
 // ─── 评估 API ───

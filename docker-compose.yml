@@ -112,6 +112,21 @@ services:
     networks:
       - echotalk-net
 
+  echotalk-analysis-worker:
+    build: ./backend
+    command: python -m workers.analysis_worker
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
+    depends_on:
+      echotalk-postgres:
+        condition: service_healthy
+    networks:
+      - echotalk-net
+
   # ── 前端 ────────────────────────────────────────────────────
   echotalk-web:
     build:

@@ -52,7 +52,9 @@ def _get_mock_user_phonemes(ref_phonemes: list[str], word: str) -> list[str]:
     return user_phonemes
 
 
-async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
+async def analyze_session(
+    session_id: uuid.UUID, db: AsyncSession
+) -> PronunciationAssessment | None:
     """
     发音评估 + 语法错误检测管线。
 
@@ -75,7 +77,19 @@ async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
 
     if not transcripts:
         logger.info("会话 %s 无用户转录，跳过分析", session_id)
-        return
+        return None
+
+    # The job transaction is the primary idempotency boundary. This lookup plus
+    # the database unique constraint also prevents accidental direct re-execution.
+    existing_result = await db.execute(
+        select(PronunciationAssessment).where(
+            PronunciationAssessment.session_id == session_id
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing is not None:
+        logger.info("会话 %s 已有发音评估，跳过重复写入", session_id)
+        return existing
 
     # 2. 合并文本并拆词
     full_text = " ".join(t.content for t in transcripts)
@@ -127,6 +141,7 @@ async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
 
     # 5. 语法错误检测（mock 模式：简单规则匹配）
     await _detect_grammar_errors(session_id, full_text, db)
+    return assessment
 
 
 # ───── 语法错误检测 ─────

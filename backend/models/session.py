@@ -81,6 +81,9 @@ class Session(Base):
     context: Mapped["SessionContext | None"] = relationship(
         "SessionContext", back_populates="session", uselist=False, lazy="selectin"
     )
+    analysis_job: Mapped["AnalysisJob | None"] = relationship(  # noqa: F821
+        "AnalysisJob", back_populates="session", uselist=False, lazy="selectin"
+    )
 
 
 class Transcript(Base):

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     USE_MOCK_CELERY: bool = True
     USE_MOCK_ELSA: bool = True
 
+    # PostgreSQL analysis worker
+    ANALYSIS_WORKER_POLL_SECONDS: float = 1.0
+
     # Auth
     JWT_SECRET_KEY: str = "dev-secret-key-change-in-production"
 
