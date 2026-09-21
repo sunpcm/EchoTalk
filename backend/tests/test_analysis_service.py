@@ -16,9 +16,7 @@ async def test_update_knowledge_batching():
 
     assessment = PronunciationAssessment(
         session_id=session_id,
-        phoneme_alignment=[
-            {"type": "substitution", "expected": "TH", "position": 0}
-        ],
+        phoneme_alignment=[{"type": "substitution", "expected": "TH", "position": 0}],
     )
     grammar_errors = [
         GrammarError(
@@ -49,7 +47,6 @@ async def test_update_knowledge_batching():
     mock_skills_res = MagicMock()
     mock_skills_res.all.return_value = [(s,) for s in skills]
 
-    # Pre-existing state for one skill
     existing_state = KnowledgeState(
         id=uuid.uuid4(),
         user_id=user_id,
@@ -73,6 +70,8 @@ async def test_update_knowledge_batching():
     # 3: Skill.id validation query
     # 4: KnowledgeState batch select query
     assert mock_db.execute.call_count == 4
-    # subject_verb_agreement and th_sounds are newly created (verb_tense_past already existed)
+    # subject_verb_agreement and th_sounds are newly created
+    # (verb_tense_past already existed)
     assert mock_db.add.call_count == 2
-    assert existing_state.p_mastery < 0.2  # updated due to incorrect grammar observation
+    # updated due to incorrect grammar observation
+    assert existing_state.p_mastery < 0.2
