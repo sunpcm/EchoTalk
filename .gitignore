@@ -10,6 +10,8 @@ node_modules/
 dist/
 build/
 coverage/
+apps/vite-app/playwright-report/
+apps/vite-app/test-results/
 *.tsbuildinfo
 
 ############################
