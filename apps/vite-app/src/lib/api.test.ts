@@ -289,10 +289,7 @@ describe("API client", () => {
 
       const res = await listSessions();
       expect(res).toEqual(mockList);
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        `${getBaseUrl()}/sessions`,
-        expect.anything(),
-      );
+      expect(globalThis.fetch).toHaveBeenCalledWith(`${getBaseUrl()}/sessions`, expect.anything());
     });
 
     it("gets session detail", async () => {

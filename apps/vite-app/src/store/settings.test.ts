@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  useSettingsStore,
-  readStoredTheme,
-  applyThemeAttr,
-} from "./settings";
+import { useSettingsStore, readStoredTheme, applyThemeAttr } from "./settings";
 import * as api from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
