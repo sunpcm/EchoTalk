@@ -30,6 +30,12 @@ class MockPronunciationAssessment:
         self.overall_score = overall_score
         self.phoneme_alignment = phoneme_alignment
         self.elsa_response = elsa_response
+        self.source = "demo_mock"
+        self.provider = None
+        self.model_version = "demo-phoneme-rules-v1"
+        self.is_synthetic = True
+        self.confidence = 0.0
+        self.provider_response_ref = None
         self.created_at = datetime.utcnow()
 
 
@@ -43,6 +49,11 @@ class MockGrammarError:
         self.original = original
         self.corrected = corrected
         self.error_type = error_type
+        self.source = "demo_rule"
+        self.provider = None
+        self.model_version = "demo-grammar-rules-v1"
+        self.is_synthetic = True
+        self.confidence = 0.5
         self.created_at = datetime.utcnow()
 
 
@@ -109,7 +120,10 @@ async def test_get_assessment_success():
         assert data["overall_score"] == 85.5
         assert len(data["phoneme_alignment"]) == 1
         assert data["phoneme_alignment"][0]["type"] == "correct"
-        assert data["elsa_response"] == {"score": 85.5}
+        assert "elsa_response" not in data
+        assert data["source"] == "demo_mock"
+        assert data["is_synthetic"] is True
+        assert data["confidence"] == 0.0
     finally:
         app.dependency_overrides = {}
 
@@ -201,6 +215,9 @@ async def test_get_grammar_errors_success():
         assert data[0]["skill_tag"] == "tense"
         assert data[0]["original"] == "I go yesterday"
         assert data[0]["corrected"] == "I went yesterday"
+        assert data[0]["source"] == "demo_rule"
+        assert data[0]["is_synthetic"] is True
+        assert data[0]["confidence"] == 0.5
     finally:
         app.dependency_overrides = {}
 

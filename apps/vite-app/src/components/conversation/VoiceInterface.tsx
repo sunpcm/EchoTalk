@@ -331,11 +331,27 @@ function AnalyzingView({ state }: { state: "pending" | "running" }) {
 }
 
 /** 加载失败视图 */
-function AssessmentErrorView({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
+function AssessmentErrorView({
+  failed,
+  errorCode,
+  retryable,
+  onRetry,
+}: {
+  failed: boolean;
+  errorCode: string | null;
+  retryable: boolean;
+  onRetry: () => void;
+}) {
   return (
     <div className="bg-danger-bg rounded-lg p-4 text-center">
-      <p className="text-danger text-sm">{failed ? tAssess.failed : tAssess.loadError}</p>
-      {failed ? (
+      <p className="text-danger text-sm">
+        {failed
+          ? errorCode === "analysis_unsupported"
+            ? tAssess.unsupported
+            : tAssess.failed
+          : tAssess.loadError}
+      </p>
+      {failed && retryable ? (
         <button onClick={onRetry} className="btn-primary mt-3 px-4 py-2 text-sm">
           {tAssess.retry}
         </button>
@@ -355,6 +371,7 @@ function EndedView() {
     knowledgeStates,
     reset: resetAssessment,
     retryFailedAnalysis,
+    job,
   } = useAssessmentStore();
 
   // 启动轮询（仅在非 Agent 错误时）
@@ -410,7 +427,12 @@ function EndedView() {
       {/* 评估内容 */}
       {(loadState === "pending" || loadState === "running") && <AnalyzingView state={loadState} />}
       {(loadState === "failed" || loadState === "error") && (
-        <AssessmentErrorView failed={loadState === "failed"} onRetry={handleRetry} />
+        <AssessmentErrorView
+          failed={loadState === "failed"}
+          errorCode={job?.error_code ?? null}
+          retryable={job?.retryable ?? false}
+          onRetry={handleRetry}
+        />
       )}
       {loadState === "loaded" && assessment && (
         <div className="w-full max-w-md space-y-8">

@@ -21,6 +21,7 @@ from models.user import User
 from services.analysis_jobs import (
     MAX_ATTEMPTS,
     InvalidAnalysisTransition,
+    can_retry_job,
     claim_next_job,
     execute_claimed_job,
     record_job_failure,
@@ -29,6 +30,7 @@ from services.analysis_jobs import (
     transition_job,
     utc_now,
 )
+from services.analysis_service import AnalysisServiceError
 
 
 def _job(status: AnalysisJobStatus) -> AnalysisJob:
@@ -95,6 +97,12 @@ def test_manual_retry_only_accepts_failed_or_stale_running_job():
     with pytest.raises(InvalidAnalysisTransition):
         retry_job(fresh, now=now)
 
+    unsupported = _job(AnalysisJobStatus.failed)
+    unsupported.last_error_code = "analysis_unsupported"
+    assert can_retry_job(unsupported, now=now) is False
+    with pytest.raises(InvalidAnalysisTransition):
+        retry_job(unsupported, now=now)
+
 
 def _test_database_url() -> str | None:
     url = os.environ.get("DATABASE_URL")
@@ -131,7 +139,7 @@ async def postgres_job():
             Transcript(
                 session_id=session_id,
                 role=TranscriptRole.user,
-                content="This is a test",
+                content="I go yesterday. This is a test",
                 timestamp_ms=1,
             )
         )
@@ -217,6 +225,25 @@ async def test_failures_are_bounded_and_end_in_failed(postgres_job):
 
 
 @pytest.mark.asyncio
+async def test_unsupported_failure_is_not_retried(postgres_job):
+    session_factory, _user_id, _session_id, job_id = postgres_job
+    async with session_factory() as db, db.begin():
+        assert await claim_next_job(db) == job_id
+
+    async with session_factory() as db, db.begin():
+        job = await record_job_failure(
+            job_id,
+            AnalysisServiceError("analysis_unsupported", "No provider configured"),
+            db,
+        )
+        assert job is not None
+        assert job.status == AnalysisJobStatus.failed
+        assert job.attempt_count == 1
+        assert job.last_error_code == "analysis_unsupported"
+        assert job.next_retry_at is None
+
+
+@pytest.mark.asyncio
 async def test_stale_job_is_recovered_after_worker_restart(postgres_job):
     session_factory, _user_id, _session_id, job_id = postgres_job
     now = utc_now()
@@ -236,7 +263,7 @@ async def test_stale_job_is_recovered_after_worker_restart(postgres_job):
 
 
 @pytest.mark.asyncio
-async def test_job_execution_writes_one_result_and_one_knowledge_effect(postgres_job):
+async def test_synthetic_job_is_idempotent_and_does_not_change_knowledge(postgres_job):
     session_factory, user_id, session_id, job_id = postgres_job
     async with session_factory() as db, db.begin():
         assert await claim_next_job(db) == job_id
@@ -245,10 +272,19 @@ async def test_job_execution_writes_one_result_and_one_knowledge_effect(postgres
         await execute_claimed_job(job_id, db)
 
     async with session_factory() as db:
-        assessment_count = await db.scalar(
-            select(func.count())
-            .select_from(PronunciationAssessment)
-            .where(PronunciationAssessment.session_id == session_id)
+        assessment = await db.scalar(
+            select(PronunciationAssessment).where(
+                PronunciationAssessment.session_id == session_id
+            )
+        )
+        grammar_errors = (
+            (
+                await db.execute(
+                    select(GrammarError).where(GrammarError.session_id == session_id)
+                )
+            )
+            .scalars()
+            .all()
         )
         states = (
             (
@@ -260,8 +296,15 @@ async def test_job_execution_writes_one_result_and_one_knowledge_effect(postgres
             .all()
         )
         mastery_snapshot = {state.skill_id: state.p_mastery for state in states}
-        assert assessment_count == 1
-        assert mastery_snapshot
+        assert assessment is not None
+        assert assessment.source == "demo_mock"
+        assert assessment.is_synthetic is True
+        assert assessment.confidence == 0
+        assert len(grammar_errors) == 1
+        assert grammar_errors[0].source == "demo_rule"
+        assert grammar_errors[0].corrected == "I went"
+        assert grammar_errors[0].confidence == 0.5
+        assert mastery_snapshot == {}
 
     with pytest.raises(InvalidAnalysisTransition):
         async with session_factory() as db, db.begin():

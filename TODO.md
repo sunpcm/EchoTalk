@@ -37,7 +37,7 @@
 
 ### Phase 2：模拟结果隔离
 
-- [ ] **RF-02 评估来源可信**：评估带来源、Provider、模型版本、Synthetic 与置信度；
+- [x] **RF-02 评估来源可信**：评估带来源、Provider、模型版本、Synthetic 与置信度；
       Synthetic 不更新真实知识状态；生产缺 Provider 时返回 `unsupported`；API、迁移、
       前端和测试同步。
 

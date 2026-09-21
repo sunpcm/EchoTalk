@@ -122,7 +122,12 @@ export interface AssessmentResponse {
   session_id: string;
   overall_score: number;
   phoneme_alignment: PhonemeAlignmentItem[];
-  elsa_response: Record<string, unknown> | null;
+  source: string;
+  provider: string | null;
+  model_version: string | null;
+  is_synthetic: boolean;
+  confidence: number | null;
+  provider_response_ref: string | null;
   created_at: string;
 }
 
@@ -134,6 +139,11 @@ export interface GrammarErrorResponse {
   original: string;
   corrected: string;
   error_type: string;
+  source: string;
+  provider: string | null;
+  model_version: string | null;
+  is_synthetic: boolean;
+  confidence: number | null;
   created_at: string;
 }
 

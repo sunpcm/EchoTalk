@@ -140,11 +140,13 @@ const server = createServer(async (request, response) => {
         ? "succeeded"
         : sessionId === "analysis-failure"
           ? "failed"
-          : sessionId === "analysis-pending"
-            ? "pending"
-            : sessionId === "analysis-running"
-              ? "running"
-              : undefined;
+          : sessionId === "analysis-unsupported"
+            ? "failed"
+            : sessionId === "analysis-pending"
+              ? "pending"
+              : sessionId === "analysis-running"
+                ? "running"
+                : undefined;
     if (!status) {
       sendJson(response, 404, { detail: "Analysis job not found" });
       return;
@@ -153,8 +155,13 @@ const server = createServer(async (request, response) => {
       session_id: sessionId,
       status,
       attempt_count: status === "failed" ? 3 : status === "pending" ? 0 : 1,
-      error_code: status === "failed" ? "analysis_failed" : null,
-      retryable: status === "failed",
+      error_code:
+        status === "failed"
+          ? sessionId === "analysis-unsupported"
+            ? "analysis_unsupported"
+            : "analysis_failed"
+          : null,
+      retryable: status === "failed" && sessionId !== "analysis-unsupported",
       started_at: status === "pending" ? null : new Date().toISOString(),
       finished_at: status === "succeeded" || status === "failed" ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
@@ -209,7 +216,12 @@ const server = createServer(async (request, response) => {
           type: "correct",
         },
       ],
-      elsa_response: null,
+      source: "demo_mock",
+      provider: null,
+      model_version: "demo-phoneme-rules-v1",
+      is_synthetic: true,
+      confidence: 0,
+      provider_response_ref: null,
       created_at: new Date().toISOString(),
     });
     return;

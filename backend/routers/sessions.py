@@ -18,7 +18,7 @@ from sqlalchemy.orm import selectinload
 from config import settings
 from database import get_db
 from dependencies import get_current_user
-from models.analysis import AnalysisJob, AnalysisJobStatus
+from models.analysis import AnalysisJob
 from models.session import Session, SessionContext, SessionMode, SessionStatus
 from models.user import SubscriptionTier, User
 from schemas.session import (
@@ -30,6 +30,7 @@ from schemas.session import (
 from services.analysis_jobs import (
     STALE_AFTER,
     InvalidAnalysisTransition,
+    can_retry_job,
     create_analysis_job,
     retry_job,
     utc_now,
@@ -175,7 +176,7 @@ def _analysis_status_response(job: AnalysisJob) -> AnalysisStatusResponse:
         status=job.status.value,
         attempt_count=job.attempt_count,
         error_code=job.last_error_code,
-        retryable=job.status == AnalysisJobStatus.failed,
+        retryable=can_retry_job(job),
         started_at=job.started_at,
         finished_at=job.finished_at,
         updated_at=job.updated_at,

@@ -380,7 +380,12 @@ describe("API client", () => {
         session_id: "sess-1",
         overall_score: 85,
         phoneme_alignment: [],
-        elsa_response: null,
+        source: "demo_mock",
+        provider: null,
+        model_version: "demo-phoneme-rules-v1",
+        is_synthetic: true,
+        confidence: 0,
+        provider_response_ref: null,
         created_at: "2025-01-01T00:00:00Z",
       };
       fetchMock().mockResolvedValue({

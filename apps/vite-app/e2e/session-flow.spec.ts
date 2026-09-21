@@ -52,6 +52,8 @@ test("real web proxies health, create-session, and end-session requests to the f
 test("renders a successful analysis from the fake API", async ({ page }) => {
   await showEndedSession(page, "analysis-success");
 
+  await expect(page.getByText("Demo 模拟结果")).toBeVisible();
+  await expect(page.getByText("仅用于体验，不计入真实学习掌握度")).toBeVisible();
   await expect(page.getByText("发音评分")).toBeVisible();
   await expect(page.getByText("88")).toBeVisible();
   await expect(page.getByRole("button", { name: "返回主页" })).toBeEnabled();
@@ -78,4 +80,12 @@ test("shows an analysis failure and lets the user exit to the dashboard", async 
   await expect(goHome).toBeEnabled();
   await goHome.click();
   await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
+});
+
+test("shows unsupported without offering a futile retry", async ({ page }) => {
+  await showEndedSession(page, "analysis-unsupported");
+
+  await expect(page.getByText("当前未配置真实评估服务，无法生成正式学习结果")).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新分析" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "返回主页" })).toBeEnabled();
 });

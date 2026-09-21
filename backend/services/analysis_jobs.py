@@ -9,13 +9,22 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.session import Session
-from services.analysis_service import analyze_session, update_knowledge
+from services.analysis_service import (
+    AnalysisServiceError,
+    analyze_session,
+    update_knowledge,
+)
 
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 3
 RETRY_DELAYS_SECONDS = (5, 30)
 STALE_AFTER = timedelta(minutes=5)
+NON_RETRYABLE_ERROR_CODES = {
+    "analysis_unsupported",
+    "no_user_transcript",
+    "session_missing",
+}
 
 
 class InvalidAnalysisTransition(ValueError):
@@ -25,9 +34,10 @@ class InvalidAnalysisTransition(ValueError):
 class AnalysisExecutionError(RuntimeError):
     """An analysis failure with a stable, non-sensitive public error code."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, *, retryable: bool = False):
         super().__init__(message)
         self.code = code
+        self.retryable = retryable
 
 
 ALLOWED_TRANSITIONS: dict[AnalysisJobStatus, set[AnalysisJobStatus]] = {
@@ -161,7 +171,8 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
         raise AnalysisExecutionError(
             "no_user_transcript", "Session has no user transcript to analyze"
         )
-    await update_knowledge(job.session_id, session.user_id, db)
+    if not assessment.is_synthetic:
+        await update_knowledge(job.session_id, session.user_id, db)
 
     transition_job(job, AnalysisJobStatus.succeeded)
     job.last_error_code = None
@@ -171,6 +182,8 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
 
 def _safe_error(exc: Exception) -> tuple[str, str]:
     if isinstance(exc, AnalysisExecutionError):
+        return exc.code, str(exc)[:1000]
+    if isinstance(exc, AnalysisServiceError):
         return exc.code, str(exc)[:1000]
     # Provider exceptions may echo request headers or credentials. Persist only
     # the exception class; detailed provider diagnostics belong in redacted telemetry.
@@ -195,7 +208,8 @@ async def record_job_failure(
     job.last_error_code = code
     job.last_error = message
 
-    if job.attempt_count >= MAX_ATTEMPTS:
+    retryable = getattr(exc, "retryable", True)
+    if job.attempt_count >= MAX_ATTEMPTS or not retryable:
         transition_job(job, AnalysisJobStatus.failed, now=current_time)
     else:
         transition_job(job, AnalysisJobStatus.pending, now=current_time)
@@ -229,15 +243,27 @@ def retry_job(
 ) -> None:
     """Requeue a final failure or a demonstrably stale running job."""
     current_time = now or utc_now()
-    is_stale = (
-        job.status == AnalysisJobStatus.running
-        and job.started_at is not None
-        and job.started_at <= current_time - stale_after
-    )
-    if job.status != AnalysisJobStatus.failed and not is_stale:
+    if not can_retry_job(job, now=current_time, stale_after=stale_after):
         raise InvalidAnalysisTransition("job is neither failed nor stale")
 
     transition_job(job, AnalysisJobStatus.pending, now=current_time)
     job.next_retry_at = current_time
     job.last_error_code = None
     job.last_error = None
+
+
+def can_retry_job(
+    job: AnalysisJob,
+    *,
+    now: datetime | None = None,
+    stale_after: timedelta = STALE_AFTER,
+) -> bool:
+    """Return whether manual retry is useful for this persisted state."""
+    current_time = now or utc_now()
+    if job.status == AnalysisJobStatus.failed:
+        return job.last_error_code not in NON_RETRYABLE_ERROR_CODES
+    return (
+        job.status == AnalysisJobStatus.running
+        and job.started_at is not None
+        and job.started_at <= current_time - stale_after
+    )
