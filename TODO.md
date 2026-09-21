@@ -108,8 +108,8 @@
 
 ## Phase 9 — 移动端交付
 
-> 设计与工作量评估见 [`docs/CROSS_PLATFORM_ARCHITECTURE.md`](./docs/CROSS_PLATFORM_ARCHITECTURE.md) §3.0。
-> 目标 M1「iOS 真机跑通」估算 4~6 人日；对外分发另需 P0 安全边界两项完成。
+> 当前完成度、网络契约与交付门禁见 [`docs/CROSS_PLATFORM_ARCHITECTURE.md`](./docs/CROSS_PLATFORM_ARCHITECTURE.md)。
+> 对外分发必须先完成 P0 安全边界和跨端文档中的 M0。
 
 ### 前置验证（阻断项）
 
@@ -118,20 +118,27 @@
 
 ### M1：真机跑通
 
-- [ ] `backend/config.py` 的 `CORS_ORIGINS` 放行原生 Origin；验收：原生 Origin 请求 `/api/health` 返回 200，无 CORS 拦截。
-- [ ] 实现 `apps/vite-app/src/utils/env.ts` 并以惰性求值接入 `lib/api.ts`；验收：原生容器内 API 正确拼接 `/api` 前缀并派发到配置 Host，无 404。
-- [ ] `VoiceInterface.tsx` 顶层读取 store 的 `wsUrl`，补 `VITE_LIVEKIT_FORCE_PROXY` 兜底；验收：原生按配置直连或降级代理，Web 端默认代理不受影响。
-- [ ] 接入 Capacitor 工程（webDir 指向 `apps/vite-app/dist`，补 `cap sync` 脚本）；验收：`pnpm build` 后可同步并在模拟器启动。
-- [ ] iOS 原生配置：`Info.plist` 麦克风权限描述 + `AVAudioSession` 通话模式与中断恢复；验收：真机完成一轮完整对话，来电挂断后音频自动恢复。
-- [ ] Android 原生配置：Manifest 权限与运行时权限请求；验收：导出 Debug APK，真机完成一轮完整对话。
+- [x] 代码基础：CORS 原生 Origin、惰性 API Base URL、`ws_url` 路由与强制代理兜底已实现。
+- [x] 单元测试基础：CORS、环境地址解析和 conversation store 的 `ws_url` 写入已有回归测试；LiveKit 直连/代理选择仍需真机验收。
+- [x] iOS 代码基础：Capacitor 工程、`webDir: dist`、麦克风权限描述、`AVAudioSession` 通话模式与中断恢复已入库。
+- [ ] 补齐可复现的 Capacitor 同步脚本；验收：根目录或 Vite package script 可执行 build + `cap sync ios`，无需人工拼命令。
+- [ ] 在 iOS 真机验证原生 Origin 请求 `/api/health`、API `/api` 前缀、LiveKit 直连与强制代理两条路径。
+- [ ] iOS 真机完成一轮完整对话；验收：麦克风、Agent 音频、结束分析均正常，来电挂断后音频自动恢复。
+- [ ] 完成 Release Archive 验证并记录签名/环境注入方式；验收：Release 构建不包含开发 API 地址。
 
 ### M1 后续：移动端体验
 
-- [ ] `index.html` 补 `viewport-fit=cover`，根容器补 `env(safe-area-inset-*)`；验收：灵动岛与底部横条不遮挡内容。
+- [x] 代码基础：`viewport-fit=cover`、根容器 safe-area 和 VoiceInterface 窄屏上下布局已实现。
+- [ ] 在 iPhone 真机验收 safe area 与窄屏布局；验收：灵动岛、底部横条、语音区和字幕区均不遮挡、不横向溢出。
 - [ ] `SettingsDrawer.tsx`（406 行、0 处响应式断点）移动端改为 Bottom Sheet；验收：≤414px 宽度下从底部弹出，支持下滑关闭。
-- [ ] `VoiceInterface.tsx` 双栏布局在窄屏折叠为上下结构；验收：iPhone 竖屏下语音区与字幕区均不横向溢出。
 - [ ] 接入 `appStateChange` 监听，回前台时校准 `usePollingAssessment` 退避计数与 LiveKit 房间状态；验收：会话中切后台 30 秒再回前台，评估结果仍能拉到，且房间断开时不再显示「假在线」。
 - [ ] 按第 0 步结论处理 DocTalk 的 `accept` 过滤（放宽为 `text/*` + 读取后校验扩展名，或改用原生选择器）；验收：iOS 真机可选中 `.md` 文件并完成一次 DocTalk 会话。
+
+### M3：Android / Desktop（产品确认后再启动）
+
+- [ ] 确认 Android 与桌面端是否进入本轮范围；验收：明确目标平台、发布渠道、负责人和维护周期。
+- [ ] Android 最小 Spike；验收：记录 WebRTC 麦克风、运行时权限、文件选择器和前后台行为后，再决定是否创建工程。
+- [ ] macOS/Windows 最小 Spike；验收：记录 WKWebView/WebView2 的 WebRTC、AEC、权限与签名结果后，再决定是否引入 Tauri。
 
 ## 维护规则
 

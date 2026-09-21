@@ -30,6 +30,10 @@
 
 ## 技术架构
 
+完整的当前架构、运行链路、数据所有权与风险清单见
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)；跨端目标与交付门禁见
+[docs/CROSS_PLATFORM_ARCHITECTURE.md](docs/CROSS_PLATFORM_ARCHITECTURE.md)。
+
 ```
 ┌────────────────────────────────────────────────────────┐
 │ 前端 (Vite + React 19 + TypeScript)                      │
@@ -51,15 +55,19 @@
 │  └── 自适应 RAG: ChromaDB 向量检索 + Krashen i+1          │
 ├────────────────────────────────────────────────────────┤
 │ 数据层 (PostgreSQL + asyncpg + ChromaDB)                  │
-│  └── 9 张表: users, user_profiles, user_settings,         │
-│      sessions, transcripts, skills, knowledge_states,     │
-│      pronunciation_assessments, grammar_errors            │
+│  └── 10 张表: users, user_profiles, user_settings,        │
+│      sessions, session_contexts, transcripts, skills,     │
+│      knowledge_states, pronunciation_assessments,          │
+│      grammar_errors                                        │
 └────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Docker 容器化部署（生产环境推荐）
+## Docker Compose 本地集成基线
+
+> 当前 Compose 适合本地集成和单机验证，不是完整生产拓扑：仓库内入口仅提供 HTTP，
+> 数据库迁移与 ChromaDB 语料播种需要单独执行，且尚未包含备份、资源限制、集中日志和高可用配置。
 
 ### 前置条件
 
@@ -145,8 +153,7 @@ cd backend
 uv venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 
-# 3. 配置环境变量
-#    复制 .env.example 为 .env 并填写:
+# 3. 在仓库根目录创建不入库的 .env 并填写（当前仓库未提供 .env.example）:
 #    - DATABASE_URL=postgresql://user:pass@localhost:5432/echotalk
 #    - SILICONFLOW_API_KEY 或 OPENROUTER_API_KEY
 #    - DEEPGRAM_API_KEY, CARTESIA_API_KEY（基础轨语音服务）
@@ -155,6 +162,7 @@ uv pip install -r requirements.txt
 #    - 开发服务器默认只监听 127.0.0.1；局域网调试时显式传入 --host 0.0.0.0
 #    - 生产：OIDC_ISSUER / OIDC_AUDIENCE / OIDC_JWKS_URL
 #    - CREDENTIAL_ENCRYPTION_KEYS + ACTIVE_CREDENTIAL_KEY_VERSION
+#    - LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
 
 # 4. 数据库迁移
 alembic upgrade head
@@ -283,12 +291,13 @@ pnpm --filter vite-app dev
 
 ### 基础接口
 
-| 方法 | 路径                 | 说明         |
-| ---- | -------------------- | ------------ |
-| GET  | `/api/health`        | 健康检查     |
-| POST | `/api/auth/register` | 用户注册     |
-| POST | `/api/auth/login`    | 用户登录     |
-| GET  | `/api/auth/me`       | 当前用户信息 |
+| 方法 | 路径                | 说明                     |
+| ---- | ------------------- | ------------------------ |
+| GET  | `/api/health`       | 进程存活检查             |
+| GET  | `/api/health/ready` | 数据库与当前用户就绪检查 |
+
+> 当前没有 `/api/auth/*` 路由；请求仍使用固定 Mock 用户。真实注册、登录和 Token
+> 生命周期属于 [TODO.md](TODO.md) 的 P0 发布阻断项。
 
 ### 会话管理
 
@@ -340,7 +349,7 @@ EchoTalk/
 │   ├── config.py                      # 环境配置
 │   ├── database.py                    # 异步数据库引擎
 │   ├── dependencies.py                # Mock 鉴权
-│   ├── models/                        # ORM 模型（9 张表）
+│   ├── models/                        # ORM 模型（10 张表）
 │   ├── schemas/                       # Pydantic 响应模型
 │   ├── routers/                       # API 路由
 │   ├── services/                      # 业务逻辑
@@ -379,6 +388,8 @@ EchoTalk/
 
 - [TODO.md](TODO.md)：唯一待办清单，记录尚未完成的功能、安全与维护工作。
 - [docs/README.md](docs/README.md)：当前技术文档、验收手册及历史资料导航。
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：代码事实对应的当前系统架构与风险基线。
+- [docs/CROSS_PLATFORM_ARCHITECTURE.md](docs/CROSS_PLATFORM_ARCHITECTURE.md)：跨端目标与分平台交付门禁。
 - [AGENTS.md](AGENTS.md)：仓库结构、开发命令、代码规范和贡献要求。
 
 旧阶段规划、临时 Prompt 和失效操作手册由 Git 历史保存，不再保留重复副本。
@@ -401,4 +412,4 @@ EchoTalk/
 
 ---
 
-_文档状态核对：2026-07-26；未完成事项以 [TODO.md](TODO.md) 为准。_
+_文档状态核对：2026-09-20（`main@1f9a1b0`）；未完成事项以 [TODO.md](TODO.md) 为准。_
