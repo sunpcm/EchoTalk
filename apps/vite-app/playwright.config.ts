@@ -30,6 +30,8 @@ export default defineConfig({
       env: {
         ...process.env,
         E2E_API_URL: `http://127.0.0.1:${apiPort}`,
+        VITE_AUTH_MODE: "dev",
+        VITE_DEV_AUTH_TOKEN: "e2e-dev-token",
       },
     },
   ],

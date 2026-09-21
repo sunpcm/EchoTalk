@@ -7,7 +7,8 @@ from httpx import ASGITransport, AsyncClient
 from database import get_db
 from main import app
 from models.user import LLMProvider, STTProvider, SubscriptionTier, TTSProvider
-from routers.user import get_key_status
+from routers.user import _decrypt_and_rotate, get_key_status
+from utils.crypto import DecryptedCredential, EncryptedCredential
 
 
 def test_get_key_status():
@@ -17,6 +18,28 @@ def test_get_key_status():
     assert get_key_status(has_key=True, is_valid=False) == "error"
     assert get_key_status(has_key=True, is_valid=True) == "verified"
     assert get_key_status(has_key=True, is_valid=None) == "unconfigured"
+
+
+def test_reading_old_credential_reencrypts_with_active_version():
+    row = MagicMock(
+        encrypted_stt_key="old-ciphertext",
+        stt_key_version="old-v1",
+    )
+    with (
+        patch(
+            "routers.user.decrypt_api_key",
+            return_value=DecryptedCredential("secret", needs_rotation=True),
+        ) as decrypt,
+        patch(
+            "routers.user.encrypt_api_key",
+            return_value=EncryptedCredential("new-ciphertext", "new-v2"),
+        ),
+    ):
+        assert _decrypt_and_rotate(row, "stt") == "secret"
+
+    decrypt.assert_called_once_with("old-ciphertext", "old-v1")
+    assert row.encrypted_stt_key == "new-ciphertext"
+    assert row.stt_key_version == "new-v2"
 
 
 class MockUser:
@@ -221,7 +244,10 @@ async def test_update_user_settings(
     mock_val_llm.return_value = True
     mock_val_tts.return_value = True
 
-    with patch("routers.user.encrypt_api_key", return_value="encrypted_key"):
+    with patch(
+        "routers.user.encrypt_api_key",
+        return_value=EncryptedCredential("encrypted_key", "test-v1"),
+    ):
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:

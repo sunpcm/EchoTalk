@@ -150,7 +150,9 @@ uv pip install -r requirements.txt
 #    - DATABASE_URL=postgresql://user:pass@localhost:5432/echotalk
 #    - SILICONFLOW_API_KEY 或 OPENROUTER_API_KEY
 #    - DEEPGRAM_API_KEY, CARTESIA_API_KEY（基础轨语音服务）
-#    - JWT_SECRET_KEY（任意字符串，同时用于 Phase 5 Fernet 密钥派生）
+#    - 本地：AUTH_MODE=dev + DEV_AUTH_TOKEN（必须显式配置）
+#    - 生产：OIDC_ISSUER / OIDC_AUDIENCE / OIDC_JWKS_URL
+#    - CREDENTIAL_ENCRYPTION_KEYS + ACTIVE_CREDENTIAL_KEY_VERSION
 
 # 4. 数据库迁移
 alembic upgrade head
@@ -245,7 +247,8 @@ pnpm --filter vite-app dev
 ### Phase 5 — 双轨制 BYOK 数据层与 Agent 路由（后端）
 
 - **用户设置表**：`user_settings` 一对一关联 `users`，存储双轨制开关 `is_custom_mode` 与加密 API Key
-- **Fernet 对称加密**：`cryptography.fernet` 加密用户 API Key，密钥由 `SHA-256(JWT_SECRET_KEY)` 派生
+- **Fernet 对称加密**：独立版本化 keyring 加密用户 API Key；认证材料轮换不影响 BYOK
+- **旧密文迁移**：历史 JWT 派生密文标记为 `legacy-jwt-derived-v1`，配置旧秘密后读取并惰性重加密
 - **设置 API**：`GET/PUT /api/user/settings`，密钥仅返回 `has_xxx_key: bool`，部分更新支持
 - **PluginFactory 插件工厂**：统一实例化 STT/LLM/TTS/VAD 插件，预检 Provider + Key 有效性
 - **双轨路由**：Agent 根据 `is_custom_mode` 选择基础轨（`.env` 系统密钥）或自定义轨（DB 解密密钥）

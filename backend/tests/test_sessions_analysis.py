@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 
+from auth import CurrentUser
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.session import Session, SessionMode, SessionStatus
 from routers.sessions import end_session, get_analysis_status, retry_analysis
@@ -29,6 +30,15 @@ def _session(user_id: uuid.UUID) -> Session:
     )
 
 
+def _current_user(user_id: uuid.UUID) -> CurrentUser:
+    return CurrentUser(
+        id=user_id,
+        email="test@example.com",
+        issuer="urn:echotalk:test",
+        subject=str(user_id),
+    )
+
+
 @pytest.mark.asyncio
 async def test_end_session_only_completes_session_and_enqueues_job():
     user_id = uuid.uuid4()
@@ -37,7 +47,7 @@ async def test_end_session_only_completes_session_and_enqueues_job():
 
     result = await end_session(
         session.id,
-        current_user={"id": str(user_id)},
+        current_user=_current_user(user_id),
         db=db,
     )
 
@@ -60,7 +70,7 @@ async def test_end_session_does_not_hide_job_creation_failure():
     with pytest.raises(RuntimeError, match="database unavailable"):
         await end_session(
             session.id,
-            current_user={"id": str(user_id)},
+            current_user=_current_user(user_id),
             db=db,
         )
 
@@ -82,7 +92,7 @@ async def test_analysis_status_returns_explicit_failed_state():
     )
     response = await get_analysis_status(
         job.session_id,
-        current_user={"id": str(user_id)},
+        current_user=_current_user(user_id),
         db=_db_returning(job),
     )
 
@@ -97,7 +107,7 @@ async def test_analysis_status_hides_jobs_not_owned_by_user():
     with pytest.raises(HTTPException) as exc_info:
         await get_analysis_status(
             session_id,
-            current_user={"id": str(uuid.uuid4())},
+            current_user=_current_user(uuid.uuid4()),
             db=_db_returning(None),
         )
     assert exc_info.value.status_code == 404
@@ -117,7 +127,7 @@ async def test_retry_endpoint_accepts_failed_and_rejects_pending():
     )
     response = await retry_analysis(
         failed.session_id,
-        current_user={"id": str(user_id)},
+        current_user=_current_user(user_id),
         db=_db_returning(failed),
     )
     assert response.status == "pending"
@@ -134,7 +144,7 @@ async def test_retry_endpoint_accepts_failed_and_rejects_pending():
     with pytest.raises(HTTPException) as exc_info:
         await retry_analysis(
             pending.session_id,
-            current_user={"id": str(user_id)},
+            current_user=_current_user(user_id),
             db=_db_returning(pending),
         )
     assert exc_info.value.status_code == 409

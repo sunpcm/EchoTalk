@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from auth import CurrentUser
 from config import settings
 from database import get_db
 from dependencies import get_current_user
@@ -44,7 +45,7 @@ router = APIRouter()
 @router.post("/sessions", response_model=SessionResponse)
 async def create_session(
     body: SessionCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """创建新的练习会话。"""
@@ -73,7 +74,7 @@ async def create_session(
 
     session = Session(
         id=uuid.uuid4(),
-        user_id=uuid.UUID(current_user["id"]),
+        user_id=current_user.id,
         mode=mode,
         status=SessionStatus.active,
         started_at=datetime.utcnow(),
@@ -99,13 +100,13 @@ async def create_session(
 
 @router.get("/sessions", response_model=list[SessionListItem])
 async def list_sessions(
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """列出当前用户的所有会话。"""
     stmt = (
         select(Session)
-        .where(Session.user_id == uuid.UUID(current_user["id"]))
+        .where(Session.user_id == current_user.id)
         .order_by(Session.started_at.desc())
     )
     result = await db.execute(stmt)
@@ -116,7 +117,7 @@ async def list_sessions(
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
 async def get_session(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """查询会话详情（含转录记录）。"""
@@ -124,7 +125,7 @@ async def get_session(
         select(Session)
         .where(
             Session.id == session_id,
-            Session.user_id == uuid.UUID(current_user["id"]),
+            Session.user_id == current_user.id,
         )
         .options(selectinload(Session.transcripts))
     )
@@ -140,7 +141,7 @@ async def get_session(
 @router.post("/sessions/{session_id}/end", response_model=SessionResponse)
 async def end_session(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """结束会话：将状态更新为 completed 并记录结束时间。"""
@@ -148,7 +149,7 @@ async def end_session(
         select(Session)
         .where(
             Session.id == session_id,
-            Session.user_id == uuid.UUID(current_user["id"]),
+            Session.user_id == current_user.id,
         )
         .options(selectinload(Session.transcripts))
         .with_for_update()
@@ -189,7 +190,7 @@ def _analysis_status_response(job: AnalysisJob) -> AnalysisStatusResponse:
 )
 async def get_analysis_status(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return an explicit analysis state instead of using assessment 404s."""
@@ -198,7 +199,7 @@ async def get_analysis_status(
         .join(Session, AnalysisJob.session_id == Session.id)
         .where(
             AnalysisJob.session_id == session_id,
-            Session.user_id == uuid.UUID(current_user["id"]),
+            Session.user_id == current_user.id,
         )
     )
     job = (await db.execute(stmt)).scalar_one_or_none()
@@ -213,7 +214,7 @@ async def get_analysis_status(
 )
 async def retry_analysis(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Requeue only a failed job or a running job past its stale deadline."""
@@ -222,7 +223,7 @@ async def retry_analysis(
         .join(Session, AnalysisJob.session_id == Session.id)
         .where(
             AnalysisJob.session_id == session_id,
-            Session.user_id == uuid.UUID(current_user["id"]),
+            Session.user_id == current_user.id,
         )
         .with_for_update()
     )
@@ -240,11 +241,11 @@ async def retry_analysis(
 @router.get("/sessions/{session_id}/token")
 async def get_session_token(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """为指定会话生成加入房间的 LiveKit 令牌。并在签发前校验鉴权与连通状态。"""
-    user_id = uuid.UUID(current_user["id"])
+    user_id = current_user.id
 
     # === 【Phase 6】鉴权拦截与连通性检查 ===
     user_stmt = (
@@ -293,7 +294,7 @@ async def get_session_token(
     # 生成 LiveKit Token
     # room 名直接使用 session_id 字符串
     room_name = str(session.id)
-    participant_identity = str(current_user["id"])
+    participant_identity = str(current_user.id)
     participant_name = current_user.get("username", "Participant")
 
     grant = VideoGrants(room_join=True, room=room_name)
@@ -313,13 +314,13 @@ async def get_session_token(
 @router.post("/sessions/{session_id}/dispatch")
 async def dispatch_agent(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """前端已连接房间后调用，调度 Agent 加入。"""
     stmt = select(Session).where(
         Session.id == session_id,
-        Session.user_id == uuid.UUID(current_user["id"]),
+        Session.user_id == current_user.id,
     )
     result = await db.execute(stmt)
     session = result.scalar_one_or_none()

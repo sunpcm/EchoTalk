@@ -23,25 +23,27 @@ test.beforeEach(async ({ page }) => {
 test("real web proxies health, create-session, and end-session requests to the fake API", async ({
   request,
 }) => {
-  const health = await request.get("/api/health/ready");
+  const headers = { Authorization: "Bearer e2e-dev-token" };
+  const health = await request.get("/api/health/ready", { headers });
   expect(health.ok()).toBeTruthy();
   await expect(health.json()).resolves.toMatchObject({ status: "ok" });
 
   const created = await request.post("/api/sessions", {
+    headers,
     data: { mode: "scenario" },
   });
   expect(created.status()).toBe(201);
   const session = await created.json();
   expect(session).toMatchObject({ mode: "scenario", status: "active" });
 
-  const ended = await request.post(`/api/sessions/${session.id}/end`);
+  const ended = await request.post(`/api/sessions/${session.id}/end`, { headers });
   expect(ended.ok()).toBeTruthy();
   await expect(ended.json()).resolves.toMatchObject({
     id: session.id,
     status: "completed",
   });
 
-  const analysis = await request.get(`/api/sessions/${session.id}/analysis-status`);
+  const analysis = await request.get(`/api/sessions/${session.id}/analysis-status`, { headers });
   expect(analysis.ok()).toBeTruthy();
   await expect(analysis.json()).resolves.toMatchObject({
     session_id: session.id,

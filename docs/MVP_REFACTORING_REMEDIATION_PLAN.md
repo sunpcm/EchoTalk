@@ -160,6 +160,13 @@ pending -> running -> succeeded
 
 后端忽略 Authorization Header 并返回固定用户；前端固定发送 `Bearer mock-token`。`JWT_SECRET_KEY` 同时派生 BYOK 的 Fernet 密钥，轮换认证密钥会导致已保存 Provider Key 无法解密。
 
+#### 方案裁决
+
+采用单一外部 OIDC 方案：Web 使用 Authorization Code + PKCE，API 校验
+issuer/audience/JWKS；本地开发仅允许显式 `AUTH_MODE=dev` 与 `DEV_AUTH_TOKEN`。
+不在 EchoTalk 内自建密码、找回与 MFA 生命周期。生产 OIDC 配置或独立凭据 keyring
+缺失时启动失败，不允许回退到 dev 身份。
+
 #### 实施要求
 
 - 在进入实现前明确采用外部 OIDC 还是自建账号体系；两者不得同时半实现。

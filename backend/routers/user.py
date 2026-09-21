@@ -1,11 +1,10 @@
 """用户设置路由：双轨制配置读写。"""
 
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth import CurrentUser
 from database import get_db
 from dependencies import get_current_user
 from models.user import (
@@ -17,7 +16,10 @@ from models.user import (
     UserSettings,
 )
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
-from services.validation_service import ProviderValidationService
+from services.validation_service import (
+    ProviderValidationResult,
+    ProviderValidationService,
+)
 from utils.crypto import decrypt_api_key, encrypt_api_key
 
 router = APIRouter()
@@ -33,13 +35,33 @@ def get_key_status(has_key: bool, is_valid: bool | None) -> str:
     return "unconfigured"
 
 
+def _decrypt_and_rotate(row: UserSettings, prefix: str) -> str | None:
+    """读取某个凭据；旧版本被使用时立即改写为 active key。"""
+    ciphertext = getattr(row, f"encrypted_{prefix}_key")
+    if not ciphertext:
+        return None
+    decrypted = decrypt_api_key(ciphertext, getattr(row, f"{prefix}_key_version"))
+    if decrypted.needs_rotation:
+        encrypted = encrypt_api_key(decrypted.plaintext)
+        setattr(row, f"encrypted_{prefix}_key", encrypted.ciphertext)
+        setattr(row, f"{prefix}_key_version", encrypted.key_version)
+    return decrypted.plaintext
+
+
+def _as_validation_result(result: ProviderValidationResult | bool) -> ProviderValidationResult:
+    """兼容测试替身，生产实现始终返回分类结果。"""
+    if isinstance(result, ProviderValidationResult):
+        return result
+    return ProviderValidationResult(bool(result), "verified" if result else "provider_error")
+
+
 @router.get("/user/settings", response_model=UserSettingsResponse)
 async def get_user_settings(
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """获取当前用户的双轨制配置。密钥字段仅返回是否存在，不返回明文。"""
-    user_id = uuid.UUID(current_user["id"])
+    user_id = current_user.id
     user_stmt = select(User).where(User.id == user_id)
     user_result = await db.execute(user_stmt)
     user_obj = user_result.scalar_one_or_none()
@@ -77,11 +99,11 @@ async def get_user_settings(
 @router.put("/user/settings", response_model=UserSettingsResponse)
 async def update_user_settings(
     body: UserSettingsUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """更新当前用户的双轨制配置。支持部分更新，密钥加密后入库。"""
-    user_id = uuid.UUID(current_user["id"])
+    user_id = current_user.id
 
     # 鉴权：只有非 free 用户才能关闭 is_custom_mode
     if body.is_custom_mode is False:
@@ -109,17 +131,17 @@ async def update_user_settings(
     stt_k = (
         body.stt_key
         if body.stt_key is not None
-        else (decrypt_api_key(row.encrypted_stt_key) if row.encrypted_stt_key else None)
+        else _decrypt_and_rotate(row, "stt")
     )
     llm_k = (
         body.llm_key
         if body.llm_key is not None
-        else (decrypt_api_key(row.encrypted_llm_key) if row.encrypted_llm_key else None)
+        else _decrypt_and_rotate(row, "llm")
     )
     tts_k = (
         body.tts_key
         if body.tts_key is not None
-        else (decrypt_api_key(row.encrypted_tts_key) if row.encrypted_tts_key else None)
+        else _decrypt_and_rotate(row, "tts")
     )
 
     stt_p_old = row.stt_provider.value if row.stt_provider else None
@@ -137,38 +159,40 @@ async def update_user_settings(
     ) or (body.tts_key is not None)
 
     stt_valid = getattr(row, "stt_is_valid", False) if not stt_changed else False
+    validation_failures: dict[str, str] = {}
     if stt_changed and stt_p and stt_k:
-        try:
-            stt_valid = await ProviderValidationService.validate_stt_key(stt_p, stt_k)
-        except Exception:
-            stt_valid = False
+        stt_result = _as_validation_result(
+            await ProviderValidationService.validate_stt_key(stt_p, stt_k)
+        )
+        stt_valid = stt_result.ok
+        if not stt_result.ok:
+            validation_failures["stt"] = stt_result.code
 
     llm_valid = getattr(row, "llm_is_valid", False) if not llm_changed else False
     if llm_changed and llm_p and llm_k:
-        try:
-            llm_valid = await ProviderValidationService.validate_llm_key(llm_p, llm_k)
-        except Exception:
-            llm_valid = False
+        llm_result = _as_validation_result(
+            await ProviderValidationService.validate_llm_key(llm_p, llm_k)
+        )
+        llm_valid = llm_result.ok
+        if not llm_result.ok:
+            validation_failures["llm"] = llm_result.code
 
     tts_valid = getattr(row, "tts_is_valid", False) if not tts_changed else False
     if tts_changed and tts_p and tts_k:
-        try:
-            tts_valid = await ProviderValidationService.validate_tts_key(tts_p, tts_k)
-        except Exception:
-            tts_valid = False
+        tts_result = _as_validation_result(
+            await ProviderValidationService.validate_tts_key(tts_p, tts_k)
+        )
+        tts_valid = tts_result.ok
+        if not tts_result.ok:
+            validation_failures["tts"] = tts_result.code
 
-    failed_validations = []
-    if stt_changed and stt_p and stt_k and not stt_valid:
-        failed_validations.append(f"STT: {stt_p}")
-    if llm_changed and llm_p and llm_k and not llm_valid:
-        failed_validations.append(f"LLM: {llm_p}")
-    if tts_changed and tts_p and tts_k and not tts_valid:
-        failed_validations.append(f"TTS: {tts_p}")
-
-    if failed_validations:
+    if validation_failures:
         raise HTTPException(
             status_code=422,
-            detail=f"Key Validation Failed for: {', '.join(failed_validations)}",
+            detail={
+                "code": "provider_key_validation_failed",
+                "providers": validation_failures,
+            },
         )
 
     row.stt_is_valid = bool(stt_valid)
@@ -191,11 +215,17 @@ async def update_user_settings(
         row.tts_provider = TTSProvider(body.tts_provider)
 
     if body.stt_key is not None:
-        row.encrypted_stt_key = encrypt_api_key(body.stt_key)
+        encrypted = encrypt_api_key(body.stt_key)
+        row.encrypted_stt_key = encrypted.ciphertext
+        row.stt_key_version = encrypted.key_version
     if body.llm_key is not None:
-        row.encrypted_llm_key = encrypt_api_key(body.llm_key)
+        encrypted = encrypt_api_key(body.llm_key)
+        row.encrypted_llm_key = encrypted.ciphertext
+        row.llm_key_version = encrypted.key_version
     if body.tts_key is not None:
-        row.encrypted_tts_key = encrypt_api_key(body.tts_key)
+        encrypted = encrypt_api_key(body.tts_key)
+        row.encrypted_tts_key = encrypted.ciphertext
+        row.tts_key_version = encrypted.key_version
 
     await db.flush()
     await db.refresh(row)

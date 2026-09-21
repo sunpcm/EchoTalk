@@ -1,23 +1,18 @@
-import uuid
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
 import main
 from main import app, lifespan
 from models.knowledge import SEED_SKILLS
-from models.user import User
 
 
 @pytest.mark.asyncio
 async def test_lifespan_seeding_with_mock_session():
-    """测试 app lifespan 中的 mock 用户与 skill 种子数据的批量查询与插入。"""
+    """测试 lifespan 只写入显式参考数据，不创建隐式 Mock 用户。"""
     mock_session = AsyncMock()
     mock_session.commit = AsyncMock()
     mock_session.add = Mock()  # synchronous method on SQLAlchemy AsyncSession
-
-    # 1. 模拟数据库为空：get(User, ...) 返回 None, execute(stmt) 返回空 existing_ids
-    mock_session.get = AsyncMock(return_value=None)
 
     mock_execute_result = MagicMock()
     mock_execute_result.scalars.return_value.all.return_value = []
@@ -31,12 +26,11 @@ async def test_lifespan_seeding_with_mock_session():
     main.async_session_maker = mock_session_factory
 
     try:
-        async with lifespan(app):
-            pass
+        with patch("main.settings.DEV_AUTH_TOKEN", "test-dev-token"):
+            async with lifespan(app):
+                pass
 
-        # 检查是否尝试创建 User 和 SEED_SKILLS
-        # add 被调用的次数: 1 (User) + len(SEED_SKILLS) (Skill)
-        assert mock_session.add.call_count == 1 + len(SEED_SKILLS)
+        assert mock_session.add.call_count == len(SEED_SKILLS)
 
         # 验证 execute 在 SEED_SKILLS 查询时被调用了 1 次 (批量 IN 查询)
         assert mock_session.execute.call_count == 1
@@ -46,14 +40,10 @@ async def test_lifespan_seeding_with_mock_session():
 
 @pytest.mark.asyncio
 async def test_lifespan_seeding_already_exists():
-    """测试当 User 和 Skill 全部已存在时，不会再调用 session.add()。"""
+    """测试 Skill 全部已存在时，不会再调用 session.add()。"""
     mock_session = AsyncMock()
     mock_session.commit = AsyncMock()
     mock_session.add = Mock()
-
-    # 模拟 User 已存在
-    mock_user = User(id=uuid.UUID(main.MOCK_USER_ID), email="test@example.com")
-    mock_session.get = AsyncMock(return_value=mock_user)
 
     # 模拟所有 SEED_SKILLS 已存在
     mock_execute_result = MagicMock()
@@ -69,8 +59,9 @@ async def test_lifespan_seeding_already_exists():
     main.async_session_maker = mock_session_factory
 
     try:
-        async with lifespan(app):
-            pass
+        with patch("main.settings.DEV_AUTH_TOKEN", "test-dev-token"):
+            async with lifespan(app):
+                pass
 
         # 任何实体都不需要 add
         assert mock_session.add.call_count == 0

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth import CurrentUser
 from database import get_db
 from dependencies import get_current_user
 from models.exercise import GrammarError, PronunciationAssessment
@@ -29,11 +30,11 @@ router = APIRouter()
     response_model=list[KnowledgeStateResponse],
 )
 async def get_knowledge_states(
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """查询当前用户的所有知识状态。"""
-    user_id = uuid.UUID(current_user["id"])
+    user_id = current_user.id
     stmt = (
         select(KnowledgeState, Skill)
         .join(Skill, KnowledgeState.skill_id == Skill.id)
@@ -62,7 +63,7 @@ async def get_knowledge_states(
     response_model=list[SkillResponse],
 )
 async def list_skills(
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """查询所有技能定义。"""
@@ -81,7 +82,7 @@ async def list_skills(
 )
 async def get_assessment(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """查询发音评估结果。"""
@@ -108,7 +109,7 @@ async def get_assessment(
 )
 async def get_grammar_errors(
     session_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """查询语法错误列表。"""
@@ -131,13 +132,13 @@ async def get_grammar_errors(
 
 async def _verify_session_owner(
     session_id: uuid.UUID,
-    current_user: dict,
+    current_user: CurrentUser,
     db: AsyncSession,
 ) -> Session | None:
     """验证会话存在且属于当前用户。"""
     stmt = select(Session).where(
         Session.id == session_id,
-        Session.user_id == uuid.UUID(current_user["id"]),
+        Session.user_id == current_user.id,
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()

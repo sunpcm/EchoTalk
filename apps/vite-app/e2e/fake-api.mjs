@@ -40,6 +40,11 @@ const server = createServer(async (request, response) => {
   const method = request.method ?? "GET";
   const pathname = new URL(request.url ?? "/", `http://${host}:${port}`).pathname;
 
+  if (pathname !== "/api/health" && request.headers.authorization !== "Bearer e2e-dev-token") {
+    sendJson(response, 401, { detail: "Authentication required." });
+    return;
+  }
+
   if (method === "GET" && (pathname === "/api/health" || pathname === "/api/health/ready")) {
     sendJson(response, 200, { status: "ok", service: "echotalk-e2e-fake" });
     return;

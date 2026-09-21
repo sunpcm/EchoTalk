@@ -4,6 +4,7 @@
  */
 
 import { getApiBaseUrl } from "@/utils/env";
+import { getAccessToken } from "@/lib/auth";
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -30,13 +31,17 @@ export class ApiError extends Error {
 /** 通用请求封装 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const baseUrl = getBaseUrl();
+  const accessToken = await getAccessToken();
+  const headers = new Headers(options?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
   const res = await fetch(`${baseUrl}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer mock-token",
-      // TODO: 后续接入真实 JWT，从 Auth 模块获取 token
-    },
     ...options,
+    headers,
   });
 
   if (!res.ok) {

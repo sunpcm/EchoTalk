@@ -19,12 +19,14 @@ import {
   ApiError,
   getBaseUrl,
 } from "./api";
+import { setAccessTokenProvider } from "./auth";
 
 describe("API client", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     globalThis.fetch = vi.fn();
+    setAccessTokenProvider(() => "test-access-token");
   });
 
   afterEach(() => {
@@ -153,13 +155,24 @@ describe("API client", () => {
       expect(res).toEqual(mockResult);
       expect(globalThis.fetch).toHaveBeenCalledWith(
         `${getBaseUrl()}/health/ready`,
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            Authorization: "Bearer mock-token",
-          }),
-        }),
+        expect.any(Object),
       );
+      const options = fetchMock().mock.calls[0]?.[1];
+      const headers = new Headers(options?.headers);
+      expect(headers.get("Content-Type")).toBe("application/json");
+      expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+    });
+
+    it("stops sending authorization immediately after logout", async () => {
+      setAccessTokenProvider(() => null);
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "ready" }),
+      } as unknown as Response);
+
+      await checkHealthReady();
+      const options = fetchMock().mock.calls[0]?.[1];
+      expect(new Headers(options?.headers).has("Authorization")).toBe(false);
     });
   });
 

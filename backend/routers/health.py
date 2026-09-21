@@ -1,6 +1,5 @@
 """健康检查路由。"""
 
-import uuid
 from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,6 +7,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from auth import CurrentUser
 from config import settings
 from database import get_db
 from dependencies import get_current_user
@@ -24,7 +24,8 @@ async def health_check():
 
 @router.get("/health/ready")
 async def readiness_check(
-    current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     深度健康检查，验证关键依赖（数据库、外部服务配置等）是否可用。
@@ -40,7 +41,7 @@ async def readiness_check(
             await db.execute(text("SELECT 1"))
 
             # 获取当前用户及其配置
-            user_id = uuid.UUID(current_user["id"])
+            user_id = current_user.id
             stmt = (
                 select(User)
                 .where(User.id == user_id)

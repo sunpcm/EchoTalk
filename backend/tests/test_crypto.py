@@ -1,81 +1,71 @@
+import base64
+import hashlib
 from unittest.mock import patch
 
 import pytest
-from cryptography.fernet import InvalidToken
+from cryptography.fernet import Fernet, InvalidToken
 
-from utils.crypto import _get_fernet, decrypt_api_key, encrypt_api_key
+from utils.crypto import (
+    LEGACY_KEY_VERSION,
+    _get_fernet,
+    decrypt_api_key,
+    encrypt_api_key,
+)
 
 
 def test_encrypt_and_decrypt_api_key_round_trip():
-    """测试标准 API Key 的加密与解密 Round-trip。"""
-    raw_key = "sk-proj-1234567890abcdefABCDEF123456"
-    encrypted = encrypt_api_key(raw_key)
-    decrypted = decrypt_api_key(encrypted)
-    assert decrypted == raw_key
+    encrypted = encrypt_api_key("sk-secret")
+    decrypted = decrypt_api_key(encrypted.ciphertext, encrypted.key_version)
+    assert decrypted.plaintext == "sk-secret"
+    assert decrypted.needs_rotation is False
+    assert encrypted.key_version == "dev-v1"
 
 
-@pytest.mark.parametrize(
-    "input_text",
-    [
-        "",  # 空字符串
-        "   ",  # 纯空格
-        "sk-test-!@#$%^&*()_+-=[]{}|;:',.<>?/",  # 包含各种特殊字符
-        "中文API密钥测试-123456",  # Unicode/多字节字符
-        "a" * 1000,  # 超长字符串
-    ],
-)
-def test_encrypt_decrypt_edge_case_inputs(input_text):
-    """测试不同类型的输入（空串、特殊字符、Unicode、超长串）的加密与解密。"""
-    encrypted = encrypt_api_key(input_text)
-    decrypted = decrypt_api_key(encrypted)
-    assert decrypted == input_text
+def test_ciphertext_is_nondeterministic():
+    first = encrypt_api_key("same")
+    second = encrypt_api_key("same")
+    assert first.ciphertext != second.ciphertext
 
 
-def test_ciphertext_is_encrypted_and_nondeterministic():
-    """测试密文不等于明文，且多次加密相同明文生成的 Fernet Token 不同（但均可正确解密）。"""
-    raw_key = "sk-secret-key-123"
-    enc1 = encrypt_api_key(raw_key)
-    enc2 = encrypt_api_key(raw_key)
-
-    assert enc1 != raw_key
-    assert enc2 != raw_key
-    assert enc1 != enc2  # Fernet token 包含随机 IV 和时间戳
-
-    assert decrypt_api_key(enc1) == raw_key
-    assert decrypt_api_key(enc2) == raw_key
+def test_unknown_version_and_invalid_ciphertext_fail_closed():
+    with pytest.raises(ValueError):
+        decrypt_api_key("anything", "unknown")
+    with pytest.raises(InvalidToken):
+        decrypt_api_key("not-a-token", "dev-v1")
 
 
-def test_decrypt_invalid_ciphertext_raises_invalid_token():
-    """测试传入无效或被篡改的密文时，decrypt_api_key 抛出 InvalidToken 异常。"""
-    invalid_ciphertexts = [
-        "not-a-fernet-token",
-        "gAAAAABm...",  # 损坏的 token
-        "12345",
-    ]
-    for invalid_ct in invalid_ciphertexts:
-        with pytest.raises(InvalidToken):
-            decrypt_api_key(invalid_ct)
-
-
-def test_decrypt_with_different_jwt_secret_key_raises_invalid_token():
-    """测试使用不同 JWT_SECRET_KEY 加密的密文在解密时引发 InvalidToken。"""
-    raw_key = "sk-secret-key-456"
-
-    _get_fernet.cache_clear()
-    with patch("config.settings.JWT_SECRET_KEY", "secret-key-a"):
-        enc = encrypt_api_key(raw_key)
-
-    _get_fernet.cache_clear()
-    with patch("config.settings.JWT_SECRET_KEY", "secret-key-b"):
-        with pytest.raises(InvalidToken):
-            decrypt_api_key(enc)
-
+def test_old_keyring_version_reads_and_requests_lazy_rotation():
+    old_key = Fernet.generate_key().decode()
+    active_key = Fernet.generate_key().decode()
+    ciphertext = Fernet(old_key.encode()).encrypt(b"old-secret").decode()
+    with (
+        patch(
+            "utils.crypto.settings.CREDENTIAL_ENCRYPTION_KEYS",
+            {"old-v1": old_key, "new-v2": active_key},
+        ),
+        patch("utils.crypto.settings.ACTIVE_CREDENTIAL_KEY_VERSION", "new-v2"),
+    ):
+        _get_fernet.cache_clear()
+        decrypted = decrypt_api_key(ciphertext, "old-v1")
+        assert decrypted.plaintext == "old-secret"
+        assert decrypted.needs_rotation is True
+        rotated = encrypt_api_key(decrypted.plaintext)
+        assert rotated.key_version == "new-v2"
+        assert decrypt_api_key(rotated.ciphertext, "new-v2").plaintext == "old-secret"
     _get_fernet.cache_clear()
 
 
-def test_get_fernet_lru_cache():
-    """测试 _get_fernet 拥有单例 LRU 缓存。"""
+def test_legacy_jwt_derived_ciphertext_requires_explicit_migration_secret():
+    secret = "old-auth-secret"
+    legacy_key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
+    ciphertext = Fernet(legacy_key).encrypt(b"legacy-secret").decode()
     _get_fernet.cache_clear()
-    fernet1 = _get_fernet()
-    fernet2 = _get_fernet()
-    assert fernet1 is fernet2
+    with patch("utils.crypto.settings.LEGACY_CREDENTIAL_DECRYPTION_SECRET", ""):
+        with pytest.raises(ValueError):
+            decrypt_api_key(ciphertext, LEGACY_KEY_VERSION)
+    _get_fernet.cache_clear()
+    with patch("utils.crypto.settings.LEGACY_CREDENTIAL_DECRYPTION_SECRET", secret):
+        result = decrypt_api_key(ciphertext, LEGACY_KEY_VERSION)
+        assert result.plaintext == "legacy-secret"
+        assert result.needs_rotation is True
+    _get_fernet.cache_clear()

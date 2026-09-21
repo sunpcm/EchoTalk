@@ -3,7 +3,6 @@ EchoTalk 后端 FastAPI 应用入口。
 负责 CORS 配置、路由注册、生命周期管理。
 """
 
-import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,28 +11,15 @@ from sqlalchemy import select
 
 from config import settings
 from database import async_session_maker
-from dependencies import MOCK_USER_ID
 from models.knowledge import SEED_SKILLS, Skill
-from models.user import User
 from routers import assessment, conversation, curriculum, health, sessions, user
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期：启动时确保 Mock 测试用户和种子技能数据存在。"""
+    """应用生命周期：验证安全配置并写入幂等参考数据。"""
+    settings.validate_runtime()
     async with async_session_maker() as session:
-        # 确保 Mock 测试用户存在
-        mock_uuid = uuid.UUID(MOCK_USER_ID)
-        existing = await session.get(User, mock_uuid)
-        if not existing:
-            user = User(
-                id=mock_uuid,
-                email="test@example.com",
-                password_hash=None,
-            )
-            session.add(user)
-            await session.commit()
-
         # 种子技能数据（Phase 2）
         if SEED_SKILLS:
             seed_ids = [s["id"] for s in SEED_SKILLS]

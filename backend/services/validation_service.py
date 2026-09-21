@@ -1,76 +1,116 @@
+"""Provider 凭据拨测，返回稳定错误分类且不记录敏感上游内容。"""
+
+import asyncio
 import logging
+from dataclasses import dataclass
+from typing import Literal
 
 import aiohttp
 
 logger = logging.getLogger("echotalk.validation_service")
 
+ValidationCode = Literal[
+    "verified",
+    "auth_error",
+    "rate_limited",
+    "timeout",
+    "network_error",
+    "provider_error",
+    "unsupported_provider",
+    "missing_key",
+]
+
+
+@dataclass(frozen=True)
+class ProviderValidationResult:
+    ok: bool
+    code: ValidationCode
+
 
 class ProviderValidationService:
-    @staticmethod
-    async def validate_stt_key(provider: str, api_key: str) -> bool:
-        if not api_key:
-            return False
-        if provider == "deepgram":
-            # 拨测 Deepgram API
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://api.deepgram.com/v1/projects",
-                        headers={"Authorization": f"Token {api_key}"},
-                    ) as resp:
-                        return resp.status == 200
-            except Exception as e:
-                logger.error(f"Deepgram 验证异常: {e}")
-                return False
-        return False
+    REQUEST_TIMEOUT_SECONDS = 8.0
 
-    @staticmethod
-    async def validate_llm_key(provider: str, api_key: str) -> bool:
+    @classmethod
+    async def _validate(
+        cls,
+        provider: str,
+        api_key: str,
+        *,
+        url: str,
+        headers: dict[str, str],
+    ) -> ProviderValidationResult:
         if not api_key:
-            return False
-        if provider == "siliconflow":
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://api.siliconflow.cn/v1/user/info",
-                        headers={"Authorization": f"Bearer {api_key}"},
-                    ) as resp:
-                        return resp.status == 200
-            except Exception as e:
-                logger.error(f"SiliconFlow 验证异常: {e}")
-                return False
-        elif provider == "openrouter":
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://openrouter.ai/api/v1/auth/key",
-                        headers={"Authorization": f"Bearer {api_key}"},
-                    ) as resp:
-                        return resp.status == 200
-            except Exception as e:
-                logger.error(f"OpenRouter 验证异常: {e}")
-                return False
-        return False
+            return ProviderValidationResult(False, "missing_key")
+        timeout = aiohttp.ClientTimeout(total=cls.REQUEST_TIMEOUT_SECONDS)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        return ProviderValidationResult(True, "verified")
+                    if response.status in {401, 403}:
+                        code: ValidationCode = "auth_error"
+                    elif response.status == 429:
+                        code = "rate_limited"
+                    else:
+                        code = "provider_error"
+        except (asyncio.TimeoutError, TimeoutError):
+            code = "timeout"
+        except aiohttp.ClientError:
+            code = "network_error"
+        except Exception:  # 防御第三方客户端的非标准异常；不得记录异常正文
+            code = "provider_error"
+        logger.warning("Provider key validation failed: provider=%s code=%s", provider, code)
+        return ProviderValidationResult(False, code)
 
-    @staticmethod
-    async def validate_tts_key(provider: str, api_key: str) -> bool:
-        if not api_key:
-            return False
-        if provider == "cartesia":
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://api.cartesia.ai/voices",
-                        headers={
-                            "X-API-Key": api_key,
-                            "Cartesia-Version": "2024-06-10",
-                        },
-                    ) as resp:
-                        return resp.status == 200
-            except Exception as e:
-                logger.error(f"Cartesia 验证异常: {e}")
-                return False
-        return False
+    @classmethod
+    async def validate_stt_key(
+        cls, provider: str, api_key: str
+    ) -> ProviderValidationResult:
+        if provider != "deepgram":
+            return ProviderValidationResult(False, "unsupported_provider")
+        return await cls._validate(
+            provider,
+            api_key,
+            url="https://api.deepgram.com/v1/projects",
+            headers={"Authorization": f"Token {api_key}"},
+        )
+
+    @classmethod
+    async def validate_llm_key(
+        cls, provider: str, api_key: str
+    ) -> ProviderValidationResult:
+        endpoints = {
+            "siliconflow": (
+                "https://api.siliconflow.cn/v1/user/info",
+                {"Authorization": f"Bearer {api_key}"},
+            ),
+            "openrouter": (
+                "https://openrouter.ai/api/v1/auth/key",
+                {"Authorization": f"Bearer {api_key}"},
+            ),
+        }
+        endpoint = endpoints.get(provider)
+        if endpoint is None:
+            return ProviderValidationResult(False, "unsupported_provider")
+        return await cls._validate(
+            provider,
+            api_key,
+            url=endpoint[0],
+            headers=endpoint[1],
+        )
+
+    @classmethod
+    async def validate_tts_key(
+        cls, provider: str, api_key: str
+    ) -> ProviderValidationResult:
+        if provider != "cartesia":
+            return ProviderValidationResult(False, "unsupported_provider")
+        return await cls._validate(
+            provider,
+            api_key,
+            url="https://api.cartesia.ai/voices",
+            headers={"X-API-Key": api_key, "Cartesia-Version": "2024-06-10"},
+        )
 
     @classmethod
     async def validate_all(
@@ -82,14 +122,12 @@ class ProviderValidationService:
         tts_provider: str,
         tts_key: str,
     ) -> bool:
-        """只有全量验证通过才返回 True"""
-        stt_ok = await cls.validate_stt_key(stt_provider, stt_key)
-        if not stt_ok:
+        """兼容旧调用方；RF-10 将把三路拨测改为并行、有总超时的 Registry。"""
+        stt = await cls.validate_stt_key(stt_provider, stt_key)
+        if not stt.ok:
             return False
-        llm_ok = await cls.validate_llm_key(llm_provider, llm_key)
-        if not llm_ok:
+        llm = await cls.validate_llm_key(llm_provider, llm_key)
+        if not llm.ok:
             return False
-        tts_ok = await cls.validate_tts_key(tts_provider, tts_key)
-        if not tts_ok:
-            return False
-        return True
+        tts = await cls.validate_tts_key(tts_provider, tts_key)
+        return tts.ok

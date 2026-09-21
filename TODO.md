@@ -43,7 +43,7 @@
 
 ### Phase 3：鉴权与密钥生命周期
 
-- [ ] **RF-03 真实鉴权和版本化密钥**：采用单一明确的 AuthProvider 方案；移除生产
+- [x] **RF-03 真实鉴权和版本化密钥**：采用单一明确的 AuthProvider 方案；移除生产
       Mock 用户和固定 Token；资源归属、过期/伪造 Token、认证密钥与凭据加密密钥分离、
       旧密文读取/重加密、Provider 错误分类和日志脱敏均有测试。
 
@@ -79,8 +79,8 @@
 
 ## P0 — 安全边界
 
-- [ ] 后端用真实 JWT 校验替换 `get_current_user` Mock；验收：无效或过期 Token 返回 401。
-- [ ] 前端从 Auth 模块获取 Bearer Token，移除固定的 `mock-token`；验收：登录态变化能正确影响 API 请求。
+- [x] 后端用真实 JWT 校验替换 `get_current_user` Mock；验收：无效或过期 Token 返回 401。
+- [x] 前端从 Auth 模块获取 Bearer Token，移除固定的 `mock-token`；验收：登录态变化能正确影响 API 请求。
 
 ## P1 — 功能完整性
 
