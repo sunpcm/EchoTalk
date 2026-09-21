@@ -74,6 +74,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 backend/.venv/
+.pytest_cache/
 .coverage
 .coverage.*
 

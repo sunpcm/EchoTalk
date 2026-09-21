@@ -8,12 +8,14 @@ on:
 
 jobs:
   test-frontend:
+    # Keep the historical check name stable for existing branch protection.
+    name: test-frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.26.0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -22,11 +24,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Format
+        run: pnpm run format:check
+
       - name: Lint
         run: pnpm run lint
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm run build
 
       - name: Test (Vitest)
         run: pnpm run test
@@ -40,7 +48,25 @@ jobs:
         working-directory: apps/vite-app
 
   test-backend:
+    # Keep the historical check name stable for existing branch protection.
+    name: test-backend
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15.19-alpine
+        env:
+          POSTGRES_USER: echotalk
+          POSTGRES_PASSWORD: echotalk_test
+          POSTGRES_DB: echotalk_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U echotalk -d echotalk_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_test@localhost:5432/echotalk_test
     steps:
       - uses: actions/checkout@v4
 
@@ -54,16 +80,40 @@ jobs:
         with:
           version: "latest"
 
-      - name: Create Virtual Environment and Install Dependencies
+      - name: Install dependencies
+        working-directory: backend
         run: |
-          cd backend
           uv venv
-          source .venv/bin/activate
           uv pip install -r requirements.txt
-          uv pip install pytest pytest-cov pytest-asyncio httpx sqlalchemy[asyncio]
 
-      - name: Run Backend Tests
+      - name: Ruff format
+        working-directory: backend
+        run: .venv/bin/ruff format --check .
+
+      - name: Ruff check
+        working-directory: backend
+        run: .venv/bin/ruff check .
+
+      - name: Test with coverage
+        working-directory: backend
+        run: .venv/bin/pytest --cov=. --cov-report=term-missing
+
+      - name: Upgrade empty PostgreSQL database
+        working-directory: backend
         run: |
-          cd backend
-          source .venv/bin/activate
-          pytest
+          .venv/bin/alembic upgrade head
+          .venv/bin/alembic current
+
+  ci:
+    name: CI
+    if: always()
+    needs: [test-frontend, test-backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all delivery gates
+        env:
+          FRONTEND_RESULT: ${{ needs.test-frontend.result }}
+          BACKEND_RESULT: ${{ needs.test-backend.result }}
+        run: |
+          test "$FRONTEND_RESULT" = "success"
+          test "$BACKEND_RESULT" = "success"
