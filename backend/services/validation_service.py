@@ -1,4 +1,5 @@
 import logging
+
 import aiohttp
 
 logger = logging.getLogger("echotalk.validation_service")

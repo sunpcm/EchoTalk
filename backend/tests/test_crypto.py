@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 from cryptography.fernet import InvalidToken
 
-from utils.crypto import encrypt_api_key, decrypt_api_key, _get_fernet
+from utils.crypto import _get_fernet, decrypt_api_key, encrypt_api_key
 
 
 def test_encrypt_and_decrypt_api_key_round_trip():

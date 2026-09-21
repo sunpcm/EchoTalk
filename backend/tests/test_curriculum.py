@@ -1,4 +1,5 @@
 import pytest
+
 from routers.curriculum import _build_system_prompt_template
 
 

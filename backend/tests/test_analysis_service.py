@@ -1,5 +1,6 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from models.exercise import GrammarError, PronunciationAssessment

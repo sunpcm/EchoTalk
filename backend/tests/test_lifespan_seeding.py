@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock
 import uuid
+from unittest.mock import AsyncMock, MagicMock, Mock
+
+import pytest
 
 import main
-from main import lifespan, app
+from main import app, lifespan
 from models.knowledge import SEED_SKILLS
 from models.user import User
 

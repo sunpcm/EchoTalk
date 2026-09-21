@@ -1,4 +1,5 @@
 import uuid
+
 import pytest
 
 from dependencies import MOCK_USER, MOCK_USER_ID, get_current_user

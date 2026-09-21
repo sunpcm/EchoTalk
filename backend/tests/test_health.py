@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+
 from main import app
 from routers.health import health_check
 

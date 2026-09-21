@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -8,9 +8,6 @@ from httpx import ASGITransport, AsyncClient
 from database import get_db
 from dependencies import MOCK_USER_ID
 from main import app
-from models.exercise import GrammarError, PronunciationAssessment
-from models.knowledge import KnowledgeState, Skill
-from models.session import Session
 
 
 class MockSession:
@@ -20,7 +17,14 @@ class MockSession:
 
 
 class MockPronunciationAssessment:
-    def __init__(self, assessment_id, session_id, overall_score, phoneme_alignment, elsa_response=None):
+    def __init__(
+        self,
+        assessment_id,
+        session_id,
+        overall_score,
+        phoneme_alignment,
+        elsa_response=None,
+    ):
         self.id = assessment_id
         self.session_id = session_id
         self.overall_score = overall_score
@@ -30,7 +34,9 @@ class MockPronunciationAssessment:
 
 
 class MockGrammarError:
-    def __init__(self, error_id, session_id, skill_tag, original, corrected, error_type):
+    def __init__(
+        self, error_id, session_id, skill_tag, original, corrected, error_type
+    ):
         self.id = error_id
         self.session_id = session_id
         self.skill_tag = skill_tag
@@ -262,10 +268,16 @@ async def test_list_skills():
     mock_db = AsyncMock()
 
     mock_skill1 = MockSkill(
-        skill_id="skill_1", name="Past Tense", category="Grammar", description="Simple past tense"
+        skill_id="skill_1",
+        name="Past Tense",
+        category="Grammar",
+        description="Simple past tense",
     )
     mock_skill2 = MockSkill(
-        skill_id="skill_2", name="Present Perfect", category="Grammar", description="Present perfect tense"
+        skill_id="skill_2",
+        name="Present Perfect",
+        category="Grammar",
+        description="Present perfect tense",
     )
 
     mock_result = MagicMock()

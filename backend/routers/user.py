@@ -1,4 +1,5 @@
 """用户设置路由：双轨制配置读写。"""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,12 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user
-from models.user import User, UserSettings, SubscriptionTier, STTProvider, LLMProvider, TTSProvider
+from models.user import (
+    LLMProvider,
+    STTProvider,
+    SubscriptionTier,
+    TTSProvider,
+    User,
+    UserSettings,
+)
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
-from utils.crypto import encrypt_api_key, decrypt_api_key
 from services.validation_service import ProviderValidationService
+from utils.crypto import decrypt_api_key, encrypt_api_key
 
 router = APIRouter()
+
 
 def get_key_status(has_key: bool, is_valid: bool | None) -> str:
     if not has_key:
@@ -22,6 +31,7 @@ def get_key_status(has_key: bool, is_valid: bool | None) -> str:
     if is_valid is True:
         return "verified"
     return "unconfigured"
+
 
 @router.get("/user/settings", response_model=UserSettingsResponse)
 async def get_user_settings(
@@ -58,9 +68,9 @@ async def get_user_settings(
         has_stt_key=has_stt,
         has_llm_key=has_llm,
         has_tts_key=has_tts,
-        stt_status=get_key_status(has_stt, getattr(row, 'stt_is_valid', None)),
-        llm_status=get_key_status(has_llm, getattr(row, 'llm_is_valid', None)),
-        tts_status=get_key_status(has_tts, getattr(row, 'tts_is_valid', None)),
+        stt_status=get_key_status(has_stt, getattr(row, "stt_is_valid", None)),
+        llm_status=get_key_status(has_llm, getattr(row, "llm_is_valid", None)),
+        tts_status=get_key_status(has_tts, getattr(row, "tts_is_valid", None)),
     )
 
 
@@ -95,34 +105,52 @@ async def update_user_settings(
     stt_p = body.stt_provider or (row.stt_provider.value if row.stt_provider else None)
     llm_p = body.llm_provider or (row.llm_provider.value if row.llm_provider else None)
     tts_p = body.tts_provider or (row.tts_provider.value if row.tts_provider else None)
-    
-    stt_k = body.stt_key if body.stt_key is not None else (decrypt_api_key(row.encrypted_stt_key) if row.encrypted_stt_key else None)
-    llm_k = body.llm_key if body.llm_key is not None else (decrypt_api_key(row.encrypted_llm_key) if row.encrypted_llm_key else None)
-    tts_k = body.tts_key if body.tts_key is not None else (decrypt_api_key(row.encrypted_tts_key) if row.encrypted_tts_key else None)
+
+    stt_k = (
+        body.stt_key
+        if body.stt_key is not None
+        else (decrypt_api_key(row.encrypted_stt_key) if row.encrypted_stt_key else None)
+    )
+    llm_k = (
+        body.llm_key
+        if body.llm_key is not None
+        else (decrypt_api_key(row.encrypted_llm_key) if row.encrypted_llm_key else None)
+    )
+    tts_k = (
+        body.tts_key
+        if body.tts_key is not None
+        else (decrypt_api_key(row.encrypted_tts_key) if row.encrypted_tts_key else None)
+    )
 
     stt_p_old = row.stt_provider.value if row.stt_provider else None
     llm_p_old = row.llm_provider.value if row.llm_provider else None
     tts_p_old = row.tts_provider.value if row.tts_provider else None
 
-    stt_changed = (body.stt_provider is not None and body.stt_provider != stt_p_old) or (body.stt_key is not None)
-    llm_changed = (body.llm_provider is not None and body.llm_provider != llm_p_old) or (body.llm_key is not None)
-    tts_changed = (body.tts_provider is not None and body.tts_provider != tts_p_old) or (body.tts_key is not None)
+    stt_changed = (
+        body.stt_provider is not None and body.stt_provider != stt_p_old
+    ) or (body.stt_key is not None)
+    llm_changed = (
+        body.llm_provider is not None and body.llm_provider != llm_p_old
+    ) or (body.llm_key is not None)
+    tts_changed = (
+        body.tts_provider is not None and body.tts_provider != tts_p_old
+    ) or (body.tts_key is not None)
 
-    stt_valid = getattr(row, 'stt_is_valid', False) if not stt_changed else False
+    stt_valid = getattr(row, "stt_is_valid", False) if not stt_changed else False
     if stt_changed and stt_p and stt_k:
         try:
             stt_valid = await ProviderValidationService.validate_stt_key(stt_p, stt_k)
         except Exception:
             stt_valid = False
-            
-    llm_valid = getattr(row, 'llm_is_valid', False) if not llm_changed else False
+
+    llm_valid = getattr(row, "llm_is_valid", False) if not llm_changed else False
     if llm_changed and llm_p and llm_k:
         try:
             llm_valid = await ProviderValidationService.validate_llm_key(llm_p, llm_k)
         except Exception:
             llm_valid = False
 
-    tts_valid = getattr(row, 'tts_is_valid', False) if not tts_changed else False
+    tts_valid = getattr(row, "tts_is_valid", False) if not tts_changed else False
     if tts_changed and tts_p and tts_k:
         try:
             tts_valid = await ProviderValidationService.validate_tts_key(tts_p, tts_k)
@@ -136,18 +164,20 @@ async def update_user_settings(
         failed_validations.append(f"LLM: {llm_p}")
     if tts_changed and tts_p and tts_k and not tts_valid:
         failed_validations.append(f"TTS: {tts_p}")
-        
+
     if failed_validations:
         raise HTTPException(
             status_code=422,
-            detail=f"Key Validation Failed for: {', '.join(failed_validations)}"
+            detail=f"Key Validation Failed for: {', '.join(failed_validations)}",
         )
 
     row.stt_is_valid = bool(stt_valid)
     row.llm_is_valid = bool(llm_valid)
     row.tts_is_valid = bool(tts_valid)
 
-    row.is_custom_verified = bool(row.stt_is_valid and row.llm_is_valid and row.tts_is_valid)
+    row.is_custom_verified = bool(
+        row.stt_is_valid and row.llm_is_valid and row.tts_is_valid
+    )
 
     if body.is_custom_mode is not None:
         row.is_custom_mode = body.is_custom_mode
@@ -190,7 +220,7 @@ async def update_user_settings(
         has_stt_key=has_stt,
         has_llm_key=has_llm,
         has_tts_key=has_tts,
-        stt_status=get_key_status(has_stt, getattr(row, 'stt_is_valid', None)),
-        llm_status=get_key_status(has_llm, getattr(row, 'llm_is_valid', None)),
-        tts_status=get_key_status(has_tts, getattr(row, 'tts_is_valid', None)),
+        stt_status=get_key_status(has_stt, getattr(row, "stt_is_valid", None)),
+        llm_status=get_key_status(has_llm, getattr(row, "llm_is_valid", None)),
+        tts_status=get_key_status(has_tts, getattr(row, "tts_is_valid", None)),
     )

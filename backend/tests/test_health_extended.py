@@ -1,11 +1,14 @@
-import pytest
-from httpx import AsyncClient, ASGITransport
-from main import app
-from database import get_db
-from models.user import SubscriptionTier
-from unittest.mock import AsyncMock, MagicMock
-from config import settings
 import uuid
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from config import settings
+from database import get_db
+from main import app
+from models.user import SubscriptionTier
+
 
 class MockUser:
     def __init__(self, id, tier):
@@ -13,10 +16,12 @@ class MockUser:
         self.subscription_tier = tier
         self.settings = None
 
+
 class MockUserSettings:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
 
 @pytest.mark.asyncio
 async def test_health_ready_success():
@@ -45,7 +50,9 @@ async def test_health_ready_success():
         settings.LIVEKIT_API_SECRET = "test"
         settings.SILICONFLOW_API_KEY = "test"
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             response = await client.get("/api/health/ready")
 
         assert response.status_code == 200
@@ -55,6 +62,7 @@ async def test_health_ready_success():
         settings.USE_MOCK_LLM = orig_mock_llm
         app.dependency_overrides = {}
 
+
 @pytest.mark.asyncio
 async def test_health_ready_fail_custom_mode_not_verified():
     mock_db = AsyncMock()
@@ -62,9 +70,7 @@ async def test_health_ready_fail_custom_mode_not_verified():
     mock_user_result = MagicMock()
     mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
     mock_settings = MockUserSettings(
-        is_custom_mode=True,
-        is_custom_verified=False,
-        encrypted_llm_key=None
+        is_custom_mode=True, is_custom_verified=False, encrypted_llm_key=None
     )
     mock_user.settings = mock_settings
     mock_user_result.scalar_one_or_none.return_value = mock_user
@@ -85,7 +91,9 @@ async def test_health_ready_fail_custom_mode_not_verified():
         settings.LIVEKIT_API_KEY = "test"
         settings.LIVEKIT_API_SECRET = "test"
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             response = await client.get("/api/health/ready")
 
         assert response.status_code == 503
@@ -98,15 +106,14 @@ async def test_health_ready_fail_custom_mode_not_verified():
         settings.USE_MOCK_LLM = orig_mock_llm
         app.dependency_overrides = {}
 
+
 @pytest.mark.asyncio
 async def test_health_ready_fail_free_user_no_custom_mode():
     mock_db = AsyncMock()
 
     mock_user_result = MagicMock()
     mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
-    mock_settings = MockUserSettings(
-        is_custom_mode=False
-    )
+    mock_settings = MockUserSettings(is_custom_mode=False)
     mock_user.settings = mock_settings
     mock_user_result.scalar_one_or_none.return_value = mock_user
 
@@ -126,7 +133,9 @@ async def test_health_ready_fail_free_user_no_custom_mode():
         settings.LIVEKIT_API_KEY = "test"
         settings.LIVEKIT_API_SECRET = "test"
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             response = await client.get("/api/health/ready")
 
         assert response.status_code == 503

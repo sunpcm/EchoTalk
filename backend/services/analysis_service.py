@@ -257,9 +257,7 @@ async def update_knowledge(
         KnowledgeState.skill_id.in_(valid_skills),
     )
     result = await db.execute(stmt)
-    existing_states = {
-        state.skill_id: state for state in result.scalars().all()
-    }
+    existing_states = {state.skill_id: state for state in result.scalars().all()}
 
     params = BKTParams()
 

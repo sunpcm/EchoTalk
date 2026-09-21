@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from services.validation_service import ProviderValidationService
 
 
@@ -48,9 +50,7 @@ async def test_validate_stt_key_deepgram_failure_status():
 @pytest.mark.asyncio
 async def test_validate_stt_key_deepgram_exception():
     with mock_aiohttp_get(exception=Exception("Connection error")):
-        result = await ProviderValidationService.validate_stt_key(
-            "deepgram", "any-key"
-        )
+        result = await ProviderValidationService.validate_stt_key("deepgram", "any-key")
         assert result is False
 
 
@@ -172,9 +172,7 @@ async def test_validate_tts_key_cartesia_failure_status():
 @pytest.mark.asyncio
 async def test_validate_tts_key_cartesia_exception():
     with mock_aiohttp_get(exception=Exception("Network error")):
-        result = await ProviderValidationService.validate_tts_key(
-            "cartesia", "any-key"
-        )
+        result = await ProviderValidationService.validate_tts_key("cartesia", "any-key")
         assert result is False
 
 
