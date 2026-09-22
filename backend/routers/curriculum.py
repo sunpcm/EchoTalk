@@ -1,6 +1,5 @@
 """自适应课程推荐路由：基于 BKT 弱项 + RAG 检索生成定制化练习场景。"""
 
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select

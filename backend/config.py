@@ -109,9 +109,9 @@ class Settings(BaseSettings):
             ]
             if missing:
                 raise RuntimeError(f"OIDC 配置缺失: {', '.join(missing)}")
-            if not self.OIDC_ISSUER.startswith("https://") or not self.OIDC_JWKS_URL.startswith(
+            if not self.OIDC_ISSUER.startswith(
                 "https://"
-            ):
+            ) or not self.OIDC_JWKS_URL.startswith("https://"):
                 raise RuntimeError("OIDC issuer 与 JWKS URL 必须使用 HTTPS")
             if self.CREDENTIAL_ENCRYPTION_KEYS == {"dev-v1": DEV_CREDENTIAL_KEY}:
                 raise RuntimeError("OIDC 模式禁止使用默认开发凭据加密密钥")

@@ -59,7 +59,9 @@ class ProviderValidationService:
             code = "network_error"
         except Exception:  # 防御第三方客户端的非标准异常；不得记录异常正文
             code = "provider_error"
-        logger.warning("Provider key validation failed: provider=%s code=%s", provider, code)
+        logger.warning(
+            "Provider key validation failed: provider=%s code=%s", provider, code
+        )
         return ProviderValidationResult(False, code)
 
     @classmethod

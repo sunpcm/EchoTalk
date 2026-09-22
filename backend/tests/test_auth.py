@@ -49,7 +49,9 @@ async def test_oidc_verifier_accepts_valid_token_and_rejects_expired_or_forged()
         algorithm="RS256",
         headers={"kid": "test-key"},
     )
-    forged = jwt.encode(claims, attacker, algorithm="RS256", headers={"kid": "test-key"})
+    forged = jwt.encode(
+        claims, attacker, algorithm="RS256", headers={"kid": "test-key"}
+    )
     verifier = OIDCVerifier()
     verifier._get_jwks = AsyncMock(return_value={"keys": [public_jwk]})
 

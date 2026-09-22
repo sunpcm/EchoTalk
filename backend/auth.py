@@ -59,7 +59,9 @@ class OIDCVerifier:
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Authentication provider is unavailable.",
                 ) from exc
-            if not isinstance(payload, dict) or not isinstance(payload.get("keys"), list):
+            if not isinstance(payload, dict) or not isinstance(
+                payload.get("keys"), list
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Authentication provider returned invalid JWKS.",

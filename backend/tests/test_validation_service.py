@@ -91,7 +91,12 @@ async def test_successful_provider_validation(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("status", "code"),
-    [(401, "auth_error"), (403, "auth_error"), (429, "rate_limited"), (500, "provider_error")],
+    [
+        (401, "auth_error"),
+        (403, "auth_error"),
+        (429, "rate_limited"),
+        (500, "provider_error"),
+    ],
 )
 async def test_http_failures_are_classified(status, code):
     with mock_aiohttp_get(status=status):

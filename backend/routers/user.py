@@ -48,11 +48,15 @@ def _decrypt_and_rotate(row: UserSettings, prefix: str) -> str | None:
     return decrypted.plaintext
 
 
-def _as_validation_result(result: ProviderValidationResult | bool) -> ProviderValidationResult:
+def _as_validation_result(
+    result: ProviderValidationResult | bool,
+) -> ProviderValidationResult:
     """兼容测试替身，生产实现始终返回分类结果。"""
     if isinstance(result, ProviderValidationResult):
         return result
-    return ProviderValidationResult(bool(result), "verified" if result else "provider_error")
+    return ProviderValidationResult(
+        bool(result), "verified" if result else "provider_error"
+    )
 
 
 @router.get("/user/settings", response_model=UserSettingsResponse)
@@ -129,19 +133,13 @@ async def update_user_settings(
     tts_p = body.tts_provider or (row.tts_provider.value if row.tts_provider else None)
 
     stt_k = (
-        body.stt_key
-        if body.stt_key is not None
-        else _decrypt_and_rotate(row, "stt")
+        body.stt_key if body.stt_key is not None else _decrypt_and_rotate(row, "stt")
     )
     llm_k = (
-        body.llm_key
-        if body.llm_key is not None
-        else _decrypt_and_rotate(row, "llm")
+        body.llm_key if body.llm_key is not None else _decrypt_and_rotate(row, "llm")
     )
     tts_k = (
-        body.tts_key
-        if body.tts_key is not None
-        else _decrypt_and_rotate(row, "tts")
+        body.tts_key if body.tts_key is not None else _decrypt_and_rotate(row, "tts")
     )
 
     stt_p_old = row.stt_provider.value if row.stt_provider else None

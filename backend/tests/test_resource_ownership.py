@@ -18,7 +18,9 @@ from models.user import User
 async def test_session_resource_is_hidden_from_other_authenticated_user():
     url = os.environ.get("DATABASE_URL")
     if not url:
-        pytest.skip("DATABASE_URL is required for PostgreSQL ownership integration test")
+        pytest.skip(
+            "DATABASE_URL is required for PostgreSQL ownership integration test"
+        )
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
