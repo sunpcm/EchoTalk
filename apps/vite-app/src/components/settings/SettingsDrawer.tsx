@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useSettingsStore, type ThemeName } from "@/store/settings";
 import { zhCN } from "@/i18n/zh-CN";
 import type { UserSettingsUpdate } from "@/lib/api";
+import { beginLogout, getAuthMode } from "@/lib/auth";
 
 const t = zhCN.settings;
 
@@ -306,6 +307,15 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
               {/* 错误提示 */}
               {error && <p className="text-danger text-center text-sm">{error}</p>}
+
+              {getAuthMode() === "oidc" && (
+                <button
+                  onClick={() => void beginLogout().catch(() => setToastError(t.logoutError))}
+                  className="border-border-default text-text-muted hover:text-text-default w-full rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors"
+                >
+                  {t.logout}
+                </button>
+              )}
             </>
           )}
         </div>

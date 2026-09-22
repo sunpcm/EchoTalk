@@ -59,3 +59,16 @@ class SessionListItem(BaseModel):
     ended_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class AnalysisStatusResponse(BaseModel):
+    """Public state for one session's durable analysis job."""
+
+    session_id: UUID
+    status: str
+    attempt_count: int
+    error_code: str | None = None
+    retryable: bool
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    updated_at: datetime

@@ -29,6 +29,12 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
     <div className="space-y-6">
       {/* 得分区 */}
       <div className="text-center">
+        {assessment.is_synthetic ? (
+          <div className="bg-warning-bg text-warning mb-3 rounded-lg px-3 py-2 text-sm">
+            <span className="font-semibold">{t.syntheticBadge}</span>
+            <span className="ml-2">{t.syntheticHint}</span>
+          </div>
+        ) : null}
         <p className="text-text-muted text-sm">{t.scoreLabel}</p>
         <p className={`text-4xl font-bold ${scoreColor}`}>
           {Math.round(assessment.overall_score)}

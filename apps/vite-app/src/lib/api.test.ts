@@ -7,6 +7,8 @@ import {
   dispatchAgent,
   listSessions,
   getSessionDetail,
+  getAnalysisStatus,
+  retryAnalysis,
   getAssessment,
   getGrammarErrors,
   getKnowledgeStates,
@@ -17,12 +19,14 @@ import {
   ApiError,
   getBaseUrl,
 } from "./api";
+import { setAccessTokenProvider } from "./auth";
 
 describe("API client", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     globalThis.fetch = vi.fn();
+    setAccessTokenProvider(() => "test-access-token");
   });
 
   afterEach(() => {
@@ -151,13 +155,24 @@ describe("API client", () => {
       expect(res).toEqual(mockResult);
       expect(globalThis.fetch).toHaveBeenCalledWith(
         `${getBaseUrl()}/health/ready`,
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            Authorization: "Bearer mock-token",
-          }),
-        }),
+        expect.any(Object),
       );
+      const options = fetchMock().mock.calls[0]?.[1];
+      const headers = new Headers(options?.headers);
+      expect(headers.get("Content-Type")).toBe("application/json");
+      expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+    });
+
+    it("stops sending authorization immediately after logout", async () => {
+      setAccessTokenProvider(() => null);
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "ready" }),
+      } as unknown as Response);
+
+      await checkHealthReady();
+      const options = fetchMock().mock.calls[0]?.[1];
+      expect(new Headers(options?.headers).has("Authorization")).toBe(false);
     });
   });
 
@@ -289,10 +304,7 @@ describe("API client", () => {
 
       const res = await listSessions();
       expect(res).toEqual(mockList);
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        `${getBaseUrl()}/sessions`,
-        expect.anything(),
-      );
+      expect(globalThis.fetch).toHaveBeenCalledWith(`${getBaseUrl()}/sessions`, expect.anything());
     });
 
     it("gets session detail", async () => {
@@ -326,6 +338,52 @@ describe("API client", () => {
         expect.anything(),
       );
     });
+
+    it("gets explicit analysis status", async () => {
+      const status = {
+        session_id: "sess-1",
+        status: "running",
+        attempt_count: 1,
+        error_code: null,
+        retryable: false,
+        started_at: "2025-01-01T00:00:01Z",
+        finished_at: null,
+        updated_at: "2025-01-01T00:00:01Z",
+      };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(status),
+      } as unknown as Response);
+
+      await expect(getAnalysisStatus("sess-1")).resolves.toEqual(status);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions/sess-1/analysis-status`,
+        expect.anything(),
+      );
+    });
+
+    it("retries a failed analysis", async () => {
+      const status = {
+        session_id: "sess-1",
+        status: "pending",
+        attempt_count: 3,
+        error_code: null,
+        retryable: false,
+        started_at: "2025-01-01T00:00:01Z",
+        finished_at: null,
+        updated_at: "2025-01-01T00:01:00Z",
+      };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(status),
+      } as unknown as Response);
+
+      await expect(retryAnalysis("sess-1")).resolves.toEqual(status);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions/sess-1/analysis-retry`,
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
   });
 
   describe("Assessment API", () => {
@@ -335,7 +393,12 @@ describe("API client", () => {
         session_id: "sess-1",
         overall_score: 85,
         phoneme_alignment: [],
-        elsa_response: null,
+        source: "demo_mock",
+        provider: null,
+        model_version: "demo-phoneme-rules-v1",
+        is_synthetic: true,
+        confidence: 0,
+        provider_response_ref: null,
         created_at: "2025-01-01T00:00:00Z",
       };
       fetchMock().mockResolvedValue({

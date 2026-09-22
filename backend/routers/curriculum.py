@@ -1,12 +1,11 @@
 """自适应课程推荐路由：基于 BKT 弱项 + RAG 检索生成定制化练习场景。"""
 
-import uuid
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth import CurrentUser
 from database import get_db
 from dependencies import get_current_user
 from models.knowledge import KnowledgeState, Skill
@@ -46,7 +45,7 @@ class CurriculumNextResponse(BaseModel):
     response_model=CurriculumNextResponse,
 )
 async def get_next_curriculum(
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -57,7 +56,7 @@ async def get_next_curriculum(
     2. 调用 RAG 服务，检索与弱技能相关的教学语料
     3. 为每条语料构建 system_prompt_template，返回推荐列表
     """
-    user_id = uuid.UUID(current_user["id"])
+    user_id = current_user.id
 
     # ── 1. 查询用户知识状态 ──────────────────────────────────
     stmt = (

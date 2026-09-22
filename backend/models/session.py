@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, BigInteger, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -80,6 +80,9 @@ class Session(Base):
     )
     context: Mapped["SessionContext | None"] = relationship(
         "SessionContext", back_populates="session", uselist=False, lazy="selectin"
+    )
+    analysis_job: Mapped["AnalysisJob | None"] = relationship(  # noqa: F821
+        "AnalysisJob", back_populates="session", uselist=False, lazy="selectin"
     )
 
 

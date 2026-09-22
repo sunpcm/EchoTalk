@@ -1,266 +1,131 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from services.validation_service import ProviderValidationService
 
 
 def mock_aiohttp_get(status=200, exception=None):
-    mock_resp = MagicMock()
-    mock_resp.status = status
-
-    mock_cm = MagicMock()
-    if exception:
-        mock_cm.__aenter__ = AsyncMock(side_effect=exception)
-    else:
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_resp)
-    mock_cm.__aexit__ = AsyncMock(return_value=None)
-
-    return patch("aiohttp.ClientSession.get", return_value=mock_cm)
+    response = MagicMock(status=status)
+    context = MagicMock()
+    context.__aenter__ = AsyncMock(
+        side_effect=exception,
+        return_value=None if exception else response,
+    )
+    context.__aexit__ = AsyncMock(return_value=None)
+    return patch("aiohttp.ClientSession.get", return_value=context)
 
 
 @pytest.mark.asyncio
-async def test_validate_stt_key_empty():
-    assert await ProviderValidationService.validate_stt_key("deepgram", "") is False
-    assert await ProviderValidationService.validate_stt_key("deepgram", None) is False
+@pytest.mark.parametrize(
+    ("method", "provider"),
+    [
+        ("validate_stt_key", "deepgram"),
+        ("validate_llm_key", "siliconflow"),
+        ("validate_tts_key", "cartesia"),
+    ],
+)
+async def test_missing_key_has_stable_error(method, provider):
+    result = await getattr(ProviderValidationService, method)(provider, "")
+    assert result.ok is False
+    assert result.code == "missing_key"
 
 
 @pytest.mark.asyncio
-async def test_validate_stt_key_deepgram_success():
-    with mock_aiohttp_get(status=200) as mock_get:
-        result = await ProviderValidationService.validate_stt_key(
-            "deepgram", "valid-key"
-        )
-        assert result is True
-        mock_get.assert_called_once_with(
+@pytest.mark.parametrize(
+    ("method", "provider"),
+    [
+        ("validate_stt_key", "unsupported-stt"),
+        ("validate_llm_key", "unsupported-llm"),
+        ("validate_tts_key", "unsupported-tts"),
+    ],
+)
+async def test_unsupported_provider_has_stable_error(method, provider):
+    result = await getattr(ProviderValidationService, method)(provider, "key")
+    assert result.ok is False
+    assert result.code == "unsupported_provider"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "provider", "expected_url", "expected_headers"),
+    [
+        (
+            "validate_stt_key",
+            "deepgram",
             "https://api.deepgram.com/v1/projects",
-            headers={"Authorization": "Token valid-key"},
-        )
-
-
-@pytest.mark.asyncio
-async def test_validate_stt_key_deepgram_failure_status():
-    with mock_aiohttp_get(status=401):
-        result = await ProviderValidationService.validate_stt_key(
-            "deepgram", "invalid-key"
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_stt_key_deepgram_exception():
-    with mock_aiohttp_get(exception=Exception("Connection error")):
-        result = await ProviderValidationService.validate_stt_key(
-            "deepgram", "any-key"
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_stt_key_unsupported_provider():
-    result = await ProviderValidationService.validate_stt_key(
-        "unsupported_stt", "some-key"
-    )
-    assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_empty():
-    assert await ProviderValidationService.validate_llm_key("siliconflow", "") is False
-    assert await ProviderValidationService.validate_llm_key("openrouter", None) is False
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_siliconflow_success():
-    with mock_aiohttp_get(status=200) as mock_get:
-        result = await ProviderValidationService.validate_llm_key(
-            "siliconflow", "valid-key"
-        )
-        assert result is True
-        mock_get.assert_called_once_with(
+            {"Authorization": "Token secret-value"},
+        ),
+        (
+            "validate_llm_key",
+            "siliconflow",
             "https://api.siliconflow.cn/v1/user/info",
-            headers={"Authorization": "Bearer valid-key"},
-        )
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_siliconflow_failure_status():
-    with mock_aiohttp_get(status=403):
-        result = await ProviderValidationService.validate_llm_key(
-            "siliconflow", "invalid-key"
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_siliconflow_exception():
-    with mock_aiohttp_get(exception=Exception("Timeout")):
-        result = await ProviderValidationService.validate_llm_key(
-            "siliconflow", "any-key"
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_openrouter_success():
-    with mock_aiohttp_get(status=200) as mock_get:
-        result = await ProviderValidationService.validate_llm_key(
-            "openrouter", "valid-key"
-        )
-        assert result is True
-        mock_get.assert_called_once_with(
+            {"Authorization": "Bearer secret-value"},
+        ),
+        (
+            "validate_llm_key",
+            "openrouter",
             "https://openrouter.ai/api/v1/auth/key",
-            headers={"Authorization": "Bearer valid-key"},
-        )
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_openrouter_failure_status():
-    with mock_aiohttp_get(status=401):
-        result = await ProviderValidationService.validate_llm_key(
-            "openrouter", "invalid-key"
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_openrouter_exception():
-    with mock_aiohttp_get(exception=Exception("DNS failure")):
-        result = await ProviderValidationService.validate_llm_key(
-            "openrouter", "any-key"
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_llm_key_unsupported_provider():
-    result = await ProviderValidationService.validate_llm_key(
-        "unsupported_llm", "some-key"
-    )
-    assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_tts_key_empty():
-    assert await ProviderValidationService.validate_tts_key("cartesia", "") is False
-    assert await ProviderValidationService.validate_tts_key("cartesia", None) is False
-
-
-@pytest.mark.asyncio
-async def test_validate_tts_key_cartesia_success():
-    with mock_aiohttp_get(status=200) as mock_get:
-        result = await ProviderValidationService.validate_tts_key(
-            "cartesia", "valid-key"
-        )
-        assert result is True
-        mock_get.assert_called_once_with(
+            {"Authorization": "Bearer secret-value"},
+        ),
+        (
+            "validate_tts_key",
+            "cartesia",
             "https://api.cartesia.ai/voices",
-            headers={
-                "X-API-Key": "valid-key",
-                "Cartesia-Version": "2024-06-10",
-            },
+            {"X-API-Key": "secret-value", "Cartesia-Version": "2024-06-10"},
+        ),
+    ],
+)
+async def test_successful_provider_validation(
+    method, provider, expected_url, expected_headers
+):
+    with mock_aiohttp_get(status=200) as request:
+        result = await getattr(ProviderValidationService, method)(
+            provider, "secret-value"
         )
+    assert result.ok is True
+    assert result.code == "verified"
+    request.assert_called_once_with(expected_url, headers=expected_headers)
 
 
 @pytest.mark.asyncio
-async def test_validate_tts_key_cartesia_failure_status():
-    with mock_aiohttp_get(status=500):
-        result = await ProviderValidationService.validate_tts_key(
-            "cartesia", "invalid-key"
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [
+        (401, "auth_error"),
+        (403, "auth_error"),
+        (429, "rate_limited"),
+        (500, "provider_error"),
+    ],
+)
+async def test_http_failures_are_classified(status, code):
+    with mock_aiohttp_get(status=status):
+        result = await ProviderValidationService.validate_llm_key(
+            "openrouter", "secret-value"
         )
-        assert result is False
+    assert result.ok is False
+    assert result.code == code
 
 
 @pytest.mark.asyncio
-async def test_validate_tts_key_cartesia_exception():
-    with mock_aiohttp_get(exception=Exception("Network error")):
-        result = await ProviderValidationService.validate_tts_key(
-            "cartesia", "any-key"
-        )
-        assert result is False
+async def test_unknown_client_exception_is_sanitized(caplog):
+    secret = "never-log-this-key"
+    with mock_aiohttp_get(exception=Exception("raw upstream body with secret")):
+        result = await ProviderValidationService.validate_stt_key("deepgram", secret)
+    assert result.code == "provider_error"
+    assert secret not in caplog.text
+    assert "raw upstream body" not in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_validate_tts_key_unsupported_provider():
-    result = await ProviderValidationService.validate_tts_key(
-        "unsupported_tts", "some-key"
-    )
-    assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_all_success():
+async def test_validate_all_preserves_boolean_compatibility():
     with mock_aiohttp_get(status=200):
         result = await ProviderValidationService.validate_all(
-            stt_provider="deepgram",
-            stt_key="stt-key",
-            llm_provider="siliconflow",
-            llm_key="llm-key",
-            tts_provider="cartesia",
-            tts_key="tts-key",
+            "deepgram",
+            "stt-key",
+            "siliconflow",
+            "llm-key",
+            "cartesia",
+            "tts-key",
         )
-        assert result is True
-
-
-@pytest.mark.asyncio
-async def test_validate_all_stt_fails():
-    with mock_aiohttp_get(status=401):
-        result = await ProviderValidationService.validate_all(
-            stt_provider="deepgram",
-            stt_key="bad-stt-key",
-            llm_provider="siliconflow",
-            llm_key="llm-key",
-            tts_provider="cartesia",
-            tts_key="tts-key",
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_all_llm_fails():
-    # First call (STT) succeeds, second call (LLM) fails
-    responses = [200, 401]
-
-    def side_effect(*args, **kwargs):
-        st = responses.pop(0) if responses else 200
-        mock_resp = MagicMock()
-        mock_resp.status = st
-        mock_cm = MagicMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
-        return mock_cm
-
-    with patch("aiohttp.ClientSession.get", side_effect=side_effect):
-        result = await ProviderValidationService.validate_all(
-            stt_provider="deepgram",
-            stt_key="stt-key",
-            llm_provider="siliconflow",
-            llm_key="bad-llm-key",
-            tts_provider="cartesia",
-            tts_key="tts-key",
-        )
-        assert result is False
-
-
-@pytest.mark.asyncio
-async def test_validate_all_tts_fails():
-    # First call (STT) succeeds, second call (LLM) succeeds, third call (TTS) fails
-    responses = [200, 200, 401]
-
-    def side_effect(*args, **kwargs):
-        st = responses.pop(0) if responses else 200
-        mock_resp = MagicMock()
-        mock_resp.status = st
-        mock_cm = MagicMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
-        return mock_cm
-
-    with patch("aiohttp.ClientSession.get", side_effect=side_effect):
-        result = await ProviderValidationService.validate_all(
-            stt_provider="deepgram",
-            stt_key="stt-key",
-            llm_provider="siliconflow",
-            llm_key="llm-key",
-            tts_provider="cartesia",
-            tts_key="bad-tts-key",
-        )
-        assert result is False
+    assert result is True

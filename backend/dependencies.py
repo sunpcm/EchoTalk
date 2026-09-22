@@ -1,31 +1,104 @@
-"""
-Mock 鉴权依赖。
-当前阶段返回固定测试用户，绕过真实 Auth 系统。
-"""
+"""认证与本地用户映射依赖。"""
 
-from typing import Optional
+import hashlib
+import secrets
+import uuid
+from typing import Annotated
 
-from fastapi import Header
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Mock 测试用户（合法 UUID 格式）
+from auth import AuthIdentity, CurrentUser, oidc_verifier
+from config import settings
+from database import get_db
+from models.user import User
+
 MOCK_USER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-MOCK_USER = {
-    "id": MOCK_USER_ID,
-    "email": "test@example.com",
-}
+DEV_ISSUER = "urn:echotalk:dev"
+DEV_SUBJECT = "local-developer"
+
+
+def _unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _extract_bearer(authorization: str | None) -> str:
+    if not authorization:
+        raise _unauthorized()
+    scheme, separator, token = authorization.partition(" ")
+    if separator != " " or scheme.lower() != "bearer" or not token.strip():
+        raise _unauthorized()
+    return token.strip()
+
+
+async def _verified_identity(token: str) -> AuthIdentity:
+    if settings.AUTH_MODE == "dev":
+        if not settings.DEV_AUTH_TOKEN or not secrets.compare_digest(
+            token, settings.DEV_AUTH_TOKEN
+        ):
+            raise _unauthorized()
+        return AuthIdentity(
+            issuer=DEV_ISSUER,
+            subject=DEV_SUBJECT,
+            email="test@example.com",
+        )
+    return await oidc_verifier.verify(token)
+
+
+def _fallback_email(identity: AuthIdentity) -> str:
+    digest = hashlib.sha256(
+        f"{identity.issuer}\0{identity.subject}".encode()
+    ).hexdigest()[:24]
+    return f"oidc-{digest}@users.invalid"
 
 
 async def get_current_user(
-    authorization: Optional[str] = Header(None),
-) -> dict:
-    """
-    Mock 认证依赖。
-    忽略 Authorization header，直接返回固定测试用户。
+    authorization: Annotated[str | None, Header()] = None,
+    db: AsyncSession = Depends(get_db),
+) -> CurrentUser:
+    """校验 Bearer token，并仅按不可变 issuer/sub 映射或创建本地用户。"""
+    identity = await _verified_identity(_extract_bearer(authorization))
+    stmt = select(User).where(
+        User.auth_issuer == identity.issuer,
+        User.auth_subject == identity.subject,
+    )
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if user is None:
+        if settings.AUTH_MODE == "dev":
+            user = await db.get(User, uuid.UUID(MOCK_USER_ID))
+        if user is None:
+            candidate_email = identity.email or _fallback_email(identity)
+            email_exists = await db.scalar(
+                select(User.id).where(User.email == candidate_email)
+            )
+            if email_exists:
+                candidate_email = _fallback_email(identity)
+            user = User(
+                id=(
+                    uuid.UUID(MOCK_USER_ID)
+                    if settings.AUTH_MODE == "dev"
+                    else uuid.uuid4()
+                ),
+                email=candidate_email,
+                password_hash=None,
+                auth_issuer=identity.issuer,
+                auth_subject=identity.subject,
+            )
+            db.add(user)
+            await db.flush()
+        elif user.auth_subject is None:
+            user.auth_issuer = identity.issuer
+            user.auth_subject = identity.subject
+            await db.flush()
 
-    TODO: 后续接入真实 JWT 校验逻辑：
-    1. 从 Authorization header 提取 Bearer token
-    2. 使用 python-jose + JWT_SECRET_KEY 解码验证 JWT
-    3. 从数据库查询用户信息
-    4. 返回用户对象或抛出 401 异常
-    """
-    return MOCK_USER
+    return CurrentUser(
+        id=user.id,
+        email=user.email,
+        issuer=identity.issuer,
+        subject=identity.subject,
+    )

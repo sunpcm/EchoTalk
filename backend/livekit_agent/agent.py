@@ -179,13 +179,16 @@ def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
 
     # ── 解密 ──
     try:
-        stt_key = decrypt_api_key(us.encrypted_stt_key)
-        llm_key = decrypt_api_key(us.encrypted_llm_key)
-        tts_key = decrypt_api_key(us.encrypted_tts_key)
+        stt_credential = decrypt_api_key(us.encrypted_stt_key, us.stt_key_version)
+        llm_credential = decrypt_api_key(us.encrypted_llm_key, us.llm_key_version)
+        tts_credential = decrypt_api_key(us.encrypted_tts_key, us.tts_key_version)
+        stt_key = stt_credential.plaintext
+        llm_key = llm_credential.plaintext
+        tts_key = tts_credential.plaintext
     except Exception as e:
         raise PluginInitError(
             "ERR_CUSTOM_KEY_INVALID",
-            f"API Key 解密失败: {e}",
+            "API Key 解密失败，请重新保存密钥。",
         ) from e
 
     # ── 通过 PluginFactory 构建（内部会再做一轮非空校验） ──

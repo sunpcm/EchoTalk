@@ -147,14 +147,15 @@ describe("useConversationStore", () => {
       expect(useConversationStore.getState().connectionState).toBe("ended");
     });
 
-    it("updates connectionState to ended even if apiEndSession throws", async () => {
+    it("keeps the session active and exposes the error if apiEndSession throws", async () => {
       useConversationStore.setState({ sessionId: "sess-456", connectionState: "active" });
       vi.mocked(api.endSession).mockRejectedValue(new Error("API error"));
 
       await useConversationStore.getState().endSession();
 
       expect(api.endSession).toHaveBeenCalledWith("sess-456");
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(useConversationStore.getState().error).toBe("API error");
     });
 
     it("does not call apiEndSession if sessionId is null", async () => {
@@ -163,7 +164,8 @@ describe("useConversationStore", () => {
       await useConversationStore.getState().endSession();
 
       expect(api.endSession).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().error).toBe("当前会话尚未创建，无法结束");
     });
   });
 

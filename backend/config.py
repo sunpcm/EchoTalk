@@ -5,7 +5,11 @@ EchoTalk 后端配置模块。
 
 from pathlib import Path
 
+from cryptography.fernet import Fernet
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+DEV_CREDENTIAL_KEY = "h42Fc91-ukjBVhrQWp6JsewfYSR41rKjGto4UscO4kc="
 
 
 class Settings(BaseSettings):
@@ -26,8 +30,21 @@ class Settings(BaseSettings):
     USE_MOCK_CELERY: bool = True
     USE_MOCK_ELSA: bool = True
 
-    # Auth
-    JWT_SECRET_KEY: str = "dev-secret-key-change-in-production"
+    # PostgreSQL analysis worker
+    ANALYSIS_WORKER_POLL_SECONDS: float = 1.0
+
+    # Auth。dev 与 OIDC 是互斥模式；生产部署必须选择 oidc。
+    AUTH_MODE: str = "dev"
+    DEV_AUTH_TOKEN: str = ""
+    OIDC_ISSUER: str = ""
+    OIDC_AUDIENCE: str = ""
+    OIDC_JWKS_URL: str = ""
+    OIDC_JWKS_CACHE_SECONDS: int = 300
+
+    # BYOK 凭据加密。与认证签名材料完全独立，支持多版本并行读取。
+    CREDENTIAL_ENCRYPTION_KEYS: dict[str, str] = {"dev-v1": DEV_CREDENTIAL_KEY}
+    ACTIVE_CREDENTIAL_KEY_VERSION: str = "dev-v1"
+    LEGACY_CREDENTIAL_DECRYPTION_SECRET: str = ""
 
     # CORS
     CORS_ORIGINS: list[str] = [
@@ -71,6 +88,44 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             return url.replace("postgres://", "postgresql+asyncpg://", 1)
         return url
+
+    @field_validator("AUTH_MODE")
+    @classmethod
+    def validate_auth_mode(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"dev", "oidc"}:
+            raise ValueError("AUTH_MODE 必须是 dev 或 oidc")
+        return normalized
+
+    def validate_runtime(self) -> None:
+        """启动时检查安全配置，避免生产环境静默回退到开发鉴权。"""
+        if self.AUTH_MODE == "dev" and not self.DEV_AUTH_TOKEN:
+            raise RuntimeError("dev 模式必须显式配置 DEV_AUTH_TOKEN")
+        if self.AUTH_MODE == "oidc":
+            missing = [
+                name
+                for name in ("OIDC_ISSUER", "OIDC_AUDIENCE", "OIDC_JWKS_URL")
+                if not getattr(self, name)
+            ]
+            if missing:
+                raise RuntimeError(f"OIDC 配置缺失: {', '.join(missing)}")
+            if not self.OIDC_ISSUER.startswith(
+                "https://"
+            ) or not self.OIDC_JWKS_URL.startswith("https://"):
+                raise RuntimeError("OIDC issuer 与 JWKS URL 必须使用 HTTPS")
+            if self.CREDENTIAL_ENCRYPTION_KEYS == {"dev-v1": DEV_CREDENTIAL_KEY}:
+                raise RuntimeError("OIDC 模式禁止使用默认开发凭据加密密钥")
+
+        active_key = self.CREDENTIAL_ENCRYPTION_KEYS.get(
+            self.ACTIVE_CREDENTIAL_KEY_VERSION
+        )
+        if not active_key:
+            raise RuntimeError("ACTIVE_CREDENTIAL_KEY_VERSION 未出现在 keyring 中")
+        for version, key in self.CREDENTIAL_ENCRYPTION_KEYS.items():
+            try:
+                Fernet(key.encode())
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError(f"无效的凭据加密密钥版本: {version}") from exc
 
     model_config = {
         "env_file": str(Path(__file__).resolve().parent.parent / ".env"),
