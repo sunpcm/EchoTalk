@@ -23,7 +23,12 @@ class AssessmentResponse(BaseModel):
     session_id: uuid.UUID
     overall_score: float
     phoneme_alignment: list[PhonemeAlignmentItem]
-    elsa_response: dict | None = None
+    source: str
+    provider: str | None = None
+    model_version: str | None = None
+    is_synthetic: bool
+    confidence: float | None = None
+    provider_response_ref: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -38,6 +43,11 @@ class GrammarErrorResponse(BaseModel):
     original: str
     corrected: str
     error_type: str
+    source: str
+    provider: str | None = None
+    model_version: str | None = None
+    is_synthetic: bool
+    confidence: float | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -109,6 +109,9 @@ importers:
       livekit-client:
         specifier: ^2.17.2
         version: 2.17.2(@types/dom-mediacapture-record@1.0.22)
+      oidc-client-ts:
+        specifier: 3.5.0
+        version: 3.5.0
       react:
         specifier: "catalog:"
         version: 19.2.3
@@ -3412,6 +3415,7 @@ packages:
         integrity: sha512-tW8bcK3hsG0/uqSnNz6TK4BkcuZSezoU7DlnYssILmZDktPnSHHuDJJFM0AJv+13gz2r0iGdrj6qqKeUnxXEDg==,
       }
     engines: { node: ">=14.6" }
+    deprecated: this version has critical issues, please update to the latest version
 
   "@xtuc/ieee754@1.2.0":
     resolution:
@@ -5017,6 +5021,7 @@ packages:
         integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==,
       }
     engines: { node: ^18.18.0 || ^20.9.0 || >=21.1.0 }
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: "*"
@@ -6385,6 +6390,13 @@ packages:
       }
     engines: { node: ">=4.0" }
 
+  jwt-decode@4.0.0:
+    resolution:
+      {
+        integrity: sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==,
+      }
+    engines: { node: ">=18" }
+
   keyv@4.5.4:
     resolution:
       {
@@ -7116,6 +7128,13 @@ packages:
         integrity: sha512-4a+OsYv9UktOJKE+l1A4OufDgdRF9PifWj+tJnHURo/P+WOxpG4GzUFL9qCalmWauao6ogiG+QvnCovwPoyAWA==,
       }
     engines: { node: ">=12.20.0" }
+
+  oidc-client-ts@3.5.0:
+    resolution:
+      {
+        integrity: sha512-l2q8l9CTCTOlbX+AnK4p3M+4CEpKpyQhle6blQkdFhm0IsBqsxm15bYaSa11G7pWdsYr6epdsRZxJpCyCRbT8A==,
+      }
+    engines: { node: ">=18" }
 
   on-finished@2.4.1:
     resolution:
@@ -13937,6 +13956,8 @@ snapshots:
       object.assign: 4.1.7
       object.values: 1.2.1
 
+  jwt-decode@4.0.0: {}
+
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
@@ -14329,6 +14350,10 @@ snapshots:
   obuf@1.1.2: {}
 
   obug@2.1.4: {}
+
+  oidc-client-ts@3.5.0:
+    dependencies:
+      jwt-decode: 4.0.0
 
   on-finished@2.4.1:
     dependencies:

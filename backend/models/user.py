@@ -4,7 +4,16 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ARRAY, Boolean, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    ARRAY,
+    Boolean,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,12 +51,17 @@ class User(Base):
     """用户主表。"""
 
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("auth_issuer", "auth_subject", name="uq_users_auth_identity"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    auth_issuer: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    auth_subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
     subscription_tier: Mapped[SubscriptionTier] = mapped_column(
         Enum(SubscriptionTier, name="subscription_tier_enum"),
         default=SubscriptionTier.free,
@@ -119,14 +133,17 @@ class UserSettings(Base):
 
     # 加密后的 API Key（Fernet token）
     encrypted_stt_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stt_key_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     stt_is_valid: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
     encrypted_llm_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llm_key_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     llm_is_valid: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
     encrypted_tts_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tts_key_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tts_is_valid: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )

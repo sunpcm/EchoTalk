@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   const lkTarget = rootEnv.LIVEKIT_URL
     ? rootEnv.LIVEKIT_URL.replace("wss://", "https://").replace("ws://", "http://")
     : undefined;
+  const apiTarget = process.env.E2E_API_URL ?? "http://localhost:8000";
 
   return {
     // Turbo may treat different env vars as cache hits unless we include them in task inputs.
@@ -35,7 +36,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // EchoTalk FastAPI 后端 (localhost:8000)
         "/api": {
-          target: "http://localhost:8000",
+          target: apiTarget,
           changeOrigin: true,
         },
         // 代理 LiveKit WebSocket，解决浏览器无法直连 LiveKit Cloud WSS 的问题

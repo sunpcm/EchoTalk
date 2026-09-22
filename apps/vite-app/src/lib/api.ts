@@ -4,6 +4,7 @@
  */
 
 import { getApiBaseUrl } from "@/utils/env";
+import { getAccessToken } from "@/lib/auth";
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -30,13 +31,17 @@ export class ApiError extends Error {
 /** 通用请求封装 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const baseUrl = getBaseUrl();
+  const accessToken = await getAccessToken();
+  const headers = new Headers(options?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
   const res = await fetch(`${baseUrl}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer mock-token",
-      // TODO: 后续接入真实 JWT，从 Auth 模块获取 token
-    },
     ...options,
+    headers,
   });
 
   if (!res.ok) {
@@ -122,7 +127,12 @@ export interface AssessmentResponse {
   session_id: string;
   overall_score: number;
   phoneme_alignment: PhonemeAlignmentItem[];
-  elsa_response: Record<string, unknown> | null;
+  source: string;
+  provider: string | null;
+  model_version: string | null;
+  is_synthetic: boolean;
+  confidence: number | null;
+  provider_response_ref: string | null;
   created_at: string;
 }
 
@@ -134,6 +144,11 @@ export interface GrammarErrorResponse {
   original: string;
   corrected: string;
   error_type: string;
+  source: string;
+  provider: string | null;
+  model_version: string | null;
+  is_synthetic: boolean;
+  confidence: number | null;
   created_at: string;
 }
 
@@ -182,6 +197,19 @@ export interface SessionListItem {
   status: string;
   started_at: string;
   ended_at: string | null;
+}
+
+export type AnalysisJobStatus = "pending" | "running" | "succeeded" | "failed";
+
+export interface AnalysisStatusResponse {
+  session_id: string;
+  status: AnalysisJobStatus;
+  attempt_count: number;
+  error_code: string | null;
+  retryable: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string;
 }
 
 // ─── 健康检查 API ───
@@ -249,6 +277,18 @@ export function listSessions(): Promise<SessionListItem[]> {
 /** 获取会话详情（含转录记录） */
 export function getSessionDetail(sessionId: string): Promise<Session> {
   return request<Session>(`/sessions/${sessionId}`);
+}
+
+/** 获取持久化分析任务状态 */
+export function getAnalysisStatus(sessionId: string): Promise<AnalysisStatusResponse> {
+  return request<AnalysisStatusResponse>(`/sessions/${sessionId}/analysis-status`);
+}
+
+/** 重试最终失败或已超时的分析任务 */
+export function retryAnalysis(sessionId: string): Promise<AnalysisStatusResponse> {
+  return request<AnalysisStatusResponse>(`/sessions/${sessionId}/analysis-retry`, {
+    method: "POST",
+  });
 }
 
 // ─── 评估 API ───

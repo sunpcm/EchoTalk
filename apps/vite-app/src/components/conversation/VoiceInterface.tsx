@@ -174,6 +174,7 @@ function ActiveView() {
   const connectionState = useConnectionState();
   const voiceAssistant = useVoiceAssistant();
   const { setActive, endSession, setAgentError } = useConversationStore();
+  const endError = useConversationStore((state) => state.error);
 
   // Phase 5: 监听 agent_error DataChannel 消息（自定义轨 fail-fast）
   useDataChannel("agent_error", (msg) => {
@@ -233,6 +234,7 @@ function ActiveView() {
           >
             {tConv.endButton}
           </button>
+          {endError ? <p className="text-danger mt-2 text-sm">{endError}</p> : null}
         </div>
 
         {/* 回答推荐面板（固定在左下） */}
@@ -316,21 +318,44 @@ function ConnectionWarningToast({
 }
 
 /** 正在分析视图 */
-function AnalyzingView() {
+function AnalyzingView({ state }: { state: "pending" | "running" }) {
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="border-accent h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
-      <p className="text-text-muted">{tAssess.analyzing}</p>
-      <p className="text-text-faint text-sm">{tAssess.analyzingHint}</p>
+      <p className="text-text-muted">{state === "pending" ? tAssess.pending : tAssess.analyzing}</p>
+      <p className="text-text-faint text-sm">
+        {state === "pending" ? tAssess.pendingHint : tAssess.analyzingHint}
+      </p>
     </div>
   );
 }
 
 /** 加载失败视图 */
-function AssessmentErrorView() {
+function AssessmentErrorView({
+  failed,
+  errorCode,
+  retryable,
+  onRetry,
+}: {
+  failed: boolean;
+  errorCode: string | null;
+  retryable: boolean;
+  onRetry: () => void;
+}) {
   return (
     <div className="bg-danger-bg rounded-lg p-4 text-center">
-      <p className="text-danger text-sm">{tAssess.loadError}</p>
+      <p className="text-danger text-sm">
+        {failed
+          ? errorCode === "analysis_unsupported"
+            ? tAssess.unsupported
+            : tAssess.failed
+          : tAssess.loadError}
+      </p>
+      {failed && retryable ? (
+        <button onClick={onRetry} className="btn-primary mt-3 px-4 py-2 text-sm">
+          {tAssess.retry}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -345,6 +370,8 @@ function EndedView() {
     grammarErrors,
     knowledgeStates,
     reset: resetAssessment,
+    retryFailedAnalysis,
+    job,
   } = useAssessmentStore();
 
   // 启动轮询（仅在非 Agent 错误时）
@@ -354,6 +381,10 @@ function EndedView() {
     resetAssessment();
     goHome();
   }, [resetAssessment, goHome]);
+
+  const handleRetry = useCallback(() => {
+    if (sessionId) void retryFailedAnalysis(sessionId);
+  }, [retryFailedAnalysis, sessionId]);
 
   // Agent 错误：显示红色错误卡片
   if (agentError) {
@@ -394,8 +425,15 @@ function EndedView() {
       </div>
 
       {/* 评估内容 */}
-      {loadState === "polling" && <AnalyzingView />}
-      {loadState === "error" && <AssessmentErrorView />}
+      {(loadState === "pending" || loadState === "running") && <AnalyzingView state={loadState} />}
+      {(loadState === "failed" || loadState === "error") && (
+        <AssessmentErrorView
+          failed={loadState === "failed"}
+          errorCode={job?.error_code ?? null}
+          retryable={job?.retryable ?? false}
+          onRetry={handleRetry}
+        />
+      )}
       {loadState === "loaded" && assessment && (
         <div className="w-full max-w-md space-y-8">
           <PronunciationFeedback assessment={assessment} grammarErrors={grammarErrors} />
@@ -413,13 +451,9 @@ function EndedView() {
       {/* 返回主页按钮 */}
       <button
         onClick={handleGoHome}
-        disabled={loadState === "polling"}
-        className="btn-primary inline-flex items-center gap-2 px-8 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-50"
+        className="btn-primary inline-flex items-center gap-2 px-8 py-3 text-lg"
       >
-        {loadState === "polling" && (
-          <span className="border-accent-contrast h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
-        )}
-        {loadState === "polling" ? tAssess.analyzing : tDash.goHome}
+        {tDash.goHome}
       </button>
     </div>
   );
