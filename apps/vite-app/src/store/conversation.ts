@@ -106,14 +106,18 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   endSession: async () => {
     const { sessionId } = get();
-    if (sessionId) {
-      try {
-        await apiEndSession(sessionId);
-      } catch {
-        // 即使 API 调用失败，也标记为已结束
-      }
+    if (!sessionId) {
+      set({ error: "当前会话尚未创建，无法结束" });
+      return;
     }
-    set({ connectionState: "ended" });
+    try {
+      await apiEndSession(sessionId);
+      set({ connectionState: "ended", error: null });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : "结束会话失败，请重试",
+      });
+    }
   },
 
   setActive: () => {

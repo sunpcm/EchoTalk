@@ -18,23 +18,32 @@ export type ThemeName = "warm" | "cool" | "dark";
 export const THEME_STORAGE_KEY = "echotalk-theme";
 
 let themeSyncTimer: ReturnType<typeof setTimeout> | null = null;
-let lastSyncedTheme: ThemeName | null = null;
+let themeSyncSequence = 0;
+
+function cancelPendingThemeSync(): void {
+  themeSyncSequence += 1;
+  if (themeSyncTimer) {
+    clearTimeout(themeSyncTimer);
+    themeSyncTimer = null;
+  }
+}
 
 function debouncedSyncThemeToBackend(theme: ThemeName): void {
+  const sequence = ++themeSyncSequence;
   if (themeSyncTimer) {
     clearTimeout(themeSyncTimer);
   }
   themeSyncTimer = setTimeout(() => {
     themeSyncTimer = null;
-    lastSyncedTheme = theme;
-    updateUserSettings({ theme }).then((settings) => {
-      // 序列化保护：仅当后端响应对应的 theme 属于最新设定的主题时，才写回 store settings
-      if (lastSyncedTheme === theme && settings) {
-        useSettingsStore.setState({ settings });
-      }
-    }).catch(() => {
-      // 忽略切换主题时的网络或未鉴权错误，以本地存储为准
-    });
+    updateUserSettings({ theme })
+      .then((settings) => {
+        if (sequence === themeSyncSequence) {
+          useSettingsStore.setState({ settings });
+        }
+      })
+      .catch(() => {
+        // 切换主题保持 local-first；后台同步失败不回滚当前界面。
+      });
   }, 300);
 }
 
@@ -96,11 +105,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   fetchSettings: async () => {
     if (get().loading) return;
+    const themeSequenceAtStart = themeSyncSequence;
     set({ loading: true, error: null });
     try {
       const settings = await getUserSettings();
-      if (settings.theme === "warm" || settings.theme === "cool" || settings.theme === "dark") {
-        const backendTheme = settings.theme as ThemeName;
+      if (themeSequenceAtStart === themeSyncSequence) {
+        const backendTheme = settings.theme;
         applyThemeAttr(backendTheme);
         if (typeof window !== "undefined") {
           window.localStorage.setItem(THEME_STORAGE_KEY, backendTheme);
@@ -142,6 +152,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   reset: () => {
+    cancelPendingThemeSync();
     set({ settings: null, loading: false, saving: false, error: null });
   },
 }));

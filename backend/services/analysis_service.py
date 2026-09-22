@@ -12,6 +12,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
 from models.session import Transcript, TranscriptRole
@@ -23,6 +24,15 @@ from services.pronunciation.phoneme_aligner import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class AnalysisServiceError(RuntimeError):
+    """Expected analysis failure safe to expose through a stable code."""
+
+    def __init__(self, code: str, message: str, *, retryable: bool = False):
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
 
 
 # ───── 发音分析 ─────
@@ -52,7 +62,9 @@ def _get_mock_user_phonemes(ref_phonemes: list[str], word: str) -> list[str]:
     return user_phonemes
 
 
-async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
+async def analyze_session(
+    session_id: uuid.UUID, db: AsyncSession
+) -> PronunciationAssessment | None:
     """
     发音评估 + 语法错误检测管线。
 
@@ -61,6 +73,12 @@ async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
     3. 保存 PronunciationAssessment
     4. 检测语法错误并保存 GrammarError
     """
+    if not settings.USE_MOCK_ELSA:
+        raise AnalysisServiceError(
+            "analysis_unsupported",
+            "No real pronunciation assessment provider is configured",
+        )
+
     # 1. 获取用户转录
     stmt = (
         select(Transcript)
@@ -75,7 +93,19 @@ async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
 
     if not transcripts:
         logger.info("会话 %s 无用户转录，跳过分析", session_id)
-        return
+        return None
+
+    # The job transaction is the primary idempotency boundary. This lookup plus
+    # the database unique constraint also prevents accidental direct re-execution.
+    existing_result = await db.execute(
+        select(PronunciationAssessment).where(
+            PronunciationAssessment.session_id == session_id
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing is not None:
+        logger.info("会话 %s 已有发音评估，跳过重复写入", session_id)
+        return existing
 
     # 2. 合并文本并拆词
     full_text = " ".join(t.content for t in transcripts)
@@ -113,6 +143,12 @@ async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
         session_id=session_id,
         overall_score=score,
         phoneme_alignment=all_alignment,
+        source="demo_mock",
+        provider=None,
+        model_version="demo-phoneme-rules-v1",
+        is_synthetic=True,
+        confidence=0.0,
+        provider_response_ref=None,
         elsa_response=None,
     )
     db.add(assessment)
@@ -127,6 +163,7 @@ async def analyze_session(session_id: uuid.UUID, db: AsyncSession) -> None:
 
     # 5. 语法错误检测（mock 模式：简单规则匹配）
     await _detect_grammar_errors(session_id, full_text, db)
+    return assessment
 
 
 # ───── 语法错误检测 ─────
@@ -183,8 +220,13 @@ async def _detect_grammar_errors(
                 session_id=session_id,
                 skill_tag=rule["skill_tag"],
                 original=original,
-                corrected="",
+                corrected=_grammar_correction(original, rule["error_type"]),
                 error_type=rule["error_type"],
+                source="demo_rule",
+                provider=None,
+                model_version="demo-grammar-rules-v1",
+                is_synthetic=True,
+                confidence=0.5,
             )
             db.add(error)
             detected.add(rule["skill_tag"])
@@ -196,6 +238,19 @@ async def _detect_grammar_errors(
             session_id,
             list(detected),
         )
+
+
+def _grammar_correction(original: str, error_type: str) -> str:
+    """Return the deterministic correction produced by the demo rule engine."""
+    if error_type == "wrong_tense":
+        return re.sub(r"\bgo\b", "went", original, flags=re.IGNORECASE)
+    if original.lower() == "i goes":
+        return "I go"
+    match = re.match(r"\b(he|she|it)\s+(go|have|do)\b", original, re.IGNORECASE)
+    if match:
+        replacements = {"go": "goes", "have": "has", "do": "does"}
+        return f"{match.group(1)} {replacements[match.group(2).lower()]}"
+    return original
 
 
 # ───── BKT 知识状态更新 ─────
@@ -224,6 +279,12 @@ async def update_knowledge(
     stmt = select(GrammarError).where(GrammarError.session_id == session_id)
     result = await db.execute(stmt)
     grammar_errors = result.scalars().all()
+
+    if (assessment is not None and assessment.is_synthetic) or any(
+        error.is_synthetic for error in grammar_errors
+    ):
+        logger.info("会话 %s 的评估为 synthetic，跳过知识状态更新", session_id)
+        return
 
     # 2. 收集技能观察数据 {skill_id: [correct/incorrect, ...]}
     observations: dict[str, list[bool]] = {}
@@ -257,9 +318,7 @@ async def update_knowledge(
         KnowledgeState.skill_id.in_(valid_skills),
     )
     result = await db.execute(stmt)
-    existing_states = {
-        state.skill_id: state for state in result.scalars().all()
-    }
+    existing_states = {state.skill_id: state for state in result.scalars().all()}
 
     params = BKTParams()
 

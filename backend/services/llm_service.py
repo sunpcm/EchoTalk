@@ -5,7 +5,7 @@ LLM 服务层：封装大语言模型调用。
 
 import logging
 
-from openai import AsyncOpenAI, APIError
+from openai import APIError, AsyncOpenAI
 
 from config import settings
 
@@ -65,8 +65,7 @@ def build_dynamic_prompt(
     """
     parts: list[str] = [
         "You are a friendly and patient AI English speaking coach.\n",
-        "[Role] Help the user practice spoken English "
-        "through natural conversation.\n",
+        "[Role] Help the user practice spoken English through natural conversation.\n",
         "[Error Correction Strategy] Use implicit recasting (Recast): "
         "do NOT directly point out grammar or pronunciation mistakes. "
         "Instead, naturally repeat the correct form in your response.\n",
@@ -74,7 +73,7 @@ def build_dynamic_prompt(
 
     # 情绪指令
     parts.append(
-        f"[Emotion Awareness] Current user anxiety index: " f"{anxiety_level:.2f}\n"
+        f"[Emotion Awareness] Current user anxiety index: {anxiety_level:.2f}\n"
     )
     if anxiety_level > 0.6:
         parts.append(

@@ -1,4 +1,5 @@
 import pytest
+
 from services.llm_service import build_dynamic_prompt
 
 
@@ -18,7 +19,10 @@ def test_build_dynamic_prompt_anxiety_levels(
 ):
     prompt = build_dynamic_prompt(anxiety_level=anxiety_level)
 
-    assert f"[Emotion Awareness] Current user anxiety index: {expected_index_str}" in prompt
+    assert (
+        f"[Emotion Awareness] Current user anxiety index: {expected_index_str}"
+        in prompt
+    )
 
     if expect_encouragement:
         assert "Switch to ENCOURAGEMENT MODE:" in prompt
@@ -66,7 +70,9 @@ def test_build_dynamic_prompt_custom_prompt(
     prompt = build_dynamic_prompt(anxiety_level=0.2, custom_prompt=custom_prompt)
 
     if expected_in_prompt:
-        assert "[Custom Role Instruction]\nAct as an interviewer for a tech job." in prompt
+        assert (
+            "[Custom Role Instruction]\nAct as an interviewer for a tech job." in prompt
+        )
     else:
         assert "[Custom Role Instruction]" not in prompt
 
@@ -86,7 +92,10 @@ def test_build_dynamic_prompt_document_content(
 
     if expected_in_prompt:
         assert "[Reference Document]" in prompt
-        assert "<document>\nThis is the transcript of the news article.\n</document>" in prompt
+        assert (
+            "<document>\nThis is the transcript of the news article.\n</document>"
+            in prompt
+        )
     else:
         assert "[Reference Document]" not in prompt
 

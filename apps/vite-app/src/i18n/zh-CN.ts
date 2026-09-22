@@ -3,6 +3,15 @@
  * TODO: i18n — 后续接入 react-i18next 或 next-intl，将此对象替换为语言包文件。
  */
 export const zhCN = {
+  auth: {
+    title: "登录 EchoTalk",
+    loading: "正在恢复登录状态…",
+    loginRequired: "请通过身份提供商登录后继续。",
+    login: "登录",
+    retryLogin: "重新登录",
+    misconfigured: "认证配置不完整，请联系管理员。",
+    callbackError: "登录回调校验失败，请重新登录。",
+  },
   conversation: {
     title: "AI 英语口语练习",
     subtitle: "与 AI 教练进行实时语音对话，提升你的英语口语能力",
@@ -20,8 +29,15 @@ export const zhCN = {
     micPermission: "请允许浏览器使用麦克风",
   },
   assessment: {
+    pending: "分析任务排队中...",
+    pendingHint: "你可以先返回主页，稍后再查看结果",
     analyzing: "正在分析发音...",
     analyzingHint: "评估数据正在生成中，请稍候",
+    failed: "分析失败，请重试或返回主页",
+    unsupported: "当前未配置真实评估服务，无法生成正式学习结果",
+    retry: "重新分析",
+    syntheticBadge: "Demo 模拟结果",
+    syntheticHint: "仅用于体验，不计入真实学习掌握度",
     loadError: "加载评估数据失败",
     scoreLabel: "发音评分",
     phonemeTitle: "音素对齐详情",
@@ -85,6 +101,8 @@ export const zhCN = {
     saveSuccess: "设置已保存",
     saveError: "保存失败，请重试",
     loadError: "加载设置失败",
+    logout: "退出登录",
+    logoutError: "退出登录失败，请稍后重试",
   },
   agentError: {
     title: "AI 服务启动失败",

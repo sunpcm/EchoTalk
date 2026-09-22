@@ -13,7 +13,9 @@ def test_cors_preflight_allowed():
     }
     response = client.options("/api/sessions", headers=headers)
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert (
+        response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    )
 
     # Verify exact allowed methods are returned, not wildcard '*'
     allowed_methods = response.headers.get("access-control-allow-methods", "")

@@ -1,13 +1,13 @@
 """对话路由：发送消息并获取 AI 回复。"""
 
 import time
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from openai import APIError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth import CurrentUser
 from database import get_db
 from dependencies import get_current_user
 from models.session import Session, SessionStatus, Transcript, TranscriptRole
@@ -20,7 +20,7 @@ router = APIRouter()
 @router.post("/conversation/chat", response_model=ChatResponse)
 async def send_message(
     body: ChatRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -28,7 +28,7 @@ async def send_message(
 
     流程：保存用户消息 → 加载历史 → 调用 LLM → 保存 AI 回复 → 返回。
     """
-    user_id = uuid.UUID(current_user["id"])
+    user_id = current_user.id
 
     # 1. 校验 session 存在、属于当前用户、且状态为 active
     stmt = select(Session).where(
