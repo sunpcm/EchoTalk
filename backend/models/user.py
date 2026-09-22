@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import (
     ARRAY,
     Boolean,
+    CheckConstraint,
     Enum,
     ForeignKey,
     Integer,
@@ -108,6 +109,12 @@ class UserSettings(Base):
     """用户服务配置表（一对一）。存储双轨制开关与加密后的自定义 API Key。"""
 
     __tablename__ = "user_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "theme IN ('warm', 'cool', 'dark')",
+            name="ck_user_settings_theme",
+        ),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
@@ -117,6 +124,10 @@ class UserSettings(Base):
     )
     is_custom_verified: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
+    )
+
+    theme: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="warm", server_default="warm"
     )
 
     # 提供商选择

@@ -15,7 +15,37 @@ import {
 /** Phase 8：界面主题 */
 export type ThemeName = "warm" | "cool" | "dark";
 
-const THEME_STORAGE_KEY = "echotalk-theme";
+export const THEME_STORAGE_KEY = "echotalk-theme";
+
+let themeSyncTimer: ReturnType<typeof setTimeout> | null = null;
+let themeSyncSequence = 0;
+
+function cancelPendingThemeSync(): void {
+  themeSyncSequence += 1;
+  if (themeSyncTimer) {
+    clearTimeout(themeSyncTimer);
+    themeSyncTimer = null;
+  }
+}
+
+function debouncedSyncThemeToBackend(theme: ThemeName): void {
+  const sequence = ++themeSyncSequence;
+  if (themeSyncTimer) {
+    clearTimeout(themeSyncTimer);
+  }
+  themeSyncTimer = setTimeout(() => {
+    themeSyncTimer = null;
+    updateUserSettings({ theme })
+      .then((settings) => {
+        if (sequence === themeSyncSequence) {
+          useSettingsStore.setState({ settings });
+        }
+      })
+      .catch(() => {
+        // 切换主题保持 local-first；后台同步失败不回滚当前界面。
+      });
+  }, 300);
+}
 
 /** 读取本地持久化的主题（无则回退暖色） */
 export function readStoredTheme(): ThemeName {
@@ -65,18 +95,30 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setTheme: (theme: ThemeName) => {
     applyThemeAttr(theme);
     if (typeof window !== "undefined") {
-      // TODO: 接入 user_settings.theme 字段，改为后端持久化
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
     set({ theme });
+
+    // 防抖与 Sequence 保护：300ms 内快速多次切换只向后端发送最后一次设置
+    debouncedSyncThemeToBackend(theme);
   },
 
   fetchSettings: async () => {
     if (get().loading) return;
+    const themeSequenceAtStart = themeSyncSequence;
     set({ loading: true, error: null });
     try {
       const settings = await getUserSettings();
-      set({ settings, loading: false });
+      if (themeSequenceAtStart === themeSyncSequence) {
+        const backendTheme = settings.theme;
+        applyThemeAttr(backendTheme);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(THEME_STORAGE_KEY, backendTheme);
+        }
+        set({ settings, theme: backendTheme, loading: false });
+      } else {
+        set({ settings, loading: false });
+      }
     } catch (err) {
       set({
         loading: false,
@@ -110,6 +152,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   reset: () => {
+    cancelPendingThemeSync();
     set({ settings: null, loading: false, saving: false, error: null });
   },
 }));

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { useSettingsStore, readStoredTheme, applyThemeAttr } from "./settings";
+import { useSettingsStore, readStoredTheme, applyThemeAttr, THEME_STORAGE_KEY } from "./settings";
 import * as api from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
@@ -9,6 +9,7 @@ vi.mock("@/lib/api", () => ({
 
 describe("settings store & theme helpers", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
     useSettingsStore.getState().reset();
@@ -17,7 +18,127 @@ describe("settings store & theme helpers", () => {
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("setTheme updates store, localStorage, document attribute and calls updateUserSettings after debounce", async () => {
+    vi.mocked(api.updateUserSettings).mockResolvedValue({
+      is_custom_mode: true,
+      theme: "dark",
+      stt_provider: null,
+      llm_provider: null,
+      llm_model: null,
+      tts_provider: null,
+      has_stt_key: false,
+      has_llm_key: false,
+      has_tts_key: false,
+      stt_status: "unconfigured",
+      llm_status: "unconfigured",
+      tts_status: "unconfigured",
+    });
+
+    useSettingsStore.getState().setTheme("dark");
+
+    expect(useSettingsStore.getState().theme).toBe("dark");
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+    expect(api.updateUserSettings).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(300);
+
+    expect(api.updateUserSettings).toHaveBeenCalledWith({ theme: "dark" });
+  });
+
+  it("rapid setTheme calls debounce into a single updateUserSettings call with the latest theme", async () => {
+    vi.mocked(api.updateUserSettings).mockResolvedValue({
+      is_custom_mode: true,
+      theme: "cool",
+      stt_provider: null,
+      llm_provider: null,
+      llm_model: null,
+      tts_provider: null,
+      has_stt_key: false,
+      has_llm_key: false,
+      has_tts_key: false,
+      stt_status: "unconfigured",
+      llm_status: "unconfigured",
+      tts_status: "unconfigured",
+    });
+
+    useSettingsStore.getState().setTheme("dark");
+    useSettingsStore.getState().setTheme("cool");
+
+    vi.advanceTimersByTime(300);
+
+    expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
+    expect(api.updateUserSettings).toHaveBeenCalledWith({ theme: "cool" });
+  });
+
+  it("ignores a stale backend response after a newer local theme selection", async () => {
+    let resolveFirstRequest!: (settings: api.UserSettingsResponse) => void;
+    vi.mocked(api.updateUserSettings).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstRequest = resolve;
+        }),
+    );
+
+    useSettingsStore.getState().setTheme("dark");
+    await vi.advanceTimersByTimeAsync(300);
+    useSettingsStore.getState().setTheme("cool");
+
+    resolveFirstRequest({
+      is_custom_mode: true,
+      theme: "dark",
+      stt_provider: null,
+      llm_provider: null,
+      llm_model: null,
+      tts_provider: null,
+      has_stt_key: false,
+      has_llm_key: false,
+      has_tts_key: false,
+      stt_status: "unconfigured",
+      llm_status: "unconfigured",
+      tts_status: "unconfigured",
+    });
+    await Promise.resolve();
+
+    expect(useSettingsStore.getState().theme).toBe("cool");
+    expect(useSettingsStore.getState().settings).toBeNull();
+  });
+
+  it("reset cancels a pending backend theme update", () => {
+    useSettingsStore.getState().setTheme("dark");
+    useSettingsStore.getState().reset();
+    vi.advanceTimersByTime(300);
+
+    expect(api.updateUserSettings).not.toHaveBeenCalled();
+  });
+
+  it("fetchSettings updates theme in store, localStorage, and document attribute when returned from backend", async () => {
+    vi.mocked(api.getUserSettings).mockResolvedValue({
+      is_custom_mode: true,
+      theme: "cool",
+      stt_provider: null,
+      llm_provider: null,
+      llm_model: null,
+      tts_provider: null,
+      has_stt_key: false,
+      has_llm_key: false,
+      has_tts_key: false,
+      stt_status: "unconfigured",
+      llm_status: "unconfigured",
+      tts_status: "unconfigured",
+    });
+
+    await useSettingsStore.getState().fetchSettings();
+
+    expect(useSettingsStore.getState().theme).toBe("cool");
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("cool");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("cool");
   });
 
   describe("readStoredTheme", () => {
@@ -75,6 +196,7 @@ describe("settings store & theme helpers", () => {
       it("successfully fetches settings and updates store", async () => {
         const mockSettings: api.UserSettingsResponse = {
           is_custom_mode: false,
+          theme: "warm",
           stt_provider: null,
           llm_provider: null,
           llm_model: null,
@@ -134,6 +256,7 @@ describe("settings store & theme helpers", () => {
         };
         const mockResponse: api.UserSettingsResponse = {
           is_custom_mode: false,
+          theme: "warm",
           stt_provider: null,
           llm_provider: null,
           llm_model: null,
@@ -167,6 +290,7 @@ describe("settings store & theme helpers", () => {
         const mockResponse: api.UserSettingsResponse = {
           is_custom_mode: true,
           is_custom_verified: false,
+          theme: "warm",
           stt_provider: "deepgram",
           llm_provider: null,
           llm_model: null,
@@ -221,6 +345,7 @@ describe("settings store & theme helpers", () => {
       it("resets store state fields to initial values", () => {
         const mockSettings: api.UserSettingsResponse = {
           is_custom_mode: false,
+          theme: "warm",
           stt_provider: null,
           llm_provider: null,
           llm_model: null,
