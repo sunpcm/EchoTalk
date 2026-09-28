@@ -159,7 +159,9 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           <h2 className="text-text-default text-lg font-semibold">{t.title}</h2>
           <button
             onClick={onClose}
-            className="text-text-faint hover:bg-surface-alt hover:text-text-default rounded-md p-1 transition-colors"
+            className="text-text-faint hover:bg-surface-alt hover:text-text-default focus-visible:ring-accent rounded-md p-1 transition-colors focus-visible:outline-none focus-visible:ring-2"
+            title="关闭"
+            aria-label="关闭"
           >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
@@ -223,8 +225,9 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 <button
                   role="switch"
                   aria-checked={isCustomMode}
+                  aria-label={t.customModeLabel}
                   onClick={handleToggleCustomMode}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                  className={`focus-visible:ring-accent relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 ${
                     isCustomMode ? "bg-accent" : "bg-border-default"
                   }`}
                 >
