@@ -40,7 +40,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
         {/* 设置按钮 */}
         <button
           onClick={onOpenSettings}
-          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 right-0 rounded-lg p-2 transition-colors focus-visible:outline-none focus-visible:ring-2"
+          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 right-0 rounded-lg p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           title={zhCN.settings.title}
           aria-label={zhCN.settings.title}
         >

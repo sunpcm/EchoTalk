@@ -159,7 +159,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           <h2 className="text-text-default text-lg font-semibold">{t.title}</h2>
           <button
             onClick={onClose}
-            className="text-text-faint hover:bg-surface-alt hover:text-text-default focus-visible:ring-accent rounded-md p-1 transition-colors focus-visible:outline-none focus-visible:ring-2"
+            className="text-text-faint hover:bg-surface-alt hover:text-text-default focus-visible:ring-accent rounded-md p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             title="关闭"
             aria-label="关闭"
           >
@@ -227,7 +227,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   aria-checked={isCustomMode}
                   aria-label={t.customModeLabel}
                   onClick={handleToggleCustomMode}
-                  className={`focus-visible:ring-accent relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                  className={`focus-visible:ring-accent relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none ${
                     isCustomMode ? "bg-accent" : "bg-border-default"
                   }`}
                 >

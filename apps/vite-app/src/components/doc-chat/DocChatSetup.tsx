@@ -54,7 +54,7 @@ export function DocChatSetup() {
       <div className="relative text-center">
         <button
           onClick={goHome}
-          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 left-0 rounded-lg p-2 transition-colors focus-visible:outline-none focus-visible:ring-2"
+          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 left-0 rounded-lg p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           title={t.goBack}
           aria-label={t.goBack}
         >
