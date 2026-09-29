@@ -4,15 +4,17 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
 
-export default defineConfig(({ mode }) => {
-  // 读取 monorepo 根目录 .env 中的 LIVEKIT_URL，用于配置 WebSocket 代理
-  const rootEnv = loadEnv(mode, path.resolve(__dirname, "../.."), "");
+export default defineConfig(({ command, mode }) => {
+  const rootDir = path.resolve(__dirname, "../..");
+  // 开发时从根目录 .env 读取与后端一致的本地认证配置。
+  const rootEnv = loadEnv(mode, rootDir, "");
   const lkTarget = rootEnv.LIVEKIT_URL
     ? rootEnv.LIVEKIT_URL.replace("wss://", "https://").replace("ws://", "http://")
     : undefined;
   const apiTarget = process.env.E2E_API_URL ?? "http://localhost:8000";
 
   return {
+    envDir: command === "serve" ? rootDir : __dirname,
     // Turbo may treat different env vars as cache hits unless we include them in task inputs.
     // Also, Vite clears outDir by default; to ensure our report artifact doesn't get deleted,
     // we emit it outside dist and treat it as a separate output.
@@ -31,7 +33,7 @@ export default defineConfig(({ mode }) => {
         : []),
     ],
     server: {
-      host: true, // 监听 0.0.0.0，允许局域网访问
+      host: "127.0.0.1", // 默认只允许本机访问；局域网调试需显式使用 --host
       port: 5173,
       proxy: {
         // EchoTalk FastAPI 后端 (localhost:8000)

@@ -151,6 +151,8 @@ uv pip install -r requirements.txt
 #    - SILICONFLOW_API_KEY 或 OPENROUTER_API_KEY
 #    - DEEPGRAM_API_KEY, CARTESIA_API_KEY（基础轨语音服务）
 #    - 本地：AUTH_MODE=dev + DEV_AUTH_TOKEN（必须显式配置）
+#    - 前端从仓库根目录 .env 读取 VITE_AUTH_MODE=dev 和匹配的 VITE_DEV_AUTH_TOKEN
+#    - 开发服务器默认只监听 127.0.0.1；局域网调试时显式传入 --host 0.0.0.0
 #    - 生产：OIDC_ISSUER / OIDC_AUDIENCE / OIDC_JWKS_URL
 #    - CREDENTIAL_ENCRYPTION_KEYS + ACTIVE_CREDENTIAL_KEY_VERSION
 

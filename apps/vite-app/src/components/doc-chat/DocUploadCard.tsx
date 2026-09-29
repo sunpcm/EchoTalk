@@ -37,17 +37,31 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
     e.target.value = "";
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fileInputRef.current?.click();
+    }
+  };
+
   return (
     <div className="space-y-3">
-      <label className="text-text-default block text-sm font-medium">{t.uploadHint}</label>
+      <label htmlFor="doc-upload-textarea" className="text-text-default block text-sm font-medium">
+        {t.uploadHint}
+      </label>
 
       {/* File upload area */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="点击选择 .txt 或 .md 文件"
         onClick={() => fileInputRef.current?.click()}
-        className="border-border-default hover:border-accent-soft-border hover:bg-accent-soft-bg flex cursor-pointer items-center justify-center rounded-[16px] border-2 border-dashed px-4 py-6 transition-colors"
+        onKeyDown={handleKeyDown}
+        className="border-border-default hover:border-accent-soft-border hover:bg-accent-soft-bg focus-visible:ring-accent-soft-border flex cursor-pointer items-center justify-center rounded-[16px] border-2 border-dashed px-4 py-6 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <div className="text-center">
           <svg
+            aria-hidden="true"
             className="text-text-faint mx-auto mb-2 h-8 w-8"
             fill="none"
             viewBox="0 0 24 24"
@@ -65,17 +79,19 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
             <span className="text-accent font-medium">.md</span> 文件
           </p>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".txt,.md,.markdown"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.md,.markdown"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
 
       {/* Editable textarea */}
       <textarea
+        id="doc-upload-textarea"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="或在此直接粘贴文档内容..."
@@ -96,7 +112,11 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
 
       {/* Over limit warning */}
       {isOverLimit && (
-        <p className="bg-danger-bg text-danger-text rounded-md px-3 py-2 text-sm">
+        <p
+          role="alert"
+          aria-live="polite"
+          className="bg-danger-bg text-danger-text rounded-md px-3 py-2 text-sm"
+        >
           {t.charOverLimit}
         </p>
       )}
