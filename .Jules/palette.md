@@ -1,4 +1,0 @@
-## 2025-02-23 - File Upload Dropzone Accessibility & Event Bubbling
-
-**Learning:** Nesting a hidden `<input type="file">` inside a custom `div` container with `onClick={() => fileInputRef.current?.click()}` causes event bubbling: programmatically clicking the input fires a click event that bubbles back to the parent `div`, triggering a double click. In addition, interactive dropzones must have `role="button"`, `tabIndex={0}`, `aria-label`, focus visible styles, and `onKeyDown` (Enter/Space) handlers.
-**Action:** Place hidden file inputs outside interactive container elements and add proper ARIA, focus ring, and keyboard event handlers.

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { DocUploadCard } from "./DocUploadCard";
 import { zhCN } from "@/i18n/zh-CN";
@@ -34,6 +34,22 @@ describe("DocUploadCard", () => {
 
     fireEvent.keyDown(uploadBtn, { key: " " });
     expect(clickSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the picker once and reads the selected file", async () => {
+    const handleChange = vi.fn();
+    const { container } = render(<DocUploadCard value="" onChange={handleChange} />);
+    const uploadBtn = screen.getByRole("button", { name: /点击选择 .txt 或 .md 文件/i });
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, "click");
+
+    fireEvent.click(uploadBtn);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["Sample document"], "sample.md", { type: "text/markdown" })] },
+    });
+    await waitFor(() => expect(handleChange).toHaveBeenCalledWith("Sample document"));
   });
 
   it("shows over-limit warning with alert role when character count exceeds 50,000", () => {
