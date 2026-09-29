@@ -40,8 +40,9 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
         {/* 设置按钮 */}
         <button
           onClick={onOpenSettings}
-          className="text-text-muted hover:bg-surface-alt hover:text-accent absolute top-0 right-0 rounded-lg p-2 transition-colors"
+          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 right-0 rounded-lg p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           title={zhCN.settings.title}
+          aria-label={zhCN.settings.title}
         >
           <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path
