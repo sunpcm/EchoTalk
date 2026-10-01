@@ -35,7 +35,7 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
               type="button"
               aria-pressed={isActive}
               onClick={() => onChange(preset.prompt)}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
+              className={`focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
                 isActive
                   ? "border-accent bg-accent text-accent-contrast font-semibold shadow-xs"
                   : "border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong"
