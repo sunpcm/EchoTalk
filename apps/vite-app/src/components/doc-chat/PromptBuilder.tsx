@@ -27,16 +27,24 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
 
       {/* Preset buttons */}
       <div className="flex flex-wrap gap-2">
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.label}
-            type="button"
-            onClick={() => onChange(preset.prompt)}
-            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-          >
-            {preset.label}
-          </button>
-        ))}
+        {PRESETS.map((preset) => {
+          const isActive = value === preset.prompt;
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => onChange(preset.prompt)}
+              className={`focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+                isActive
+                  ? "border-accent bg-accent text-accent-contrast font-semibold shadow-xs"
+                  : "border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong"
+              }`}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Prompt textarea */}
