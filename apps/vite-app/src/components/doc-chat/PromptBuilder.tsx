@@ -23,24 +23,35 @@ interface PromptBuilderProps {
 export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
   return (
     <div className="space-y-3">
-      <label className="text-text-default block text-sm font-medium">{t.promptLabel}</label>
+      <label htmlFor="doc-prompt" className="text-text-default block text-sm font-medium">
+        {t.promptLabel}
+      </label>
 
       {/* Preset buttons */}
       <div className="flex flex-wrap gap-2">
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.label}
-            type="button"
-            onClick={() => onChange(preset.prompt)}
-            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-          >
-            {preset.label}
-          </button>
-        ))}
+        {PRESETS.map((preset) => {
+          const isSelected = value === preset.prompt;
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => onChange(preset.prompt)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
+                isSelected
+                  ? "border-accent bg-accent text-accent-contrast"
+                  : "border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong"
+              }`}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Prompt textarea */}
       <textarea
+        id="doc-prompt"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t.promptPlaceholder}
