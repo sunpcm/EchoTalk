@@ -23,29 +23,40 @@ interface PromptBuilderProps {
 export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
   return (
     <div className="space-y-3">
-      <label className="text-text-default block text-sm font-medium">{t.promptLabel}</label>
+      <label htmlFor="doc-prompt-textarea" className="text-text-default block text-sm font-medium">
+        {t.promptLabel}
+      </label>
 
       {/* Preset buttons */}
-      <div className="flex flex-wrap gap-2">
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.label}
-            type="button"
-            onClick={() => onChange(preset.prompt)}
-            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-          >
-            {preset.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Prompt 预设模板">
+        {PRESETS.map((preset) => {
+          const isSelected = value === preset.prompt;
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => onChange(preset.prompt)}
+              className={`focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                isSelected
+                  ? "border-accent bg-accent text-white"
+                  : "border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong"
+              }`}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Prompt textarea */}
       <textarea
+        id="doc-prompt-textarea"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t.promptPlaceholder}
         rows={3}
-        className="border-border-default focus:ring-accent-soft-bg w-full resize-y rounded-[14px] border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+        className="border-border-default focus:ring-accent-soft-bg focus-visible:ring-accent w-full resize-y rounded-[14px] border px-3 py-2 text-sm focus:ring-2 focus:outline-none focus-visible:ring-2"
       />
     </div>
   );
