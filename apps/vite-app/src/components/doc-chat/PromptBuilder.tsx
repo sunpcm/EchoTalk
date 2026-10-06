@@ -31,8 +31,9 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
           <button
             key={preset.label}
             type="button"
+            aria-label={`使用 ${preset.label} 预设`}
             onClick={() => onChange(preset.prompt)}
-            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             {preset.label}
           </button>
