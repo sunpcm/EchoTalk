@@ -23,7 +23,12 @@ interface PromptBuilderProps {
 export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
   return (
     <div className="space-y-3">
-      <label className="text-text-default block text-sm font-medium">{t.promptLabel}</label>
+      <label
+        htmlFor="prompt-builder-textarea"
+        className="text-text-default block text-sm font-medium"
+      >
+        {t.promptLabel}
+      </label>
 
       {/* Preset buttons */}
       <div className="flex flex-wrap gap-2">
@@ -32,7 +37,7 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
             key={preset.label}
             type="button"
             onClick={() => onChange(preset.prompt)}
-            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+            className="border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             {preset.label}
           </button>
@@ -41,6 +46,7 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
 
       {/* Prompt textarea */}
       <textarea
+        id="prompt-builder-textarea"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t.promptPlaceholder}
