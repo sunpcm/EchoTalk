@@ -6,38 +6,56 @@ import { zhCN } from "@/i18n/zh-CN";
 const t = zhCN.docChat;
 
 describe("PromptBuilder", () => {
-  it("renders label associated with textarea via htmlFor and id", () => {
+  it("renders preset buttons in a semantic group with localized label", () => {
+    const handleChange = vi.fn();
+    render(<PromptBuilder value="" onChange={handleChange} />);
+
+    const group = screen.getByRole("group", { name: t.presetGroupLabel });
+    expect(group).toBeInTheDocument();
+  });
+
+  it("associates label with prompt textarea", () => {
     const handleChange = vi.fn();
     render(<PromptBuilder value="" onChange={handleChange} />);
 
     const label = screen.getByText(t.promptLabel);
-    expect(label).toHaveAttribute("for", "prompt-textarea");
+    expect(label).toHaveAttribute("for", "doc-prompt-textarea");
 
     const textarea = screen.getByRole("textbox");
-    expect(textarea).toHaveAttribute("id", "prompt-textarea");
+    expect(textarea).toHaveAttribute("id", "doc-prompt-textarea");
   });
 
-  it("renders preset buttons group with aria-pressed state", () => {
-    const handleChange = vi.fn();
-    render(<PromptBuilder value={t.presets.interviewPrompt} onChange={handleChange} />);
-
-    const group = screen.getByRole("group", { name: "Prompt 预设模板" });
-    expect(group).toBeInTheDocument();
-
-    const interviewBtn = screen.getByRole("button", { name: t.presets.interview });
-    expect(interviewBtn).toHaveAttribute("aria-pressed", "true");
-
-    const paperBtn = screen.getByRole("button", { name: t.presets.paper });
-    expect(paperBtn).toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("calls onChange with preset prompt when a preset button is clicked", () => {
+  it("renders preset buttons with correct aria-pressed attributes when inactive", () => {
     const handleChange = vi.fn();
     render(<PromptBuilder value="" onChange={handleChange} />);
 
+    const interviewBtn = screen.getByRole("button", { name: t.presets.interview });
     const paperBtn = screen.getByRole("button", { name: t.presets.paper });
-    fireEvent.click(paperBtn);
+    const freeBtn = screen.getByRole("button", { name: t.presets.free });
 
-    expect(handleChange).toHaveBeenCalledWith(t.presets.paperPrompt);
+    expect(interviewBtn).toHaveAttribute("aria-pressed", "false");
+    expect(paperBtn).toHaveAttribute("aria-pressed", "false");
+    expect(freeBtn).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("triggers onChange with preset prompt when a preset button is clicked", () => {
+    const handleChange = vi.fn();
+    render(<PromptBuilder value="" onChange={handleChange} />);
+
+    const interviewBtn = screen.getByRole("button", { name: t.presets.interview });
+    fireEvent.click(interviewBtn);
+
+    expect(handleChange).toHaveBeenCalledWith(t.presets.interviewPrompt);
+  });
+
+  it("marks active preset button with aria-pressed=true", () => {
+    const handleChange = vi.fn();
+    render(<PromptBuilder value={t.presets.interviewPrompt} onChange={handleChange} />);
+
+    const interviewBtn = screen.getByRole("button", { name: t.presets.interview });
+    const paperBtn = screen.getByRole("button", { name: t.presets.paper });
+
+    expect(interviewBtn).toHaveAttribute("aria-pressed", "true");
+    expect(paperBtn).toHaveAttribute("aria-pressed", "false");
   });
 });

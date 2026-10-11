@@ -23,23 +23,23 @@ interface PromptBuilderProps {
 export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
   return (
     <div className="space-y-3">
-      <label htmlFor="prompt-textarea" className="text-text-default block text-sm font-medium">
+      <label htmlFor="doc-prompt-textarea" className="text-text-default block text-sm font-medium">
         {t.promptLabel}
       </label>
 
       {/* Preset buttons */}
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Prompt 预设模板">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t.presetGroupLabel}>
         {PRESETS.map((preset) => {
-          const isSelected = value === preset.prompt;
+          const isActive = value === preset.prompt;
           return (
             <button
               key={preset.label}
               type="button"
-              aria-pressed={isSelected}
+              aria-pressed={isActive}
               onClick={() => onChange(preset.prompt)}
-              className={`focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-                isSelected
-                  ? "border-accent bg-accent text-accent-contrast"
+              className={`focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                isActive
+                  ? "border-accent bg-accent text-accent-contrast font-semibold shadow-sm"
                   : "border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong"
               }`}
             >
@@ -51,7 +51,7 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
 
       {/* Prompt textarea */}
       <textarea
-        id="prompt-textarea"
+        id="doc-prompt-textarea"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t.promptPlaceholder}
