@@ -116,6 +116,7 @@ export const zhCN = {
     uploadHint: "上传 .md 或 .txt 文件，或直接粘贴内容",
     promptLabel: "对话指令",
     promptPlaceholder: "输入自定义对话指令，或点击下方预设按钮快速填充",
+    presetGroupLabel: "预设 Prompt",
     presets: {
       interview: "模拟面试",
       interviewPrompt:

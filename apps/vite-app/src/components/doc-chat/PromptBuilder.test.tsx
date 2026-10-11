@@ -21,7 +21,7 @@ describe("PromptBuilder", () => {
     const handleChange = vi.fn();
     const { rerender } = render(<PromptBuilder value="" onChange={handleChange} />);
 
-    const presetGroup = screen.getByRole("group", { name: "预设 Prompt" });
+    const presetGroup = screen.getByRole("group", { name: t.presetGroupLabel });
     expect(presetGroup).toBeInTheDocument();
 
     const interviewBtn = screen.getByRole("button", { name: t.presets.interview });

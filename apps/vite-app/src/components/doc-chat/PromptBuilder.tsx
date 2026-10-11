@@ -28,7 +28,7 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
       </label>
 
       {/* Preset buttons */}
-      <div className="flex flex-wrap gap-2" role="group" aria-label="预设 Prompt">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t.presetGroupLabel}>
         {PRESETS.map((preset) => {
           const isSelected = value === preset.prompt;
           return (
