@@ -6,7 +6,7 @@ import { zhCN } from "@/i18n/zh-CN";
 const t = zhCN.docChat;
 
 describe("PromptBuilder", () => {
-  it("associates label with textarea and renders preset buttons", () => {
+  it("associates label with prompt textarea", () => {
     const handleChange = vi.fn();
     render(<PromptBuilder value="" onChange={handleChange} />);
 
@@ -15,11 +15,39 @@ describe("PromptBuilder", () => {
 
     const textarea = screen.getByRole("textbox");
     expect(textarea).toHaveAttribute("id", "doc-prompt-textarea");
+  });
+
+  it("renders preset buttons with correct aria-pressed attributes when inactive", () => {
+    const handleChange = vi.fn();
+    render(<PromptBuilder value="" onChange={handleChange} />);
 
     const interviewBtn = screen.getByRole("button", { name: t.presets.interview });
-    expect(interviewBtn).toBeDefined();
+    const paperBtn = screen.getByRole("button", { name: t.presets.paper });
+    const freeBtn = screen.getByRole("button", { name: t.presets.free });
 
+    expect(interviewBtn).toHaveAttribute("aria-pressed", "false");
+    expect(paperBtn).toHaveAttribute("aria-pressed", "false");
+    expect(freeBtn).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("triggers onChange with preset prompt when a preset button is clicked", () => {
+    const handleChange = vi.fn();
+    render(<PromptBuilder value="" onChange={handleChange} />);
+
+    const interviewBtn = screen.getByRole("button", { name: t.presets.interview });
     fireEvent.click(interviewBtn);
+
     expect(handleChange).toHaveBeenCalledWith(t.presets.interviewPrompt);
+  });
+
+  it("marks active preset button with aria-pressed=true", () => {
+    const handleChange = vi.fn();
+    render(<PromptBuilder value={t.presets.interviewPrompt} onChange={handleChange} />);
+
+    const interviewBtn = screen.getByRole("button", { name: t.presets.interview });
+    const paperBtn = screen.getByRole("button", { name: t.presets.paper });
+
+    expect(interviewBtn).toHaveAttribute("aria-pressed", "true");
+    expect(paperBtn).toHaveAttribute("aria-pressed", "false");
   });
 });
