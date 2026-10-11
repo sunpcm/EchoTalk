@@ -246,6 +246,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 <div className="space-y-5">
                   {/* STT */}
                   <ProviderGroup
+                    idPrefix="stt"
                     label={t.sttProvider}
                     options={STT_OPTIONS}
                     value={sttProvider}
@@ -258,6 +259,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
                   {/* LLM */}
                   <ProviderGroup
+                    idPrefix="llm"
                     label={t.llmProvider}
                     options={LLM_OPTIONS}
                     value={llmProvider}
@@ -269,10 +271,14 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   >
                     {/* LLM Model */}
                     <div>
-                      <label className="text-text-muted mb-1 block text-xs font-medium">
+                      <label
+                        htmlFor="llm-model-input"
+                        className="text-text-muted mb-1 block text-xs font-medium"
+                      >
                         {t.llmModel}
                       </label>
                       <input
+                        id="llm-model-input"
                         type="text"
                         value={llmModel}
                         onChange={(e) => setLlmModel(e.target.value)}
@@ -284,6 +290,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
                   {/* TTS */}
                   <ProviderGroup
+                    idPrefix="tts"
                     label={t.ttsProvider}
                     options={TTS_OPTIONS}
                     value={ttsProvider}
@@ -363,6 +370,7 @@ function KeyStatusBadge({ status }: { status?: "verified" | "error" | "unconfigu
 
 /** 单个 Provider 配置组：下拉选择 + API Key 输入 */
 function ProviderGroup({
+  idPrefix,
   label,
   options,
   value,
@@ -373,6 +381,7 @@ function ProviderGroup({
   status,
   children,
 }: {
+  idPrefix: string;
   label: string;
   options: ReadonlyArray<{ readonly value: string; readonly label: string }>;
   value: string;
@@ -383,15 +392,21 @@ function ProviderGroup({
   status?: "verified" | "error" | "unconfigured";
   children?: React.ReactNode;
 }) {
+  const selectId = `${idPrefix}-provider-select`;
+  const keyInputId = `${idPrefix}-key-input`;
+
   return (
     <div className="space-y-2">
       {/* Provider 下拉及状态 Badge */}
       <div className="mb-1 flex items-center justify-between">
-        <label className="text-text-muted block text-xs font-medium">{label}</label>
+        <label htmlFor={selectId} className="text-text-muted block text-xs font-medium">
+          {label}
+        </label>
         <KeyStatusBadge status={status} />
       </div>
       <div>
         <select
+          id={selectId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="border-border-default bg-surface focus:border-accent-soft-border focus:ring-accent-soft-border w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
@@ -410,9 +425,12 @@ function ProviderGroup({
       {/* API Key 输入 */}
       <div>
         <div className="mb-1 flex items-center gap-2">
-          <label className="text-text-muted text-xs font-medium">{t.apiKey}</label>
+          <label htmlFor={keyInputId} className="text-text-muted text-xs font-medium">
+            {t.apiKey}
+          </label>
         </div>
         <input
+          id={keyInputId}
           type="password"
           value={apiKey}
           onChange={(e) => onKeyChange(e.target.value)}
