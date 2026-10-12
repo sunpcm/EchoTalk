@@ -110,11 +110,13 @@ async def update_user_settings(
     """更新当前用户的双轨制配置。支持部分更新，密钥加密后入库。"""
     user_id = current_user.id
 
+    user_stmt = select(User).where(User.id == user_id)
+    user_result = await db.execute(user_stmt)
+    user_obj = user_result.scalar_one_or_none()
+    tier = user_obj.subscription_tier.value if user_obj else "free"
+
     # 鉴权：只有非 free 用户才能关闭 is_custom_mode
     if body.is_custom_mode is False:
-        user_stmt = select(User).where(User.id == user_id)
-        user_result = await db.execute(user_stmt)
-        user_obj = user_result.scalar_one_or_none()
         if user_obj and user_obj.subscription_tier == SubscriptionTier.free:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -230,11 +232,6 @@ async def update_user_settings(
 
     await db.flush()
     await db.refresh(row)
-
-    user_stmt2 = select(User).where(User.id == user_id)
-    user_result2 = await db.execute(user_stmt2)
-    user_obj_db = user_result2.scalar_one_or_none()
-    tier = user_obj_db.subscription_tier.value if user_obj_db else "free"
 
     has_stt = row.encrypted_stt_key is not None
     has_llm = row.encrypted_llm_key is not None
