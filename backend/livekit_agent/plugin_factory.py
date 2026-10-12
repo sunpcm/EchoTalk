@@ -37,6 +37,40 @@ class PluginInitError(Exception):
         super().__init__(f"[{code}] {message}")
 
 
+def _validate_api_key(api_key: Any, provider_label: str) -> str:
+    """
+    针对 API Key 进行类型与格式校验，防止注入及非法的 Key 传给第三方 SDK。
+
+    校验规则:
+    1. api_key 必须为非 None 且为字符串类型。
+    2. 去除首尾空白后不能为空字符串。
+    3. 包含换行符（\\n, \\r）或 null 字符（\\x00）时拒绝，防御 Header/日志注入。
+
+    返回:
+        去除首尾空白后的 API Key
+
+    异常:
+        PluginInitError: 当 API Key 不合法时抛出 ERR_CUSTOM_KEY_INVALID
+    """
+    if not isinstance(api_key, str):
+        raise PluginInitError(
+            "ERR_CUSTOM_KEY_INVALID",
+            f"{provider_label} 的 API Key 必须为字符串类型。",
+        )
+    key = api_key.strip()
+    if not key:
+        raise PluginInitError(
+            "ERR_CUSTOM_KEY_INVALID",
+            f"{provider_label} 的 API Key 为空。",
+        )
+    if any(c in key for c in ("\n", "\r", "\x00")):
+        raise PluginInitError(
+            "ERR_CUSTOM_KEY_INVALID",
+            f"{provider_label} 的 API Key 格式不安全（包含无效字符）。",
+        )
+    return key
+
+
 class PluginFactory:
     """
     双轨制插件工厂。
@@ -68,12 +102,8 @@ class PluginFactory:
                 f"不支持的 STT provider: '{provider}'。"
                 f"支持: {sorted(SUPPORTED_STT_PROVIDERS)}",
             )
-        if not api_key or not api_key.strip():
-            raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
-                f"STT provider '{provider}' 的 API Key 为空。",
-            )
-        return deepgram.STT(api_key=api_key.strip())
+        cleaned_key = _validate_api_key(api_key, f"STT provider '{provider}'")
+        return deepgram.STT(api_key=cleaned_key)
 
     @staticmethod
     def create_llm(
@@ -100,12 +130,8 @@ class PluginFactory:
                 f"不支持的 LLM provider: '{provider}'。"
                 f"支持: {sorted(SUPPORTED_LLM_PROVIDERS)}",
             )
-        if not api_key or not api_key.strip():
-            raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
-                f"LLM provider '{provider}' 的 API Key 为空。",
-            )
-        if not model or not model.strip():
+        cleaned_key = _validate_api_key(api_key, f"LLM provider '{provider}'")
+        if not model or not isinstance(model, str) or not model.strip():
             raise PluginInitError(
                 "ERR_CUSTOM_KEY_INVALID",
                 "LLM 模型名称为空。",
@@ -114,7 +140,7 @@ class PluginFactory:
         return lk_openai.LLM(
             model=model.strip(),
             base_url=base_url,
-            api_key=api_key.strip(),
+            api_key=cleaned_key,
             temperature=temperature,
         )
 
@@ -136,12 +162,8 @@ class PluginFactory:
                 f"不支持的 TTS provider: '{provider}'。"
                 f"支持: {sorted(SUPPORTED_TTS_PROVIDERS)}",
             )
-        if not api_key or not api_key.strip():
-            raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
-                f"TTS provider '{provider}' 的 API Key 为空。",
-            )
-        return cartesia.TTS(api_key=api_key.strip())
+        cleaned_key = _validate_api_key(api_key, f"TTS provider '{provider}'")
+        return cartesia.TTS(api_key=cleaned_key)
 
     @staticmethod
     def create_vad() -> silero.VAD:
