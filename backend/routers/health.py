@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health_check():
+async def health_check(current_user: CurrentUser = Depends(get_current_user)):
     """基础健康检查接口，用于验证服务是否正常运行。"""
     return {"status": "ok", "service": "echo-talk"}
 
