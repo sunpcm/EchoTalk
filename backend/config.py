@@ -10,6 +10,15 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 DEV_CREDENTIAL_KEY = "h42Fc91-ukjBVhrQWp6JsewfYSR41rKjGto4UscO4kc="
+DEV_CORS_ORIGINS: list[str] = [
+    "http://localhost:3000",
+    "capacitor://localhost",
+    "http://localhost",
+    "https://localhost",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+]
 
 
 class Settings(BaseSettings):
@@ -47,15 +56,7 @@ class Settings(BaseSettings):
     LEGACY_CREDENTIAL_DECRYPTION_SECRET: str = ""
 
     # CORS
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "capacitor://localhost",
-        "http://localhost",
-        "https://localhost",
-        "tauri://localhost",
-        "http://tauri.localhost",
-        "https://tauri.localhost",
-    ]
+    CORS_ORIGINS: list[str] = DEV_CORS_ORIGINS.copy()
     CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: list[str] = [
         "Content-Type",
@@ -97,6 +98,23 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_MODE 必须是 dev 或 oidc")
         return normalized
 
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def validate_cors_origins(cls, value: list[str]) -> list[str]:
+        cleaned = []
+        for origin in value:
+            origin_str = origin.strip()
+            if not origin_str:
+                continue
+            if origin_str == "*":
+                raise ValueError("CORS_ORIGINS 不可包含通配符 '*'")
+            if origin_str.endswith("/") and origin_str not in ("http://", "https://"):
+                origin_str = origin_str.rstrip("/")
+            cleaned.append(origin_str)
+        if not cleaned:
+            raise ValueError("CORS_ORIGINS 不能为空")
+        return cleaned
+
     def validate_runtime(self) -> None:
         """启动时检查安全配置，避免生产环境静默回退到开发鉴权。"""
         if self.AUTH_MODE == "dev" and not self.DEV_AUTH_TOKEN:
@@ -115,6 +133,15 @@ class Settings(BaseSettings):
                 raise RuntimeError("OIDC issuer 与 JWKS URL 必须使用 HTTPS")
             if self.CREDENTIAL_ENCRYPTION_KEYS == {"dev-v1": DEV_CREDENTIAL_KEY}:
                 raise RuntimeError("OIDC 模式禁止使用默认开发凭据加密密钥")
+            if self.CORS_ORIGINS == DEV_CORS_ORIGINS:
+                raise RuntimeError("OIDC 模式禁止使用默认开发 CORS 配置")
+            insecure_origins = [
+                origin for origin in self.CORS_ORIGINS if origin.startswith("http://")
+            ]
+            if insecure_origins:
+                raise RuntimeError(
+                    f"OIDC 模式禁止使用不安全的 HTTP Origin: {', '.join(insecure_origins)}"
+                )
 
         active_key = self.CREDENTIAL_ENCRYPTION_KEYS.get(
             self.ACTIVE_CREDENTIAL_KEY_VERSION

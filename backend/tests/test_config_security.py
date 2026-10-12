@@ -45,5 +45,43 @@ def test_oidc_accepts_complete_independent_keyring():
         OIDC_JWKS_URL="https://identity.example.test/jwks",
         CREDENTIAL_ENCRYPTION_KEYS={"prod-v1": Fernet.generate_key().decode()},
         ACTIVE_CREDENTIAL_KEY_VERSION="prod-v1",
+        CORS_ORIGINS=["https://app.example.test"],
     )
     config.validate_runtime()
+
+
+def test_cors_rejects_wildcard():
+    with pytest.raises(ValueError, match="CORS_ORIGINS 不可包含通配符"):
+        Settings(CORS_ORIGINS=["*"])
+
+
+def test_cors_rejects_empty_origins():
+    with pytest.raises(ValueError, match="CORS_ORIGINS 不能为空"):
+        Settings(CORS_ORIGINS=["   "])
+
+
+def test_oidc_rejects_default_dev_cors_origins():
+    config = Settings(
+        AUTH_MODE="oidc",
+        OIDC_ISSUER="https://identity.example.test",
+        OIDC_AUDIENCE="echotalk",
+        OIDC_JWKS_URL="https://identity.example.test/jwks",
+        CREDENTIAL_ENCRYPTION_KEYS={"prod-v1": Fernet.generate_key().decode()},
+        ACTIVE_CREDENTIAL_KEY_VERSION="prod-v1",
+    )
+    with pytest.raises(RuntimeError, match="默认开发 CORS 配置"):
+        config.validate_runtime()
+
+
+def test_oidc_rejects_insecure_http_cors_origins():
+    config = Settings(
+        AUTH_MODE="oidc",
+        OIDC_ISSUER="https://identity.example.test",
+        OIDC_AUDIENCE="echotalk",
+        OIDC_JWKS_URL="https://identity.example.test/jwks",
+        CREDENTIAL_ENCRYPTION_KEYS={"prod-v1": Fernet.generate_key().decode()},
+        ACTIVE_CREDENTIAL_KEY_VERSION="prod-v1",
+        CORS_ORIGINS=["http://insecure.example.test"],
+    )
+    with pytest.raises(RuntimeError, match="不安全的 HTTP Origin"):
+        config.validate_runtime()
