@@ -6,19 +6,16 @@
 """
 
 import logging
-
-logger = logging.getLogger(__name__)
-
-
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.knowledge import KnowledgeState, Skill
 
-
-from datetime import datetime, timedelta, timezone
+logger = logging.getLogger(__name__)
 
 
 async def get_skill_trends(
@@ -119,6 +116,7 @@ def generate_weekly_report(user_id: str) -> dict:
         报告数据字典（供前端渲染或导出 PDF）
     """
     import asyncio
+
     from database import async_session_maker
 
     async def _run():
