@@ -7,6 +7,15 @@ from models.session import Transcript, TranscriptRole
 from services.transcript_service import save_transcript
 
 
+def create_mock_session_maker(mock_session: AsyncMock) -> MagicMock:
+    """创建并配置 async_session_maker 的 mock，确保 async with 返回 mock_session。"""
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_cm.__aexit__ = AsyncMock(return_value=None)
+    mock_maker = MagicMock(return_value=mock_cm)
+    return mock_maker
+
+
 @pytest.mark.asyncio
 async def test_save_transcript_empty_or_whitespace_content():
     """验证当 content 为空或全空白字符时，直接返回 None，不操作数据库。"""
@@ -28,12 +37,11 @@ async def test_save_transcript_success_default_timestamp():
 
     mock_session = AsyncMock()
     mock_session.add = MagicMock()
+    mock_maker = create_mock_session_maker(mock_session)
 
-    mock_maker = MagicMock()
-    mock_maker.return_value.__aenter__.return_value = mock_session
-
-    with patch("services.transcript_service.async_session_maker", mock_maker), patch(
-        "time.time", return_value=1700000000.123
+    with (
+        patch("services.transcript_service.async_session_maker", mock_maker),
+        patch("time.time", return_value=1700000000.123),
     ):
         result = await save_transcript(
             session_id=session_id_str,
@@ -65,10 +73,9 @@ async def test_save_transcript_success_custom_timestamp_assistant_role():
 
     mock_session = AsyncMock()
     mock_session.add = MagicMock()
+    mock_maker = create_mock_session_maker(mock_session)
 
-    with patch("services.transcript_service.async_session_maker") as mock_maker:
-        mock_maker.return_value.__aenter__.return_value = mock_session
-
+    with patch("services.transcript_service.async_session_maker", mock_maker):
         result = await save_transcript(
             session_id=session_id_str,
             role="assistant",
@@ -95,10 +102,9 @@ async def test_save_transcript_invalid_session_id():
     """验证传入无效 session_id (不是 UUID) 时，捕获异常并返回 None。"""
     mock_session = AsyncMock()
     mock_session.add = MagicMock()
+    mock_maker = create_mock_session_maker(mock_session)
 
-    with patch("services.transcript_service.async_session_maker") as mock_maker:
-        mock_maker.return_value.__aenter__.return_value = mock_session
-
+    with patch("services.transcript_service.async_session_maker", mock_maker):
         result = await save_transcript(
             session_id="invalid-uuid-string",
             role="user",
@@ -114,10 +120,9 @@ async def test_save_transcript_invalid_role():
     session_id_str = str(uuid.uuid4())
     mock_session = AsyncMock()
     mock_session.add = MagicMock()
+    mock_maker = create_mock_session_maker(mock_session)
 
-    with patch("services.transcript_service.async_session_maker") as mock_maker:
-        mock_maker.return_value.__aenter__.return_value = mock_session
-
+    with patch("services.transcript_service.async_session_maker", mock_maker):
         result = await save_transcript(
             session_id=session_id_str,
             role="system_admin",  # invalid role for TranscriptRole enum
@@ -134,10 +139,9 @@ async def test_save_transcript_db_exception():
     mock_session = AsyncMock()
     mock_session.add = MagicMock()
     mock_session.commit.side_effect = Exception("Database connection error")
+    mock_maker = create_mock_session_maker(mock_session)
 
-    with patch("services.transcript_service.async_session_maker") as mock_maker:
-        mock_maker.return_value.__aenter__.return_value = mock_session
-
+    with patch("services.transcript_service.async_session_maker", mock_maker):
         result = await save_transcript(
             session_id=session_id_str,
             role="user",
