@@ -3,12 +3,12 @@ ORM 模型统一导出。
 Alembic 的 env.py 通过导入此模块来发现所有表的 metadata。
 """
 
-from models.analysis import AnalysisJob, AnalysisJobStatus
-from models.base import Base
-from models.exercise import GrammarError, PronunciationAssessment
-from models.knowledge import KnowledgeState, Skill
-from models.session import Session, SessionContext, Transcript
-from models.user import (
+from .analysis import AnalysisJob, AnalysisJobStatus
+from .base import Base
+from .exercise import GrammarError, PronunciationAssessment
+from .knowledge import KnowledgeState, Skill
+from .session import Session, SessionContext, Transcript
+from .user import (
     LLMProvider,
     STTProvider,
     TTSProvider,
