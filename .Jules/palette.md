@@ -9,3 +9,8 @@
 
 **Learning:** Preset selection buttons and custom prompts often lack `aria-pressed` states and clear active visual feedback, making it unclear to keyboard and screen reader users which preset prompt is applied. Additionally, unlinked form labels fail to focus textareas on click.
 **Action:** Use `aria-pressed={isActive}` on preset toggle buttons, provide distinct active visual styling, and link form labels with `<textarea id="...">` using `htmlFor`.
+
+## 2025-03-02 - Textarea Error Associations and Disabled Action Tooltips
+
+**Learning:** Textareas with character limits leave screen reader users uninformed unless `aria-describedby` links to the character count/warning element and `aria-invalid` is toggled. Additionally, disabled action buttons without explanatory tooltips leave users wondering why submission is blocked.
+**Action:** Link textareas to character counts using `aria-describedby`, set `aria-invalid={isOverLimit}`, and add explanatory `title` tooltips and `aria-disabled` on disabled submit buttons.

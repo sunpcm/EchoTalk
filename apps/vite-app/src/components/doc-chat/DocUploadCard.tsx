@@ -96,6 +96,12 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
         onChange={(e) => onChange(e.target.value)}
         placeholder="或在此直接粘贴文档内容..."
         rows={10}
+        aria-invalid={isOverLimit}
+        aria-describedby={
+          isOverLimit
+            ? "doc-upload-over-limit-alert doc-upload-char-count"
+            : "doc-upload-char-count"
+        }
         className={`w-full resize-y rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none ${
           isOverLimit
             ? "border-danger focus:ring-danger-border"
@@ -104,7 +110,7 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
       />
 
       {/* Character count */}
-      <div className="flex items-center justify-end text-xs">
+      <div id="doc-upload-char-count" className="flex items-center justify-end text-xs">
         <span className={isOverLimit ? "text-danger font-medium" : "text-text-faint"}>
           {charCount.toLocaleString()} / {t.charMax} {t.charCount}
         </span>
@@ -113,6 +119,7 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
       {/* Over limit warning */}
       {isOverLimit && (
         <p
+          id="doc-upload-over-limit-alert"
           role="alert"
           aria-live="polite"
           className="bg-danger-bg text-danger-text rounded-md px-3 py-2 text-sm"

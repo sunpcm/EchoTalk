@@ -30,7 +30,7 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-accent hover:bg-accent-hover text-accent-contrast rounded-[14px] px-4 py-2 font-semibold transition-colors;
+    @apply bg-accent hover:bg-accent-hover text-accent-contrast focus-visible:ring-accent rounded-[14px] px-4 py-2 font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none;
   }
 
   .card {

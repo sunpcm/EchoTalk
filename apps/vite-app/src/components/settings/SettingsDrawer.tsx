@@ -186,7 +186,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     aria-checked={active}
                     aria-label={`${s.label}主题`}
                     onClick={() => setTheme(s.value)}
-                    className={`flex flex-1 items-center gap-2 rounded-[14px] px-3 py-2.5 transition-colors ${
+                    className={`focus-visible:ring-accent flex flex-1 items-center gap-2 rounded-[14px] px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
                       active
                         ? "border-accent border-2"
                         : "border-border-default hover:border-accent-soft-border border"

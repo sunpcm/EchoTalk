@@ -15,6 +15,8 @@ describe("DocUploadCard", () => {
 
     const textarea = screen.getByRole("textbox");
     expect(textarea).toHaveAttribute("id", "doc-upload-textarea");
+    expect(textarea).toHaveAttribute("aria-describedby", "doc-upload-char-count");
+    expect(textarea).toHaveAttribute("aria-invalid", "false");
 
     const uploadBtn = screen.getByRole("button", { name: /点击选择 .txt 或 .md 文件/i });
     expect(uploadBtn).toHaveAttribute("tabindex", "0");
@@ -61,5 +63,12 @@ describe("DocUploadCard", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(t.charOverLimit);
     expect(alert).toHaveAttribute("aria-live", "polite");
+
+    const textarea = screen.getByRole("textbox");
+    expect(textarea).toHaveAttribute("aria-invalid", "true");
+    expect(textarea).toHaveAttribute(
+      "aria-describedby",
+      "doc-upload-over-limit-alert doc-upload-char-count",
+    );
   });
 });

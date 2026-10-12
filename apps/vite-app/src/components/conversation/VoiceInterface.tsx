@@ -230,7 +230,7 @@ function ActiveView() {
           {/* 结束对话按钮 */}
           <button
             onClick={endSession}
-            className="bg-danger hover:bg-danger-hover mt-3 w-full rounded-[14px] px-6 py-2 text-white transition-colors"
+            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger mt-3 w-full rounded-[14px] px-6 py-2 text-white transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             {tConv.endButton}
           </button>
