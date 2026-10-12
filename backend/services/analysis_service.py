@@ -25,6 +25,11 @@ from services.pronunciation.phoneme_aligner import (
 
 logger = logging.getLogger(__name__)
 
+try:
+    import pronouncing
+except ImportError:
+    pronouncing = None
+
 
 class AnalysisServiceError(RuntimeError):
     """Expected analysis failure safe to expose through a stable code."""
@@ -41,15 +46,11 @@ class AnalysisServiceError(RuntimeError):
 def _get_ref_phonemes(word: str) -> list[str]:
     """获取单词的参考音素序列（优先 CMU 字典，否则字母回退）。"""
     word_lower = word.lower()
-    try:
-        import pronouncing
-
+    if pronouncing is not None:
         phones = pronouncing.phones_for_word(word_lower)
         if phones:
             # CMU 返回格式如 "AH0 N D"，去掉重音数字
             return [re.sub(r"\d", "", p) for p in phones[0].split()]
-    except ImportError:
-        pass
     # 回退：每个字母作为一个"音素"
     return [ch.upper() for ch in word_lower if ch.isalpha()]
 
