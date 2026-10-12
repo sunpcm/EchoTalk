@@ -1,6 +1,9 @@
-import pytest
+from unittest.mock import AsyncMock, MagicMock
 
-from services.llm_service import build_dynamic_prompt
+import pytest
+from openai import APIError, AsyncOpenAI
+
+from services.llm_service import _get_client, build_dynamic_prompt, chat_completion
 
 
 @pytest.mark.parametrize(
@@ -126,3 +129,98 @@ def test_build_dynamic_prompt_full_combination():
     pos_guidelines = prompt.index("[Guidelines]")
 
     assert pos_role < pos_emotion < pos_weak < pos_custom < pos_doc < pos_guidelines
+
+
+def test_get_client_unknown_provider(monkeypatch):
+    monkeypatch.setattr(
+        "services.llm_service.settings.DEFAULT_LLM_PROVIDER", "unknown_provider"
+    )
+    with pytest.raises(ValueError, match="未知的 LLM provider: 'unknown_provider'"):
+        _get_client()
+
+
+def test_get_client_missing_api_key(monkeypatch):
+    monkeypatch.setattr(
+        "services.llm_service.settings.DEFAULT_LLM_PROVIDER", "siliconflow"
+    )
+    monkeypatch.setattr("services.llm_service.settings.SILICONFLOW_API_KEY", "")
+    with pytest.raises(
+        ValueError, match="LLM provider 'siliconflow' 的 API Key 未配置"
+    ):
+        _get_client()
+
+
+@pytest.mark.parametrize(
+    "provider_name, api_key_field, expected_base_url",
+    [
+        ("siliconflow", "SILICONFLOW_API_KEY", "https://api.siliconflow.cn/v1"),
+        ("openrouter", "OPENROUTER_API_KEY", "https://openrouter.ai/api/v1"),
+    ],
+)
+def test_get_client_success(
+    monkeypatch, provider_name, api_key_field, expected_base_url
+):
+    monkeypatch.setattr(
+        "services.llm_service.settings.DEFAULT_LLM_PROVIDER", provider_name
+    )
+    monkeypatch.setattr(
+        f"services.llm_service.settings.{api_key_field}", "test_api_key"
+    )
+
+    client = _get_client()
+    assert isinstance(client, AsyncOpenAI)
+    assert client.api_key == "test_api_key"
+    assert str(client.base_url).rstrip("/") == expected_base_url
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_success(monkeypatch):
+    mock_client = MagicMock()
+    mock_choice = MagicMock()
+    mock_choice.message.content = "This is a response from AI."
+    mock_response = MagicMock()
+    mock_response.choices = [mock_choice]
+
+    mock_create = AsyncMock(return_value=mock_response)
+    mock_client.chat.completions.create = mock_create
+    monkeypatch.setattr("services.llm_service._get_client", lambda: mock_client)
+
+    messages = [{"role": "user", "content": "Hello"}]
+    reply = await chat_completion(messages)
+
+    assert reply == "This is a response from AI."
+    mock_create.assert_awaited_once()
+    kwargs = mock_create.call_args.kwargs
+    assert kwargs["messages"] == messages
+    assert kwargs["temperature"] == 0.7
+    assert kwargs["max_tokens"] == 256
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_none_content(monkeypatch):
+    mock_client = MagicMock()
+    mock_choice = MagicMock()
+    mock_choice.message.content = None
+    mock_response = MagicMock()
+    mock_response.choices = [mock_choice]
+
+    mock_create = AsyncMock(return_value=mock_response)
+    mock_client.chat.completions.create = mock_create
+    monkeypatch.setattr("services.llm_service._get_client", lambda: mock_client)
+
+    reply = await chat_completion([{"role": "user", "content": "Test"}])
+    assert reply == ""
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_api_error(monkeypatch):
+    mock_client = MagicMock()
+    api_error = APIError(
+        message="API rate limit exceeded", request=MagicMock(), body=None
+    )
+    mock_create = AsyncMock(side_effect=api_error)
+    mock_client.chat.completions.create = mock_create
+    monkeypatch.setattr("services.llm_service._get_client", lambda: mock_client)
+
+    with pytest.raises(APIError, match="API rate limit exceeded"):
+        await chat_completion([{"role": "user", "content": "Hello"}])
