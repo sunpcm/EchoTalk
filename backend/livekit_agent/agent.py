@@ -420,8 +420,8 @@ async def entrypoint(ctx: JobContext):
         此处仅负责 assistant 消息的持久化。
         """
         item = event.item
-        if item.role == "assistant":  # type: ignore TODO: SDK 类型定义不完善，缺少 role 属性
-            text = item.text_content  # type: ignore TODO: SDK 类型定义不完善，缺少 text_content 属性
+        if isinstance(item, llm.ChatMessage) and item.role == "assistant":
+            text = item.text_content
             if text:
                 asyncio.ensure_future(save_transcript(session_id, "assistant", text))
 
