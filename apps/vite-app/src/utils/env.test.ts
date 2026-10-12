@@ -98,6 +98,36 @@ describe("env utils", () => {
       expect(detectPlatform()).toBe("macos");
     });
 
+    it("should fallback to 'macos' when Tauri is detected and userAgent is Linux or an unknown operating system", () => {
+      (window as unknown as { __TAURI_INTERNALS__: unknown }).__TAURI_INTERNALS__ = {};
+
+      // Linux userAgent
+      Object.defineProperty(navigator, "userAgent", {
+        value: "Mozilla/5.0 (X11; Linux x86_64)",
+        configurable: true,
+        writable: true,
+      });
+      expect(detectPlatform()).toBe("macos");
+
+      // Unknown operating system userAgent
+      Object.defineProperty(navigator, "userAgent", {
+        value: "CustomTauriApp/1.0.0 (Unknown OS)",
+        configurable: true,
+        writable: true,
+      });
+      expect(detectPlatform()).toBe("macos");
+    });
+
+    it("should fallback to 'macos' when __TAURI__ is defined and userAgent does not include 'win'", () => {
+      (window as unknown as { __TAURI__: unknown }).__TAURI__ = {};
+      Object.defineProperty(navigator, "userAgent", {
+        value: "Mozilla/5.0 (X11; Linux x86_64)",
+        configurable: true,
+        writable: true,
+      });
+      expect(detectPlatform()).toBe("macos");
+    });
+
     it("should return 'web' by default when no native platforms are detected", () => {
       expect(detectPlatform()).toBe("web");
     });
