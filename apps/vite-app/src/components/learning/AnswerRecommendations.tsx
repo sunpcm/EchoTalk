@@ -156,7 +156,7 @@ export function AnswerRecommendations() {
                   aria-label={`复制推荐回答 ${i + 1}: ${rec}`}
                   className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex w-full items-center justify-between rounded-[12px] border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 >
-                  <div className="flex items-center min-w-0 pr-2">
+                  <div className="flex min-w-0 items-center pr-2">
                     <span className="bg-success mr-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
                       {i + 1}
                     </span>
