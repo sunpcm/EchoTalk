@@ -85,3 +85,30 @@ def test_oidc_rejects_insecure_http_cors_origins():
     )
     with pytest.raises(RuntimeError, match="不安全的 HTTP Origin"):
         config.validate_runtime()
+
+
+def test_oidc_accepts_local_native_http_origins():
+    config = Settings(
+        AUTH_MODE="oidc",
+        OIDC_ISSUER="https://identity.example.test",
+        OIDC_AUDIENCE="echotalk",
+        OIDC_JWKS_URL="https://identity.example.test/jwks",
+        CREDENTIAL_ENCRYPTION_KEYS={"prod-v1": Fernet.generate_key().decode()},
+        ACTIVE_CREDENTIAL_KEY_VERSION="prod-v1",
+        CORS_ORIGINS=["http://localhost", "http://tauri.localhost"],
+    )
+    config.validate_runtime()
+
+
+def test_oidc_rejects_lookalike_local_http_origin():
+    config = Settings(
+        AUTH_MODE="oidc",
+        OIDC_ISSUER="https://identity.example.test",
+        OIDC_AUDIENCE="echotalk",
+        OIDC_JWKS_URL="https://identity.example.test/jwks",
+        CREDENTIAL_ENCRYPTION_KEYS={"prod-v1": Fernet.generate_key().decode()},
+        ACTIVE_CREDENTIAL_KEY_VERSION="prod-v1",
+        CORS_ORIGINS=["http://localhost.evil.example.test"],
+    )
+    with pytest.raises(RuntimeError, match="不安全的 HTTP Origin"):
+        config.validate_runtime()

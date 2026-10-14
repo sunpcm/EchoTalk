@@ -4,6 +4,7 @@ EchoTalk 后端配置模块。
 """
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
 from pydantic import field_validator
@@ -135,8 +136,14 @@ class Settings(BaseSettings):
                 raise RuntimeError("OIDC 模式禁止使用默认开发凭据加密密钥")
             if self.CORS_ORIGINS == DEV_CORS_ORIGINS:
                 raise RuntimeError("OIDC 模式禁止使用默认开发 CORS 配置")
+            # Capacitor and Tauri can use local HTTP origins even with OIDC.
+            # Only exact loopback/native hosts are exempt from the HTTPS rule.
+            local_http_hosts = {"localhost", "127.0.0.1", "::1", "tauri.localhost"}
             insecure_origins = [
-                origin for origin in self.CORS_ORIGINS if origin.startswith("http://")
+                origin
+                for origin in self.CORS_ORIGINS
+                if origin.startswith("http://")
+                and urlsplit(origin).hostname not in local_http_hosts
             ]
             if insecure_origins:
                 raise RuntimeError(
