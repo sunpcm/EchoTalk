@@ -116,14 +116,13 @@ def test_create_vad_success():
 
 
 def test_from_system_defaults_success():
-    with patch("config.settings.DEFAULT_LLM_PROVIDER", "siliconflow"), patch(
-        "config.settings.SILICONFLOW_API_KEY", "sf_sys_key"
-    ), patch("config.settings.DEEPGRAM_API_KEY", "dg_sys_key"), patch(
-        "config.settings.CARTESIA_API_KEY", "cartesia_sys_key"
-    ), patch(
-        "config.settings.DEFAULT_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct"
-    ), patch(
-        "livekit.plugins.silero.VAD.load", return_value="mock_vad"
+    with (
+        patch("config.settings.DEFAULT_LLM_PROVIDER", "siliconflow"),
+        patch("config.settings.SILICONFLOW_API_KEY", "sf_sys_key"),
+        patch("config.settings.DEEPGRAM_API_KEY", "dg_sys_key"),
+        patch("config.settings.CARTESIA_API_KEY", "cartesia_sys_key"),
+        patch("config.settings.DEFAULT_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct"),
+        patch("livekit.plugins.silero.VAD.load", return_value="mock_vad"),
     ):
         plugins = PluginFactory.from_system_defaults()
         assert "stt" in plugins
