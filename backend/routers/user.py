@@ -88,14 +88,11 @@ def _build_user_settings_response(
     )
 
 
-async def _validate_custom_mode_permission(
-    db: AsyncSession, user_id: str, is_custom_mode: bool | None
+def _validate_custom_mode_permission(
+    user_obj: User | None, is_custom_mode: bool | None
 ) -> None:
     """鉴权：只有非 free 用户才能关闭 is_custom_mode"""
     if is_custom_mode is False:
-        user_stmt = select(User).where(User.id == user_id)
-        user_result = await db.execute(user_stmt)
-        user_obj = user_result.scalar_one_or_none()
         if user_obj and user_obj.subscription_tier == SubscriptionTier.free:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -249,7 +246,11 @@ async def update_user_settings(
     """更新当前用户的双轨制配置。支持部分更新，密钥加密后入库。"""
     user_id = current_user.id
 
-    await _validate_custom_mode_permission(db, user_id, body.is_custom_mode)
+    user_stmt = select(User).where(User.id == user_id)
+    user_result = await db.execute(user_stmt)
+    user_obj = user_result.scalar_one_or_none()
+    _validate_custom_mode_permission(user_obj, body.is_custom_mode)
+    tier = user_obj.subscription_tier.value if user_obj else "free"
 
     stmt = select(UserSettings).where(UserSettings.user_id == user_id)
     result = await db.execute(stmt)
@@ -265,10 +266,5 @@ async def update_user_settings(
 
     await db.flush()
     await db.refresh(row)
-
-    user_stmt2 = select(User).where(User.id == user_id)
-    user_result2 = await db.execute(user_stmt2)
-    user_obj_db = user_result2.scalar_one_or_none()
-    tier = user_obj_db.subscription_tier.value if user_obj_db else "free"
 
     return _build_user_settings_response(row, tier)
