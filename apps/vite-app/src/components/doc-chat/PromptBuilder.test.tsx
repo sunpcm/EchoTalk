@@ -6,6 +6,14 @@ import { zhCN } from "@/i18n/zh-CN";
 const t = zhCN.docChat;
 
 describe("PromptBuilder", () => {
+  it("renders preset buttons in a semantic group with localized label", () => {
+    const handleChange = vi.fn();
+    render(<PromptBuilder value="" onChange={handleChange} />);
+
+    const group = screen.getByRole("group", { name: t.presetGroupLabel });
+    expect(group).toBeInTheDocument();
+  });
+
   it("associates label with prompt textarea", () => {
     const handleChange = vi.fn();
     render(<PromptBuilder value="" onChange={handleChange} />);

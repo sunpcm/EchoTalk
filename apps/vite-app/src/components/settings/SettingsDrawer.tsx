@@ -4,7 +4,7 @@
  * is_custom_mode 开关、Provider 选择、API Key 输入。
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSettingsStore, type ThemeName } from "@/store/settings";
 import { zhCN } from "@/i18n/zh-CN";
 import type { UserSettingsUpdate } from "@/lib/api";
@@ -33,6 +33,11 @@ const LLM_OPTIONS = [
 const TTS_OPTIONS = [{ value: "cartesia", label: "Cartesia" }] as const;
 
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   const { settings, loading, saving, error, fetchSettings, updateSettings } = useSettingsStore();
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
@@ -55,6 +60,42 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       void fetchSettings();
     }
   }, [open, fetchSettings]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement;
+    const drawer = drawerRef.current;
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    drawer?.querySelector<HTMLElement>(focusableSelector)?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !drawer) return;
+      const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, [open]);
 
   // 从后端数据同步到本地表单
   useEffect(() => {
@@ -132,6 +173,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
       {/* Drawer */}
       <div
+        ref={drawerRef}
         role="dialog"
         aria-modal="true"
         aria-label={t.title}

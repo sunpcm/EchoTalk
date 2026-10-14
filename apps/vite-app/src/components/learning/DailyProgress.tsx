@@ -77,9 +77,10 @@ export function DailyProgress() {
       </div>
       <div
         role="progressbar"
-        aria-valuenow={totalTurns}
+        aria-valuenow={Math.min(totalTurns, DAILY_GOAL)}
         aria-valuemin={0}
         aria-valuemax={DAILY_GOAL}
+        aria-valuetext={`${totalTurns} / ${DAILY_GOAL}`}
         aria-label={t.turnsGoal}
         className="bg-surface-alt mb-4 h-3 w-full overflow-hidden rounded-full"
       >

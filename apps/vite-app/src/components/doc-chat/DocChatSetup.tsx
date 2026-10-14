@@ -30,6 +30,12 @@ export function DocChatSetup() {
   const isDisabled = isEmpty || isOverLimit;
   const isLoading = connectionState === "checking_health" || connectionState === "connecting";
 
+  const disabledReason = isEmpty
+    ? "请先输入或粘贴文档内容"
+    : isOverLimit
+      ? "文档字数超过 50,000 字限制"
+      : undefined;
+
   const handleStart = async () => {
     if (isDisabled || isLoading) return;
 
@@ -87,6 +93,8 @@ export function DocChatSetup() {
       <button
         onClick={handleStart}
         disabled={isDisabled || isLoading}
+        aria-disabled={isDisabled || isLoading}
+        title={disabledReason}
         className="btn-primary flex w-full items-center justify-center py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isLoading ? (
