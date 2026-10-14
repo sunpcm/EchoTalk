@@ -5,6 +5,7 @@
 依赖: Celery + Redis（USE_MOCK_CELERY=True 时同步执行）
 """
 
+import asyncio
 import enum
 import logging
 import uuid
@@ -242,23 +243,19 @@ async def get_weekly_emotion_summary(
     }
 
 
-async def generate_weekly_report(
+async def generate_weekly_report_async(
     user_id: str, db: AsyncSession | None = None, now: datetime | None = None
 ) -> dict:
     """
     生成用户周度多维学习报告。
 
-    维度包含:
-    - 本周练习时长 & 会话次数统计 (已实现)
-    - 各技能 p_mastery 趋势（环比上周变化）
-    - 发音准确率趋势（按 session 聚合）
-    - 语法错误频次 Top-3 及改善建议
-    - Krashen i+1 推荐下周学习重点
-    - 情绪分析摘要（平均焦虑指数、语速趋势）
+    当前仅包含本周练习统计、真实发音评估、真实语法错误及情绪摘要。
+    知识状态没有历史快照，无法计算可信的技能环比；学习推荐仍待实现。
 
     参数:
         user_id: 用户 UUID 字符串
         db: 数据库异步会话（可选，若未指定则自动创建）
+        now: 报告截止时刻，供测试和重跑指定；默认当前 UTC 时间
 
     返回:
         报告数据字典（供前端渲染或导出 PDF）
@@ -293,3 +290,8 @@ async def generate_weekly_report(
         return await build(db)
     async with async_session_maker() as session:
         return await build(session)
+
+
+def generate_weekly_report(user_id: str) -> dict:
+    """Preserve the original synchronous worker entrypoint."""
+    return asyncio.run(generate_weekly_report_async(user_id))

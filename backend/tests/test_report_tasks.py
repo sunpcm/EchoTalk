@@ -7,6 +7,7 @@ import pytest
 from models.session import Session, SessionMode, SessionStatus
 from workers.report_tasks import (
     generate_weekly_report,
+    generate_weekly_report_async,
     get_current_week_start,
     get_weekly_emotion_summary,
     get_weekly_grammar_errors,
@@ -130,7 +131,7 @@ async def test_generate_weekly_report_with_db():
             return_value={},
         ),
     ):
-        report = await generate_weekly_report(user_id=str(user_id), db=db)
+        report = await generate_weekly_report_async(user_id=str(user_id), db=db)
 
     assert report["user_id"] == str(user_id)
     assert report["status"] == "partial"
@@ -171,11 +172,22 @@ async def test_generate_weekly_report_without_db():
             return_value={},
         ),
     ):
-        report = await generate_weekly_report(user_id=str(user_id))
+        report = await generate_weekly_report_async(user_id=str(user_id))
 
     assert report["user_id"] == str(user_id)
     assert "weekly_practice_stats" in report
     assert report["weekly_practice_stats"]["total_sessions"] == 0
+
+
+def test_sync_report_entrypoint_keeps_existing_api():
+    with patch(
+        "workers.report_tasks.generate_weekly_report_async",
+        new_callable=AsyncMock,
+        return_value={"status": "partial"},
+    ) as generate:
+        report = generate_weekly_report(str(uuid.uuid4()))
+    assert report["status"] == "partial"
+    generate.assert_awaited_once()
 
 
 @pytest.mark.asyncio
