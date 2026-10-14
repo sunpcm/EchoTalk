@@ -8,7 +8,10 @@ from models.session import Session, SessionMode, SessionStatus
 from workers.report_tasks import (
     generate_weekly_report,
     get_current_week_start,
+    get_weekly_emotion_summary,
+    get_weekly_grammar_errors,
     get_weekly_practice_stats,
+    get_weekly_pronunciation,
 )
 
 
@@ -66,7 +69,7 @@ async def test_get_weekly_practice_stats_success():
     assert stats["completed_sessions"] == 2
     assert stats["total_practice_seconds"] == 2700.0
     assert stats["total_practice_minutes"] == 45.0
-    assert stats["avg_session_duration_seconds"] == 900.0
+    assert stats["avg_session_duration_seconds"] == 1350.0
     assert stats["sessions_by_mode"] == {
         "pronunciation": 1,
         "free_talk": 1,
@@ -110,10 +113,15 @@ async def test_generate_weekly_report_with_db():
     user_id = uuid.uuid4()
     db = _mock_db([])
 
-    report = await generate_weekly_report(user_id=str(user_id), db=db)
+    with (
+        patch("workers.report_tasks.get_weekly_pronunciation", new_callable=AsyncMock, return_value={}),
+        patch("workers.report_tasks.get_weekly_grammar_errors", new_callable=AsyncMock, return_value=[]),
+        patch("workers.report_tasks.get_weekly_emotion_summary", new_callable=AsyncMock, return_value={}),
+    ):
+        report = await generate_weekly_report(user_id=str(user_id), db=db)
 
     assert report["user_id"] == str(user_id)
-    assert report["status"] == "skeleton"
+    assert report["status"] == "partial"
     assert "weekly_practice_stats" in report
     assert report["weekly_practice_stats"]["total_sessions"] == 0
 
@@ -130,12 +138,77 @@ async def test_generate_weekly_report_without_db():
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    with patch(
-        "workers.report_tasks.async_session_maker",
-        return_value=MockAsyncSessionMaker(),
+    with (
+        patch("workers.report_tasks.async_session_maker", return_value=MockAsyncSessionMaker()),
+        patch("workers.report_tasks.get_weekly_pronunciation", new_callable=AsyncMock, return_value={}),
+        patch("workers.report_tasks.get_weekly_grammar_errors", new_callable=AsyncMock, return_value=[]),
+        patch("workers.report_tasks.get_weekly_emotion_summary", new_callable=AsyncMock, return_value={}),
     ):
         report = await generate_weekly_report(user_id=str(user_id))
 
     assert report["user_id"] == str(user_id)
     assert "weekly_practice_stats" in report
     assert report["weekly_practice_stats"]["total_sessions"] == 0
+
+
+@pytest.mark.asyncio
+async def test_weekly_pronunciation_needs_two_real_scores_for_delta():
+    user_id = uuid.uuid4()
+    db = AsyncMock()
+    result = MagicMock()
+    assessment = MagicMock(overall_score=82.5)
+    session = MagicMock(id=uuid.uuid4())
+    result.all.return_value = [(assessment, session)]
+    db.execute.return_value = result
+    start = get_current_week_start()
+
+    summary = await get_weekly_pronunciation(db, user_id, start, start + timedelta(days=7))
+
+    assert summary["average_score"] == 82.5
+    assert summary["score_delta"] is None
+    assert summary["sessions"][0]["session_id"] == str(session.id)
+
+
+@pytest.mark.asyncio
+async def test_weekly_grammar_examples_match_top_error():
+    user_id = uuid.uuid4()
+    db = AsyncMock()
+    counts = MagicMock()
+    counts.all.return_value = [("tense", "wrong_tense", 2)]
+    examples = MagicMock()
+    examples.all.return_value = [("I go yesterday", "I went yesterday")]
+    db.execute.side_effect = [counts, examples]
+    start = get_current_week_start()
+
+    errors = await get_weekly_grammar_errors(db, user_id, start, start + timedelta(days=7))
+
+    assert errors[0]["count"] == 2
+    assert errors[0]["examples"] == [
+        {"original": "I go yesterday", "corrected": "I went yesterday"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_weekly_emotion_averages_only_present_values():
+    user_id = uuid.uuid4()
+    db = AsyncMock()
+    result = MagicMock()
+    first = MagicMock(
+        session_id=uuid.uuid4(),
+        timestamp_ms=1000,
+        emotion_state={"anxiety_level": 0.4, "wpm": 120},
+    )
+    second = MagicMock(
+        session_id=first.session_id,
+        timestamp_ms=2000,
+        emotion_state={"wpm": 140},
+    )
+    result.scalars.return_value.all.return_value = [first, second]
+    db.execute.return_value = result
+    start = get_current_week_start()
+
+    summary = await get_weekly_emotion_summary(db, user_id, start, start + timedelta(days=7))
+
+    assert summary["total_transcripts_analyzed"] == 2
+    assert summary["average_anxiety_index"] == 0.4
+    assert summary["average_wpm"] == 130.0
