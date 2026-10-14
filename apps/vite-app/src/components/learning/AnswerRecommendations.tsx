@@ -4,7 +4,7 @@
  * 提供 2-3 条简短英文回答推荐帮助用户回答。
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useVoiceAssistant } from "@livekit/components-react";
 import { zhCN } from "@/i18n/zh-CN";
 
@@ -106,7 +106,15 @@ function generateRecommendations(question: string): string[] {
 
 export function AnswerRecommendations() {
   const { agentTranscriptions, state } = useVoiceAssistant();
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copied, setCopied] = useState<{ question: string; index: number } | null>(null);
+  const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyTimeout.current) clearTimeout(copyTimeout.current);
+    },
+    [],
+  );
 
   // 从 agent 转录中提取最后一条 final 消息
   const latestQuestion = useMemo(() => {
@@ -126,8 +134,9 @@ export function AnswerRecommendations() {
   const handleCopy = async (rec: string, index: number) => {
     try {
       await navigator.clipboard.writeText(rec);
-      setCopiedIndex(index);
-      setTimeout(() => setCopiedIndex(null), 1500);
+      setCopied({ question: latestQuestion ?? "", index });
+      if (copyTimeout.current) clearTimeout(copyTimeout.current);
+      copyTimeout.current = setTimeout(() => setCopied(null), 1500);
     } catch {
       // 剪贴板接口异常时不中断应用
     }
@@ -147,13 +156,13 @@ export function AnswerRecommendations() {
           <p className="text-success mb-3 text-xs">{t.hint}</p>
           <div className="space-y-2">
             {recommendations.map((rec, i) => {
-              const isCopied = copiedIndex === i;
+              const isCopied = copied?.question === latestQuestion && copied.index === i;
               return (
                 <button
                   key={i}
                   type="button"
                   onClick={() => void handleCopy(rec, i)}
-                  aria-label={`复制推荐回答 ${i + 1}: ${rec}`}
+                  aria-label={t.copyLabel(i + 1, rec)}
                   className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex w-full items-center justify-between rounded-[12px] border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 >
                   <div className="flex min-w-0 items-center pr-2">
@@ -163,12 +172,15 @@ export function AnswerRecommendations() {
                     <span className="truncate">{rec}</span>
                   </div>
                   {isCopied ? (
-                    <span className="bg-success/15 text-success shrink-0 rounded-md px-2 py-0.5 text-xs font-medium">
-                      已复制
+                    <span
+                      role="status"
+                      className="bg-success/15 text-success shrink-0 rounded-md px-2 py-0.5 text-xs font-medium"
+                    >
+                      {t.copied}
                     </span>
                   ) : (
                     <span className="text-text-faint hover:text-success shrink-0 text-xs transition-colors">
-                      点击复制
+                      {t.copyHint}
                     </span>
                   )}
                 </button>
