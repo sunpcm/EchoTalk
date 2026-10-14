@@ -114,9 +114,21 @@ async def test_generate_weekly_report_with_db():
     db = _mock_db([])
 
     with (
-        patch("workers.report_tasks.get_weekly_pronunciation", new_callable=AsyncMock, return_value={}),
-        patch("workers.report_tasks.get_weekly_grammar_errors", new_callable=AsyncMock, return_value=[]),
-        patch("workers.report_tasks.get_weekly_emotion_summary", new_callable=AsyncMock, return_value={}),
+        patch(
+            "workers.report_tasks.get_weekly_pronunciation",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+        patch(
+            "workers.report_tasks.get_weekly_grammar_errors",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "workers.report_tasks.get_weekly_emotion_summary",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
     ):
         report = await generate_weekly_report(user_id=str(user_id), db=db)
 
@@ -139,10 +151,25 @@ async def test_generate_weekly_report_without_db():
             pass
 
     with (
-        patch("workers.report_tasks.async_session_maker", return_value=MockAsyncSessionMaker()),
-        patch("workers.report_tasks.get_weekly_pronunciation", new_callable=AsyncMock, return_value={}),
-        patch("workers.report_tasks.get_weekly_grammar_errors", new_callable=AsyncMock, return_value=[]),
-        patch("workers.report_tasks.get_weekly_emotion_summary", new_callable=AsyncMock, return_value={}),
+        patch(
+            "workers.report_tasks.async_session_maker",
+            return_value=MockAsyncSessionMaker(),
+        ),
+        patch(
+            "workers.report_tasks.get_weekly_pronunciation",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+        patch(
+            "workers.report_tasks.get_weekly_grammar_errors",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "workers.report_tasks.get_weekly_emotion_summary",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
     ):
         report = await generate_weekly_report(user_id=str(user_id))
 
@@ -162,7 +189,9 @@ async def test_weekly_pronunciation_needs_two_real_scores_for_delta():
     db.execute.return_value = result
     start = get_current_week_start()
 
-    summary = await get_weekly_pronunciation(db, user_id, start, start + timedelta(days=7))
+    summary = await get_weekly_pronunciation(
+        db, user_id, start, start + timedelta(days=7)
+    )
 
     assert summary["average_score"] == 82.5
     assert summary["score_delta"] is None
@@ -180,7 +209,9 @@ async def test_weekly_grammar_examples_match_top_error():
     db.execute.side_effect = [counts, examples]
     start = get_current_week_start()
 
-    errors = await get_weekly_grammar_errors(db, user_id, start, start + timedelta(days=7))
+    errors = await get_weekly_grammar_errors(
+        db, user_id, start, start + timedelta(days=7)
+    )
 
     assert errors[0]["count"] == 2
     assert errors[0]["examples"] == [
@@ -207,7 +238,9 @@ async def test_weekly_emotion_averages_only_present_values():
     db.execute.return_value = result
     start = get_current_week_start()
 
-    summary = await get_weekly_emotion_summary(db, user_id, start, start + timedelta(days=7))
+    summary = await get_weekly_emotion_summary(
+        db, user_id, start, start + timedelta(days=7)
+    )
 
     assert summary["total_transcripts_analyzed"] == 2
     assert summary["average_anxiety_index"] == 0.4

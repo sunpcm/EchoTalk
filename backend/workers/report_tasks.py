@@ -110,7 +110,9 @@ async def get_weekly_practice_stats(
 
 def _db_time(value: datetime) -> datetime:
     """The existing database columns use naive UTC timestamps."""
-    return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+    return (
+        value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+    )
 
 
 async def get_weekly_pronunciation(
@@ -161,7 +163,9 @@ async def get_weekly_grammar_errors(
         GrammarError.is_synthetic.is_(False),
     )
     stmt = (
-        select(GrammarError.skill_tag, GrammarError.error_type, func.count(GrammarError.id))
+        select(
+            GrammarError.skill_tag, GrammarError.error_type, func.count(GrammarError.id)
+        )
         .join(Session, GrammarError.session_id == Session.id)
         .where(*filters)
         .group_by(GrammarError.skill_tag, GrammarError.error_type)
@@ -218,16 +222,22 @@ async def get_weekly_emotion_summary(
     )
     transcripts = (await db.execute(stmt)).scalars().all()
     states = [t.emotion_state for t in transcripts if isinstance(t.emotion_state, dict)]
-    anxiety = [float(s["anxiety_level"]) for s in states if s.get("anxiety_level") is not None]
+    anxiety = [
+        float(s["anxiety_level"]) for s in states if s.get("anxiety_level") is not None
+    ]
     wpm = [float(s["wpm"]) for s in states if s.get("wpm") is not None]
     return {
         "total_transcripts_analyzed": len(states),
         "average_anxiety_index": round(mean(anxiety), 2) if anxiety else None,
         "average_wpm": round(mean(wpm), 1) if wpm else None,
         "speech_rate_trends": [
-            {"session_id": str(t.session_id), "timestamp_ms": t.timestamp_ms,
-             "wpm": t.emotion_state.get("wpm")}
-            for t in transcripts if isinstance(t.emotion_state, dict)
+            {
+                "session_id": str(t.session_id),
+                "timestamp_ms": t.timestamp_ms,
+                "wpm": t.emotion_state.get("wpm"),
+            }
+            for t in transcripts
+            if isinstance(t.emotion_state, dict)
         ],
     }
 
