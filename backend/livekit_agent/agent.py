@@ -332,6 +332,17 @@ class EchoTalkAgent(Agent):
 # ---------------------------------------------------------------------------
 
 
+def _persist_assistant_conversation_item(
+    event: ConversationItemAddedEvent, session_id: str
+) -> None:
+    """Persist assistant text from a LiveKit conversation event, if present."""
+    item = event.item
+    if isinstance(item, llm.ChatMessage) and item.role == "assistant":
+        text = item.text_content
+        if text:
+            asyncio.ensure_future(save_transcript(session_id, "assistant", text))
+
+
 async def entrypoint(ctx: JobContext):
     """LiveKit Agent 入口：等待参与者 -> 查询双轨配置 -> 构建插件 -> 启动语音管线。"""
     logger.info(
@@ -419,11 +430,7 @@ async def entrypoint(ctx: JobContext):
         用户发言的转录已在 on_user_turn_completed 中处理（附带 emotion_state），
         此处仅负责 assistant 消息的持久化。
         """
-        item = event.item
-        if isinstance(item, llm.ChatMessage) and item.role == "assistant":
-            text = item.text_content
-            if text:
-                asyncio.ensure_future(save_transcript(session_id, "assistant", text))
+        _persist_assistant_conversation_item(event, session_id)
 
     @agent_session.on("error")
     def on_agent_error(event: ErrorEvent):
