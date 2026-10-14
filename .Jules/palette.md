@@ -9,3 +9,8 @@
 
 **Learning:** Preset selection buttons and custom prompts often lack `aria-pressed` states and clear active visual feedback, making it unclear to keyboard and screen reader users which preset prompt is applied. Additionally, unlinked form labels fail to focus textareas on click.
 **Action:** Use `aria-pressed={isActive}` on preset toggle buttons, provide distinct active visual styling, and link form labels with `<textarea id="...">` using `htmlFor`.
+
+## 2025-03-02 - Live Transcription Stream Accessibility & Progress Bar Attributes
+
+**Learning:** Live conversation subtitle feeds and custom progress bars are invisible to screen readers unless containers explicitly specify `role="log"` with `aria-live="polite"` for incoming messages, and `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, and `aria-label` for progress indicators.
+**Action:** Always add `role="log"` and `aria-live="polite"` to streaming text lists, and `role="progressbar"` with standard value range attributes to custom progress bars.

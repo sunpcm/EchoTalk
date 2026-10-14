@@ -85,7 +85,13 @@ export function ChatSubtitles() {
       </div>
 
       {/* 消息列表 */}
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-label={t.title}
+        className="flex-1 space-y-3 overflow-y-auto p-4"
+      >
         {messages.length === 0 ? (
           <p className="text-text-faint py-8 text-center text-sm">{t.empty}</p>
         ) : (
