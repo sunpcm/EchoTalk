@@ -11,10 +11,10 @@ describe("PhonemeVisualizer", () => {
 
   it("renders phonemes with accessible aria-label and tabIndex", () => {
     const mockAlignment: PhonemeAlignmentItem[] = [
-      { phoneme: "AE", type: "correct" },
-      { phoneme: "K", type: "substitution", expected: "K", actual: "G" },
-      { phoneme: "T", type: "deletion", expected: "T" },
-      { phoneme: "S", type: "insertion", actual: "S" },
+      { position: 0, phoneme: "AE", type: "correct", expected: "AE", actual: "AE" },
+      { position: 1, phoneme: "K", type: "substitution", expected: "K", actual: "G" },
+      { position: 2, phoneme: "T", type: "deletion", expected: "T", actual: null },
+      { position: 3, phoneme: "S", type: "insertion", expected: null, actual: "S" },
     ];
 
     render(<PhonemeVisualizer alignment={mockAlignment} />);
