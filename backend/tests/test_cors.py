@@ -40,3 +40,10 @@ def test_cors_preflight_disallowed_header():
     # Starlette CORSMiddleware excludes disallowed headers from Access-Control-Allow-Headers
     allowed_headers = response.headers.get("access-control-allow-headers", "")
     assert "x-disallowed-header" not in allowed_headers.lower()
+
+
+def test_cors_origin_normalization():
+    from config import Settings
+
+    config = Settings(CORS_ORIGINS=["https://app.example.com/"])
+    assert config.CORS_ORIGINS == ["https://app.example.com"]
