@@ -76,10 +76,6 @@ export const zhCN = {
     title: "回答推荐",
     hint: "不知道怎么回答？试试以下表达：",
     waiting: "等待 AI 提问中...",
-    copyLabel: (index: number, answer: string) => `复制推荐回答 ${index}: ${answer}`,
-    copied: "已复制",
-    copyFailed: "复制失败",
-    copyHint: "点击复制",
   },
   connectionWarning: {
     title: "语音通道连接失败",

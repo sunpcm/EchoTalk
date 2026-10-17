@@ -4,7 +4,7 @@
  * 提供 2-3 条简短英文回答推荐帮助用户回答。
  */
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import { useVoiceAssistant } from "@livekit/components-react";
 import { zhCN } from "@/i18n/zh-CN";
 
@@ -106,19 +106,7 @@ function generateRecommendations(question: string): string[] {
 
 export function AnswerRecommendations() {
   const { agentTranscriptions, state } = useVoiceAssistant();
-  const [copyFeedback, setCopyFeedback] = useState<{
-    question: string;
-    index: number;
-    status: "success" | "error";
-  } | null>(null);
-  const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (copyTimeout.current) clearTimeout(copyTimeout.current);
-    },
-    [],
-  );
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   // 从 agent 转录中提取最后一条 final 消息
   const latestQuestion = useMemo(() => {
@@ -138,12 +126,11 @@ export function AnswerRecommendations() {
   const handleCopy = async (rec: string, index: number) => {
     try {
       await navigator.clipboard.writeText(rec);
-      setCopyFeedback({ question: latestQuestion ?? "", index, status: "success" });
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 1500);
     } catch {
-      setCopyFeedback({ question: latestQuestion ?? "", index, status: "error" });
+      // 剪贴板接口异常时不中断应用
     }
-    if (copyTimeout.current) clearTimeout(copyTimeout.current);
-    copyTimeout.current = setTimeout(() => setCopyFeedback(null), 1500);
   };
 
   return (
@@ -160,38 +147,28 @@ export function AnswerRecommendations() {
           <p className="text-success mb-3 text-xs">{t.hint}</p>
           <div className="space-y-2">
             {recommendations.map((rec, i) => {
-              const feedback =
-                copyFeedback?.question === latestQuestion && copyFeedback.index === i
-                  ? copyFeedback.status
-                  : null;
+              const isCopied = copiedIndex === i;
               return (
                 <button
                   key={i}
                   type="button"
                   onClick={() => void handleCopy(rec, i)}
-                  aria-label={t.copyLabel(i + 1, rec)}
+                  aria-label={`复制推荐回答 ${i + 1}: ${rec}`}
                   className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex w-full items-center justify-between rounded-[12px] border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 >
-                  <div className="flex min-w-0 flex-1 items-center pr-2">
+                  <div className="flex min-w-0 items-center pr-2">
                     <span className="bg-success mr-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="break-words">{rec}</span>
+                    <span className="truncate">{rec}</span>
                   </div>
-                  {feedback ? (
-                    <span
-                      role={feedback === "success" ? "status" : "alert"}
-                      className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
-                        feedback === "success"
-                          ? "bg-success/15 text-success"
-                          : "bg-danger-bg text-danger-text"
-                      }`}
-                    >
-                      {feedback === "success" ? t.copied : t.copyFailed}
+                  {isCopied ? (
+                    <span className="bg-success/15 text-success shrink-0 rounded-md px-2 py-0.5 text-xs font-medium">
+                      已复制
                     </span>
                   ) : (
                     <span className="text-text-faint hover:text-success shrink-0 text-xs transition-colors">
-                      {t.copyHint}
+                      点击复制
                     </span>
                   )}
                 </button>

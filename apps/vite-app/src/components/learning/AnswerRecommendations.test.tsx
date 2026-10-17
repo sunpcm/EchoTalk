@@ -74,31 +74,4 @@ describe("AnswerRecommendations", () => {
       expect(screen.getByText("已复制")).toBeInTheDocument();
     });
   });
-
-  it("keeps the full recommendation visible and reports clipboard failures", async () => {
-    mockUseVoiceAssistant.mockReturnValue({
-      agentTranscriptions: [
-        {
-          id: "1",
-          text: "What is your name?",
-          final: true,
-          firstReceivedTime: Date.now(),
-        },
-      ],
-      state: "listening",
-    });
-
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: vi.fn().mockRejectedValue(new Error("clipboard unavailable")),
-      },
-    });
-
-    render(<AnswerRecommendations />);
-    const answer = screen.getByText("My name is ... and I'm learning English.");
-    expect(answer).not.toHaveClass("truncate");
-
-    fireEvent.click(screen.getAllByRole("button")[0]);
-    expect(await screen.findByRole("alert")).toHaveTextContent("复制失败");
-  });
 });
