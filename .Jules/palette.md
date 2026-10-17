@@ -9,3 +9,8 @@
 
 **Learning:** Preset selection buttons and custom prompts often lack `aria-pressed` states and clear active visual feedback, making it unclear to keyboard and screen reader users which preset prompt is applied. Additionally, unlinked form labels fail to focus textareas on click.
 **Action:** Use `aria-pressed={isActive}` on preset toggle buttons, provide distinct active visual styling, and link form labels with `<textarea id="...">` using `htmlFor`.
+
+## 2025-03-02 - Keyboard Focus and Screen Reader Announcements for Phoneme Tooltips
+
+**Learning:** Hover-only phoneme/tooltip visualizers are invisible to keyboard and screen reader users. Without `tabIndex={0}`, `aria-label`, visible focus rings, and `group-focus-within:opacity-100`, pronunciation feedback details cannot be read or inspected via keyboard navigation.
+**Action:** Add `tabIndex={0}`, descriptive `aria-label`, `focus-visible:ring-2`, and `group-focus-within:opacity-100` to interactive inline visualizer items.

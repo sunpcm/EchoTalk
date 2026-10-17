@@ -50,11 +50,16 @@ function PhonemeBlock({ item }: { item: PhonemeAlignmentItem }) {
   return (
     <div className="group relative inline-block">
       <span
-        className={`inline-block rounded border px-2 py-1 font-mono text-xs font-medium ${colorClasses}`}
+        tabIndex={0}
+        aria-label={`${item.phoneme}: ${tooltipText}`}
+        className={`focus-visible:ring-accent inline-block rounded border px-2 py-1 font-mono text-xs font-medium focus-visible:ring-2 focus-visible:outline-none ${colorClasses}`}
       >
         {item.phoneme}
       </span>
-      <span className="bg-text-default text-bg pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded px-2 py-1 text-xs whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100">
+      <span
+        role="tooltip"
+        className="bg-text-default text-bg pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded px-2 py-1 text-xs whitespace-nowrap opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+      >
         {tooltipText}
       </span>
     </div>
