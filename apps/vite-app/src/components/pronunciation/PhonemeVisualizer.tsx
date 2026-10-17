@@ -46,15 +46,24 @@ function getTooltipText(item: PhonemeAlignmentItem): string {
 function PhonemeBlock({ item }: { item: PhonemeAlignmentItem }) {
   const colorClasses = getColorClasses(item.type);
   const tooltipText = getTooltipText(item);
+  const accessibleLabel = `${item.phoneme}: ${tooltipText}`;
 
   return (
-    <div className="group relative inline-block">
+    <div
+      tabIndex={0}
+      aria-label={accessibleLabel}
+      className="group focus-visible:ring-accent relative inline-block rounded focus-visible:ring-2 focus-visible:outline-none"
+    >
       <span
+        aria-hidden="true"
         className={`inline-block rounded border px-2 py-1 font-mono text-xs font-medium ${colorClasses}`}
       >
         {item.phoneme}
       </span>
-      <span className="bg-text-default text-bg pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded px-2 py-1 text-xs whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100">
+      <span
+        aria-hidden="true"
+        className="bg-text-default text-bg pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded px-2 py-1 text-xs whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+      >
         {tooltipText}
       </span>
     </div>
