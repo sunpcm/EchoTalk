@@ -78,6 +78,7 @@ export const zhCN = {
     waiting: "等待 AI 提问中...",
     copyLabel: (index: number, answer: string) => `复制推荐回答 ${index}: ${answer}`,
     copied: "已复制",
+    copyFailed: "复制失败",
     copyHint: "点击复制",
   },
   connectionWarning: {
