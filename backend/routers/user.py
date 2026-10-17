@@ -59,23 +59,10 @@ def _as_validation_result(
     )
 
 
-@router.get("/user/settings", response_model=UserSettingsResponse)
-async def get_user_settings(
-    current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """获取当前用户的双轨制配置。密钥字段仅返回是否存在，不返回明文。"""
-    user_id = current_user.id
-    user_stmt = select(User).where(User.id == user_id)
-    user_result = await db.execute(user_stmt)
-    user_obj = user_result.scalar_one_or_none()
-
-    tier = user_obj.subscription_tier.value if user_obj else "free"
-
-    stmt = select(UserSettings).where(UserSettings.user_id == user_id)
-    result = await db.execute(stmt)
-    row = result.scalar_one_or_none()
-
+def _build_user_settings_response(
+    row: UserSettings | None, tier: str
+) -> UserSettingsResponse:
+    """从数据库 UserSettings 对象与订阅等级构建 UserSettingsResponse 响应结构"""
     if row is None:
         return UserSettingsResponse(subscription_tier=tier)
 
@@ -101,34 +88,24 @@ async def get_user_settings(
     )
 
 
-@router.put("/user/settings", response_model=UserSettingsResponse)
-async def update_user_settings(
-    body: UserSettingsUpdate,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """更新当前用户的双轨制配置。支持部分更新，密钥加密后入库。"""
-    user_id = current_user.id
-
-    # 鉴权：只有非 free 用户才能关闭 is_custom_mode
-    if body.is_custom_mode is False:
-        user_stmt = select(User).where(User.id == user_id)
-        user_result = await db.execute(user_stmt)
-        user_obj = user_result.scalar_one_or_none()
+def _validate_custom_mode_permission(
+    user_obj: User | None, is_custom_mode: bool | None
+) -> None:
+    """鉴权：只有非 free 用户才能关闭 is_custom_mode"""
+    if is_custom_mode is False:
         if user_obj and user_obj.subscription_tier == SubscriptionTier.free:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Free tier users cannot disable custom mode.",
             )
 
-    stmt = select(UserSettings).where(UserSettings.user_id == user_id)
-    result = await db.execute(stmt)
-    row = result.scalar_one_or_none()
 
-    if row is None:
-        row = UserSettings(user_id=user_id)
-        db.add(row)
-
+async def _validate_provider_keys(
+    row: UserSettings, body: UserSettingsUpdate
+) -> tuple[bool, bool, bool]:
+    """校验各种 provider key 是否有效。如有不合法的 provider key，抛出 422 异常。
+    返回 tuple: (stt_valid, llm_valid, tts_valid)
+    """
     stt_p = body.stt_provider or (row.stt_provider.value if row.stt_provider else None)
     llm_p = body.llm_provider or (row.llm_provider.value if row.llm_provider else None)
     tts_p = body.tts_provider or (row.tts_provider.value if row.tts_provider else None)
@@ -194,9 +171,20 @@ async def update_user_settings(
             },
         )
 
-    row.stt_is_valid = bool(stt_valid)
-    row.llm_is_valid = bool(llm_valid)
-    row.tts_is_valid = bool(tts_valid)
+    return bool(stt_valid), bool(llm_valid), bool(tts_valid)
+
+
+def _apply_settings_update(
+    row: UserSettings,
+    body: UserSettingsUpdate,
+    stt_valid: bool,
+    llm_valid: bool,
+    tts_valid: bool,
+) -> None:
+    """按请求更新 UserSettings 行属性并加密存放 API key"""
+    row.stt_is_valid = stt_valid
+    row.llm_is_valid = llm_valid
+    row.tts_is_valid = tts_valid
 
     row.is_custom_verified = bool(
         row.stt_is_valid and row.llm_is_valid and row.tts_is_valid
@@ -228,31 +216,55 @@ async def update_user_settings(
         row.encrypted_tts_key = encrypted.ciphertext
         row.tts_key_version = encrypted.key_version
 
+
+@router.get("/user/settings", response_model=UserSettingsResponse)
+async def get_user_settings(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前用户的双轨制配置。密钥字段仅返回是否存在，不返回明文。"""
+    user_id = current_user.id
+    user_stmt = select(User).where(User.id == user_id)
+    user_result = await db.execute(user_stmt)
+    user_obj = user_result.scalar_one_or_none()
+
+    tier = user_obj.subscription_tier.value if user_obj else "free"
+
+    stmt = select(UserSettings).where(UserSettings.user_id == user_id)
+    result = await db.execute(stmt)
+    row = result.scalar_one_or_none()
+
+    return _build_user_settings_response(row, tier)
+
+
+@router.put("/user/settings", response_model=UserSettingsResponse)
+async def update_user_settings(
+    body: UserSettingsUpdate,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新当前用户的双轨制配置。支持部分更新，密钥加密后入库。"""
+    user_id = current_user.id
+
+    user_stmt = select(User).where(User.id == user_id)
+    user_result = await db.execute(user_stmt)
+    user_obj = user_result.scalar_one_or_none()
+    _validate_custom_mode_permission(user_obj, body.is_custom_mode)
+    tier = user_obj.subscription_tier.value if user_obj else "free"
+
+    stmt = select(UserSettings).where(UserSettings.user_id == user_id)
+    result = await db.execute(stmt)
+    row = result.scalar_one_or_none()
+
+    if row is None:
+        row = UserSettings(user_id=user_id)
+        db.add(row)
+
+    stt_valid, llm_valid, tts_valid = await _validate_provider_keys(row, body)
+
+    _apply_settings_update(row, body, stt_valid, llm_valid, tts_valid)
+
     await db.flush()
     await db.refresh(row)
 
-    user_stmt2 = select(User).where(User.id == user_id)
-    user_result2 = await db.execute(user_stmt2)
-    user_obj_db = user_result2.scalar_one_or_none()
-    tier = user_obj_db.subscription_tier.value if user_obj_db else "free"
-
-    has_stt = row.encrypted_stt_key is not None
-    has_llm = row.encrypted_llm_key is not None
-    has_tts = row.encrypted_tts_key is not None
-
-    return UserSettingsResponse(
-        is_custom_mode=row.is_custom_mode,
-        is_custom_verified=row.is_custom_verified,
-        subscription_tier=tier,
-        theme=row.theme if getattr(row, "theme", None) else "warm",
-        stt_provider=row.stt_provider.value if row.stt_provider else None,
-        llm_provider=row.llm_provider.value if row.llm_provider else None,
-        llm_model=row.llm_model,
-        tts_provider=row.tts_provider.value if row.tts_provider else None,
-        has_stt_key=has_stt,
-        has_llm_key=has_llm,
-        has_tts_key=has_tts,
-        stt_status=get_key_status(has_stt, getattr(row, "stt_is_valid", None)),
-        llm_status=get_key_status(has_llm, getattr(row, "llm_is_valid", None)),
-        tts_status=get_key_status(has_tts, getattr(row, "tts_is_valid", None)),
-    )
+    return _build_user_settings_response(row, tier)
