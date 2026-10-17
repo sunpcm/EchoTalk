@@ -87,7 +87,8 @@ export function DocChatSetup() {
       <button
         onClick={handleStart}
         disabled={isDisabled || isLoading}
-        className="btn-primary flex w-full items-center justify-center py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
+        title={isEmpty ? t.emptyDocError : isOverLimit ? t.charOverLimit : undefined}
+        className="btn-primary focus-visible:ring-accent flex w-full items-center justify-center py-3 text-base focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isLoading ? (
           <>
