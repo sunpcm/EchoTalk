@@ -3,6 +3,7 @@ RAG 服务层：基于 ChromaDB 向量检索 + Krashen i+1 难度过滤。
 为自适应课程推荐提供教学语料检索能力。
 """
 
+import functools
 import logging
 import os
 from dataclasses import dataclass
@@ -38,8 +39,9 @@ class RetrievedMaterial:
     distance: float
 
 
+@functools.lru_cache(maxsize=1)
 def _get_client() -> chromadb.ClientAPI:
-    """根据环境变量选择 ChromaDB 连接模式。"""
+    """根据环境变量选择 ChromaDB 连接模式（使用 lru_cache 进程内复用 Client）。"""
     if CHROMA_HOST != "localhost":
         logger.info("Using ChromaDB HttpClient → %s:%s", CHROMA_HOST, CHROMA_PORT)
         return chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
