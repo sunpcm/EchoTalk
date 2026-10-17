@@ -102,7 +102,8 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, value: list[str]) -> list[str]:
-        cleaned = []
+        cleaned: list[str] = []
+        allowed_schemes = {"http", "https", "capacitor", "tauri"}
         for origin in value:
             origin_str = origin.strip()
             if not origin_str:
@@ -111,7 +112,23 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ORIGINS 不可包含通配符 '*'")
             if origin_str.endswith("/") and origin_str not in ("http://", "https://"):
                 origin_str = origin_str.rstrip("/")
-            cleaned.append(origin_str)
+            parsed = urlsplit(origin_str)
+            try:
+                parsed.port
+            except ValueError as exc:
+                raise ValueError(f"CORS_ORIGINS 包含无效 Origin: {origin_str}") from exc
+            if (
+                parsed.scheme not in allowed_schemes
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(f"CORS_ORIGINS 包含无效 Origin: {origin_str}")
+            if origin_str not in cleaned:
+                cleaned.append(origin_str)
         if not cleaned:
             raise ValueError("CORS_ORIGINS 不能为空")
         return cleaned

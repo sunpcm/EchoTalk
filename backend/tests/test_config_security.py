@@ -60,6 +60,29 @@ def test_cors_rejects_empty_origins():
         Settings(CORS_ORIGINS=["   "])
 
 
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "app.example.test",
+        "ftp://app.example.test",
+        "https://app.example.test/path",
+        "https://app.example.test?preview=1",
+        "https://user@app.example.test",
+        "https://app.example.test:invalid",
+    ],
+)
+def test_cors_rejects_non_origin_urls(origin):
+    with pytest.raises(ValueError, match="CORS_ORIGINS 包含无效 Origin"):
+        Settings(CORS_ORIGINS=[origin])
+
+
+def test_cors_normalizes_and_deduplicates_origins():
+    config = Settings(
+        CORS_ORIGINS=[" https://app.example.test/ ", "https://app.example.test"]
+    )
+    assert config.CORS_ORIGINS == ["https://app.example.test"]
+
+
 def test_oidc_rejects_default_dev_cors_origins():
     config = Settings(
         AUTH_MODE="oidc",
