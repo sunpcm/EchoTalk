@@ -106,7 +106,11 @@ function generateRecommendations(question: string): string[] {
 
 export function AnswerRecommendations() {
   const { agentTranscriptions, state } = useVoiceAssistant();
-  const [copied, setCopied] = useState<{ question: string; index: number } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<{
+    question: string;
+    index: number;
+    status: "success" | "error";
+  } | null>(null);
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -134,12 +138,12 @@ export function AnswerRecommendations() {
   const handleCopy = async (rec: string, index: number) => {
     try {
       await navigator.clipboard.writeText(rec);
-      setCopied({ question: latestQuestion ?? "", index });
-      if (copyTimeout.current) clearTimeout(copyTimeout.current);
-      copyTimeout.current = setTimeout(() => setCopied(null), 1500);
+      setCopyFeedback({ question: latestQuestion ?? "", index, status: "success" });
     } catch {
-      // 剪贴板接口异常时不中断应用
+      setCopyFeedback({ question: latestQuestion ?? "", index, status: "error" });
     }
+    if (copyTimeout.current) clearTimeout(copyTimeout.current);
+    copyTimeout.current = setTimeout(() => setCopyFeedback(null), 1500);
   };
 
   return (
@@ -156,7 +160,10 @@ export function AnswerRecommendations() {
           <p className="text-success mb-3 text-xs">{t.hint}</p>
           <div className="space-y-2">
             {recommendations.map((rec, i) => {
-              const isCopied = copied?.question === latestQuestion && copied.index === i;
+              const feedback =
+                copyFeedback?.question === latestQuestion && copyFeedback.index === i
+                  ? copyFeedback.status
+                  : null;
               return (
                 <button
                   key={i}
@@ -165,18 +172,22 @@ export function AnswerRecommendations() {
                   aria-label={t.copyLabel(i + 1, rec)}
                   className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex w-full items-center justify-between rounded-[12px] border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 >
-                  <div className="flex min-w-0 items-center pr-2">
+                  <div className="flex min-w-0 flex-1 items-center pr-2">
                     <span className="bg-success mr-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="truncate">{rec}</span>
+                    <span className="break-words">{rec}</span>
                   </div>
-                  {isCopied ? (
+                  {feedback ? (
                     <span
-                      role="status"
-                      className="bg-success/15 text-success shrink-0 rounded-md px-2 py-0.5 text-xs font-medium"
+                      role={feedback === "success" ? "status" : "alert"}
+                      className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
+                        feedback === "success"
+                          ? "bg-success/15 text-success"
+                          : "bg-danger-bg text-danger-text"
+                      }`}
                     >
-                      {t.copied}
+                      {feedback === "success" ? t.copied : t.copyFailed}
                     </span>
                   ) : (
                     <span className="text-text-faint hover:text-success shrink-0 text-xs transition-colors">
