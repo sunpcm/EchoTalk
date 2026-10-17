@@ -6,10 +6,10 @@ import type { PhonemeAlignmentItem } from "@/lib/api";
 
 describe("PhonemeVisualizer", () => {
   const mockAlignment: PhonemeAlignmentItem[] = [
-    { phoneme: "k", type: "correct" },
-    { phoneme: "æ", type: "substitution", expected: "æ", actual: "e" },
-    { phoneme: "t", type: "deletion", expected: "t" },
-    { phoneme: "s", type: "insertion", actual: "s" },
+    { position: 0, phoneme: "k", type: "correct", expected: "k", actual: "k" },
+    { position: 1, phoneme: "æ", type: "substitution", expected: "æ", actual: "e" },
+    { position: 2, phoneme: "t", type: "deletion", expected: "t", actual: null },
+    { position: 3, phoneme: "s", type: "insertion", expected: null, actual: "s" },
   ];
 
   it("renders nothing when alignment is empty", () => {
