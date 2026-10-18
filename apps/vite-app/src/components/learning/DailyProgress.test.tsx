@@ -23,22 +23,59 @@ describe("DailyProgress accessibility", () => {
         mode: "scenario",
         status: "completed",
         started_at: `${todayStr}T10:00:00Z`,
+        ended_at: `${todayStr}T10:05:00Z`,
       },
     ]);
     vi.mocked(getSessionDetail).mockResolvedValue({
       id: "sess-1",
+      user_id: "u-1",
       mode: "scenario",
       status: "completed",
       started_at: `${todayStr}T10:00:00Z`,
       ended_at: `${todayStr}T10:05:00Z`,
       transcripts: [
-        { id: "t1", speaker: "user", text: "hello", timestamp: 1 },
-        { id: "t2", speaker: "agent", text: "hi", timestamp: 2 },
-        { id: "t3", speaker: "user", text: "how are you", timestamp: 3 },
-        { id: "t4", speaker: "agent", text: "good", timestamp: 4 },
-        { id: "t5", speaker: "user", text: "nice", timestamp: 5 },
+        {
+          id: 1,
+          session_id: "sess-1",
+          role: "user",
+          content: "hello",
+          audio_url: null,
+          timestamp_ms: 1000,
+        },
+        {
+          id: 2,
+          session_id: "sess-1",
+          role: "assistant",
+          content: "hi",
+          audio_url: null,
+          timestamp_ms: 2000,
+        },
+        {
+          id: 3,
+          session_id: "sess-1",
+          role: "user",
+          content: "how are you",
+          audio_url: null,
+          timestamp_ms: 3000,
+        },
+        {
+          id: 4,
+          session_id: "sess-1",
+          role: "assistant",
+          content: "good",
+          audio_url: null,
+          timestamp_ms: 4000,
+        },
+        {
+          id: 5,
+          session_id: "sess-1",
+          role: "user",
+          content: "nice",
+          audio_url: null,
+          timestamp_ms: 5000,
+        },
       ],
-    } as any);
+    });
 
     render(<DailyProgress />);
 

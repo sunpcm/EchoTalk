@@ -8,6 +8,7 @@ describe("SkillTree accessibility", () => {
   it("renders progressbar elements with accessibility attributes for skill mastery levels", () => {
     const states: KnowledgeStateResponse[] = [
       {
+        id: "ks-1",
         user_id: "u1",
         skill_id: "pron_1",
         skill_name: "元音 /æ/ 发音",
@@ -16,6 +17,7 @@ describe("SkillTree accessibility", () => {
         updated_at: "2025-01-01T00:00:00Z",
       },
       {
+        id: "ks-2",
         user_id: "u1",
         skill_id: "gram_1",
         skill_name: "现在完成时",
