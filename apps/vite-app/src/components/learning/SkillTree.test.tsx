@@ -13,6 +13,8 @@ describe("SkillTree", () => {
   it("renders progress bars with role progressbar and ARIA attributes", () => {
     const mockStates: KnowledgeStateResponse[] = [
       {
+        id: "ks_1",
+        user_id: "user_1",
         skill_id: "pron_th",
         skill_name: "/θ/ Sound",
         skill_category: "pronunciation",
@@ -20,6 +22,8 @@ describe("SkillTree", () => {
         updated_at: "2025-03-01T00:00:00Z",
       },
       {
+        id: "ks_2",
+        user_id: "user_1",
         skill_id: "gram_past_simple",
         skill_name: "Past Simple Tense",
         skill_category: "grammar",
