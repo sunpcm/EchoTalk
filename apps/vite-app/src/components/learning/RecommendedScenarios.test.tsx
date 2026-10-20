@@ -16,18 +16,23 @@ describe("RecommendedScenarios accessibility & rendering", () => {
 
   it("renders recommended scenarios with accessible attributes and badges", async () => {
     vi.mocked(getRecommendedCurriculum).mockResolvedValue({
+      weakest_skill: "ordering",
+      weakest_skill_mastery: 0.2,
+      target_level: "A1",
       recommendations: [
         {
           scenario_name: "ordering_coffee",
           difficulty_cefr: "A1",
+          category: "daily",
           focus_skills: ["greeting", "ordering"],
-          reasoning: "Good for beginners",
+          system_prompt_template: "You are a barista...",
         },
         {
           scenario_name: "job_interview",
           difficulty_cefr: "B2",
+          category: "work",
           focus_skills: ["self_introduction", "past_experience"],
-          reasoning: "Intermediate practice",
+          system_prompt_template: "You are an interviewer...",
         },
       ],
     });
