@@ -5,6 +5,11 @@ import { SkillTree } from "./SkillTree";
 import type { KnowledgeStateResponse } from "@/lib/api";
 
 describe("SkillTree accessibility", () => {
+  it("renders nothing for an empty skill list", () => {
+    const { container } = render(<SkillTree states={[]} />);
+    expect(container.firstChild).toBeNull();
+  });
+
   it("renders progressbar elements with accessibility attributes for skill mastery levels", () => {
     const states: KnowledgeStateResponse[] = [
       {

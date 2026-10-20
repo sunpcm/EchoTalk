@@ -79,6 +79,9 @@
 
 ## P0 — 安全边界
 
+- [x] 独立 Vite 7.x 安全补丁（[#92](https://github.com/sunpcm/EchoTalk/pull/92)）：
+      声明和所有锁定实例统一为 7.3.7，冻结安装和 CI 通过；不代表 RF-12 整体完成。
+
 - [x] 后端用真实 JWT 校验替换 `get_current_user` Mock；验收：无效或过期 Token 返回 401。
 - [x] 前端从 Auth 模块获取 Bearer Token，移除固定的 `mock-token`；验收：登录态变化能正确影响 API 请求。
 
@@ -97,6 +100,9 @@
 - [ ] 在完整后端与 LiveKit 环境补验 Session、评估页面及深色主题可读性。
 
 ## P2 — 质量与维护
+
+- [x] 每日进度与技能掌握度进度条提供可访问名称、范围和值（[#90](https://github.com/sunpcm/EchoTalk/pull/90)）；
+      回归覆盖每日 0/5/20/25 完成量，超目标时数值封顶、文本保留实际总量。
 
 - [ ] 清点主题 token：保留 Webpack 正在使用的 `brand-*`，处理未使用的 `scrollbar-thumb`、`header-bg`。
 - [x] 将 Vite 入口的 `<html lang="en">` 改为 `zh-CN`。

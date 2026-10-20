@@ -5,9 +5,11 @@
 
 ## 维护基线
 
-- 最近核对日期：2026-10-17
-- 代码基线：`main@97dbfe5ddb50bda96cf9a857f6de31efae410d50`
-- 自动化证据：[CI run 39010922925](https://github.com/sunpcm/EchoTalk/actions/runs/39010922925)
+- 最近核对日期：2026-10-20
+- 代码基线：`main@286a3db68ba2b43e76df5df3b9f7d24444a3a796`（#92 合并后）；
+  本轮进度条修复见 [#90](https://github.com/sunpcm/EchoTalk/pull/90)
+- 自动化证据：[#92 CI run 39348513442](https://github.com/sunpcm/EchoTalk/actions/runs/39348513442)；
+  [#90 检查记录](https://github.com/sunpcm/EchoTalk/pull/90/checks)
 - 证据范围：上述 CI 已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
@@ -26,6 +28,27 @@
 | 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、关键组件键盘与可访问性支持        | 已实现；完整无障碍审计仍未完成                             |
 | 周度学习报告   | 仅保留骨架，没有 API、调度器或任务队列调用入口                                     | **未实现，不可对外宣称可用**                               |
 | 数字人和移动端 | 方案或待办存在，但没有完成可交付闭环                                               | **未实现**                                                 |
+
+## 2026-10-20 PR 评审与处理
+
+| PR                                                | 处理决定     | 内容与边界                                                                                              |
+| ------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| [#92](https://github.com/sunpcm/EchoTalk/pull/92) | 已合并       | Vite 7.3.1 → 精确 7.3.7；只改声明和锁文件，其他依赖不变，未迁移 Vite 8                                  |
+| [#90](https://github.com/sunpcm/EchoTalk/pull/90) | 修复后纳入   | DailyProgress 和 SkillTree 增加进度条角色、名称、范围和值；每日超过 20 时数值封顶，文本仍保留实际完成量 |
+| [#91](https://github.com/sunpcm/EchoTalk/pull/91) | 重复，不纳入 | 与 #90 修改相同组件；#90 还包含每日进度测试和可读值文本，统一维护一份实现                               |
+
+评审复现：原 #90 在完成 25 条转录时生成 `aria-valuenow=25`、`aria-valuemax=20`，
+违反 [WAI-ARIA 数值范围约束](https://www.w3.org/TR/wai-aria-1.2/#aria-valuenow)。
+修复后读数为 20，`aria-valuetext` 仍为 `25 / 20`，视觉条保持 100%，实际统计口径不变。
+回归覆盖 0、5、20、25 四种完成量；补测技能树空列表，保留两类技能掌握度断言。
+
+验证分层：#92 的前端、后端和聚合 CI 均通过，包括 Node 22 前端、PostgreSQL 空库迁移及
+后端测试；#90 的最终检查见上方 PR 记录。安全补丁的本地验证还包括 102 项 Vitest、
+6 项 Fake API E2E、HTTPS/模拟麦克风/WSS/代理和合成文件访问限制探针。
+这些证据不代表真实 LiveKit、Provider、Windows/NTFS 漏洞复现、屏幕阅读器或 iOS 真机验收。
+
+本次 Vite 安全补丁独立于 RF-12 大版本迁移；RF-12 的其他依赖升级和外部验收仍未完成。
+回滚 #92 会恢复已知有漏洞的 Vite 7.3.1；如需回滚，应同步恢复 manifest/lockfile 并限制开发服务访问。
 
 ## 2026-10-17 变更记录
 
