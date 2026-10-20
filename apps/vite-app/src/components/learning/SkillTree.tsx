@@ -47,7 +47,15 @@ function SkillRow({ state }: { state: KnowledgeStateResponse }) {
           <span className="text-text-muted text-xs">{pct}%</span>
         )}
       </div>
-      <div className="bg-surface-alt h-2 w-full overflow-hidden rounded-full">
+      <div
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={`${pct}%`}
+        aria-label={state.skill_name}
+        className="bg-surface-alt h-2 w-full overflow-hidden rounded-full"
+      >
         <div
           className={`h-full rounded-full transition-all ${barColor}`}
           style={{ width: `${pct}%` }}
