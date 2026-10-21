@@ -4,7 +4,7 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from livekit.api import (
     AccessToken,
     CreateAgentDispatchRequest,
@@ -12,6 +12,7 @@ from livekit.api import (
     VideoGrants,
 )
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,6 +37,11 @@ from services.analysis_jobs import (
     retry_job,
     utc_now,
 )
+from services.session_idempotency import (
+    compute_session_fingerprint,
+    is_idempotency_unique_violation,
+    parse_idempotency_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +51,13 @@ router = APIRouter()
 @router.post("/sessions", response_model=SessionResponse)
 async def create_session(
     body: SessionCreate,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """创建新的练习会话。"""
+    """创建新的练习会话（支持可选 Idempotency-Key 头幂等）。"""
+    parsed_key = parse_idempotency_key(idempotency_key)
+
     # 校验 mode 值是否合法
     try:
         mode = SessionMode(body.mode)
@@ -72,29 +81,95 @@ async def create_session(
                 detail="文档内容超过 50,000 字符限制",
             )
 
-    session = Session(
-        id=uuid.uuid4(),
-        user_id=current_user.id,
-        mode=mode,
-        status=SessionStatus.active,
-        started_at=datetime.utcnow(),
-    )
-    db.add(session)
-    await db.flush()
-
-    # 创建关联的 SessionContext
-    if mode == SessionMode.doc_chat and body.doc_context:
-        ctx = SessionContext(
-            session_id=session.id,
-            custom_prompt=body.doc_context.prompt,
-            document_content=body.doc_context.raw_text,
-            content_type=body.doc_context.content_type,
+    # 1. 未提供 Idempotency-Key：保持原有每次新建行为
+    if parsed_key is None:
+        session = Session(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            mode=mode,
+            status=SessionStatus.active,
+            started_at=datetime.utcnow(),
+            request_idempotency_key=None,
+            request_fingerprint=None,
         )
-        db.add(ctx)
+        db.add(session)
         await db.flush()
 
-    await db.refresh(session)
+        if mode == SessionMode.doc_chat and body.doc_context:
+            ctx = SessionContext(
+                session_id=session.id,
+                custom_prompt=body.doc_context.prompt,
+                document_content=body.doc_context.raw_text,
+                content_type=body.doc_context.content_type,
+            )
+            db.add(ctx)
+            await db.flush()
 
+        await db.refresh(session)
+        return session
+
+    # 2. 提供 Idempotency-Key：执行幂等逻辑
+    fingerprint = compute_session_fingerprint(body)
+
+    stmt = (
+        select(Session)
+        .where(
+            Session.user_id == current_user.id,
+            Session.request_idempotency_key == parsed_key,
+        )
+        .options(selectinload(Session.transcripts))
+    )
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        if existing.request_fingerprint != fingerprint:
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency-Key 已被不同参数的请求使用",
+            )
+        return existing
+
+    # 不存在则尝试插入（通过 Savepoint 隔离并发冲突）
+    try:
+        async with db.begin_nested():
+            session = Session(
+                id=uuid.uuid4(),
+                user_id=current_user.id,
+                mode=mode,
+                status=SessionStatus.active,
+                started_at=datetime.utcnow(),
+                request_idempotency_key=parsed_key,
+                request_fingerprint=fingerprint,
+            )
+            db.add(session)
+            await db.flush()
+
+            if mode == SessionMode.doc_chat and body.doc_context:
+                ctx = SessionContext(
+                    session_id=session.id,
+                    custom_prompt=body.doc_context.prompt,
+                    document_content=body.doc_context.raw_text,
+                    content_type=body.doc_context.content_type,
+                )
+                db.add(ctx)
+                await db.flush()
+    except IntegrityError as exc:
+        if not is_idempotency_unique_violation(exc):
+            raise
+
+        # 并发冲突：重新查询先提交的会话
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
+        if existing is None:
+            raise
+        if existing.request_fingerprint != fingerprint:
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency-Key 已被不同参数的请求使用",
+            )
+        return existing
+
+    await db.refresh(session)
     return session
 
 
