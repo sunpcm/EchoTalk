@@ -177,3 +177,7 @@ Turbo缓存显式包含影响构建的公开环境变量、根构建控制变量
 ### 8.5 CP-02 Cloud单端占用
 
 用户确定首版以LiveKit Cloud为严格接管验收目标，自建暂不开放接管；完整后端协议冻结于[CROSS_PLATFORM_CALL_LEASE.md](./CROSS_PLATFORM_CALL_LEASE.md)。真实测试环境缺失，先完成本地代码/模拟Cloud/专用数据库验证，默认占用模式关闭；不能以本地测试替代真实媒体、存量客户端切换与时钟验收。
+
+### 8.6 CP-04 本地认证状态与账号清理
+
+无真实测试环境时，先按[CROSS_PLATFORM_AUTH_LIFECYCLE.md](./CROSS_PLATFORM_AUTH_LIFECYCLE.md)修复共享客户端可模拟验证的认证事件、账号归属和401清理。此增量不等同原生系统登录、凭据续期/Keychain或三端真实登录通过。
