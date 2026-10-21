@@ -5,16 +5,19 @@ import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig(({ command, mode }) => {
-  const rootDir = path.resolve(__dirname, "../..");
-  // 开发时从根目录 .env 读取与后端一致的本地认证配置。
-  const rootEnv = loadEnv(mode, rootDir, "");
-  const lkTarget = rootEnv.LIVEKIT_URL
-    ? rootEnv.LIVEKIT_URL.replace("wss://", "https://").replace("ws://", "http://")
+  // serve 沿用根目录 envDir，保持既有本地开发与代理配置；build 严格限定在当前 app 目录实现构建隔离，不读取根目录 .env
+  const isServe = command === "serve";
+  const repoRoot = path.resolve(__dirname, "../..");
+  const envDir = isServe ? repoRoot : __dirname;
+
+  const env = loadEnv(mode, envDir, "");
+  const lkTarget = env.LIVEKIT_URL
+    ? env.LIVEKIT_URL.replace("wss://", "https://").replace("ws://", "http://")
     : undefined;
   const apiTarget = process.env.E2E_API_URL ?? "http://localhost:8000";
 
   return {
-    envDir: command === "serve" ? rootDir : __dirname,
+    envDir,
     // Turbo may treat different env vars as cache hits unless we include them in task inputs.
     // Also, Vite clears outDir by default; to ensure our report artifact doesn't get deleted,
     // we emit it outside dist and treat it as a separate output.

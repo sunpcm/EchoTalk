@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["packages/configs/**"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -15,6 +16,8 @@
         "config/**",
         "webpack*.js",
         "vite.config.*",
+        "capacitor.config.*",
+        "scripts/**",
         ".env",
         ".env.*",
         "$ANALYZE",
@@ -23,7 +26,51 @@
         ".browserslistrc",
         "browserslist"
       ],
+      "env": ["VITE_*", "ECHOTALK_BUILD_*"],
       "outputs": ["dist/**", "stats.html"]
+    },
+    "build:web": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "index.html",
+        "package.json",
+        "tsconfig*.json",
+        "postcss.config.*",
+        "vite.config.*",
+        "scripts/**",
+        ".env",
+        ".env.*",
+        ".browserslistrc",
+        "browserslist"
+      ],
+      "env": ["VITE_*", "ECHOTALK_BUILD_*"],
+      "outputs": ["dist/web/**"]
+    },
+    "build:ios": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "index.html",
+        "package.json",
+        "tsconfig*.json",
+        "postcss.config.*",
+        "vite.config.*",
+        "capacitor.config.*",
+        "scripts/**",
+        ".env",
+        ".env.*",
+        ".browserslistrc",
+        "browserslist"
+      ],
+      "env": ["VITE_*", "ECHOTALK_BUILD_*"],
+      "outputs": ["dist/ios/**"]
+    },
+    "test:build": {
+      "inputs": ["scripts/**", "package.json", "turbo.json"],
+      "outputs": []
     },
     "lint": {
       "inputs": ["src/**", "package.json", "eslint.config.*", ".eslintignore", "tsconfig*.json"],
