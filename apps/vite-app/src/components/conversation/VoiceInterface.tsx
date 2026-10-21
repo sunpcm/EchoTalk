@@ -29,7 +29,7 @@ import { SkillTree } from "@/components/learning/SkillTree";
 import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
 import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
-import { detectPlatform, getApiBaseUrl } from "@/utils/env";
+import { getLiveKitWsUrl } from "@/platform";
 
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
@@ -69,25 +69,7 @@ export function VoiceInterface() {
   }
 
   // connecting（有 token）或 active 状态：解析并渲染 LiveKit 房间
-  const isNative = detectPlatform() !== "web";
-
-  // 原生端代理兜底：仅在需要时惰性求值；无有效 API Host 时返回 null，由上层报配置错误，不静默产出 localhost 死地址
-  const getNativeProxyWsUrl = (): string | null => {
-    try {
-      const apiOrigin = new URL(getApiBaseUrl(), location.href).origin;
-      return `${apiOrigin.replace(/^http/, "ws")}/livekit-ws`;
-    } catch {
-      return null;
-    }
-  };
-
-  const effectiveWsUrl = isNative
-    ? import.meta.env.VITE_LIVEKIT_FORCE_PROXY === "true"
-      ? getNativeProxyWsUrl()
-      : wsUrl || import.meta.env.VITE_LIVEKIT_URL
-    : import.meta.env.VITE_LIVEKIT_DIRECT === "true"
-      ? wsUrl || import.meta.env.VITE_LIVEKIT_URL
-      : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`;
+  const effectiveWsUrl = getLiveKitWsUrl({ tokenWsUrl: wsUrl });
 
   // 若 effectiveWsUrl 为空（如原生强制代理但未配置有效 Host），直接展示错误卡片
   if (!effectiveWsUrl) {
