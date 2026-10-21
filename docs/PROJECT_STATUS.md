@@ -5,7 +5,7 @@
 
 ## 维护基线
 
-- 最近核对日期：2026-10-20
+- 最近本地核对日期：2026-10-21；以下 main/CI 记录保留为历史发布证据，本轮本地三端增量未推送或部署。
 - 代码基线：`main@286a3db68ba2b43e76df5df3b9f7d24444a3a796`（#92 合并后）；
   本轮进度条修复见 [#90](https://github.com/sunpcm/EchoTalk/pull/90)
 - 自动化证据：[#92 CI run 39348513442](https://github.com/sunpcm/EchoTalk/actions/runs/39348513442)；
@@ -13,6 +13,17 @@
 - 证据范围：上述 CI 已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-10-21 本地认证里程碑
+
+共享客户端的认证快照、精确账号身份、账号切换清理、异步数据代际与401请求绑定已通过独立评审，并在隔离分支 `codex/cross-platform-integration` 完成本地集成。代码提交 `e1018b9`，集成提交 `727e067`；未合入主 checkout，未 push、未运行本轮远端 CI、未部署。
+
+- 本地验收：200项产品测试、27项独立竞态探针、18项构建隔离测试、6项 Chromium/Fake API E2E，以及格式/lint/类型/Vite与Webpack构建通过。
+- 6个关键门禁变异均被产品断言杀死，恢复原字节后200项测试再次通过。
+- 同一在途 OIDC code/state 只交换一次，即使期间退出/新登录也不重新消费旧state；旧callback不覆盖新身份或SDK凭据，正常新UserLoaded仍可恢复登录。
+- 集成后端源码与本轮已通过269项专用PostgreSQL测试的指纹一致，覆盖率73.72%。本次前端增量未修改后端。
+- 真实IdP、原生系统认证回跳/Keychain、自动续期、WebKit/真机和Cloud真实媒体接管仍未验收；**CP-04整体仍未完成**。见[本地认证验证规范](./verification/cross-platform/CP-04.md)及[跨平台计划](./CROSS_PLATFORM_ARCHITECTURE.md)。
+- 按用户要求在此里程碑停止后续派发，复盘自动评审流程；原始报告、用量与证据只保存在本地 `.review/reports/workflow-pilot-auth/`。
 
 ## 当前功能
 

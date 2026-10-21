@@ -14,6 +14,7 @@
 - [MVP 技术债修复与重构方案](./MVP_REFACTORING_REMEDIATION_PLAN.md)：定义 MVP 产品化修复的范围、实施顺序、验收和回滚要求；完成状态仍以根目录 `TODO.md` 为准。
 
 - [Agent 评审手册](./agent-review-loop.md)：三端评审循环、测试树、环境和并行边界。
+- [外部 CLI 自动评审接入](./REVIEW_LOOP_AUTOMATION.md)：本地状态门禁、授权、预算、暂停恢复及交付判定。
 
 ## 当前架构与验收
 
