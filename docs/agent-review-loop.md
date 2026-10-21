@@ -122,3 +122,11 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
 下一批缩小为：A 平台与地址纯逻辑及回归测试；B 结束接口幂等与回归测试；C 独立本地 Tauri spike 脚手架。A 的构建隔离、B 的创建幂等/设备租约仍在后续轮次。三线不修改共享锁文件；逐线评审后再集成。
 
 坑：代理只用于需要外网的CLI/安装；本地pytest子进程移除HTTP(S)/ALL_PROXY，避免HTTPX SOCKS额外依赖；不要改产品代码掩盖环境问题。报告只引用真实路径及runner统计，禁止猜测试名或逐文件数量。
+
+## §9 本地持续授权与首批集成
+
+用户已明确要求本轮代码修改、质量检查、专用测试库操作不再逐条请示。agy权限仅放行评审维护的固定入口 `.review/reports/tools/cross-platform-local-check.py <lane> <step>`；分支/步骤须匹配，不接收任意shell/SQL。配置已备份，按本任务记录增量规则，完成本计划后撤回，不覆盖其他配置变化。实测agy运行B线lint成功、无拒绝。此为工作流权限，不是OS安全沙箱；含数据库凭据的测试须先由评审读代码。
+
+允许边界：指定worktree代码和测试、已授权现有依赖安装、质量门禁、既有本机FakeAPI E2E、专用echotalk-cp00-pg库；禁止应用/生产库、秘密泄露、远端push/merge/deploy及真实IdP/Provider写入。编译/iOS同步不包含签名、Xcode联网或真机。新增依赖、外部服务与产品决策仍按既有授权判断，超范围才停。
+
+2026-10-21首批A1/B1合入自建 `codex/cross-platform-integration`（主checkout和远端均未变）：独立前端147、后端200、Chromium E2E6及格式/lint/类型/双构建通过。C原型本地试音由用户确认有声且释放音轨；详细边界见CP-03。下一批A2/B2先遵守架构文档§8冻结契约，再并行实施。

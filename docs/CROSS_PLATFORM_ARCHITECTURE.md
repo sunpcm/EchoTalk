@@ -143,3 +143,23 @@ pnpm --filter vite-app test:e2e
 
 每阶段保留可审查改动和回滚边界。不得把编译成功等同真机成功，或把发布候选通过等同已部署/已上架。
 依赖安装、外部系统写入与发布分别遵守用户授权边界；缺少外部条件时相关门禁保持未通过。
+
+## 8. 下一轮冻结契约（2026-10-21）
+
+### 8.1 CP-02 创建请求幂等
+
+POST /api/sessions 保持现有请求体、200响应与鉴权边界；可选 `Idempotency-Key` HTTP头采用UUID（解析后规范化）。缺省头保持既有每次新建行为；非法UUID返回400。仅在头存在时启用幂等，不改变已有客户端。
+
+按本地已认证user_id与规范化key隔离；同用户同key且规范化请求体一致返回原SessionResponse，即使原会话已结束也不创建新会话。规范化请求体为Pydantic校验后的mode及完整doc_context默认值，稳定JSON的SHA256指纹；同key不同请求体返回409。默认不自动删除key，随session保留。不同用户相同key相互隔离，不返回其他用户数据。
+
+唯一约束保证并发只创建一条Session及至多一条对应Context；冲突处理不得使整个请求事务进入失效态，不吞掉非唯一冲突异常。服务端不缓存LiveKit Token、不会在重放时调用dispatch。新增列均nullable以兼容历史数据和无key请求；单条线性Alembic迁移以b3f1c8e92a10为父。此改动仅本地专用测试库迁移，不发布；新旧后端混跑未承诺，正式上线前单独规划迁移/回滚。
+
+### 8.2 CP-01 构建与iOS同步
+
+既有pnpm build默认产物dist保持兼容；新增显式平台命令产物独立存入dist/web/<mode>、dist/ios/<mode>。mode仅development/staging/production；平台仅web/ios，本轮不构建macOS正式业务壳。每个产物有不含秘密的标识manifest，至少记录platform/mode/API origin/auth mode。
+
+构建读取app目录对应Vite mode的公开配置及显式process.env覆盖，不意外继承根.env；VITE\_\*均为公开配置，不纳入秘密。生产/预发布iOS构建要求有效HTTPS API、OIDC模式及必要OIDC配置，拒绝开发认证Token；development明确允许本机开发配置。未提供真实环境配置时保留未跑状态，验证可使用明确标记的example.test无联网值，但不得称为实际可登录产物。
+
+iOS同步只接受匹配platform=ios及mode的已成功构建产物，验证失败、目标缺失或web产物必须在调用cap sync前拒绝，禁止静默回退旧dist。不修改ATS或签名配置，不运行Xcode编译、真机或联网SPM。脚本测试应使用临时目录及模拟child-process，另由评审验证真实构建和本地cap sync；生成的原生配置必须和webDir一致。
+
+Turbo缓存显式包含影响构建的公开环境变量、根构建控制变量及相关脚本/配置输入；输出同时覆盖默认dist和平台子目录。新增命令优先使用现有Node/pnpm/Capacitor，不新增依赖、锁文件或env密钥文件。
