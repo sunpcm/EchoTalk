@@ -163,3 +163,13 @@ POST /api/sessions 保持现有请求体、200响应与鉴权边界；可选 `Id
 iOS同步只接受匹配platform=ios及mode的已成功构建产物，验证失败、目标缺失或web产物必须在调用cap sync前拒绝，禁止静默回退旧dist。不修改ATS或签名配置，不运行Xcode编译、真机或联网SPM。脚本测试应使用临时目录及模拟child-process，另由评审验证真实构建和本地cap sync；生成的原生配置必须和webDir一致。
 
 Turbo缓存显式包含影响构建的公开环境变量、根构建控制变量及相关脚本/配置输入；输出同时覆盖默认dist和平台子目录。新增命令优先使用现有Node/pnpm/Capacitor，不新增依赖、锁文件或env密钥文件。
+
+### 8.3 单端通话范围（用户决策，2026-10-21）
+
+同一账号在Web、iOS、macOS之间同时只允许一端通话；另一端必须由用户明确接管。旧端失去占用后不得自动抢回。不将设备占用等同于sessions.status=active；历史遗留active记录不证明LiveKit实际连接。租约、Token撤销/房间隔离、过期释放及接管接口须另行冻结契约并验证，当前阶段尚未落实此约束。
+
+### 8.4 CP-02 下一增量：结束时本地释放及活动记录发现
+
+客户端发起结束时，在等待HTTP响应之前卸载LiveKitRoom并清除内存Token/URL。使用独立ending/end_failed状态展示提交中及“本地音频已停止、服务端结束待重试”；仅服务端确认结束才进入分析视图。失败后只允许用户显式重试同一session的幂等end，不自动重连/恢复采音；在途结束去重。重置/返回主页或开始新操作后，旧异步health/create/token/end结果及旧setActive回调不得复活旧房间或覆盖新会话。新文案纳入i18n；当前不实现创建重试、持久化恢复或设备租约。
+
+后端新增GET /api/sessions/active，返回当前已认证用户status=active的SessionListItem数组，按started_at降序、id降序确定性排序；空数组为200，缺认证401。该路由置于动态UUID详情路由之前；保留既有GET /sessions完整历史及详情行为。不得含Token、转录或文档正文，不更新状态、不签Token、不dispatch、不调用Provider。不引入迁移/分页/过期清扫；此接口只发现数据库活动记录，不宣称房间存活或客户端拥有通话占用。
