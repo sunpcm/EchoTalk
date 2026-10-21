@@ -42,3 +42,11 @@ Cloud模式end先按统一锁顺序处理；如该session持有当前held占用�
 ## 6. 必须验证
 
 真实专用PostgreSQL和ASGI覆盖：disabled旧行为；模式配置拒绝自建/缺凭据；认证/所有权；首次/重复claim；无显式接管拒绝（含过期）；显式接管顺序和generation；相同用户双设备竞争只有一owner；不同用户不互斥；旧heartbeat/token/dispatch/release不能抢回；TTL/过期和续期；release重试；end成功/重试单job及Cloud失败回滚；Cloud超时/异常无新授予；精确revoke字段/身份/时间、Token解码TTL及room/identity；commit失败不返回成功；CORS新头/未知头。模拟Cloud在list/remove/dispatch处不得真实联网。新增迁移先独立评审再应用测试库，禁止自行运行Alembic。
+
+## 7. 客户端协议发现（后续恢复 UI 的前置）
+
+增加已认证的只读 `GET /api/call-capabilities`，成功响应精确为 `{"protocol_version":1,"call_lease_mode":"disabled"}` 或 `{"protocol_version":1,"call_lease_mode":"livekit_cloud"}`，模式取服务端当前 `CALL_LEASE_MODE`。响应 `Cache-Control: no-store`，不得返回 LiveKit URL、key/secret、用户标识、Token、其他环境配置或用户数据。
+
+该接口复用现有认证依赖，缺少/无效认证401；不访问媒体 SDK，不创建、释放或更新会话/租约，不增加数据库迁移和构建变量。`disabled` 同样可以发现，保持旧 token/dispatch/end 行为。不得因能力查询失败而在客户端静默假定 disabled；后续客户端在显式开始或恢复前读取，失败受控提示并允许用户重试。前端接入另轮实施，本接口通过不表示三端恢复/接管 UI 已完成，也不改变默认模式。
+
+本地验收覆盖：真实路由注册，两种模式的精确响应，认证401，禁止响应额外字段及no-store，不调用媒体服务、不写DB；既有后端全量测试保持通过。
