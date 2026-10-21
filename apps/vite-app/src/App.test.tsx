@@ -30,6 +30,7 @@ vi.mock("@/lib/api", () => ({
     recommendations: [],
   }),
   listSessions: vi.fn().mockResolvedValue([]),
+  listActiveSessions: vi.fn().mockResolvedValue([]),
 }));
 
 describe("App initialization", () => {

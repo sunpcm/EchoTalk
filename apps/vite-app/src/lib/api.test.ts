@@ -6,6 +6,7 @@ import {
   endSession,
   dispatchAgent,
   listSessions,
+  listActiveSessions,
   getSessionDetail,
   getAnalysisStatus,
   retryAnalysis,
@@ -19,13 +20,19 @@ import {
   ApiError,
   getBaseUrl,
 } from "./api";
-import { setAccessTokenProvider, getAuthRevision, invalidateAuthSession } from "./auth";
+import {
+  setAccessTokenProvider,
+  getAuthRevision,
+  invalidateAuthSession,
+  _resetAuthForTesting,
+} from "./auth";
 import { zhCN } from "@/i18n/zh-CN";
 
 describe("API client", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
+    _resetAuthForTesting();
     globalThis.fetch = vi.fn();
     setAccessTokenProvider(() => "test-access-token");
   });
@@ -306,6 +313,43 @@ describe("API client", () => {
       const res = await listSessions();
       expect(res).toEqual(mockList);
       expect(globalThis.fetch).toHaveBeenCalledWith(`${getBaseUrl()}/sessions`, expect.anything());
+    });
+
+    it("lists active sessions preserving backend order and passing auth token", async () => {
+      const mockActiveSessions = [
+        {
+          id: "sess-2",
+          mode: "doc_chat",
+          status: "active",
+          started_at: "2025-01-01T01:00:00Z",
+          ended_at: null,
+        },
+        {
+          id: "sess-1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+        },
+      ];
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockActiveSessions),
+      } as unknown as Response);
+
+      const res = await listActiveSessions();
+      expect(res).toEqual(mockActiveSessions);
+      expect(res[0].id).toBe("sess-2");
+      expect(res[1].id).toBe("sess-1");
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions/active`,
+        expect.objectContaining({
+          headers: expect.any(Headers),
+        }),
+      );
+      const options = fetchMock().mock.calls[0]?.[1];
+      const headers = new Headers(options?.headers);
+      expect(headers.get("Authorization")).toBe("Bearer test-access-token");
     });
 
     it("gets session detail", async () => {
@@ -616,6 +660,19 @@ describe("API client", () => {
       // revision 应被递增
       expect(getAuthRevision()).toBeGreaterThan(initialRev);
       // 绝不重放写请求或重试
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles 401 on listActiveSessions by invalidating session", async () => {
+      const initialRev = getAuthRevision();
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: "Unauthorized" }),
+      } as unknown as Response);
+
+      await expect(listActiveSessions()).rejects.toThrow(ApiError);
+      expect(getAuthRevision()).toBeGreaterThan(initialRev);
       expect(fetchMock()).toHaveBeenCalledTimes(1);
     });
 

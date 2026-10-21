@@ -15,6 +15,7 @@ import { RecommendedScenarios } from "@/components/learning/RecommendedScenarios
 import { DailyProgress } from "@/components/learning/DailyProgress";
 import { SkillTree } from "@/components/learning/SkillTree";
 import { DocChatSetup } from "@/components/doc-chat/DocChatSetup";
+import { ActiveSessions } from "@/components/conversation/ActiveSessions";
 import { zhCN } from "@/i18n/zh-CN";
 
 const tConv = zhCN.conversation;
@@ -61,6 +62,9 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
           <p>{error}</p>
         </div>
       )}
+
+      {/* Active Sessions */}
+      <ActiveSessions />
 
       {/* DocTalk Entry Card */}
       <section>

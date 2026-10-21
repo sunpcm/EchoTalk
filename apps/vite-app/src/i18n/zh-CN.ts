@@ -74,6 +74,23 @@ export const zhCN = {
     loadError: "加载失败，请稍后重试",
     noSessions: "今天还没有练习记录，开始第一次对话吧！",
   },
+  activeSessions: {
+    title: "活动会话",
+    disclaimer: "尚未结束的记录不代表正在通话；恢复与接管暂未开放",
+    loading: "正在加载活动会话...",
+    empty: "暂无活动会话",
+    loadError: "加载活动会话失败",
+    retry: "重试",
+    unknownMode: "其他模式",
+    modes: {
+      free_talk: "自由对话",
+      doc_chat: "文档对话",
+      pronunciation: "发音练习",
+      conversation: "情景对话",
+      scenario: "场景练习",
+      exam_prep: "备考训练",
+    },
+  },
   chat: {
     title: "对话记录",
     you: "你",

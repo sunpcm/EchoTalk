@@ -284,6 +284,11 @@ export function listSessions(): Promise<SessionListItem[]> {
   return request<SessionListItem[]>("/sessions");
 }
 
+/** 列出当前已认证用户的活跃会话记录 */
+export function listActiveSessions(): Promise<SessionListItem[]> {
+  return request<SessionListItem[]>("/sessions/active");
+}
+
 /** 获取会话详情（含转录记录） */
 export function getSessionDetail(sessionId: string): Promise<Session> {
   return request<Session>(`/sessions/${sessionId}`);
