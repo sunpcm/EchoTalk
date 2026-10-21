@@ -28,7 +28,7 @@ A3 conversation仍使用既有sessionGen，不复制新一套会话状态机；�
 
 request在等待getAccessToken前捕获auth revision；等待期间revision变化则在fetch之前中止（明确的本地登录状态变化错误，走i18n），不能用新账号凭据发送旧意图。HTTP401只调用与本次请求绑定的invalidateAuthSession，不影响后来新principal或新Token事件，随后仍抛既有ApiError(401)。同revision连续401幂等失效；不得自动重放POST/其他请求或自动重连音频。
 
-失效需立即发布匿名/受控失败并停止继续取得旧SDK Token，然后清理SDK User；本地清理失败也不能重新暴露旧Token。正常手动重新登录/新的已验证UserLoaded才恢复。dev Token失效可显示配置错误，不伪装真实OIDC登录成功。保留setAccessTokenProvider测试接缝和restore语义；API状态码/错误解析及现有请求格式保持，不顺带重写客户端或续期机制。
+失效需立即发布匿名/受控失败并停止继续取得旧SDK Token，然后清理SDK User；本地清理失败也不能重新暴露旧Token；迟到的SDK清理不得删除/退出后来已登录的会话。正常手动重新登录/新的已验证UserLoaded才恢复。dev Token失效可显示配置错误，不伪装真实OIDC登录成功。保留setAccessTokenProvider测试接缝和restore语义；API状态码/错误解析及现有请求格式保持，不顺带重写客户端或续期机制。
 
 ## 6. 必须测试
 
