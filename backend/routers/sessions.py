@@ -159,8 +159,12 @@ async def end_session(
 
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
+    if session.status == SessionStatus.completed:
+        return session
+    if session.status == SessionStatus.cancelled:
+        raise HTTPException(status_code=400, detail="会话已取消，无法结束")
     if session.status != SessionStatus.active:
-        raise HTTPException(status_code=400, detail="会话已结束，无法重复操作")
+        raise HTTPException(status_code=400, detail="会话状态不支持结束操作")
 
     session.status = SessionStatus.completed
     session.ended_at = datetime.utcnow()

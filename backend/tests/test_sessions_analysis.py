@@ -76,6 +76,61 @@ async def test_end_session_does_not_hide_job_creation_failure():
 
 
 @pytest.mark.asyncio
+async def test_end_session_is_idempotent_for_completed_session():
+    user_id = uuid.uuid4()
+    session = _session(user_id)
+    session.status = SessionStatus.completed
+    fixed_ended_at = utc_now()
+    session.ended_at = fixed_ended_at
+    db = _db_returning(session)
+
+    result = await end_session(
+        session.id,
+        current_user=_current_user(user_id),
+        db=db,
+    )
+
+    assert result is session
+    assert session.status == SessionStatus.completed
+    assert session.ended_at == fixed_ended_at
+    db.add.assert_not_called()
+    db.flush.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_end_session_rejects_cancelled_session():
+    user_id = uuid.uuid4()
+    session = _session(user_id)
+    session.status = SessionStatus.cancelled
+    db = _db_returning(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await end_session(
+            session.id,
+            current_user=_current_user(user_id),
+            db=db,
+        )
+    assert exc_info.value.status_code == 400
+    assert session.status == SessionStatus.cancelled
+    db.add.assert_not_called()
+    db.flush.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_end_session_rejects_unowned_or_missing_session():
+    user_id = uuid.uuid4()
+    db = _db_returning(None)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await end_session(
+            uuid.uuid4(),
+            current_user=_current_user(user_id),
+            db=db,
+        )
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_analysis_status_returns_explicit_failed_state():
     user_id = uuid.uuid4()
     now = utc_now()
