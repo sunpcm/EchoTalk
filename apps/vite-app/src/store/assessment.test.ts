@@ -102,4 +102,96 @@ describe("assessment store", () => {
       pollVersion: 1,
     });
   });
+
+  describe("generation isolation on reset", () => {
+    it("discards two-phase refreshAnalysis results if reset occurs between status and result fetches", async () => {
+      let resolveAssessment!: (data: api.AssessmentResponse) => void;
+      vi.mocked(api.getAnalysisStatus).mockResolvedValue({
+        ...baseJob,
+        status: "succeeded",
+      });
+      vi.mocked(api.getAssessment).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveAssessment = resolve;
+          }),
+      );
+      vi.mocked(api.getGrammarErrors).mockResolvedValue([]);
+
+      const refreshPromise = useAssessmentStore.getState().refreshAnalysis("session-1");
+      // 等待状态检查完成，进入结果获取阶段
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // 在阶段2等待期间重置（代际递增）
+      useAssessmentStore.getState().reset();
+
+      resolveAssessment({
+        id: "assess-old",
+        session_id: "session-1",
+        overall_score: 95,
+        phoneme_alignment: [],
+        source: "test",
+        provider: null,
+        model_version: null,
+        is_synthetic: false,
+        confidence: null,
+        provider_response_ref: null,
+        created_at: "2026-09-21T00:00:00Z",
+      });
+
+      await refreshPromise;
+
+      // 验证重置后的 store 保持纯净，旧结果不回填
+      expect(useAssessmentStore.getState().assessment).toBeNull();
+      expect(useAssessmentStore.getState().loadState).toBe("idle");
+    });
+
+    it("discards stale errors on refreshAnalysis after reset", async () => {
+      let rejectStatus!: (err: Error) => void;
+      vi.mocked(api.getAnalysisStatus).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectStatus = reject;
+          }),
+      );
+
+      const refreshPromise = useAssessmentStore.getState().refreshAnalysis("session-1");
+      useAssessmentStore.getState().reset();
+
+      rejectStatus(new Error("Server error"));
+
+      await expect(refreshPromise).rejects.toThrow("Server error");
+      expect(useAssessmentStore.getState().error).toBeNull();
+      expect(useAssessmentStore.getState().loadState).toBe("idle");
+    });
+
+    it("discards retry and knowledge state results across resets", async () => {
+      let resolveKnowledge!: (states: api.KnowledgeStateResponse[]) => void;
+      vi.mocked(api.getKnowledgeStates).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveKnowledge = resolve;
+          }),
+      );
+
+      const fetchPromise = useAssessmentStore.getState().fetchKnowledgeStates();
+      useAssessmentStore.getState().reset();
+
+      resolveKnowledge([
+        {
+          id: "k-1",
+          user_id: "u-1",
+          skill_id: "s-1",
+          skill_name: "Grammar",
+          skill_category: "grammar",
+          p_mastery: 0.9,
+          updated_at: "2026-01-01",
+        },
+      ]);
+      await fetchPromise;
+
+      expect(useAssessmentStore.getState().knowledgeStates).toEqual([]);
+    });
+  });
 });
