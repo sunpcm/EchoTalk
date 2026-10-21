@@ -49,3 +49,21 @@ python3 -m unittest discover -s ~/.agents/skills/review-loop/tests -v
 此检查只使用临时 Git 仓和文件；不调用外部模型或数据库。本轮本地试点已实际接入 agy、项目 runner 与交付门禁，完成两次有限尝试；项目 adapter 位于本地 `.review/reports/tools/pilot-auth-agy.py`，用真实日志 fixture 验证了假成功/超时、拒权和不完整流。它只验证当前 CLI 输出格式，不是通用 provider adapter。通用取消/暂停恢复、启动失败与孤儿进程处理仍需专门的端到端验证，不能用这些测试替代。
 
 记录每个最终验收任务的返工、人工介入、耗时与分提供方用量；区分单次与会话累计、缓存与真实计费。自动化减少手动复制，尚不能据此认定降低总 Token 或成本。
+
+
+## 优先节约 Codex 额度
+
+本项目采用新版 review-loop 的节约主评审额度模式：agy 完成读码、实现、测试和预算内的普通 fixture、类型、格式排错；Codex 定义边界、集中提出有证据的评审问题并独立验收。产品契约、权限和模型策略变化仍停下来交互。实际节约额度尚未量化，不能用 agy Token 直接折算 Codex 节省量。
+
+实施前先完成编辑和格式修复，然后按 lane 一次提交固定检查；完整日志保留本地，仅返回状态和证据索引：
+
+```bash
+python3 /Users/sunpcm/code/EchoTalk/.review/reports/tools/cross-platform-local-check.py a quality
+# 后端、Tauri 工作线分别将 a 替换成 b、c。
+```
+
+A 包含构建脚本测试、单测、格式、lint、类型和构建；B 包含格式、lint 和既有受保护测试库入口；C 包含生命周期测试和隔离离线构建。此入口不执行安装、格式修复或 E2E，不改变原有分支及数据库迁移审查门禁。命令失败即停止后续检查；源码或 manifest 漂移不得判成功。外层控制器仍负责进程和工作线互斥。
+
+Codex 按变更风险保留独立检查与必要 E2E；已有且输入未变化的证据通过索引读取，避免只为查看输出重复执行。返工交接集中给问题编号、代码事实、契约、复现与关闭标准，不进行逐条遥控编码；等候优先使用完成事件或有界等待。不能以省额为由跳过源码审查、冻结或必需测试。
+
+本地策略记录：`.review/reports/skill-quota-update/policy.json`。本次仅更新工作流和检查入口，业务仍停在认证线本地里程碑；本段不授权自动恢复业务开发。
