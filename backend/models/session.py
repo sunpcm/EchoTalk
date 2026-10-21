@@ -4,7 +4,16 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,6 +58,13 @@ class Session(Base):
     """练习会话表。"""
 
     __tablename__ = "sessions"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "request_idempotency_key",
+            name="uq_sessions_user_idempotency_key",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -70,6 +86,10 @@ class Session(Base):
     )
     started_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    request_idempotency_key: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # 关系
     user: Mapped["User"] = relationship(back_populates="sessions")  # noqa: F821

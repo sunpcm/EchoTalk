@@ -64,6 +64,7 @@ class Settings(BaseSettings):
         "Authorization",
         "Accept",
         "X-Requested-With",
+        "Idempotency-Key",
     ]
 
     # LLM
