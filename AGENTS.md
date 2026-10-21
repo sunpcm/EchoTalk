@@ -42,8 +42,8 @@ Never commit `.env`, credentials, provider API keys, or user data. Use local env
 - 实施停在 Review，不 commit、push、pull、rebase、merge、部署或发布。
 - 验收命令经 prompt 指定的 ev.sh，证据与报告只写指定本地目录，不读取 reviewer-probes。
 - 独立评审由架构 Agent 亲自执行；不信交付报告，自查 diff、全部测试树与证据，结论为 APPROVED 或 CHANGES REQUESTED。
-- prompt、报告与证据暂存主 checkout 的 `.review/`，不纳入 Git；prompt 追踪偏好尚待用户答复。
-- 未确认测试库 host/port/database 前不运行数据库测试或迁移；禁止应用库、QA、生产及其他 lane 的库。
+- 用户已确认 prompt、报告与证据仅保存在主 checkout 的 `.review/`，不纳入 Git。
+- 测试仅使用手册 §3 确认的专用库；迁移先独立审查，再按既有授权执行。禁止应用库、QA、生产及其他 lane 的库。
 - 新依赖/工具安装、真实外部依赖访问和服务操作遵守用户授权，未知条件报告为未验证，不编造通过。
 - 文档冲突无法判定、产品口径变化或已上线契约行为漂移：停下、列证据、等用户裁定。
 
