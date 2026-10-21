@@ -25,6 +25,15 @@
 - 真实IdP、原生系统认证回跳/Keychain、自动续期、WebKit/真机和Cloud真实媒体接管仍未验收；**CP-04整体仍未完成**。见[本地认证验证规范](./verification/cross-platform/CP-04.md)及[跨平台计划](./CROSS_PLATFORM_ARCHITECTURE.md)。
 - 按用户要求在此里程碑停止后续派发，复盘自动评审流程；原始报告、用量与证据只保存在本地 `.review/reports/workflow-pilot-auth/`。
 
+## 2026-10-21 本地活动会话发现里程碑
+
+共享 Dashboard 已消费既有 `GET /api/sessions/active`，展示当前账号尚未结束的记录、加载/空状态和失败显式重试；退出、换号、同账号重新登录以及迟到成功/失败/finally按身份和代际隔离。未知模式使用安全通用标签，不回显服务端错误详情。代码 `5a60333` 已通过独立评审并快进本地隔离集成分支；未推送、未部署、未运行远端 CI。
+
+- 独立本地验收：228项产品Vitest、18项构建隔离测试、5项私有边界探针、既有6项与新增2项 Chromium/Fake API E2E、格式/lint/类型及Vite/Webpack构建通过；专用PostgreSQL后端269项、覆盖率73.72%通过。
+- 窄屏390px截图已检查；本地集成全部批准文件hash与实施验收源码一致，后端源码与测试版本一致。
+- 活动记录不等于媒体在线或持有占用；本轮不获取媒体Token，不恢复采音，不接管、不发心跳、不自动轮询或持久化列表。真实IdP/WebKit/原生回跳/iOS真机/Cloud媒体仍未验收，**CP-02整体仍未完成**。
+- 到此停止下一批派发，按用户约定评估新版review-loop。完整证据仅存本地 `.review/reports/workflow-discovery/`；工作流变更不等于已证明节省Codex额度。
+
 ## 当前功能
 
 | 领域           | 当前实现                                                                           | 状态与边界                                                 |
