@@ -11,7 +11,7 @@
 - 主 checkout 尚有三份上一轮计划文档改动；已在准备 lane 以远端文档为底移入计划，保留远端的安全补丁和可访问性完成记录。未更新主分支。
 - 本地指令、报告、工具：主 checkout 下 `.review/prompts/`、`.review/reports/`、`.review/reports/tools/ev.sh`。
 - `.review/` 通过 Git common dir 的 `info/exclude` 排除，Prettier 也排除，防止嵌套 worktree/报告进入格式扫描。
-- prompt 暂按本地文件处理，用户可决定后续纳入 Git；报告、原始证据和 reviewer-probes 始终不跟踪。
+- 用户已确认 prompt 仅保存在本地；报告、原始证据和 reviewer-probes 始终不跟踪。
 - CP-00 完成后从评审通过的同一提交建立 A/B/C 常驻 lane；每轮换分支，不删除重建运行环境。
 - 单仓项目不需要跨仓配对或关联 trailer。现存其他 worktree 非本循环所有，保持只读，不清理。
 
@@ -42,7 +42,7 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 
 ## §3 测试库与安装边界
 
-目前没有用户确认的本地测试数据库 host/port/database/container；此项保持待确认。
+用户已授权专用容器 `echotalk-cp00-pg`（postgres:15.19-alpine），仅监听 `127.0.0.1:55432`，库 `echotalk_cp00_test`。密码仅存在本地受保护 runtime，不提供给外部 Agent。CP-00 空库迁移至 `b3f1c8e92a10`；后续仅后端 B 线使用此库，A/C 不连接数据库。
 CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本机同地址可安全使用。
 仓库 Compose 的 `echotalk` 是应用库，不允许用于测试。禁止读取或复制主 checkout 的 `.env` 来寻找可用库。
 
@@ -51,7 +51,7 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 `DATABASE_URL` 缺失时不启动 pytest，避免配置模块回退根 `.env` 或默认应用库。
 不得通过假地址、Mock 开关或删除集成测试把测试树制造为全绿。
 
-依赖安装偏好正在向用户确认。获准前不执行 pnpm install、uv venv/pip 或 Playwright install。
+用户已允许各隔离 worktree 按现有锁文件安装前端依赖、按现有 requirements.txt 安装独立 Python 环境；不扩展为任意依赖升级或浏览器安装。
 获准后前端使用现有锁文件 frozen 安装，不更改 manifest/lock；Python 依照当前 CI 的 requirements.txt，
 记录解析出的包版本。requirements.txt 使用范围约束，不能把这次解析称为 uv.lock 冻结安装；
 依赖可复现性改造属于 RF-07，本轮不顺手实施。
@@ -110,3 +110,15 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
 - 旧主目录 Python 虚拟环境只有解释器，缺 pytest/ruff；安装和数据库边界确认前不能宣称后端通过。
 - 根 Turbo 命令可能回放缓存；基线质量门禁使用 --force，真实测试 runner 直接执行。
 - 原 ev.sh 仅打印失败退出码但管道可能返回成功；本地副本已保留真实退出码，需用失败探针验证。
+
+## §8 CP-00 通过后的执行事实与下一批
+
+2026-10-21 CP-00 独立评审 APPROVED；原始报告及证据仅在本地 `.review/reports/cp00/`。Vitest108、pytest184（75.86%）、Chromium Fake API E2E6通过；后者不代表真实登录和语音。iOS设备/OS证据待补。
+
+用户确认独立 macOS 应用，先做 Tauri 2 spike；授权在 C 线隔离安装最小 Rust/Tauri，不改全局 PATH、根锁文件和既有 iOS。麦克风、真实登录及发布另行验收。
+
+用户授权 agy/Gemini 3.8 Flash Medium 处理 A/B/C 必要源码、配置、测试及本地 prompt，排除 .env/密钥/凭据/用户数据。CP00临时命令授权已撤回；下一批采用仅文件实施，由评审端执行已授权固定验收，不新增通用命令权限。
+
+下一批缩小为：A 平台与地址纯逻辑及回归测试；B 结束接口幂等与回归测试；C 独立本地 Tauri spike 脚手架。A 的构建隔离、B 的创建幂等/设备租约仍在后续轮次。三线不修改共享锁文件；逐线评审后再集成。
+
+坑：代理只用于需要外网的CLI/安装；本地pytest子进程移除HTTP(S)/ALL_PROXY，避免HTTPX SOCKS额外依赖；不要改产品代码掩盖环境问题。报告只引用真实路径及runner统计，禁止猜测试名或逐文件数量。
