@@ -51,9 +51,11 @@ interface AssessmentStore {
   retryFailedAnalysis: (sessionId: string) => Promise<void>;
   /** 获取知识状态（静默，失败不阻塞） */
   fetchKnowledgeStates: () => Promise<void>;
-  /** 重置 store（新一轮对话时调用） */
+  /** 重置 store（新一轮对话时调用，必须递增操作代际且不重置为0） */
   reset: () => void;
 }
+
+let assessmentGeneration = 0;
 
 export const useAssessmentStore = create<AssessmentStore>((set) => ({
   loadState: "idle",
@@ -65,8 +67,12 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
   pollVersion: 0,
 
   refreshAnalysis: async (sessionId: string): Promise<AnalysisJobStatus> => {
+    const gen = assessmentGeneration;
     try {
       const job = await getAnalysisStatus(sessionId);
+      if (assessmentGeneration !== gen) {
+        return job.status;
+      }
       if (job.status === "pending" || job.status === "running") {
         set({ loadState: job.status, job, error: null });
         return job.status;
@@ -84,6 +90,9 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
         getAssessment(sessionId),
         getGrammarErrors(sessionId),
       ]);
+      if (assessmentGeneration !== gen) {
+        return job.status;
+      }
       set({
         loadState: "loaded",
         assessment,
@@ -93,17 +102,23 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
       });
       return job.status;
     } catch (err) {
-      set({
-        loadState: "error",
-        error: err instanceof Error ? err.message : "加载评估数据失败",
-      });
+      if (assessmentGeneration === gen) {
+        set({
+          loadState: "error",
+          error: err instanceof Error ? err.message : "加载评估数据失败",
+        });
+      }
       throw err;
     }
   },
 
   retryFailedAnalysis: async (sessionId: string) => {
+    const gen = assessmentGeneration;
     try {
       const job = await retryAnalysis(sessionId);
+      if (assessmentGeneration !== gen) {
+        return;
+      }
       set((state) => ({
         loadState: "pending",
         job,
@@ -111,17 +126,23 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
         pollVersion: state.pollVersion + 1,
       }));
     } catch (err) {
-      set({
-        loadState: "error",
-        error: err instanceof Error ? err.message : "重试分析失败",
-      });
+      if (assessmentGeneration === gen) {
+        set({
+          loadState: "error",
+          error: err instanceof Error ? err.message : "重试分析失败",
+        });
+      }
       throw err;
     }
   },
 
   fetchKnowledgeStates: async () => {
+    const gen = assessmentGeneration;
     try {
       const states = await getKnowledgeStates();
+      if (assessmentGeneration !== gen) {
+        return;
+      }
       set({ knowledgeStates: states });
     } catch {
       // 知识状态加载失败不阻塞主流程
@@ -129,6 +150,7 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
   },
 
   reset: () => {
+    assessmentGeneration += 1;
     set({
       loadState: "idle",
       assessment: null,

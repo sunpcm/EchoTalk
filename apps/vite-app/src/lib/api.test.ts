@@ -19,7 +19,8 @@ import {
   ApiError,
   getBaseUrl,
 } from "./api";
-import { setAccessTokenProvider } from "./auth";
+import { setAccessTokenProvider, getAuthRevision, invalidateAuthSession } from "./auth";
+import { zhCN } from "@/i18n/zh-CN";
 
 describe("API client", () => {
   const originalFetch = globalThis.fetch;
@@ -578,6 +579,73 @@ describe("API client", () => {
           body: JSON.stringify(updateData),
         }),
       );
+    });
+  });
+
+  describe("Auth revision and 401 handling", () => {
+    it("aborts before fetch if auth revision changes during token acquisition", async () => {
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "ready" }),
+      } as unknown as Response);
+
+      let triggerRevisionChangeDuringToken: () => void = () => undefined;
+      setAccessTokenProvider(async () => {
+        triggerRevisionChangeDuringToken();
+        return "token-1";
+      });
+
+      triggerRevisionChangeDuringToken = () => {
+        invalidateAuthSession();
+      };
+
+      await expect(checkHealthReady()).rejects.toThrow(zhCN.auth.sessionChanged);
+      // 绝不能用新账号凭据发送旧意图请求
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it("triggers invalidateAuthSession on 401 and propagates ApiError(401) without retrying", async () => {
+      const initialRev = getAuthRevision();
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: "Token invalid" }),
+      } as unknown as Response);
+
+      await expect(checkHealthReady()).rejects.toThrow(ApiError);
+      // revision 应被递增
+      expect(getAuthRevision()).toBeGreaterThan(initialRev);
+      // 绝不重放写请求或重试
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not invalidate newer session if 401 is from a stale request with an older revision", async () => {
+      let resolveFetch!: (res: Response) => void;
+      fetchMock().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      );
+
+      const requestPromise = checkHealthReady();
+      // 等待微任务让 fetch 被发起调用
+      await Promise.resolve();
+
+      // 在请求在途期间，发生登出或新登录，revision 递增
+      invalidateAuthSession();
+      const currentRev = getAuthRevision();
+
+      // 旧请求迟到返回 401
+      resolveFetch({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: "Stale 401" }),
+      } as unknown as Response);
+
+      await expect(requestPromise).rejects.toThrow(ApiError);
+      // 当前较新的 revision 绝不应被旧 401 冲掉！
+      expect(getAuthRevision()).toBe(currentRev);
     });
   });
 });

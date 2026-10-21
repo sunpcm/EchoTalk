@@ -373,6 +373,104 @@ describe("settings store & theme helpers", () => {
         expect(state.saving).toBe(false);
         expect(state.error).toBeNull();
       });
+
+      it("advances independent generation so stale async fetch does not populate new session", async () => {
+        let resolveStaleFetch!: (val: api.UserSettingsResponse) => void;
+        vi.mocked(api.getUserSettings).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveStaleFetch = resolve;
+            }),
+        );
+
+        // 账号 A 发起 fetch
+        const fetchPromise = useSettingsStore.getState().fetchSettings();
+        expect(useSettingsStore.getState().loading).toBe(true);
+
+        // 账号 A 退出或切换，执行 reset（代际递增）
+        useSettingsStore.getState().reset();
+        expect(useSettingsStore.getState().loading).toBe(false);
+
+        // 新账号 B 登录后设置了新主题
+        useSettingsStore.setState({ theme: "cool" });
+
+        // 旧账号 A 的请求迟到返回
+        resolveStaleFetch({
+          is_custom_mode: false,
+          theme: "dark",
+          stt_provider: null,
+          llm_provider: null,
+          llm_model: null,
+          tts_provider: null,
+          has_stt_key: false,
+          has_llm_key: false,
+          has_tts_key: false,
+          stt_status: "unconfigured",
+          llm_status: "unconfigured",
+          tts_status: "unconfigured",
+        });
+        await fetchPromise;
+
+        // 验证旧数据绝不回填，主题绝不被旧响应覆盖
+        expect(useSettingsStore.getState().settings).toBeNull();
+        expect(useSettingsStore.getState().theme).toBe("cool");
+        expect(useSettingsStore.getState().loading).toBe(false);
+      });
+
+      it("stale updateSettings returns non-success and does not write to store", async () => {
+        let resolveStaleUpdate!: (val: api.UserSettingsResponse) => void;
+        vi.mocked(api.updateUserSettings).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveStaleUpdate = resolve;
+            }),
+        );
+
+        const updatePromise = useSettingsStore.getState().updateSettings({ theme: "dark" });
+        expect(useSettingsStore.getState().saving).toBe(true);
+
+        // 代际递增
+        useSettingsStore.getState().reset();
+
+        resolveStaleUpdate({
+          is_custom_mode: true,
+          theme: "dark",
+          stt_provider: null,
+          llm_provider: null,
+          llm_model: null,
+          tts_provider: null,
+          has_stt_key: false,
+          has_llm_key: false,
+          has_tts_key: false,
+          stt_status: "unconfigured",
+          llm_status: "unconfigured",
+          tts_status: "unconfigured",
+        });
+
+        const result = await updatePromise;
+        expect(result.success).toBe(false);
+        expect(useSettingsStore.getState().settings).toBeNull();
+        expect(useSettingsStore.getState().saving).toBe(false);
+      });
+
+      it("stale fetch error does not overwrite new session error state", async () => {
+        let rejectStaleFetch!: (err: Error) => void;
+        vi.mocked(api.getUserSettings).mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectStaleFetch = reject;
+            }),
+        );
+
+        const fetchPromise = useSettingsStore.getState().fetchSettings();
+        useSettingsStore.getState().reset();
+
+        rejectStaleFetch(new Error("Stale network failure"));
+        await fetchPromise;
+
+        // 绝不回写旧 error
+        expect(useSettingsStore.getState().error).toBeNull();
+      });
     });
   });
 });

@@ -4,7 +4,8 @@
  */
 
 import { getApiBaseUrl } from "@/utils/env";
-import { getAccessToken } from "@/lib/auth";
+import { getAccessToken, getAuthRevision, invalidateAuthSession } from "@/lib/auth";
+import { zhCN } from "@/i18n/zh-CN";
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -31,7 +32,13 @@ export class ApiError extends Error {
 /** 通用请求封装 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const baseUrl = getBaseUrl();
+  const reqRevision = getAuthRevision();
   const accessToken = await getAccessToken();
+
+  if (getAuthRevision() !== reqRevision) {
+    throw new Error(zhCN.auth.sessionChanged);
+  }
+
   const headers = new Headers(options?.headers);
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -45,6 +52,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      invalidateAuthSession(reqRevision);
+    }
     const body = await res.json().catch(() => ({}));
 
     let message = `请求失败: ${res.status}`;

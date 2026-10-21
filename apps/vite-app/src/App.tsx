@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { useConversationStore } from "@/store/conversation";
 import { useAssessmentStore } from "@/store/assessment";
-import { useSettingsStore } from "@/store/settings";
+import { useSettingsStore, applyThemeAttr } from "@/store/settings";
 import { VoiceInterface } from "@/components/conversation/VoiceInterface";
 import { SettingsDrawer } from "@/components/settings/SettingsDrawer";
 import { RecommendedScenarios } from "@/components/learning/RecommendedScenarios";
@@ -119,7 +119,6 @@ const App = () => {
   const appView = useConversationStore((s) => s.appView);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const theme = useSettingsStore((s) => s.theme);
-  const setTheme = useSettingsStore((s) => s.setTheme);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Phase 5: 应用启动时水合用户设置
@@ -127,11 +126,10 @@ const App = () => {
     void fetchSettings();
   }, [fetchSettings]);
 
-  // Phase 8: 兜底对齐 store 与 <html data-theme>（首帧防闪由 index.html 内联脚本负责）
+  // Phase 8: 启动只对齐 store 与 <html data-theme>，不通过 setTheme 触发后台 PUT
   useEffect(() => {
-    setTheme(theme);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    applyThemeAttr(theme);
+  }, [theme]);
 
   return (
     <div

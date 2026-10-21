@@ -11,6 +11,7 @@ export const zhCN = {
     retryLogin: "重新登录",
     misconfigured: "认证配置不完整，请联系管理员。",
     callbackError: "登录回调校验失败，请重新登录。",
+    sessionChanged: "登录状态已改变，请重新操作。",
   },
   conversation: {
     title: "AI 英语口语练习",
