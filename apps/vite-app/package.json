@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build:web": "node scripts/build.mjs --platform web",
+    "build:ios": "node scripts/build.mjs --platform ios",
+    "sync:ios": "node scripts/sync-ios.mjs",
     "preview": "vite preview",
     "lint": "eslint src --report-unused-disable-directives",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "cross-env NODE_OPTIONS=--no-experimental-webstorage vitest run",
+    "test:build": "node --test scripts/build-isolation-test.mjs",
     "test:e2e": "playwright test"
   },
   "keywords": [],

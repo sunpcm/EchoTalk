@@ -1,7 +1,7 @@
 {
   "appId": "com.echotalk.app",
   "appName": "EchoTalk",
-  "webDir": "dist",
+  "webDir": "dist/ios/production",
   "server": {
     "androidScheme": "https",
     "iosScheme": "capacitor"
