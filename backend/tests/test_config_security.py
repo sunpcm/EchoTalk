@@ -135,3 +135,84 @@ def test_oidc_rejects_lookalike_local_http_origin():
     )
     with pytest.raises(RuntimeError, match="不安全的 HTTP Origin"):
         config.validate_runtime()
+
+
+def test_call_lease_mode_default_and_validation():
+    default_config = Settings(AUTH_MODE="dev", DEV_AUTH_TOKEN="dummy")
+    assert default_config.CALL_LEASE_MODE == "disabled"
+
+    with pytest.raises(ValueError, match="CALL_LEASE_MODE 仅允许"):
+        Settings(
+            AUTH_MODE="dev",
+            DEV_AUTH_TOKEN="dummy",
+            CALL_LEASE_MODE="unsupported",
+        )
+
+
+def test_call_lease_cloud_mode_requires_keys_and_valid_url():
+    # 缺少 API Key / Secret
+    with pytest.raises(
+        RuntimeError,
+        match="CALL_LEASE_MODE=livekit_cloud 要求配置非空的 LIVEKIT_API_KEY 与 LIVEKIT_API_SECRET",
+    ):
+        Settings(
+            AUTH_MODE="dev",
+            DEV_AUTH_TOKEN="dummy",
+            CALL_LEASE_MODE="livekit_cloud",
+            LIVEKIT_URL="https://test.livekit.cloud",
+            LIVEKIT_API_KEY="",
+            LIVEKIT_API_SECRET="",
+        ).validate_runtime()
+
+    # 缺少 LIVEKIT_URL
+    with pytest.raises(
+        RuntimeError, match="CALL_LEASE_MODE=livekit_cloud 要求配置 LIVEKIT_URL"
+    ):
+        Settings(
+            AUTH_MODE="dev",
+            DEV_AUTH_TOKEN="dummy",
+            CALL_LEASE_MODE="livekit_cloud",
+            LIVEKIT_URL="",
+            LIVEKIT_API_KEY="test_key",
+            LIVEKIT_API_SECRET="test_secret",
+        ).validate_runtime()
+
+    # 拒绝自建 / 非 livekit.cloud 域名
+    with pytest.raises(
+        RuntimeError, match="要求 LIVEKIT_URL 为无凭据、无 query、无 fragment"
+    ) as exc_info:
+        Settings(
+            AUTH_MODE="dev",
+            DEV_AUTH_TOKEN="dummy",
+            CALL_LEASE_MODE="livekit_cloud",
+            LIVEKIT_URL="http://localhost:7880",
+            LIVEKIT_API_KEY="test_key",
+            LIVEKIT_API_SECRET="test_secret",
+        ).validate_runtime()
+    # 验证错误信息不回显 URL 或凭据值
+    assert "localhost" not in str(exc_info.value)
+    assert "test_key" not in str(exc_info.value)
+
+    # 拒绝含 query 或凭据的 livekit.cloud URL
+    with pytest.raises(
+        RuntimeError, match="要求 LIVEKIT_URL 为无凭据、无 query、无 fragment"
+    ):
+        Settings(
+            AUTH_MODE="dev",
+            DEV_AUTH_TOKEN="dummy",
+            CALL_LEASE_MODE="livekit_cloud",
+            LIVEKIT_URL="https://user:pass@project.livekit.cloud/?debug=1",
+            LIVEKIT_API_KEY="test_key",
+            LIVEKIT_API_SECRET="test_secret",
+        ).validate_runtime()
+
+    # 合法 Cloud URL 及凭据放行
+    valid_cloud = Settings(
+        AUTH_MODE="dev",
+        DEV_AUTH_TOKEN="dummy",
+        CALL_LEASE_MODE="livekit_cloud",
+        LIVEKIT_URL="https://my-demo.livekit.cloud",
+        LIVEKIT_API_KEY="test_key",
+        LIVEKIT_API_SECRET="test_secret",
+    )
+    valid_cloud.validate_runtime()

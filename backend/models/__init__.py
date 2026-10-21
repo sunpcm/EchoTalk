@@ -5,6 +5,7 @@ Alembic 的 env.py 通过导入此模块来发现所有表的 metadata。
 
 from .analysis import AnalysisJob, AnalysisJobStatus
 from .base import Base
+from .call_lease import CallLease, CallLeaseState
 from .exercise import GrammarError, PronunciationAssessment
 from .knowledge import KnowledgeState, Skill
 from .session import Session, SessionContext, Transcript
@@ -21,6 +22,8 @@ __all__ = [
     "Base",
     "AnalysisJob",
     "AnalysisJobStatus",
+    "CallLease",
+    "CallLeaseState",
     "User",
     "UserProfile",
     "UserSettings",
