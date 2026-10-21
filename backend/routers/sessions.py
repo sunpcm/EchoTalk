@@ -189,6 +189,30 @@ async def list_sessions(
     return sessions
 
 
+@router.get("/sessions/active", response_model=list[SessionListItem])
+async def list_active_sessions(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """查询当前已认证用户的活跃会话记录。
+
+    仅返回 status=active 的记录，按 started_at 降序、id 降序排序。
+    不包含 Token、转录或文档正文，不更新状态、不签 Token、不 dispatch。
+    注意：此接口仅发现数据库活动记录，不证明 LiveKit 仍连接或租约占用。
+    """
+    stmt = (
+        select(Session)
+        .where(
+            Session.user_id == current_user.id,
+            Session.status == SessionStatus.active,
+        )
+        .order_by(Session.started_at.desc(), Session.id.desc())
+    )
+    result = await db.execute(stmt)
+    sessions = result.scalars().all()
+    return sessions
+
+
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
 async def get_session(
     session_id: uuid.UUID,
