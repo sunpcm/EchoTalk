@@ -3,6 +3,16 @@ import {
   checkHealthReady,
   getCallCapabilities,
   parseCallCapabilities,
+  claimCallLease,
+  heartbeatCallLease,
+  releaseCallLease,
+  parseCallLeaseResponse,
+  parseCallReleaseResponse,
+  isValidUuid,
+  isPositiveSafeInteger,
+  isValidIsoCalendarTimestamp,
+  validateCallLeaseOwner,
+  type CallLeaseOwner,
   createSession,
   getSessionToken,
   endSession,
@@ -235,6 +245,575 @@ describe("API client", () => {
 
       await expect(getCallCapabilities()).rejects.toThrow(ApiError);
       expect(getAuthRevision()).toBeGreaterThan(initialRev);
+    });
+  });
+
+  describe("Call lease API (CP-02 §9)", () => {
+    const validSessionId = "550e8400-e29b-41d4-a716-446655440000";
+    const validDeviceId = "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d";
+    const validExpiresAt = "2026-10-22T10:15:20Z";
+
+    describe("Validation helpers", () => {
+      it("validates UUIDs case-insensitively and rejects invalid formats", () => {
+        expect(isValidUuid(validSessionId)).toBe(true);
+        expect(isValidUuid(validSessionId.toUpperCase())).toBe(true);
+        expect(isValidUuid("not-a-uuid")).toBe(false);
+        expect(isValidUuid("550e8400e29b41d4a716446655440000")).toBe(false);
+        expect(isValidUuid("")).toBe(false);
+        expect(isValidUuid(null)).toBe(false);
+        expect(isValidUuid(123)).toBe(false);
+      });
+
+      it("validates positive safe integers and rejects invalid values", () => {
+        expect(isPositiveSafeInteger(1)).toBe(true);
+        expect(isPositiveSafeInteger(42)).toBe(true);
+        expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER)).toBe(true);
+        expect(isPositiveSafeInteger(0)).toBe(false);
+        expect(isPositiveSafeInteger(-1)).toBe(false);
+        expect(isPositiveSafeInteger(1.5)).toBe(false);
+        expect(isPositiveSafeInteger(NaN)).toBe(false);
+        expect(isPositiveSafeInteger(Infinity)).toBe(false);
+        expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
+        expect(isPositiveSafeInteger("1")).toBe(false);
+      });
+
+      it("validates ISO calendar timestamps strictly without normalizing non-existent dates", () => {
+        expect(isValidIsoCalendarTimestamp("2026-10-22T10:15:20Z")).toBe(true);
+        expect(isValidIsoCalendarTimestamp("2026-10-22T10:15:20.123456Z")).toBe(true);
+        expect(isValidIsoCalendarTimestamp("2026-10-22T10:15:20+08:00")).toBe(true);
+        expect(isValidIsoCalendarTimestamp("2026-10-22T10:15:20-05:00")).toBe(true);
+        expect(isValidIsoCalendarTimestamp("2024-02-29T12:00:00Z")).toBe(true); // 2024 is leap year
+
+        // Non-existent calendar dates that Date.parse would otherwise roll forward
+        expect(isValidIsoCalendarTimestamp("2026-02-29T10:00:00Z")).toBe(false); // 2026 is non-leap
+        expect(isValidIsoCalendarTimestamp("2026-04-31T10:00:00Z")).toBe(false); // April has 30 days
+        expect(isValidIsoCalendarTimestamp("2026-13-01T00:00:00Z")).toBe(false); // Invalid month
+        expect(isValidIsoCalendarTimestamp("2026-00-01T00:00:00Z")).toBe(false);
+        expect(isValidIsoCalendarTimestamp("2026-01-00T00:00:00Z")).toBe(false);
+        expect(isValidIsoCalendarTimestamp("2026-01-01T24:00:00Z")).toBe(false); // Invalid hour
+
+        // Missing or invalid timezone
+        expect(isValidIsoCalendarTimestamp("2026-10-22T10:15:20")).toBe(false);
+        expect(isValidIsoCalendarTimestamp("2026-10-22T10:15:20+25:00")).toBe(false);
+        expect(isValidIsoCalendarTimestamp("invalid-timestamp")).toBe(false);
+        expect(isValidIsoCalendarTimestamp(null)).toBe(false);
+      });
+
+      it("validates owner objects", () => {
+        expect(validateCallLeaseOwner({ device_id: validDeviceId, generation: 2 })).toEqual({
+          device_id: validDeviceId,
+          generation: 2,
+        });
+        expect(() => validateCallLeaseOwner(null)).toThrow(/expected an object/);
+        expect(() => validateCallLeaseOwner("owner")).toThrow(/expected an object/);
+        expect(() => validateCallLeaseOwner({ device_id: "bad", generation: 1 })).toThrow(
+          /Invalid owner.device_id/,
+        );
+        expect(() => validateCallLeaseOwner({ device_id: validDeviceId, generation: 0 })).toThrow(
+          /Invalid owner.generation/,
+        );
+      });
+    });
+
+    describe("Input parameter guards (fetch guarding)", () => {
+      it("claimCallLease rejects invalid parameters without fetching", async () => {
+        await expect(claimCallLease("bad-session", validDeviceId)).rejects.toThrow(
+          /Invalid sessionId/,
+        );
+        await expect(claimCallLease(validSessionId, "bad-device")).rejects.toThrow(
+          /Invalid deviceId/,
+        );
+        await expect(
+          claimCallLease(validSessionId, validDeviceId, "true" as unknown as boolean),
+        ).rejects.toThrow(/Invalid takeover: expected a boolean/);
+        await expect(
+          claimCallLease(validSessionId, validDeviceId, 1 as unknown as boolean),
+        ).rejects.toThrow(/Invalid takeover: expected a boolean/);
+        await expect(
+          claimCallLease(validSessionId, validDeviceId, null as unknown as boolean),
+        ).rejects.toThrow(/Invalid takeover: expected a boolean/);
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+      });
+
+      it("heartbeatCallLease rejects invalid parameters without fetching", async () => {
+        await expect(
+          heartbeatCallLease("bad-session", { device_id: validDeviceId, generation: 1 }),
+        ).rejects.toThrow(/Invalid sessionId/);
+        await expect(
+          heartbeatCallLease(validSessionId, null as unknown as CallLeaseOwner),
+        ).rejects.toThrow(/Invalid owner/);
+        await expect(
+          heartbeatCallLease(validSessionId, { device_id: "bad-device", generation: 1 }),
+        ).rejects.toThrow(/Invalid owner.device_id/);
+        await expect(
+          heartbeatCallLease(validSessionId, { device_id: validDeviceId, generation: -1 }),
+        ).rejects.toThrow(/Invalid owner.generation/);
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+      });
+
+      it("releaseCallLease rejects invalid parameters without fetching", async () => {
+        await expect(
+          releaseCallLease("bad-session", { device_id: validDeviceId, generation: 1 }),
+        ).rejects.toThrow(/Invalid sessionId/);
+        await expect(
+          releaseCallLease(validSessionId, null as unknown as CallLeaseOwner),
+        ).rejects.toThrow(/Invalid owner/);
+        await expect(
+          releaseCallLease(validSessionId, { device_id: "bad-device", generation: 1 }),
+        ).rejects.toThrow(/Invalid owner.device_id/);
+        await expect(
+          releaseCallLease(validSessionId, { device_id: validDeviceId, generation: 0 }),
+        ).rejects.toThrow(/Invalid owner.generation/);
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+      });
+
+      it("getSessionToken with invalid owner rejects without fetching and does not silently fall back", async () => {
+        await expect(
+          getSessionToken(validSessionId, null as unknown as CallLeaseOwner),
+        ).rejects.toThrow(/Invalid owner/);
+        await expect(
+          getSessionToken(validSessionId, {} as unknown as CallLeaseOwner),
+        ).rejects.toThrow(/Invalid owner.device_id/);
+        await expect(
+          getSessionToken("bad-session", { device_id: validDeviceId, generation: 1 }),
+        ).rejects.toThrow(/Invalid sessionId/);
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+      });
+
+      it("dispatchAgent with invalid owner rejects without fetching and does not silently fall back", async () => {
+        await expect(
+          dispatchAgent(validSessionId, null as unknown as CallLeaseOwner),
+        ).rejects.toThrow(/Invalid owner/);
+        await expect(
+          dispatchAgent(validSessionId, {} as unknown as CallLeaseOwner),
+        ).rejects.toThrow(/Invalid owner.device_id/);
+        await expect(
+          dispatchAgent("bad-session", { device_id: validDeviceId, generation: 1 }),
+        ).rejects.toThrow(/Invalid sessionId/);
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("Request protocols and header isolation", () => {
+      it("claimCallLease defaults to takeover=false and only serializes contract fields", async () => {
+        const mockResponse = {
+          session_id: validSessionId,
+          device_id: validDeviceId,
+          generation: 1,
+          state: "held",
+          expires_at: validExpiresAt,
+        };
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockResponse),
+        } as unknown as Response);
+
+        const result = await claimCallLease(validSessionId, validDeviceId);
+        expect(result).toEqual(mockResponse);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          `${getBaseUrl()}/sessions/${validSessionId}/call/claim`,
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              device_id: validDeviceId,
+              takeover: false,
+            }),
+          }),
+        );
+        const options = fetchMock().mock.calls[0]?.[1];
+        const headers = new Headers(options?.headers);
+        expect(headers.get("Content-Type")).toBe("application/json");
+        expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+        expect(headers.has("X-Call-Device-Id")).toBe(false);
+      });
+
+      it("claimCallLease sends takeover=true when explicitly requested", async () => {
+        const mockResponse = {
+          session_id: validSessionId,
+          device_id: validDeviceId,
+          generation: 2,
+          state: "held",
+          expires_at: validExpiresAt,
+        };
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockResponse),
+        } as unknown as Response);
+
+        const result = await claimCallLease(validSessionId, validDeviceId, true);
+        expect(result).toEqual(mockResponse);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          `${getBaseUrl()}/sessions/${validSessionId}/call/claim`,
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              device_id: validDeviceId,
+              takeover: true,
+            }),
+          }),
+        );
+      });
+
+      it("heartbeatCallLease sends POST with exact contract fields", async () => {
+        const mockResponse = {
+          session_id: validSessionId,
+          device_id: validDeviceId,
+          generation: 3,
+          state: "held",
+          expires_at: validExpiresAt,
+        };
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockResponse),
+        } as unknown as Response);
+
+        const owner: CallLeaseOwner = { device_id: validDeviceId, generation: 3 };
+        const result = await heartbeatCallLease(validSessionId, owner);
+        expect(result).toEqual(mockResponse);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          `${getBaseUrl()}/sessions/${validSessionId}/call/heartbeat`,
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              device_id: validDeviceId,
+              generation: 3,
+            }),
+          }),
+        );
+      });
+
+      it("releaseCallLease sends POST with exact contract fields", async () => {
+        const mockResponse = {
+          released: true,
+          generation: 3,
+        };
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockResponse),
+        } as unknown as Response);
+
+        const owner: CallLeaseOwner = { device_id: validDeviceId, generation: 3 };
+        const result = await releaseCallLease(validSessionId, owner);
+        expect(result).toEqual(mockResponse);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          `${getBaseUrl()}/sessions/${validSessionId}/call/release`,
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              device_id: validDeviceId,
+              generation: 3,
+            }),
+          }),
+        );
+      });
+
+      it("getSessionToken and dispatchAgent support optional owner with header isolation", async () => {
+        const mockToken = { token: "token-1", ws_url: "wss://livekit.example.com" };
+        const mockDispatch = { dispatched: true };
+        fetchMock()
+          .mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve(mockToken),
+          } as unknown as Response)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve(mockToken),
+          } as unknown as Response)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve(mockDispatch),
+          } as unknown as Response)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve(mockDispatch),
+          } as unknown as Response);
+
+        const owner: CallLeaseOwner = { device_id: validDeviceId, generation: 5 };
+
+        // 1. getSessionToken with owner
+        await getSessionToken(validSessionId, owner);
+        const tokenWithOptions = fetchMock().mock.calls[0]?.[1];
+        const tokenWithHeaders = new Headers(tokenWithOptions?.headers);
+        expect(tokenWithHeaders.get("X-Call-Device-Id")).toBe(validDeviceId);
+        expect(tokenWithHeaders.get("X-Call-Generation")).toBe("5");
+        expect(tokenWithHeaders.get("Authorization")).toBe("Bearer test-access-token");
+
+        // 2. getSessionToken without owner (verifying no header leak)
+        await getSessionToken(validSessionId);
+        const tokenWithoutOptions = fetchMock().mock.calls[1]?.[1];
+        const tokenWithoutHeaders = new Headers(tokenWithoutOptions?.headers);
+        expect(tokenWithoutHeaders.has("X-Call-Device-Id")).toBe(false);
+        expect(tokenWithoutHeaders.has("X-Call-Generation")).toBe(false);
+
+        // 3. dispatchAgent with owner
+        await dispatchAgent(validSessionId, owner);
+        const dispatchWithOptions = fetchMock().mock.calls[2]?.[1];
+        const dispatchWithHeaders = new Headers(dispatchWithOptions?.headers);
+        expect(dispatchWithHeaders.get("X-Call-Device-Id")).toBe(validDeviceId);
+        expect(dispatchWithHeaders.get("X-Call-Generation")).toBe("5");
+
+        // 4. dispatchAgent without owner (verifying no header leak)
+        await dispatchAgent(validSessionId);
+        const dispatchWithoutOptions = fetchMock().mock.calls[3]?.[1];
+        const dispatchWithoutHeaders = new Headers(dispatchWithoutOptions?.headers);
+        expect(dispatchWithoutHeaders.has("X-Call-Device-Id")).toBe(false);
+        expect(dispatchWithoutHeaders.has("X-Call-Generation")).toBe(false);
+      });
+    });
+
+    describe("Response parsing and failure closure", () => {
+      it("accepts valid lease response with case-insensitive UUID matching", () => {
+        const uppercaseSession = validSessionId.toUpperCase();
+        const raw = {
+          session_id: uppercaseSession,
+          device_id: validDeviceId,
+          generation: 1,
+          state: "held",
+          expires_at: validExpiresAt,
+        };
+        const parsed = parseCallLeaseResponse(raw, validSessionId, validDeviceId, 1);
+        expect(parsed.session_id).toBe(uppercaseSession);
+        expect(parsed.state).toBe("held");
+      });
+
+      it("rejects lease response with extra fields", () => {
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: validSessionId,
+              device_id: validDeviceId,
+              generation: 1,
+              state: "held",
+              expires_at: validExpiresAt,
+              extra_property: "disallowed",
+            },
+            validSessionId,
+            validDeviceId,
+          ),
+        ).toThrow(/expected exactly/);
+      });
+
+      it("rejects lease response with missing fields", () => {
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: validSessionId,
+              device_id: validDeviceId,
+              generation: 1,
+              state: "held",
+            },
+            validSessionId,
+            validDeviceId,
+          ),
+        ).toThrow(/expected exactly/);
+      });
+
+      it("rejects lease response with mismatched session_id or device_id", () => {
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: "00000000-0000-0000-0000-000000000000",
+              device_id: validDeviceId,
+              generation: 1,
+              state: "held",
+              expires_at: validExpiresAt,
+            },
+            validSessionId,
+            validDeviceId,
+          ),
+        ).toThrow(/Mismatched lease response session_id/);
+
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: validSessionId,
+              device_id: "00000000-0000-0000-0000-000000000000",
+              generation: 1,
+              state: "held",
+              expires_at: validExpiresAt,
+            },
+            validSessionId,
+            validDeviceId,
+          ),
+        ).toThrow(/Mismatched lease response device_id/);
+      });
+
+      it("rejects lease response with non-positive safe integer generation or mismatched generation", () => {
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: validSessionId,
+              device_id: validDeviceId,
+              generation: 0,
+              state: "held",
+              expires_at: validExpiresAt,
+            },
+            validSessionId,
+            validDeviceId,
+          ),
+        ).toThrow(/generation must be a positive safe integer/);
+
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: validSessionId,
+              device_id: validDeviceId,
+              generation: 2,
+              state: "held",
+              expires_at: validExpiresAt,
+            },
+            validSessionId,
+            validDeviceId,
+            1, // expectedGeneration
+          ),
+        ).toThrow(/Mismatched lease response generation/);
+      });
+
+      it("rejects lease response with non-held state", () => {
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: validSessionId,
+              device_id: validDeviceId,
+              generation: 1,
+              state: "free",
+              expires_at: validExpiresAt,
+            },
+            validSessionId,
+            validDeviceId,
+          ),
+        ).toThrow(/state must be 'held'/);
+      });
+
+      it("rejects lease response with non-existent calendar date", () => {
+        expect(() =>
+          parseCallLeaseResponse(
+            {
+              session_id: validSessionId,
+              device_id: validDeviceId,
+              generation: 1,
+              state: "held",
+              expires_at: "2026-02-29T10:00:00Z", // Non-leap year
+            },
+            validSessionId,
+            validDeviceId,
+          ),
+        ).toThrow(/expires_at must be a valid ISO 8601 calendar timestamp/);
+      });
+
+      it("rejects non-object lease response", () => {
+        expect(() => parseCallLeaseResponse(null, validSessionId, validDeviceId)).toThrow(
+          /expected an object/,
+        );
+        expect(() => parseCallLeaseResponse([], validSessionId, validDeviceId)).toThrow(
+          /expected an object/,
+        );
+      });
+
+      it("parses valid release response and rejects invalid release response", () => {
+        const validRelease = { released: true, generation: 4 };
+        expect(parseCallReleaseResponse(validRelease, 4)).toEqual(validRelease);
+
+        expect(() => parseCallReleaseResponse({ released: false, generation: 4 }, 4)).toThrow(
+          /released must be true/,
+        );
+        expect(() => parseCallReleaseResponse({ released: true, generation: 5 }, 4)).toThrow(
+          /Mismatched release response generation/,
+        );
+        expect(() =>
+          parseCallReleaseResponse({ released: true, generation: 4, extra: 1 }, 4),
+        ).toThrow(/expected exactly/);
+        expect(() => parseCallReleaseResponse({ released: true }, 4)).toThrow(/expected exactly/);
+      });
+    });
+
+    describe("HTTP errors and failure closure (no retry, no compensation)", () => {
+      it("preserves ApiError with status and structured detail on 409 conflict", async () => {
+        const conflictDetail = {
+          code: "call_in_use",
+          message: "Another device holds the call lease",
+          conflict_session_id: "660e8400-e29b-41d4-a716-446655440000",
+        };
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 409,
+          json: () => Promise.resolve({ detail: conflictDetail }),
+        } as unknown as Response);
+
+        try {
+          await claimCallLease(validSessionId, validDeviceId);
+          expect.fail("Should have thrown ApiError");
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ApiError);
+          const apiError = e as ApiError;
+          expect(apiError.status).toBe(409);
+          expect(apiError.data).toEqual({ detail: conflictDetail });
+        }
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("preserves ApiError on 502 provider unavailable without automatic compensation", async () => {
+        const providerError = {
+          code: "call_provider_unavailable",
+          message: "LiveKit Cloud revocation failed",
+        };
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 502,
+          json: () => Promise.resolve({ detail: providerError }),
+        } as unknown as Response);
+
+        await expect(claimCallLease(validSessionId, validDeviceId, true)).rejects.toThrow(ApiError);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("preserves ApiError on 503 disabled mode", async () => {
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 503,
+          json: () =>
+            Promise.resolve({
+              detail: { code: "call_leases_disabled", message: "Call lease disabled" },
+            }),
+        } as unknown as Response);
+
+        await expect(
+          heartbeatCallLease(validSessionId, { device_id: validDeviceId, generation: 1 }),
+        ).rejects.toThrow(ApiError);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("invalidates auth session on 401 and does not replay write requests", async () => {
+        const initialRev = getAuthRevision();
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ detail: "Unauthorized" }),
+        } as unknown as Response);
+
+        await expect(
+          releaseCallLease(validSessionId, { device_id: validDeviceId, generation: 1 }),
+        ).rejects.toThrow(ApiError);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(getAuthRevision()).toBeGreaterThan(initialRev);
+      });
+
+      it("propagates network errors directly without compensation", async () => {
+        fetchMock().mockRejectedValue(new Error("Network connection failed"));
+
+        await expect(claimCallLease(validSessionId, validDeviceId)).rejects.toThrow(
+          "Network connection failed",
+        );
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
