@@ -16,12 +16,16 @@ describe("RecommendedScenarios component", () => {
 
   it("renders recommendations with accessible button labels and difficulty badges", async () => {
     vi.mocked(getRecommendedCurriculum).mockResolvedValue({
+      weakest_skill: "formal_vocabulary",
+      weakest_skill_mastery: 0.45,
+      target_level: "B2",
       recommendations: [
         {
           scenario_name: "business_meeting",
           difficulty_cefr: "B2",
+          category: "business",
           focus_skills: ["formal_vocabulary", "turn_taking"],
-          reason: "Recommended based on history",
+          system_prompt_template: "You are a business professional...",
         },
       ],
     });
