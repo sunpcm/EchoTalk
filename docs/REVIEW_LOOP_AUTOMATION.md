@@ -24,7 +24,7 @@ prompt、报告、原始流、reviewer probes、账本和授权记录放在 `.re
 1. 核验 CLI 版本、授权、目标 worktree 的 HEAD/dirty 与相应项目约定，记录命令与依赖环境。
 2. 采用 `loop_gate.py init` 建立私有账本，记录 provider/model、授权记录与上限。起始建议上限为总计 3 次实施尝试、1800 秒活动时间、连续 2 次源码无变化；按任务耗时和用户策略调整，不把示例当硬性项目验收标准。
 3. 项目控制器必须在 CLI 启动前成功执行 `begin`，并为进程组实施硬超时。账本不负责启动、监控、暂停或终止进程，也不会自动修复现有 launcher。
-4. provider adapter 从完整原始流及退出记录归一化交付 JSON，再执行 `finish`。当前通用工具尚无 agy 原始流 adapter，接入前须用本机 CLI 的脱敏输出验证，不能仅从 SUCCESS 或退出码推断成功。
+4. provider adapter 从完整原始流及退出记录归一化交付 JSON，再执行 `finish`。通用skill已有有限格式的agy stream-json解析器，接入前仍须用当前CLI的脱敏输出验证，不能仅从 SUCCESS 或退出码推断成功。
 5. 只有 `ready_for_review` 才进入独立评审；评审者独立运行所需检查并落盘裁定，最后以 `review` 记录 `approved` 或 `changes_requested`。交付后的源码和证据若变化，旧交付不能直接评审。尚未裁定时可经有记录的 `refreeze` 更新冻结；已批准任务不得覆盖。账本逐轮保留交付指纹与评审绑定，报告原文仍使用新轮次路径。
 6. 达到预算、无进展或新决策门禁就停止派发，保留产物并向用户提供选项。不能删除账本重置计数，不能用实施方自述替代独立评审。
 
@@ -66,3 +66,22 @@ A 包含构建脚本测试、单测、格式、lint、类型和构建；B 包含
 Codex 按变更风险保留独立检查与必要 E2E；已有且输入未变化的证据通过索引读取，避免只为查看输出重复执行。返工交接集中给问题编号、代码事实、契约、复现与关闭标准，不进行逐条遥控编码；等候优先使用完成事件或有界等待。不能以省额为由跳过源码审查、冻结或必需测试。
 
 本地策略记录：`.review/reports/skill-quota-update/policy.json`。本次仅更新工作流和检查入口，业务仍停在认证线本地里程碑；本段不授权自动恢复业务开发。
+
+## 2026-10-22 可靠性修复
+
+通用skill本地更新到`d718539`，Codex与Claude Code两份checkout已同步；未推送。可靠启动、轻量交接及正式恢复规范见`references/reliable-launch.md`，不改变既有外发、测试库、模型或发布边界。
+
+下一次已授权任务的控制器应先运行固定预检和快速基线，成功后才begin/启动模型。代理在同一zsh按本机约定加载，预检不输出代理值；下面的命令只用于已经批准的目标工作线：
+
+```bash
+python3 /Users/sunpcm/code/EchoTalk/.review/reports/tools/cross-platform-local-check.py a preflight &&
+  python3 /Users/sunpcm/code/EchoTalk/.review/reports/tools/cross-platform-local-check.py a baseline
+```
+
+预检核对CLI可用性、分支/审查过的HEAD、干净状态、固定runner hash及现有精确权限条目；不会调用模型或测试网络，也不能证明宿主有效权限。基线配置在本地`.review/reports/tools/review-loop-launch-baselines.json`，由评审在新任务前维护，不能用动态当前HEAD冒充已审查基线。授权dirty须明确核验并配置，不得关闭检查掩盖未知修改。A快速基线为格式/lint/类型；完整quality顺序为格式/lint/类型/单测/构建脚本测试/构建，测试树不删减。B保持格式/lint/受保护测试库入口，C保持原生命周期/离线构建。
+
+后续新控制器复用skill的`agy_delivery.py`，绑定完整原始流hash；只识别已测试的有限格式，精确等待提示单独计数，未知事件/拒权/超时失败关闭。旧已完成controller和账本保留，不因升级重跑任务。等待优先完成事件，无事件时用有界等待；只取`loop_gate.py <state> status --compact`，进程存活另行核实。最终明确本轮是否已结束和是否继续派发。
+
+预算变化使用`amend-budget`，只增加已获用户决定的上限，不重置消费；交付解析修正使用`reparse-delivery`，原始流和源码不得变化，运行事实不能洗掉，结果只回到待评审。两者均禁止直接编辑账本字段，命令中的授权记录不等于工具证明人类同意。旧任务没有原始流绑定时不能伪造绑定以恢复。
+
+本次验证：41项离线测试、独立检查通过；新固定A预检实跑通过且`model_started=false`。历史三份agy原始流脱网回放仍阻断真实拒权，并正确识别两份含精确等待通知的完整交付，原始记录及既有裁定未改写。真实Claude/Codex双宿主模型调用与净省额效果尚未新增验证。EchoTalk业务仍停在A5里程碑，本次不恢复派发。
