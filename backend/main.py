@@ -12,7 +12,15 @@ from sqlalchemy import select
 from config import settings
 from database import async_session_maker
 from models.knowledge import SEED_SKILLS, Skill
-from routers import assessment, conversation, curriculum, health, sessions, user
+from routers import (
+    assessment,
+    call_capabilities,
+    conversation,
+    curriculum,
+    health,
+    sessions,
+    user,
+)
 
 
 @asynccontextmanager
@@ -52,6 +60,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(health.router, prefix="/api", tags=["健康检查"])
+app.include_router(call_capabilities.router, prefix="/api", tags=["通话协议能力"])
 app.include_router(sessions.router, prefix="/api", tags=["会话管理"])
 app.include_router(conversation.router, prefix="/api", tags=["对话"])
 app.include_router(assessment.router, prefix="/api", tags=["发音评估与知识追踪"])

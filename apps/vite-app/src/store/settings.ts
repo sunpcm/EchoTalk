@@ -17,11 +17,14 @@ export type ThemeName = "warm" | "cool" | "dark";
 
 export const THEME_STORAGE_KEY = "echotalk-theme";
 
+let settingsGeneration = 0;
 let themeSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let themeSyncSequence = 0;
+let pendingThemeGen = 0;
 
 function cancelPendingThemeSync(): void {
   themeSyncSequence += 1;
+  pendingThemeGen = 0;
   if (themeSyncTimer) {
     clearTimeout(themeSyncTimer);
     themeSyncTimer = null;
@@ -30,14 +33,20 @@ function cancelPendingThemeSync(): void {
 
 function debouncedSyncThemeToBackend(theme: ThemeName): void {
   const sequence = ++themeSyncSequence;
+  const currentGen = settingsGeneration;
+  pendingThemeGen = currentGen;
   if (themeSyncTimer) {
     clearTimeout(themeSyncTimer);
   }
   themeSyncTimer = setTimeout(() => {
     themeSyncTimer = null;
+    // 如果代际已变，取消发送，防止旧任务用新账号 Token 发送
+    if (pendingThemeGen !== settingsGeneration) {
+      return;
+    }
     updateUserSettings({ theme })
       .then((settings) => {
-        if (sequence === themeSyncSequence) {
+        if (sequence === themeSyncSequence && currentGen === settingsGeneration) {
           useSettingsStore.setState({ settings });
         }
       })
@@ -81,7 +90,7 @@ interface SettingsStore {
   fetchSettings: () => Promise<void>;
   /** 部分更新用户设置，返回包含成功与否和错误信息的对象 */
   updateSettings: (data: UserSettingsUpdate) => Promise<{ success: boolean; error?: string }>;
-  /** 重置到初始状态 */
+  /** 重置到初始状态并递增操作代际（不重置成0） */
   reset: () => void;
 }
 
@@ -105,10 +114,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   fetchSettings: async () => {
     if (get().loading) return;
+    const gen = settingsGeneration;
     const themeSequenceAtStart = themeSyncSequence;
     set({ loading: true, error: null });
     try {
       const settings = await getUserSettings();
+      if (settingsGeneration !== gen) {
+        return;
+      }
       if (themeSequenceAtStart === themeSyncSequence) {
         const backendTheme = settings.theme;
         applyThemeAttr(backendTheme);
@@ -120,6 +133,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         set({ settings, loading: false });
       }
     } catch (err) {
+      if (settingsGeneration !== gen) {
+        return;
+      }
       set({
         loading: false,
         error: err instanceof Error ? err.message : "加载设置失败",
@@ -128,9 +144,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   updateSettings: async (data: UserSettingsUpdate) => {
+    const gen = settingsGeneration;
     set({ saving: true, error: null });
     try {
       const settings = await updateUserSettings(data);
+      if (settingsGeneration !== gen) {
+        return { success: false, error: "stale" };
+      }
 
       // 如果后端验证未通过，但 HTTP 请求成功返回了，我们需要视为"校验失败"
       if (settings.is_custom_mode && !settings.is_custom_verified) {
@@ -142,6 +162,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       set({ settings, saving: false });
       return { success: true };
     } catch (err) {
+      if (settingsGeneration !== gen) {
+        return { success: false, error: "stale" };
+      }
       const errorMessage = err instanceof Error ? err.message : "保存失败";
       set({
         saving: false,
@@ -152,6 +175,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   reset: () => {
+    settingsGeneration += 1;
     cancelPendingThemeSync();
     set({ settings: null, loading: false, saving: false, error: null });
   },

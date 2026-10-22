@@ -1,1 +1,4 @@
 plop-templates/**/*.hbs
+
+# Local review-loop prompts, reports and isolated worktrees
+.review/

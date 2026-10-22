@@ -64,7 +64,13 @@ class Settings(BaseSettings):
         "Authorization",
         "Accept",
         "X-Requested-With",
+        "Idempotency-Key",
+        "X-Call-Device-Id",
+        "X-Call-Generation",
     ]
+
+    # 通话租约模式：仅允许 "disabled" 或 "livekit_cloud"
+    CALL_LEASE_MODE: str = "disabled"
 
     # LLM
     SILICONFLOW_API_KEY: str = ""
@@ -90,6 +96,14 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             return url.replace("postgres://", "postgresql+asyncpg://", 1)
         return url
+
+    @field_validator("CALL_LEASE_MODE")
+    @classmethod
+    def validate_call_lease_mode(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"disabled", "livekit_cloud"}:
+            raise ValueError("CALL_LEASE_MODE 仅允许 'disabled' 或 'livekit_cloud'")
+        return normalized
 
     @field_validator("AUTH_MODE")
     @classmethod
@@ -177,6 +191,35 @@ class Settings(BaseSettings):
                 Fernet(key.encode())
             except (TypeError, ValueError) as exc:
                 raise RuntimeError(f"无效的凭据加密密钥版本: {version}") from exc
+
+        if self.CALL_LEASE_MODE == "livekit_cloud":
+            if not self.LIVEKIT_API_KEY.strip() or not self.LIVEKIT_API_SECRET.strip():
+                raise RuntimeError(
+                    "CALL_LEASE_MODE=livekit_cloud 要求配置非空的 LIVEKIT_API_KEY 与 LIVEKIT_API_SECRET"
+                )
+            if not self.LIVEKIT_URL.strip():
+                raise RuntimeError("CALL_LEASE_MODE=livekit_cloud 要求配置 LIVEKIT_URL")
+            parsed_lk = urlsplit(self.LIVEKIT_URL.strip())
+            lk_host = (parsed_lk.hostname or "").lower()
+            is_valid_scheme = parsed_lk.scheme in {"https", "wss"}
+            has_no_credentials = (
+                parsed_lk.username is None and parsed_lk.password is None
+            )
+            has_no_query_or_fragment = not parsed_lk.query and not parsed_lk.fragment
+            has_no_path = not parsed_lk.path or parsed_lk.path == "/"
+            is_cloud_domain = lk_host.endswith(".livekit.cloud") and len(lk_host) > len(
+                ".livekit.cloud"
+            )
+            if not (
+                is_valid_scheme
+                and has_no_credentials
+                and has_no_query_or_fragment
+                and has_no_path
+                and is_cloud_domain
+            ):
+                raise RuntimeError(
+                    "CALL_LEASE_MODE=livekit_cloud 要求 LIVEKIT_URL 为无凭据、无 query、无 fragment 的 HTTPS/WSS *.livekit.cloud 地址"
+                )
 
     model_config = {
         "env_file": str(Path(__file__).resolve().parent.parent / ".env"),

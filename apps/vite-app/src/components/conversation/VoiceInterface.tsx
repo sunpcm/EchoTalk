@@ -15,6 +15,7 @@ import {
   useConnectionState,
   useVoiceAssistant,
   useDataChannel,
+  useRoomContext,
   BarVisualizer,
   VoiceAssistantControlBar,
 } from "@livekit/components-react";
@@ -29,7 +30,7 @@ import { SkillTree } from "@/components/learning/SkillTree";
 import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
 import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
-import { detectPlatform, getApiBaseUrl } from "@/utils/env";
+import { getLiveKitWsUrl } from "@/platform";
 
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
@@ -37,9 +38,30 @@ const tDash = zhCN.dashboard;
 const tWarn = zhCN.connectionWarning;
 const tAgentErr = zhCN.agentError;
 
+/** 同步停止指定 Room 拥有的全部本地音轨（不等待网络 disconnect） */
+export function stopRoomLocalTracks(room?: {
+  localParticipant?: {
+    trackPublications?: Map<unknown, { track?: { stop?: () => void } }>;
+  };
+}) {
+  if (!room?.localParticipant?.trackPublications) return;
+  try {
+    room.localParticipant.trackPublications.forEach((pub) => {
+      try {
+        pub?.track?.stop?.();
+      } catch {
+        // ignore
+      }
+    });
+  } catch {
+    // ignore
+  }
+}
+
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
-  const { connectionState, sessionId, token, wsUrl, error, goHome } = useConversationStore();
+  const { connectionState, sessionId, token, wsUrl, error, goHome, sessionGen } =
+    useConversationStore();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showWarning, setShowWarning] = useState(false);
 
@@ -60,34 +82,29 @@ export function VoiceInterface() {
     );
   }
 
-  if (connectionState === "connecting" && !token) {
+  if (connectionState === "checking_health" || (connectionState === "connecting" && !token)) {
     return <ConnectingView />;
+  }
+
+  if (connectionState === "ending") {
+    return <EndingView />;
+  }
+
+  if (connectionState === "end_failed") {
+    return <EndFailedView />;
   }
 
   if (connectionState === "ended") {
     return <EndedView />;
   }
 
+  // 严格安全门禁：除 connecting/active 且 token 存在外，绝不挂载 LiveKitRoom
+  if ((connectionState !== "connecting" && connectionState !== "active") || !token) {
+    return <ConnectingView />;
+  }
+
   // connecting（有 token）或 active 状态：解析并渲染 LiveKit 房间
-  const isNative = detectPlatform() !== "web";
-
-  // 原生端代理兜底：仅在需要时惰性求值；无有效 API Host 时返回 null，由上层报配置错误，不静默产出 localhost 死地址
-  const getNativeProxyWsUrl = (): string | null => {
-    try {
-      const apiOrigin = new URL(getApiBaseUrl(), location.href).origin;
-      return `${apiOrigin.replace(/^http/, "ws")}/livekit-ws`;
-    } catch {
-      return null;
-    }
-  };
-
-  const effectiveWsUrl = isNative
-    ? import.meta.env.VITE_LIVEKIT_FORCE_PROXY === "true"
-      ? getNativeProxyWsUrl()
-      : wsUrl || import.meta.env.VITE_LIVEKIT_URL
-    : import.meta.env.VITE_LIVEKIT_DIRECT === "true"
-      ? wsUrl || import.meta.env.VITE_LIVEKIT_URL
-      : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/livekit-ws`;
+  const effectiveWsUrl = getLiveKitWsUrl({ tokenWsUrl: wsUrl });
 
   // 若 effectiveWsUrl 为空（如原生强制代理但未配置有效 Host），直接展示错误卡片
   if (!effectiveWsUrl) {
@@ -106,6 +123,9 @@ export function VoiceInterface() {
     );
   }
 
+  const mountedSessionId = sessionId;
+  const mountedGen = sessionGen;
+
   return (
     <>
       {/* 防拦截警告 Toast */}
@@ -122,24 +142,46 @@ export function VoiceInterface() {
       )}
 
       <LiveKitRoom
+        key={`lk-room-${mountedGen}-${mountedSessionId ?? "none"}`}
         serverUrl={effectiveWsUrl ?? undefined}
         token={token ?? undefined}
         connect={true}
         audio={true}
         video={false}
         onConnected={() => {
+          const current = useConversationStore.getState();
+          // 代际/SessionId 检查与状态防守：旧 Room 回调或过期 Session 不 dispatchAgent
+          if (
+            current.sessionGen !== mountedGen ||
+            current.sessionId !== mountedSessionId ||
+            (current.connectionState !== "connecting" && current.connectionState !== "active")
+          ) {
+            return;
+          }
           setConnectionError(null);
           setShowWarning(false);
-          if (sessionId) {
-            dispatchAgent(sessionId).catch((err) => console.error("Agent dispatch failed:", err));
+          if (mountedSessionId) {
+            dispatchAgent(mountedSessionId).catch((err) =>
+              console.error("Agent dispatch failed:", err),
+            );
           }
         }}
         onError={(error) => {
+          const current = useConversationStore.getState();
+          // 旧 Room 实例的错误不污染当前新会话
+          if (current.sessionGen !== mountedGen || current.sessionId !== mountedSessionId) {
+            return;
+          }
           console.error("LiveKit connection error:", error);
           setConnectionError(error.message);
           setShowWarning(true);
         }}
         onDisconnected={(reason) => {
+          const current = useConversationStore.getState();
+          // 旧 Room 实例的断开不污染当前新会话
+          if (current.sessionGen !== mountedGen || current.sessionId !== mountedSessionId) {
+            return;
+          }
           console.log("LiveKit disconnected:", reason);
           // Agent 错误已通过 DataChannel 处理，跳过重复警告
           if (useConversationStore.getState().agentError) return;
@@ -169,12 +211,81 @@ function ConnectingView() {
   );
 }
 
+/** 结束中视图：卸载房间后的即时状态展示 */
+function EndingView() {
+  const goHome = useConversationStore((s) => s.goHome);
+  return (
+    <div className="flex flex-col items-center gap-4 py-12 text-center" data-testid="ending-view">
+      <div className="border-accent h-10 w-10 animate-spin rounded-full border-4 border-t-transparent" />
+      <h3 className="text-text-default text-lg font-semibold">{tConv.ending}</h3>
+      <p className="text-text-muted text-sm">{tConv.endingHint}</p>
+      <button onClick={goHome} className="btn-secondary mt-4 px-6 py-2 text-sm">
+        {tDash.goHome}
+      </button>
+    </div>
+  );
+}
+
+/** 结束失败视图：音频已停止，待重试 */
+function EndFailedView() {
+  const endSession = useConversationStore((s) => s.endSession);
+  const goHome = useConversationStore((s) => s.goHome);
+  const error = useConversationStore((s) => s.error);
+
+  return (
+    <div className="flex flex-col items-center gap-6 py-8" data-testid="end-failed-view">
+      <div className="border-danger-border bg-danger-bg w-full max-w-md rounded-[20px] border p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 shrink-0">
+            <svg className="text-danger h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <div className="flex-1 text-left">
+            <h3 className="text-danger-text text-base font-semibold">{tConv.endFailedTitle}</h3>
+            <p className="text-danger-text mt-1 text-sm leading-relaxed">
+              {tConv.endFailedMessage}
+            </p>
+            {error && <p className="text-danger mt-2 font-mono text-xs">{error}</p>}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-4">
+        <button onClick={endSession} className="btn-primary px-6 py-2.5 text-sm font-medium">
+          {tConv.retryEndButton}
+        </button>
+        <button onClick={goHome} className="btn-secondary px-6 py-2.5 text-sm font-medium">
+          {tDash.goHome}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** 对话中视图：左右分栏布局 */
 function ActiveView() {
   const connectionState = useConnectionState();
   const voiceAssistant = useVoiceAssistant();
-  const { setActive, endSession, setAgentError } = useConversationStore();
+  const room = useRoomContext();
+  const { setActive, endSession, setAgentError, sessionId, sessionGen } = useConversationStore();
   const endError = useConversationStore((state) => state.error);
+
+  // 同步停止当前 Room 拥有的本地音轨，不等待网络 disconnect 延迟
+  const handleEnd = useCallback(() => {
+    stopRoomLocalTracks(room);
+    void endSession();
+  }, [room, endSession]);
+
+  // 组件卸载时（如由于代际变化或状态切出），主动同步停止该 Room 拥有的本地音轨
+  useEffect(() => {
+    return () => {
+      stopRoomLocalTracks(room);
+    };
+  }, [room]);
 
   // Phase 5: 监听 agent_error DataChannel 消息（自定义轨 fail-fast）
   useDataChannel("agent_error", (msg) => {
@@ -190,12 +301,12 @@ function ActiveView() {
     }
   });
 
-  // LiveKit 连接成功后，将 store 状态切换到 active
+  // LiveKit 连接成功后，将 store 状态切换到 active（附带 session/代际保护）
   useEffect(() => {
     if (connectionState === ConnectionState.Connected) {
-      setActive();
+      setActive(sessionId ?? undefined, sessionGen);
     }
-  }, [connectionState, setActive]);
+  }, [connectionState, setActive, sessionId, sessionGen]);
 
   // 连接中
   if (connectionState !== ConnectionState.Connected) {
@@ -229,7 +340,7 @@ function ActiveView() {
 
           {/* 结束对话按钮 */}
           <button
-            onClick={endSession}
+            onClick={handleEnd}
             className="bg-danger hover:bg-danger-hover focus-visible:ring-danger mt-3 w-full rounded-[14px] px-6 py-2 text-white transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
             {tConv.endButton}
@@ -374,8 +485,8 @@ function EndedView() {
     job,
   } = useAssessmentStore();
 
-  // 启动轮询（仅在非 Agent 错误时）
-  const loadState = usePollingAssessment(agentError ? null : sessionId);
+  // 启动轮询（仅在非 Agent 错误且存在 sessionId 时）
+  const loadState = usePollingAssessment(agentError || !sessionId ? null : sessionId);
 
   const handleGoHome = useCallback(() => {
     resetAssessment();
@@ -385,6 +496,28 @@ function EndedView() {
   const handleRetry = useCallback(() => {
     if (sessionId) void retryFailedAnalysis(sessionId);
   }, [retryFailedAnalysis, sessionId]);
+
+  // 无 ID 在途取消（在 health/create 返回前取消）：展示本地已取消/服务端状态未知，不启动分析
+  if (!sessionId) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-8" data-testid="cancelled-local-view">
+        <div className="text-center">
+          <h2 className="text-text-default mb-2 text-2xl font-bold">
+            {tConv.cancelledBeforeStartTitle}
+          </h2>
+          <p className="text-text-muted text-sm leading-relaxed">
+            {tConv.cancelledBeforeStartMessage}
+          </p>
+        </div>
+        <button
+          onClick={handleGoHome}
+          className="btn-primary inline-flex items-center gap-2 px-8 py-3 text-lg"
+        >
+          {tDash.goHome}
+        </button>
+      </div>
+    );
+  }
 
   // Agent 错误：显示红色错误卡片
   if (agentError) {

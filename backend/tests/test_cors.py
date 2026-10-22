@@ -29,6 +29,71 @@ def test_cors_preflight_allowed():
     assert "content-type" in allowed_headers.lower()
 
 
+def test_cors_preflight_idempotency_key_allowed():
+    """验证 POST 预检请求包含 Idempotency-Key 时正确放行并返回该允许头。"""
+    headers = {
+        "Origin": "http://localhost:3000",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Authorization, Content-Type, Idempotency-Key",
+    }
+    response = client.options("/api/sessions", headers=headers)
+    assert response.status_code == 200
+    assert (
+        response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    )
+
+    allowed_headers = response.headers.get("access-control-allow-headers", "")
+    assert "*" not in allowed_headers
+    assert "idempotency-key" in allowed_headers.lower()
+    assert "authorization" in allowed_headers.lower()
+    assert "content-type" in allowed_headers.lower()
+
+
+def test_cors_preflight_unknown_header_rejected_with_idempotency_key():
+    """验证请求包含未知头时，预检请求被 CORSMiddleware 拒绝（返回 400）。"""
+    headers = {
+        "Origin": "http://localhost:3000",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Authorization, Idempotency-Key, X-Unknown-Header",
+    }
+    response = client.options("/api/sessions", headers=headers)
+    assert response.status_code == 400
+    assert "Disallowed CORS headers" in response.text
+    allowed_headers = response.headers.get("access-control-allow-headers", "")
+    assert "x-unknown-header" not in allowed_headers.lower()
+
+
+def test_cors_preflight_call_lease_headers_allowed():
+    """验证预检请求包含 X-Call-Device-Id 和 X-Call-Generation 时正确放行。"""
+    headers = {
+        "Origin": "http://localhost:3000",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "Authorization, X-Call-Device-Id, X-Call-Generation",
+    }
+    response = client.options("/api/sessions/test/token", headers=headers)
+    assert response.status_code == 200
+    assert (
+        response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    )
+
+    allowed_headers = response.headers.get("access-control-allow-headers", "")
+    assert "*" not in allowed_headers
+    assert "x-call-device-id" in allowed_headers.lower()
+    assert "x-call-generation" in allowed_headers.lower()
+
+
+def test_cors_preflight_unknown_header_rejected_with_call_lease_headers():
+    """验证携带未知头与通话租约头时，预检请求被 CORSMiddleware 拒绝（返回 400）。"""
+    headers = {
+        "Origin": "http://localhost:3000",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Authorization, X-Call-Device-Id, X-Unknown-Header",
+    }
+    response = client.options("/api/sessions/test/dispatch", headers=headers)
+    assert response.status_code == 400
+    assert "Disallowed CORS headers" in response.text
+
+
 def test_cors_preflight_disallowed_header():
     headers = {
         "Origin": "http://localhost:3000",

@@ -13,7 +13,13 @@
 - [当前状态与变更决策](./PROJECT_STATUS.md)：记录当前功能、验证边界、已合并和未采纳的实现及维护规则。
 - [MVP 技术债修复与重构方案](./MVP_REFACTORING_REMEDIATION_PLAN.md)：定义 MVP 产品化修复的范围、实施顺序、验收和回滚要求；完成状态仍以根目录 `TODO.md` 为准。
 
+- [Agent 评审手册](./agent-review-loop.md)：三端评审循环、测试树、环境和并行边界。
+- [外部 CLI 自动评审接入](./REVIEW_LOOP_AUTOMATION.md)：本地状态门禁、授权、预算、暂停恢复及交付判定。
+
 ## 当前架构与验收
+
+- [系统架构](./ARCHITECTURE.md)：系统边界和核心链路。
+- [三端架构与交付门禁](./CROSS_PLATFORM_ARCHITECTURE.md)：Web/iOS/macOS 当前事实与交付目标。
 
 | 阶段               | 技术说明                                         | 验收手册                                           | 补充设计                                                     |
 | ------------------ | ------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------ |
@@ -32,3 +38,8 @@
 - 计划落入 `TODO.md`；功能和关键决策落入 `PROJECT_STATUS.md`；实现细节和人工验收分别进入对应技术说明与验收手册。
 - 命令、端口、依赖、功能状态或安全边界变化时，同一变更内同步更新文档。
 - 失效设计可直接删除，历史内容由 Git 保存，无需重复建立归档副本。
+
+- [CP-02 客户端占用API前置验证](./verification/cross-platform/CP-02-LEASE-API.md)：API原语与本地独立证据，未开放Cloud通话。
+
+- [CP-02 独立占用控制器验证](./verification/cross-platform/CP-02-LEASE-CONTROLLER.md)：未接UI/Cloud的本地前置模块。
+- [CP-01/05 Web生命周期验证](./verification/cross-platform/CP-01-WEB-LIFECYCLE.md)：事件边界、恢复快照与清理，真实原生事件后验。
