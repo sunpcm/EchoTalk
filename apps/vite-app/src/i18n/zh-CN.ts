@@ -35,6 +35,9 @@ export const zhCN = {
     errorTitle: "连接出错",
     errorRetry: "重试",
     micPermission: "请允许浏览器使用麦克风",
+    notAuthenticated: "请登录后开始练习",
+    capabilitiesUnsupported: "当前客户端尚未支持此通话模式",
+    capabilitiesFailed: "通话能力检查失败，请稍后重试",
   },
   assessment: {
     pending: "分析任务排队中...",

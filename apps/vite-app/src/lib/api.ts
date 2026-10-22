@@ -222,6 +222,51 @@ export interface AnalysisStatusResponse {
   updated_at: string;
 }
 
+// ─── 通话能力 API ───
+
+export type CallLeaseMode = "disabled" | "livekit_cloud";
+
+export interface CallCapabilitiesResponse {
+  protocol_version: 1;
+  call_lease_mode: CallLeaseMode;
+}
+
+/** 校验并解析通话协议能力响应，严格要求精确两字段、protocol_version=1 及合法 mode */
+export function parseCallCapabilities(data: unknown): CallCapabilitiesResponse {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    throw new Error("Invalid capabilities response: expected an object");
+  }
+  const keys = Object.keys(data);
+  if (
+    keys.length !== 2 ||
+    !keys.includes("protocol_version") ||
+    !keys.includes("call_lease_mode")
+  ) {
+    throw new Error(
+      `Invalid capabilities response: expected exactly protocol_version and call_lease_mode, got [${keys.join(", ")}]`,
+    );
+  }
+  const obj = data as Record<string, unknown>;
+  if (obj.protocol_version !== 1) {
+    throw new Error(`Unsupported capabilities protocol_version: ${String(obj.protocol_version)}`);
+  }
+  if (obj.call_lease_mode !== "disabled" && obj.call_lease_mode !== "livekit_cloud") {
+    throw new Error(`Unsupported call_lease_mode: ${String(obj.call_lease_mode)}`);
+  }
+  return {
+    protocol_version: 1,
+    call_lease_mode: obj.call_lease_mode,
+  };
+}
+
+/** 获取通话协议能力，设置 fetch 的 cache: "no-store" */
+export async function getCallCapabilities(): Promise<CallCapabilitiesResponse> {
+  const raw = await request<unknown>("/call-capabilities", {
+    cache: "no-store",
+  });
+  return parseCallCapabilities(raw);
+}
+
 // ─── 健康检查 API ───
 
 export interface HealthReadyResponse {

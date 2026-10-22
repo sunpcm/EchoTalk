@@ -50,6 +50,14 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (method === "GET" && pathname === "/api/call-capabilities") {
+    sendJson(response, 200, {
+      protocol_version: 1,
+      call_lease_mode: "disabled",
+    });
+    return;
+  }
+
   if (method === "GET" && pathname === "/api/user/settings") {
     sendJson(response, 200, {
       is_custom_mode: false,

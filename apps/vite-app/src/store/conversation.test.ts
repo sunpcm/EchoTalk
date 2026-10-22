@@ -1,18 +1,47 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useConversationStore } from "./conversation";
 import * as api from "@/lib/api";
+import * as auth from "@/lib/auth";
+import { zhCN } from "@/i18n/zh-CN";
 
 vi.mock("@/lib/api", () => ({
+  getCallCapabilities: vi.fn(),
   checkHealthReady: vi.fn(),
   createSession: vi.fn(),
   getSessionToken: vi.fn(),
   endSession: vi.fn(),
 }));
 
+const authSnapshotListeners = new Set<(snap: auth.AuthSnapshot) => void>();
+
+vi.mock("@/lib/auth", () => ({
+  getAuthSnapshot: vi.fn(),
+  getAuthRevision: vi.fn(),
+  arePrincipalsEqual: vi.fn(
+    (a: any, b: any) => a === b || (a && b && a.issuer === b.issuer && a.subject === b.subject),
+  ),
+  subscribeAuthSnapshot: vi.fn((listener: (snap: auth.AuthSnapshot) => void) => {
+    authSnapshotListeners.add(listener);
+    return () => {
+      authSnapshotListeners.delete(listener);
+    };
+  }),
+}));
+
 describe("useConversationStore", () => {
   beforeEach(() => {
     useConversationStore.getState().goHome();
     vi.clearAllMocks();
+    authSnapshotListeners.clear();
+    vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+      state: "authenticated",
+      principal: { issuer: "https://auth.example.com", subject: "user-1" },
+    });
+    vi.mocked(auth.getAuthRevision).mockReturnValue(1);
+    vi.mocked(api.getCallCapabilities).mockResolvedValue({
+      protocol_version: 1,
+      call_lease_mode: "disabled",
+    });
   });
 
   afterEach(() => {
@@ -59,6 +88,7 @@ describe("useConversationStore", () => {
 
       await useConversationStore.getState().startSession("free_talk", docContext);
 
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       expect(api.createSession).toHaveBeenCalledWith("free_talk", docContext);
       expect(api.getSessionToken).toHaveBeenCalledWith("sess-123");
@@ -87,6 +117,7 @@ describe("useConversationStore", () => {
 
       await useConversationStore.getState().startSession("free_talk");
 
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       expect(api.createSession).not.toHaveBeenCalled();
 
@@ -114,6 +145,7 @@ describe("useConversationStore", () => {
 
       await useConversationStore.getState().startSession("free_talk");
 
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       expect(api.createSession).toHaveBeenCalledWith("free_talk", undefined);
       expect(api.getSessionToken).not.toHaveBeenCalled();
@@ -146,6 +178,9 @@ describe("useConversationStore", () => {
       );
 
       const promise = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.checkHealthReady).toHaveBeenCalled();
+      });
       expect(useConversationStore.getState().connectionState).toBe("checking_health");
 
       // 用户在 health check 期间返回主页
@@ -298,6 +333,492 @@ describe("useConversationStore", () => {
       expect(useConversationStore.getState().sessionId).toBe("sess-gen2");
       expect(api.getSessionToken).toHaveBeenCalledWith("sess-gen2");
     });
+
+    it("refuses to start when auth snapshot is not authenticated or principal is null", async () => {
+      vi.mocked(auth.getAuthSnapshot).mockReturnValueOnce({
+        state: "anonymous",
+        principal: null,
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useConversationStore.getState().error).toBe(zhCN.conversation.notAuthenticated);
+    });
+
+    it("gates livekit_cloud mode, remaining on dashboard with localized message and no side effects", async () => {
+      vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
+        protocol_version: 1,
+        call_lease_mode: "livekit_cloud",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.createSession).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.error).toBe("当前客户端尚未支持此通话模式");
+    });
+
+    it("gates capability check failure, remaining on dashboard with generic message and allowing retry", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(api.getCallCapabilities).mockRejectedValueOnce(
+        new Error("Sensitive internal backend 500 error details"),
+      );
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.createSession).not.toHaveBeenCalled();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.error).toBe("通话能力检查失败，请稍后重试");
+      // 绝不回显服务端敏感错误
+      expect(state.error).not.toContain("Sensitive internal backend");
+
+      // 允许用户显式重试
+      vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValueOnce({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValueOnce({
+        id: "retry-sess",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValueOnce({
+        token: "retry-token",
+        ws_url: "wss://livekit.test",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().sessionId).toBe("retry-sess");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("deduplicates in-flight startSession calls during capabilities check", async () => {
+      let resolveCaps!: (val: api.CallCapabilitiesResponse) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCaps = resolve;
+          }),
+      );
+
+      const p1 = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 第二次并发调用
+      const p2 = useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "sess-dedup",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-dedup",
+        ws_url: "wss://livekit.test",
+      });
+
+      resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
+      await Promise.all([p1, p2]);
+
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+      expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+      expect(api.createSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops late capability result if user calls goHome during capability check", async () => {
+      let resolveCaps!: (val: api.CallCapabilitiesResponse) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCaps = resolve;
+          }),
+      );
+
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 用户返回主页
+      useConversationStore.getState().goHome();
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+
+      // 迟到的 capabilities 返回
+      resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
+      await promise;
+
+      // 绝不继续执行健康检查或创建会话
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.createSession).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+    });
+
+    it("drops late capability result if auth revision changes for the same principal, resets to idle, and allows new start", async () => {
+      let resolveCaps!: (val: api.CallCapabilitiesResponse) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCaps = resolve;
+          }),
+      );
+
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 模拟同 principal 新 revision（例如刷新了 Token 或会话被重新签发）
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      // 迟到的 capabilities 返回
+      resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
+      await promise;
+
+      // 绝不能继续用旧启动意图调用健康检查或创建会话
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.createSession).not.toHaveBeenCalled();
+
+      // 必须释放槽位回到可重试状态
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.token).toBeNull();
+
+      // 新的显式开始可以成功执行
+      vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValueOnce({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValueOnce({
+        id: "new-sess",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValueOnce({
+        token: "new-tok",
+        ws_url: "wss://livekit.test",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().sessionId).toBe("new-sess");
+      expect(useConversationStore.getState().token).toBe("new-tok");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("resets to idle on capability rejection when revision changed and allows new start", async () => {
+      let rejectCaps!: (err: unknown) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectCaps = reject;
+          }),
+      );
+
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      rejectCaps(new Error("Network failed"));
+      await promise;
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.token).toBeNull();
+    });
+
+    it("releases slot to idle if revision changes during health check resolve", async () => {
+      let resolveHealth!: (val: { status: string }) => void;
+      vi.mocked(api.checkHealthReady).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveHealth = resolve;
+          }),
+      );
+      const pHealth = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      resolveHealth({ status: "ok" });
+      await pHealth;
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(api.createSession).not.toHaveBeenCalled();
+    });
+
+    it("releases slot to idle if revision changes during health check reject", async () => {
+      let rejectHealth!: (err: unknown) => void;
+      vi.mocked(api.checkHealthReady).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectHealth = reject;
+          }),
+      );
+      const pHealthRej = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      rejectHealth(new Error("Health failed"));
+      await pHealthRej;
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(api.createSession).not.toHaveBeenCalled();
+    });
+
+    it("releases slot to idle if revision changes during createSession resolve", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      let resolveCreate!: (s: api.Session) => void;
+      vi.mocked(api.createSession).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCreate = resolve;
+          }),
+      );
+      const pCreate = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.createSession).toHaveBeenCalledTimes(1);
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      resolveCreate({
+        id: "sess-late",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      await pCreate;
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+    });
+
+    it("releases slot to idle if revision changes during createSession reject", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      let rejectCreate!: (err: unknown) => void;
+      vi.mocked(api.createSession).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectCreate = reject;
+          }),
+      );
+      const pCreateRej = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.createSession).toHaveBeenCalledTimes(1);
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      rejectCreate(new Error("Create error"));
+      await pCreateRej;
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+    });
+
+    it("releases slot to idle if revision changes during getSessionToken resolve", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValueOnce({
+        id: "sess-tok-phase",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      let resolveTok!: (val: { token: string; ws_url: string }) => void;
+      vi.mocked(api.getSessionToken).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveTok = resolve;
+          }),
+      );
+      const pTok = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.getSessionToken).toHaveBeenCalledWith("sess-tok-phase");
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      resolveTok({ token: "late-tok", ws_url: "wss://lk.test" });
+      await pTok;
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(useConversationStore.getState().sessionId).toBeNull();
+    });
+
+    it("releases slot to idle if revision changes during getSessionToken reject", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValueOnce({
+        id: "sess-tok-rej",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      let rejectTok!: (err: unknown) => void;
+      vi.mocked(api.getSessionToken).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectTok = reject;
+          }),
+      );
+      const pTokRej = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.getSessionToken).toHaveBeenCalledWith("sess-tok-rej");
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      rejectTok(new Error("Token failed"));
+      await pTokRej;
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().token).toBeNull();
+    });
+
+    it("releases slot when principal changes with different issuer and same subject", async () => {
+      let resolveCaps!: (val: api.CallCapabilitiesResponse) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCaps = resolve;
+          }),
+      );
+
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 切换不同 issuer 但同 subject 的 principal
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "authenticated",
+        principal: { issuer: "https://other-issuer.example.com", subject: "user-1" },
+      });
+
+      resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
+      await promise;
+
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.createSession).not.toHaveBeenCalled();
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.token).toBeNull();
+    });
+
+    it("immediately unblocks in-flight startup upon auth snapshot event without waiting for network", async () => {
+      let resolveCaps!: (val: api.CallCapabilitiesResponse) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCaps = resolve;
+          }),
+      );
+
+      const oldPromise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 触发认证事件（模拟 OIDC 事件或 Token 刷新更新 snapshot）
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      for (const listener of Array.from(authSnapshotListeners)) {
+        listener({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+        });
+      }
+
+      // 立即恢复为 idle / dashboard，无需等待旧网络完成
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+
+      // 用户立即发起新的显式开始
+      vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValueOnce({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValueOnce({
+        id: "new-concurrent-sess",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValueOnce({
+        token: "new-concurrent-token",
+        ws_url: "wss://livekit.test",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().sessionId).toBe("new-concurrent-sess");
+      expect(useConversationStore.getState().token).toBe("new-concurrent-token");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+
+      // 随后旧网络的 capabilities 迟到返回，绝不能冲掉新会话
+      resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
+      await oldPromise;
+
+      expect(useConversationStore.getState().sessionId).toBe("new-concurrent-sess");
+      expect(useConversationStore.getState().token).toBe("new-concurrent-token");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("does not abort an ongoing active call on auth snapshot update for the same principal", () => {
+      useConversationStore.setState({
+        sessionId: "active-call-sess",
+        token: "active-token",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+      });
+
+      // 触发同 principal 新 revision 认证事件
+      vi.mocked(auth.getAuthRevision).mockReturnValue(5);
+      for (const listener of Array.from(authSnapshotListeners)) {
+        listener({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+        });
+      }
+
+      // 正常通话绝不被中止
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("active");
+      expect(state.sessionId).toBe("active-call-sess");
+      expect(state.token).toBe("active-token");
+    });
   });
 
   describe("endSession", () => {
@@ -430,6 +951,9 @@ describe("useConversationStore", () => {
       );
 
       const startPromise = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.checkHealthReady).toHaveBeenCalled();
+      });
       expect(useConversationStore.getState().connectionState).toBe("checking_health");
       expect(useConversationStore.getState().sessionId).toBeNull();
 

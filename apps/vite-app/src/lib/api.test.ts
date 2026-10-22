@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   checkHealthReady,
+  getCallCapabilities,
+  parseCallCapabilities,
   createSession,
   getSessionToken,
   endSession,
@@ -148,6 +150,91 @@ describe("API client", () => {
           expect(e.message).toBe('{"someField":"someValue"}');
         }
       }
+    });
+  });
+
+  describe("Call capabilities API", () => {
+    it("fetches call capabilities successfully with cache: no-store and token", async () => {
+      const mockResult = { protocol_version: 1, call_lease_mode: "disabled" };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResult),
+      } as unknown as Response);
+
+      const res = await getCallCapabilities();
+      expect(res).toEqual(mockResult);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/call-capabilities`,
+        expect.objectContaining({
+          cache: "no-store",
+        }),
+      );
+      const options = fetchMock().mock.calls[0]?.[1];
+      const headers = new Headers(options?.headers);
+      expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+    });
+
+    it("parses livekit_cloud mode correctly", async () => {
+      const mockResult = { protocol_version: 1, call_lease_mode: "livekit_cloud" };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResult),
+      } as unknown as Response);
+
+      const res = await getCallCapabilities();
+      expect(res).toEqual(mockResult);
+    });
+
+    it("rejects responses with extra fields", () => {
+      expect(() =>
+        parseCallCapabilities({
+          protocol_version: 1,
+          call_lease_mode: "disabled",
+          extra_field: "unexpected",
+        }),
+      ).toThrow(/expected exactly protocol_version and call_lease_mode/);
+    });
+
+    it("rejects responses with missing fields", () => {
+      expect(() => parseCallCapabilities({ protocol_version: 1 })).toThrow(
+        /expected exactly protocol_version and call_lease_mode/,
+      );
+      expect(() => parseCallCapabilities({ call_lease_mode: "disabled" })).toThrow(
+        /expected exactly protocol_version and call_lease_mode/,
+      );
+    });
+
+    it("rejects responses with unsupported protocol_version", () => {
+      expect(() =>
+        parseCallCapabilities({ protocol_version: 2, call_lease_mode: "disabled" }),
+      ).toThrow(/Unsupported capabilities protocol_version/);
+      expect(() =>
+        parseCallCapabilities({ protocol_version: 0, call_lease_mode: "disabled" }),
+      ).toThrow(/Unsupported capabilities protocol_version/);
+    });
+
+    it("rejects responses with unsupported call_lease_mode", () => {
+      expect(() =>
+        parseCallCapabilities({ protocol_version: 1, call_lease_mode: "standalone" }),
+      ).toThrow(/Unsupported call_lease_mode/);
+    });
+
+    it("rejects non-object responses", () => {
+      expect(() => parseCallCapabilities(null)).toThrow(/expected an object/);
+      expect(() => parseCallCapabilities([])).toThrow(/expected an object/);
+      expect(() => parseCallCapabilities("string")).toThrow(/expected an object/);
+    });
+
+    it("propagates ApiError on 401 and invalidates auth session", async () => {
+      const initialRev = getAuthRevision();
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: "Unauthorized" }),
+      } as unknown as Response);
+
+      await expect(getCallCapabilities()).rejects.toThrow(ApiError);
+      expect(getAuthRevision()).toBeGreaterThan(initialRev);
     });
   });
 

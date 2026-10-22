@@ -10,8 +10,26 @@ import {
   getSessionToken,
   endSession as apiEndSession,
   checkHealthReady,
+  getCallCapabilities,
 } from "@/lib/api";
 import type { CurriculumRecommendation, DocContext } from "@/lib/api";
+import {
+  getAuthSnapshot,
+  getAuthRevision,
+  arePrincipalsEqual,
+  subscribeAuthSnapshot,
+  type AuthPrincipal,
+} from "@/lib/auth";
+import { zhCN } from "@/i18n/zh-CN";
+
+interface ActiveStartupTracker {
+  gen: number;
+  principal: AuthPrincipal;
+  revision: number;
+  cleanup: () => void;
+}
+
+let currentStartupTracker: ActiveStartupTracker | null = null;
 
 /** 连接状态枚举 */
 export type ConnectionState =
@@ -75,24 +93,156 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   agentError: null,
 
   startSession: async (mode: string, docContext?: DocContext) => {
-    // 防止重复调用（如双击或 StrictMode 双渲染）
+    // 1. 防止重复调用（如双击或 StrictMode 双渲染），在途能力查询和启动去重
     if (get().connectionState !== "idle") return;
+
+    // 2. 必须具备有效认证快照，否则不发起开始
+    const authSnapshot = getAuthSnapshot();
+    if (authSnapshot.state !== "authenticated" || !authSnapshot.principal) {
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.conversation.notAuthenticated,
+      });
+      return;
+    }
+    const startRevision = getAuthRevision();
+    const startPrincipal = authSnapshot.principal;
 
     const targetGen = get().sessionGen + 1;
 
-    // 1. 先置为检查状态，不切换视图，代际递增
+    // 清理先前可能遗留的 tracker
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
+
+    let tracker: ActiveStartupTracker | null = null;
+    const unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
+      // 必须仍归属本次启动代际
+      if (get().sessionGen !== targetGen) {
+        tracker?.cleanup();
+        return;
+      }
+      const state = get();
+      const isStarting =
+        state.connectionState === "checking_health" ||
+        (state.connectionState === "connecting" && !state.token);
+      if (!isStarting) {
+        return;
+      }
+
+      const currentRev = getAuthRevision();
+      const isStillValid =
+        nextSnapshot.state === "authenticated" &&
+        nextSnapshot.principal !== null &&
+        arePrincipalsEqual(nextSnapshot.principal, startPrincipal) &&
+        currentRev === startRevision;
+
+      if (!isStillValid) {
+        tracker?.cleanup();
+        // 认证事件发生时立即释放启动槽位，状态恢复为可重试，不覆盖新启动
+        set({
+          sessionGen: targetGen + 1,
+          connectionState: "idle",
+          appView: "dashboard",
+          sessionId: null,
+          token: null,
+          wsUrl: null,
+          error: null,
+        });
+      }
+    });
+
+    tracker = {
+      gen: targetGen,
+      principal: startPrincipal,
+      revision: startRevision,
+      cleanup: () => {
+        unsubscribeAuth();
+        if (currentStartupTracker === tracker) {
+          currentStartupTracker = null;
+        }
+      },
+    };
+    currentStartupTracker = tracker;
+
+    const isGenCurrent = (): boolean => get().sessionGen === targetGen;
+    const isAuthCurrent = (): boolean => {
+      const currentSnap = getAuthSnapshot();
+      if (currentSnap.state !== "authenticated" || !currentSnap.principal) return false;
+      if (!arePrincipalsEqual(currentSnap.principal, startPrincipal)) return false;
+      if (getAuthRevision() !== startRevision) return false;
+      return true;
+    };
+
+    // 检查代际与认证归属：
+    // 若代际已过（如已 goHome 或进入新启动），绝不修改 store；
+    // 若代际匹配但认证已变，则释放启动槽位为 idle，使状态可重试，不卡死重复开始。
+    const checkOrRelease = (): boolean => {
+      if (!isGenCurrent()) {
+        tracker?.cleanup();
+        return false;
+      }
+      if (!isAuthCurrent()) {
+        tracker?.cleanup();
+        set({
+          sessionGen: targetGen + 1,
+          connectionState: "idle",
+          appView: "dashboard",
+          sessionId: null,
+          token: null,
+          wsUrl: null,
+          error: null,
+        });
+        return false;
+      }
+      return true;
+    };
+
+    // 3. 先置为检查状态，不切换视图，代际递增，涵盖能力查询
     set({
       sessionGen: targetGen,
       connectionState: "checking_health",
       error: null,
     });
 
+    // 4. 通话能力发现与门禁 (CP-02 §8)
+    let capabilities;
+    try {
+      capabilities = await getCallCapabilities();
+    } catch (err) {
+      if (!checkOrRelease()) return;
+      console.error("Call capabilities check failed:", err);
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.conversation.capabilitiesFailed,
+      });
+      return;
+    }
+
+    if (!checkOrRelease()) return;
+
+    // 当前客户端仅支持 disabled 模式，livekit_cloud 模式受控失败关闭
+    if (capabilities.call_lease_mode !== "disabled") {
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.conversation.capabilitiesUnsupported,
+      });
+      return;
+    }
+
+    // 5. 健康检查
     try {
       await checkHealthReady();
     } catch (err) {
-      if (get().sessionGen !== targetGen) return;
+      if (!checkOrRelease()) return;
       console.error("Health check failed:", err);
-
+      tracker?.cleanup();
       set({
         connectionState: "idle",
         appView: "dashboard",
@@ -101,27 +251,29 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       return;
     }
 
-    if (get().sessionGen !== targetGen) return;
+    if (!checkOrRelease()) return;
 
-    // 2. 检查可用后再切换到 session 视图并创建实际会话
+    // 6. 检查可用后再切换到 session 视图并创建实际会话
     set({ connectionState: "connecting", appView: "session", error: null });
     try {
       const session = await createSession(mode, docContext);
-      if (get().sessionGen !== targetGen) return;
+      if (!checkOrRelease()) return;
 
       // 创建成功立即保存归属 ID，防止在 getSessionToken 在途期间无法结束
       set({ sessionId: session.id });
 
       const { token, ws_url } = await getSessionToken(session.id);
-      if (get().sessionGen !== targetGen) return;
+      if (!checkOrRelease()) return;
 
+      tracker?.cleanup();
       set({
         token,
         wsUrl: ws_url,
         // 状态保持 connecting，等 LiveKit 连接成功后由 setActive 切到 active
       });
     } catch (err) {
-      if (get().sessionGen !== targetGen) return;
+      if (!checkOrRelease()) return;
+      tracker?.cleanup();
       set({
         connectionState: "idle",
         appView: "dashboard",
@@ -131,6 +283,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   endSession: async () => {
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
     const state = get();
     // 1. 同一在途结束去重
     if (state.connectionState === "ending") {
@@ -209,6 +365,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   setAgentError: (error) => {
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
     set((state) => ({
       sessionGen: state.sessionGen + 1,
       agentError: error,
@@ -219,6 +379,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   reset: () => {
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
     set((state) => ({
       sessionGen: state.sessionGen + 1,
       connectionState: "idle",
@@ -231,6 +395,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   goHome: () => {
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
     set((state) => ({
       sessionGen: state.sessionGen + 1,
       connectionState: "idle",
