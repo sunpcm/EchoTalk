@@ -89,3 +89,23 @@ python3 /Users/sunpcm/code/EchoTalk/.review/reports/tools/cross-platform-local-c
 ## 2026-10-22 A6 使用记录
 
 本轮实际使用预检/快速基线、有限agy解析器、账本begin/finish/reconcile/review；未直接修改账本、未更换模型或增加命令权限。新增问题记录于本地`.review/reports/workflow-capabilities/issues.md`：精确文件路径/新建状态不足、运行状态粒度、可重试断言缺口、跨日临时测试库就绪/schema，以及评审变异与浏览器验证的路径/依赖调度。保留原始失败和修正证据，本轮不据此再改全局skill；净Codex额度收益仍未证实。
+
+## 交接、恢复验收与事件摘要补强（2026-10-22）
+
+用户要求优化后，通用skill本地更新至`7306f2b`，Codex/Claude独立checkout已同步，未推送。通用变更见skill的CHANGELOG.md；本地证据见`.review/reports/skill-a6-update/`。
+
+新任务交接列关键现有/新建文件，launch_preflight可选task_files检查实际路径；返工后根据已创建文件刷新声明。恢复流程同时验收禁止副作用、最终状态与再次操作。变异与消费同一源码的验证串行，固定入口使用绝对路径与fail-fast。
+
+check_batch新增run-status.json元数据；下一次agy控制器需显式接入runtime_status接口，不能把当前账本running当实时阶段。只报告实际观察到的事件，未知阶段不猜测。摘要不是进程存活/交付完整/评审通过证明，展示计时不改预算。
+
+EchoTalk数据库前置检查仍由项目维护：核对专用容器/数据库身份，再有界pg_isready，再检查schema/Alembic版本。当前项目wrapper尚未自动集成全部预检，应在后续任务执行前落实；本次未启动服务或迁移。业务代码维持A6本地里程碑，没有派发下一开发任务。
+
+独立检查发现并补修新建文件祖先冲突；48项离线回归通过。真实CLI进度、双宿主模型调用和净额度收益继续待验收，离线通过不替代这些结论。
+
+## A7 真实任务接入结果（2026-10-22）
+
+用户授权继续后，7306f2b的task_files预检与RuntimeStatus事件摘要已用于A7。外部CLI实际运行一次并正常退出，固定检查自产run-status.json；父摘要尚未聚合子batch，仅有provider_event时阶段unknown。不能把未知阶段当卡死，也不把finished当APPROVED。
+
+专用数据库wrapper已补30秒pg_isready及schema/Alembic/必要表检查，失败即停，不自动迁移。实际269项后端回归通过。未启动其他数据库、未访问真实Provider。
+
+A7 API前置里程碑本地通过，四项新工作流问题在`.review/reports/workflow-lease-api/issues.md`，原失败与报告保留。后续收益仍需观察，精确Codex任务Token不可得，不报节省率；未继续下一模型任务。

@@ -43,6 +43,14 @@
 - 新版skill的正式预检、解析和账本入口已用于本轮；新发现的5类工作流问题只存本地`.review/reports/workflow-capabilities/issues.md`，本轮未再改全局skill。文档见[能力门禁验证](./verification/cross-platform/CP-02-CAPABILITIES.md)。
 - Cloud客户端claim/heartbeat/接管/媒体恢复、真实IdP/原生凭据/真机和三端真实链路仍未完成。发布前需服务端能力接口先就绪，旧服务端缺端点时新客户端会阻止开始；本次未发布，CP-02整体不勾选。
 
+## 2026-10-22 本地客户端占用API前置增量
+
+代码`03d50e0`已独立APPROVED并集成本地隔离分支：claim/heartbeat/release与token/dispatch可选owner头、输入/精确响应关联校验、默认不接管及无自动重放。仅两个API产品/测试文件，未接store/UI或解除Cloud门禁，默认disabled保持。
+
+- 独立280产品测试、18构建测试、30私有探针、3变异、12项实施源码Chromium/Fake API及集成6项通过；后端269项/73.72%，专用库身份/ready/schema通过，本次不迁移。
+- 新版skill7306f2b的文件清单预检/事件摘要已实接，agy一次模型尝试527.85活动秒，无产品返工；四项问题/局限只记本地。Token口径见[验证记录](./verification/cross-platform/CP-02-LEASE-API.md)，不声称已证明净节省。
+- 集成7项固定门禁通过，未推送、部署或真实Provider联调。占用状态机/心跳/恢复/显式接管与原生链路仍待实现，CP-02整体未完成。此处停止下一模型派发。
+
 ## 当前功能
 
 | 领域           | 当前实现                                                                           | 状态与边界                                                 |
