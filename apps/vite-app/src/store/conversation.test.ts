@@ -4,13 +4,20 @@ import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
 import { zhCN } from "@/i18n/zh-CN";
 
-vi.mock("@/lib/api", () => ({
-  getCallCapabilities: vi.fn(),
-  checkHealthReady: vi.fn(),
-  createSession: vi.fn(),
-  getSessionToken: vi.fn(),
-  endSession: vi.fn(),
-}));
+vi.mock("@/lib/api", () => {
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return {
+    getCallCapabilities: vi.fn(),
+    checkHealthReady: vi.fn(),
+    createSession: vi.fn(),
+    getSessionDetail: vi.fn(),
+    getSessionToken: vi.fn(),
+    endSession: vi.fn(),
+    isValidUuid: vi.fn(
+      (val: unknown): val is string => typeof val === "string" && UUID_REGEX.test(val),
+    ),
+  };
+});
 
 const authSnapshotListeners = new Set<(snap: auth.AuthSnapshot) => void>();
 
@@ -1335,6 +1342,463 @@ describe("useConversationStore", () => {
       expect(state.selectedScenario).toBeNull();
       expect(state.agentError).toBeNull();
       expect(state.sessionGen).toBeGreaterThan(initialGen);
+    });
+  });
+
+  describe("resumeSession", () => {
+    const validUuid = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const validOrigin = {
+      principal: { issuer: "https://auth.example.com", subject: "user-1" },
+      revision: 1,
+    };
+
+    it("successfully resumes a session with valid origin and active session details without creating a new session", async () => {
+      const mockDetail: api.Session = {
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      };
+      const mockTokenRes = {
+        token: "resumed-livekit-token",
+        ws_url: "wss://livekit.resumed.example.com",
+      };
+
+      vi.mocked(api.getCallCapabilities).mockResolvedValue({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      vi.mocked(api.getSessionDetail).mockResolvedValue(mockDetail);
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockResolvedValue(mockTokenRes);
+
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+      expect(api.getSessionDetail).toHaveBeenCalledWith(validUuid);
+      expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+      expect(api.getSessionToken).toHaveBeenCalledWith(validUuid);
+      expect(api.createSession).not.toHaveBeenCalled();
+      expect(api.endSession).not.toHaveBeenCalled();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connecting");
+      expect(state.appView).toBe("session");
+      expect(state.sessionId).toBe(validUuid);
+      expect(state.token).toBe("resumed-livekit-token");
+      expect(state.wsUrl).toBe("wss://livekit.resumed.example.com");
+      expect(state.error).toBeNull();
+    });
+
+    it("atomically publishes sessionId, token, wsUrl only after token succeeds, keeping sessionId null before that", async () => {
+      let resolveToken!: (val: { token: string; ws_url: string }) => void;
+      vi.mocked(api.getSessionDetail).mockResolvedValue({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveToken = resolve;
+          }),
+      );
+
+      const promise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      await vi.waitFor(() => {
+        expect(api.getSessionToken).toHaveBeenCalledWith(validUuid);
+      });
+
+      // Token 在途期间：sessionId 绝不能提前写入！
+      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+
+      resolveToken({ token: "tok-1", ws_url: "wss://lk.test" });
+      await promise;
+
+      // Token 成功后原子发布
+      expect(useConversationStore.getState().sessionId).toBe(validUuid);
+      expect(useConversationStore.getState().token).toBe("tok-1");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().appView).toBe("session");
+    });
+
+    it("REC-01 regression: checks attribution and drops call if synchronous store subscriber cancels/resets on checking_health set", async () => {
+      const unsub = useConversationStore.subscribe((state) => {
+        if (state.connectionState === "checking_health") {
+          // 同步 store 订阅在 set checking_health 回调里返回主页
+          useConversationStore.getState().goHome();
+        }
+      });
+
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      unsub();
+
+      // 绝不能发出任何 API 请求！
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(api.getSessionDetail).not.toHaveBeenCalled();
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+    });
+
+    it("gates livekit_cloud capability mode, remaining on dashboard with localized message and zero token/detail calls", async () => {
+      vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
+        protocol_version: 1,
+        call_lease_mode: "livekit_cloud",
+      });
+
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+      expect(api.getSessionDetail).not.toHaveBeenCalled();
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.error).toBe(zhCN.conversation.capabilitiesUnsupported);
+    });
+
+    it("refuses to resume and makes zero API calls when sessionId is not a valid UUID", async () => {
+      await useConversationStore.getState().resumeSession("not-a-valid-uuid", validOrigin);
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+    });
+
+    it("refuses to resume and makes zero API calls when origin is invalid or does not match auth snapshot/revision", async () => {
+      // 1. 无效 origin 结构
+      await useConversationStore.getState().resumeSession(validUuid, null as any);
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+
+      // 2. revision 不匹配
+      await useConversationStore.getState().resumeSession(validUuid, {
+        principal: validOrigin.principal,
+        revision: 999,
+      });
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+
+      // 3. principal 不匹配
+      await useConversationStore.getState().resumeSession(validUuid, {
+        principal: { issuer: "https://other.com", subject: "user-1" },
+        revision: 1,
+      });
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+
+      // 4. 未登录
+      vi.mocked(auth.getAuthSnapshot).mockReturnValueOnce({ state: "anonymous", principal: null });
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+    });
+
+    it("rejects completed or ended session detail without fetching token", async () => {
+      vi.mocked(api.getSessionDetail).mockResolvedValueOnce({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "completed",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: "2025-01-01T00:10:00Z",
+        transcripts: [],
+      });
+
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      expect(api.getSessionDetail).toHaveBeenCalledWith(validUuid);
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.error).toBe(zhCN.activeSessions.resumeError);
+    });
+
+    it("rejects mismatched ID or malformed session detail", async () => {
+      vi.mocked(api.getSessionDetail).mockResolvedValueOnce({
+        id: "e0000000-0000-0000-0000-000000000000",
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().error).toBe(zhCN.activeSessions.resumeError);
+    });
+
+    it("supports case-insensitive UUID matching in session detail", async () => {
+      const upperUuid = validUuid.toUpperCase();
+      vi.mocked(api.getSessionDetail).mockResolvedValueOnce({
+        id: upperUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-case",
+        ws_url: "wss://lk.test",
+      });
+
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().sessionId).toBe(validUuid);
+    });
+
+    it("rejects invalid or empty token response without publishing sessionId", async () => {
+      vi.mocked(api.getSessionDetail).mockResolvedValueOnce({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockResolvedValueOnce({
+        token: "",
+        ws_url: "wss://lk.test",
+      });
+
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().error).toBe(zhCN.activeSessions.resumeError);
+    });
+
+    it("drops late responses and releases slot if user calls goHome during detail or token fetch", async () => {
+      let resolveDetail!: (s: api.Session) => void;
+      vi.mocked(api.getSessionDetail).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveDetail = resolve;
+          }),
+      );
+
+      const promise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      await vi.waitFor(() => {
+        expect(api.getSessionDetail).toHaveBeenCalled();
+      });
+
+      useConversationStore.getState().goHome();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+
+      resolveDetail({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      await promise;
+
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().sessionId).toBeNull();
+    });
+
+    it("drops late responses and releases slot when auth snapshot changes during in-flight resume", async () => {
+      let resolveToken!: (val: { token: string; ws_url: string }) => void;
+      vi.mocked(api.getSessionDetail).mockResolvedValue({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveToken = resolve;
+          }),
+      );
+
+      const oldPromise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await vi.waitFor(() => {
+        expect(api.getSessionToken).toHaveBeenCalled();
+      });
+
+      // 触发换号或退出事件
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      for (const listener of Array.from(authSnapshotListeners)) {
+        listener({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-2" },
+        });
+      }
+
+      // 槽位立即释放回 idle
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+
+      // 旧 Token 迟到返回，绝不污染
+      resolveToken({ token: "late-tok", ws_url: "wss://late.test" });
+      await oldPromise;
+
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useConversationStore.getState().token).toBeNull();
+    });
+
+    it("drops late responses and releases slot when web lifecycle suspends during in-flight resume", async () => {
+      let resolveToken!: (val: { token: string; ws_url: string }) => void;
+      vi.mocked(api.getSessionDetail).mockResolvedValue({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveToken = resolve;
+          }),
+      );
+
+      const promise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await vi.waitFor(() => {
+        expect(api.getSessionToken).toHaveBeenCalled();
+      });
+
+      // 派发 visibilitychange 到 hidden
+      Object.defineProperty(document, "visibilityState", {
+        value: "hidden",
+        configurable: true,
+        writable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+
+      resolveToken({ token: "tok-hide", ws_url: "wss://lk.test" });
+      await promise;
+
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+
+      // 恢复 visible
+      Object.defineProperty(document, "visibilityState", {
+        value: "visible",
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it("calling endSession during in-flight resume cancels local startup and does not call apiEndSession", async () => {
+      let resolveToken!: (val: { token: string; ws_url: string }) => void;
+      vi.mocked(api.getSessionDetail).mockResolvedValue({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveToken = resolve;
+          }),
+      );
+
+      const resumePromise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await vi.waitFor(() => {
+        expect(api.getSessionToken).toHaveBeenCalled();
+      });
+
+      // 用户在恢复在途期间调用 endSession
+      await useConversationStore.getState().endSession();
+
+      // 由于此时 sessionId 仍为 null，本地代际取消，绝不能调用 api.endSession
+      expect(api.endSession).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+
+      // 迟到的 Token 返回
+      resolveToken({ token: "late-resumed", ws_url: "wss://lk.test" });
+      await resumePromise;
+
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().token).toBeNull();
+    });
+
+    it("deduplicates concurrent calls to startSession and resumeSession", async () => {
+      let resolveDetail!: (s: api.Session) => void;
+      vi.mocked(api.getSessionDetail).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveDetail = resolve;
+          }),
+      );
+
+      const p1 = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await vi.waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      });
+
+      // 在途期间调用 startSession 和 resumeSession
+      await useConversationStore.getState().startSession("free_talk");
+      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      // capabilities 仅在最初那次调用了一次
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+
+      resolveDetail({
+        id: validUuid,
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-dedup",
+        ws_url: "wss://lk.test",
+      });
+
+      await p1;
+      expect(useConversationStore.getState().sessionId).toBe(validUuid);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
     });
   });
 });

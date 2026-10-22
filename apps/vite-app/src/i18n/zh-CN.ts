@@ -38,6 +38,7 @@ export const zhCN = {
     notAuthenticated: "请登录后开始练习",
     capabilitiesUnsupported: "当前客户端尚未支持此通话模式",
     capabilitiesFailed: "通话能力检查失败，请稍后重试",
+    resumeFailed: "恢复会话失败，请稍后重试",
   },
   assessment: {
     pending: "分析任务排队中...",
@@ -79,7 +80,7 @@ export const zhCN = {
   },
   activeSessions: {
     title: "活动会话",
-    disclaimer: "尚未结束的记录不代表正在通话；恢复与接管暂未开放",
+    disclaimer: "尚未结束的记录不代表正在通话；接管暂未开放",
     loading: "正在加载活动会话...",
     empty: "暂无活动会话",
     loadError: "加载活动会话失败",
@@ -93,6 +94,13 @@ export const zhCN = {
     ending: "正在结束...",
     endError: "结束会话记录失败",
     retryEnd: "重试结束",
+    resumeRecord: "恢复练习",
+    resumeConfirmDisclaimer: "恢复后将连接语音服务并请求麦克风权限",
+    confirmResume: "确认恢复",
+    cancelResume: "取消",
+    resuming: "正在恢复...",
+    resumeError: "恢复会话失败",
+    retryResume: "重试恢复",
     modes: {
       free_talk: "自由对话",
       doc_chat: "文档对话",

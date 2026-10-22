@@ -4,6 +4,7 @@ import { render, screen, act, fireEvent } from "@testing-library/react";
 import { ActiveSessions } from "./ActiveSessions";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
+import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
 
 const t = zhCN.activeSessions;
@@ -33,6 +34,7 @@ describe("ActiveSessions Component", () => {
       principal: { issuer: "https://auth.example.com", subject: "user-1" },
     };
     currentRevision = 1;
+    useConversationStore.getState().goHome();
 
     vi.spyOn(auth, "getAuthSnapshot").mockImplementation(() => currentSnapshot);
     vi.spyOn(auth, "getAuthRevision").mockImplementation(() => currentRevision);
@@ -139,8 +141,11 @@ describe("ActiveSessions Component", () => {
       );
       expect(screen.getByTestId("session-started-at-session-abc-123")).toBeInTheDocument();
 
-      // 验证无恢复、接管或开始按钮，并验证每行提供本地化“结束记录”
-      expect(screen.queryByRole("button", { name: /恢复|接管|开始/ })).not.toBeInTheDocument();
+      // 验证提供本地化“恢复练习”与“结束记录”，无接管或开始按钮
+      expect(screen.queryByRole("button", { name: /接管|开始/ })).not.toBeInTheDocument();
+      expect(screen.getByTestId("resume-session-button-session-abc-123")).toHaveTextContent(
+        t.resumeRecord,
+      );
       expect(screen.getByTestId("end-session-button-session-abc-123")).toHaveTextContent(
         t.endRecord,
       );
@@ -1221,9 +1226,12 @@ describe("ActiveSessions Component", () => {
         expect(screen.getByText("session-readonly-invariants")).toBeInTheDocument();
         expect(
           screen.queryByRole("button", {
-            name: /创建|接管|恢复|开始|claim|heartbeat|dispatch/i,
+            name: /创建|接管|开始|claim|heartbeat|dispatch/i,
           }),
         ).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("resume-session-button-session-readonly-invariants"),
+        ).toHaveTextContent(t.resumeRecord);
         expect(
           screen.getByTestId("end-session-button-session-readonly-invariants"),
         ).toHaveTextContent(t.endRecord);
@@ -1909,6 +1917,761 @@ describe("ActiveSessions Component", () => {
         });
 
         expect(screen.queryByTestId("active-session-item-sess-end-1")).not.toBeInTheDocument();
+      });
+    });
+
+    describe("Explicit Resume Active Session (CP-02 §3)", () => {
+      const mockSessions: api.SessionListItem[] = [
+        {
+          id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2026-10-21T10:00:00Z",
+          ended_at: null,
+        },
+        {
+          id: "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+          mode: "doc_chat",
+          status: "active",
+          started_at: "2026-10-21T11:00:00Z",
+          ended_at: null,
+        },
+      ];
+
+      it("displays inline resume confirmation without window.confirm and allows cancellation without store call or network request", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const confirmSpy = vi.spyOn(window, "confirm");
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const targetId = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        expect(screen.queryByTestId(`resume-confirm-panel-${targetId}`)).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByTestId(`resume-session-button-${targetId}`));
+
+        expect(screen.getByTestId(`resume-confirm-panel-${targetId}`)).toBeInTheDocument();
+        expect(screen.getByTestId(`confirm-resume-session-id-${targetId}`)).toHaveTextContent(
+          targetId,
+        );
+        expect(screen.getByText(t.resumeConfirmDisclaimer)).toBeInTheDocument();
+        expect(confirmSpy).not.toHaveBeenCalled();
+
+        const cancelBtn = screen.getByTestId(`cancel-resume-button-${targetId}`);
+        const confirmBtn = screen.getByTestId(`confirm-resume-button-${targetId}`);
+        expect(confirmBtn).toHaveTextContent(t.confirmResume);
+        expect(cancelBtn).toHaveTextContent(t.cancelResume);
+
+        fireEvent.click(cancelBtn);
+
+        expect(screen.queryByTestId(`resume-confirm-panel-${targetId}`)).not.toBeInTheDocument();
+        expect(resumeSpy).not.toHaveBeenCalled();
+      });
+
+      it("ensures mutual exclusion between end confirmation and resume confirmation", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        // 开启结束确认
+        fireEvent.click(screen.getByTestId(`end-session-button-${id1}`));
+        expect(screen.getByTestId(`end-confirm-panel-${id1}`)).toBeInTheDocument();
+        expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+        // 切换为开启恢复确认（另一行）
+        const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+        expect(screen.queryByTestId(`end-confirm-panel-${id1}`)).not.toBeInTheDocument();
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+      });
+
+      it("blocks resume request (zero store call) when principal changes between start confirm and confirm click before auth event broadcast (RESUME-01)", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        expect(screen.getByTestId(`resume-confirm-panel-${id}`)).toBeInTheDocument();
+
+        // 模拟外部 principal 变动，但未广播
+        currentSnapshot = {
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-2" },
+        };
+
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+        expect(resumeSpy).not.toHaveBeenCalled();
+      });
+
+      it("blocks resume request (zero store call) when revision increments between start confirm and confirm click before auth event broadcast (RESUME-01)", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        expect(screen.getByTestId(`resume-confirm-panel-${id}`)).toBeInTheDocument();
+
+        // 模拟 revision 递增，但未广播
+        currentRevision += 1;
+
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+        expect(resumeSpy).not.toHaveBeenCalled();
+      });
+
+      it("blocks resume confirmation when visibility is hidden or offline, and allows when visible and online", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi
+          .spyOn(useConversationStore.getState(), "resumeSession")
+          .mockResolvedValue(true);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        const confirmBtn = screen.getByTestId(`confirm-resume-button-${id}`);
+
+        // 1. 切后台 hidden
+        await act(async () => {
+          dispatchVisibilityChange("hidden");
+        });
+        fireEvent.click(confirmBtn);
+        expect(resumeSpy).not.toHaveBeenCalled();
+
+        // 2. 切回 visible 但 offline
+        await act(async () => {
+          dispatchOffline();
+        });
+        await act(async () => {
+          dispatchVisibilityChange("visible");
+        });
+        fireEvent.click(confirmBtn);
+        expect(resumeSpy).not.toHaveBeenCalled();
+
+        // 3. 恢复 online 且 visible
+        await act(async () => {
+          dispatchOnline();
+        });
+        fireEvent.click(confirmBtn);
+        expect(resumeSpy).toHaveBeenCalledTimes(1);
+        expect(resumeSpy).toHaveBeenCalledWith(id, {
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+          revision: 1,
+        });
+      });
+
+      it("cancels in-flight list request when issuing resume request", async () => {
+        const listSpy = vi.spyOn(api, "listActiveSessions");
+        const listDeferred1 = createDeferred<api.SessionListItem[]>();
+        listSpy.mockReturnValueOnce(listDeferred1.promise);
+
+        render(<ActiveSessions />);
+        expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+        await act(async () => {
+          listDeferred1.resolve(mockSessions);
+        });
+
+        const listDeferred2 = createDeferred<api.SessionListItem[]>();
+        listSpy.mockReturnValueOnce(listDeferred2.promise);
+
+        await act(async () => {
+          dispatchPageShow();
+        });
+        expect(listSpy).toHaveBeenCalledTimes(2);
+
+        const resumeDeferred = createDeferred<boolean>();
+        vi.spyOn(useConversationStore.getState(), "resumeSession").mockReturnValueOnce(
+          resumeDeferred.promise,
+        );
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+
+        // 列表在途请求被作废且退出 loading
+        expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+
+        await act(async () => {
+          listDeferred2.resolve([
+            {
+              id: "5fa85f64-5717-4562-b3fc-2c963f66afa8",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-21T12:00:00Z",
+              ended_at: null,
+            },
+          ]);
+        });
+        expect(screen.queryByText("5fa85f64-5717-4562-b3fc-2c963f66afa8")).not.toBeInTheDocument();
+
+        await act(async () => {
+          resumeDeferred.resolve(true);
+        });
+      });
+
+      it("pauses list refresh without queueing while resume is in-flight", async () => {
+        const listSpy = vi.spyOn(api, "listActiveSessions");
+        listSpy.mockResolvedValueOnce(mockSessions);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(listSpy).toHaveBeenCalledTimes(1);
+
+        const resumeDeferred = createDeferred<boolean>();
+        vi.spyOn(useConversationStore.getState(), "resumeSession").mockReturnValueOnce(
+          resumeDeferred.promise,
+        );
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+
+        await act(async () => {
+          dispatchPageShow();
+          dispatchVisibilityChange("visible");
+          dispatchOnline();
+        });
+
+        // 列表刷新被暂停且不排队
+        expect(listSpy).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          resumeDeferred.resolve(true);
+        });
+      });
+
+      it("disables other rows and prevents replacing in-flight target while resume is in-flight", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeDeferred = createDeferred<boolean>();
+        vi.spyOn(useConversationStore.getState(), "resumeSession").mockReturnValueOnce(
+          resumeDeferred.promise,
+        );
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+        // id2 按钮处于 disabled
+        expect(screen.getByTestId(`resume-session-button-${id2}`)).toBeDisabled();
+        expect(screen.getByTestId(`end-session-button-${id2}`)).toBeDisabled();
+
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+        expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
+
+        await act(async () => {
+          resumeDeferred.resolve(true);
+        });
+      });
+
+      it("retains target on resume failure, shows localized safe error, allows retry with same ID, and allows cancel", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferred1 = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferred1.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+
+        // 模拟恢复失败
+        await act(async () => {
+          deferred1.reject(new Error("Sensitive backend token issue"));
+        });
+
+        // 不回显敏感报错，显示本地化安全错误
+        expect(screen.queryByText(/Sensitive backend token issue/)).not.toBeInTheDocument();
+        expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+        expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+
+        const retryBtn = screen.getByTestId(`retry-resume-button-${id}`);
+        expect(retryBtn).toHaveTextContent(t.retryResume);
+
+        const deferred2 = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferred2.promise);
+
+        fireEvent.click(retryBtn);
+        expect(resumeSpy).toHaveBeenCalledTimes(2);
+        expect(resumeSpy).toHaveBeenLastCalledWith(id, {
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+          revision: 1,
+        });
+
+        await act(async () => {
+          deferred2.reject(new Error("Another failure"));
+        });
+
+        fireEvent.click(screen.getByTestId(`cancel-resume-button-${id}`));
+        expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
+      });
+
+      it("clears resume confirmation and error immediately upon logout / account switch / revision bump", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferredOld = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferredOld.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+
+        // 换号
+        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce([
+          {
+            id: "5fa85f64-5717-4562-b3fc-2c963f66afa9",
+            mode: "scenario",
+            status: "active",
+            started_at: "2026-10-21T12:00:00Z",
+            ended_at: null,
+          },
+        ]);
+
+        await act(async () => {
+          emitAuthSnapshot({
+            state: "authenticated",
+            principal: { issuer: "https://auth.example.com", subject: "user-2" },
+          });
+        });
+
+        expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
+        expect(screen.queryByTestId(`active-session-item-${id}`)).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("active-session-item-5fa85f64-5717-4562-b3fc-2c963f66afa9"),
+        ).toBeInTheDocument();
+
+        await act(async () => {
+          deferredOld.reject(new Error("Old resume abort"));
+        });
+
+        expect(
+          screen.queryByTestId("resume-error-5fa85f64-5717-4562-b3fc-2c963f66afa9"),
+        ).not.toBeInTheDocument();
+      });
+
+      it("operates normally with resume session under React StrictMode", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi
+          .spyOn(useConversationStore.getState(), "resumeSession")
+          .mockResolvedValue(true);
+
+        render(
+          <StrictMode>
+            <ActiveSessions />
+          </StrictMode>,
+        );
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        expect(resumeSpy).toHaveBeenCalledTimes(1);
+        expect(resumeSpy).toHaveBeenCalledWith(id, {
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+          revision: 1,
+        });
+      });
+
+      it("preserves new in-flight resume when old resume finishes late after revision bump (same principal)", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferredOld = createDeferred<boolean>();
+        const deferredNew = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+        // 1. 用户确认恢复 id1
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+        expect(resumeSpy).toHaveBeenCalledTimes(1);
+        expect(resumeSpy).toHaveBeenLastCalledWith(id1, {
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+          revision: 1,
+        });
+
+        // 2. 此时同 principal 的 revision 递增（模拟同账号重新签发或重登）
+        await act(async () => {
+          emitAuthSnapshot(
+            {
+              state: "authenticated",
+              principal: { issuer: "https://auth.example.com", subject: "user-1" },
+            },
+            true, // revision bump to 2
+          );
+        });
+
+        // 旧的确认面板被作废清除
+        expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+        // 3. 用户在新 revision 下发起第二个会话 id2 的恢复
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id2}`));
+
+        expect(resumeSpy).toHaveBeenCalledTimes(2);
+        expect(resumeSpy).toHaveBeenLastCalledWith(id2, {
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+          revision: 2,
+        });
+
+        // id2 处于确认中且恢复在途
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+        expect(screen.getByTestId(`confirm-resume-button-${id2}`)).toHaveTextContent(t.resuming);
+        expect(screen.getByTestId(`confirm-resume-button-${id2}`)).toBeDisabled();
+
+        // 4. 此时旧的 deferredOld 完成（无论是 true、false 还是抛错）
+        await act(async () => {
+          deferredOld.resolve(true);
+        });
+
+        // 验证：旧的回调绝不得清掉新在途操作的确认面板、在途状态或报假错误
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+        expect(screen.getByTestId(`confirm-resume-button-${id2}`)).toHaveTextContent(t.resuming);
+        expect(screen.getByTestId(`confirm-resume-button-${id2}`)).toBeDisabled();
+        expect(screen.queryByTestId(`resume-error-${id2}`)).not.toBeInTheDocument();
+
+        // 5. 新的 deferredNew 成功完成
+        await act(async () => {
+          deferredNew.resolve(true);
+        });
+
+        // id2 恢复确认面板顺利正常关闭
+        expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
+      });
+
+      it("preserves new in-flight resume when old resume finishes late after principal switch", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferredOld = createDeferred<boolean>();
+        const deferredNew = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        const idNew = "5fa85f64-5717-4562-b3fc-2c963f66afa9";
+
+        // 1. user-1 确认恢复 id1
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+        expect(resumeSpy).toHaveBeenCalledTimes(1);
+
+        // 2. 账号切换到 user-2
+        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce([
+          {
+            id: idNew,
+            mode: "scenario",
+            status: "active",
+            started_at: "2026-10-21T12:00:00Z",
+            ended_at: null,
+          },
+        ]);
+
+        await act(async () => {
+          emitAuthSnapshot({
+            state: "authenticated",
+            principal: { issuer: "https://auth.example.com", subject: "user-2" },
+          });
+        });
+
+        // 3. user-2 确认恢复 idNew
+        fireEvent.click(screen.getByTestId(`resume-session-button-${idNew}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${idNew}`));
+
+        expect(resumeSpy).toHaveBeenCalledTimes(2);
+        expect(screen.getByTestId(`resume-confirm-panel-${idNew}`)).toBeInTheDocument();
+        expect(screen.getByTestId(`confirm-resume-button-${idNew}`)).toHaveTextContent(t.resuming);
+
+        // 4. 旧 user-1 的 deferredOld 发生异常拒绝
+        await act(async () => {
+          deferredOld.reject(new Error("Old abort"));
+        });
+
+        // 验证：新用户的在途状态依然完好，不被旧 user-1 迟到回调篡改
+        expect(screen.getByTestId(`resume-confirm-panel-${idNew}`)).toBeInTheDocument();
+        expect(screen.getByTestId(`confirm-resume-button-${idNew}`)).toHaveTextContent(t.resuming);
+        expect(screen.queryByTestId(`resume-error-${idNew}`)).not.toBeInTheDocument();
+
+        // 5. 新用户的恢复完成
+        await act(async () => {
+          deferredNew.resolve(true);
+        });
+
+        expect(screen.queryByTestId(`resume-confirm-panel-${idNew}`)).not.toBeInTheDocument();
+      });
+
+      it("releases UI resume slot and enables cancel / new recovery when cancelled by pagehide", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferredOld = createDeferred<boolean>();
+        const deferredNew = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+        expect(screen.getByTestId(`cancel-resume-button-${id1}`)).toBeDisabled();
+        expect(screen.getByTestId(`confirm-resume-button-${id1}`)).toBeDisabled();
+
+        // 触发 pagehide
+        await act(async () => {
+          dispatchPageHide();
+        });
+
+        // 恢复到前台
+        await act(async () => {
+          dispatchPageShow();
+          dispatchVisibilityChange("visible");
+        });
+
+        // 控件重新可用：取消按钮可用
+        const cancelBtn = screen.getByTestId(`cancel-resume-button-${id1}`);
+        expect(cancelBtn).not.toBeDisabled();
+
+        // 用户点击取消，面板关闭
+        fireEvent.click(cancelBtn);
+        expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+        // 新恢复入口可用：选择并确认 id2
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id2}`));
+
+        expect(resumeSpy).toHaveBeenCalledTimes(2);
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+        expect(screen.getByTestId(`confirm-resume-button-${id2}`)).toHaveTextContent(t.resuming);
+
+        // 迟到完成的旧请求不污染新请求
+        await act(async () => {
+          deferredOld.resolve(true);
+        });
+
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+        expect(screen.getByTestId(`confirm-resume-button-${id2}`)).toHaveTextContent(t.resuming);
+
+        await act(async () => {
+          deferredNew.resolve(true);
+        });
+
+        expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
+      });
+
+      it("releases UI resume slot and enables controls when cancelled by offline", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferredOld = createDeferred<boolean>();
+        const deferredNew = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+        expect(screen.getByTestId(`cancel-resume-button-${id1}`)).toBeDisabled();
+
+        // 触发 offline
+        await act(async () => {
+          dispatchOffline();
+        });
+
+        // 恢复 online
+        await act(async () => {
+          dispatchOnline();
+        });
+
+        // 取消按钮可用，点击取消关闭面板
+        const cancelBtn = screen.getByTestId(`cancel-resume-button-${id1}`);
+        expect(cancelBtn).not.toBeDisabled();
+        fireEvent.click(cancelBtn);
+        expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+        // 选择并确认新恢复 id2
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id2}`));
+
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+
+        // 旧请求迟到拒绝不污染
+        await act(async () => {
+          deferredOld.reject(new Error("offline abort"));
+        });
+
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+        expect(screen.queryByTestId(`resume-error-${id2}`)).not.toBeInTheDocument();
+
+        await act(async () => {
+          deferredNew.resolve(true);
+        });
+
+        expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
+      });
+
+      it("releases UI resume slot when store.reset is called during pending resume", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferredOld = createDeferred<boolean>();
+        const deferredNew = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+        expect(screen.getByTestId(`cancel-resume-button-${id1}`)).toBeDisabled();
+
+        // 触发 store.reset()
+        act(() => {
+          useConversationStore.getState().reset();
+        });
+
+        // 控件可用：取消按钮恢复可点击
+        const cancelBtn = screen.getByTestId(`cancel-resume-button-${id1}`);
+        expect(cancelBtn).not.toBeDisabled();
+        fireEvent.click(cancelBtn);
+        expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+        // 新恢复推进
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id2}`));
+
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+
+        await act(async () => {
+          deferredOld.resolve(true);
+        });
+
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+
+        await act(async () => {
+          deferredNew.resolve(true);
+        });
+
+        expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
+      });
+
+      it("releases UI resume slot when store.goHome is called during pending resume", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const deferredOld = createDeferred<boolean>();
+        const deferredNew = createDeferred<boolean>();
+        resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+        const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+        expect(screen.getByTestId(`cancel-resume-button-${id1}`)).toBeDisabled();
+
+        // 触发 store.goHome()
+        act(() => {
+          useConversationStore.getState().goHome();
+        });
+
+        // 控件可用：取消按钮可点击
+        const cancelBtn = screen.getByTestId(`cancel-resume-button-${id1}`);
+        expect(cancelBtn).not.toBeDisabled();
+        fireEvent.click(cancelBtn);
+        expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+        // 新恢复可推进
+        fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id2}`));
+
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+
+        await act(async () => {
+          deferredOld.resolve(true);
+        });
+
+        expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+
+        await act(async () => {
+          deferredNew.resolve(true);
+        });
+
+        expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
       });
     });
   });

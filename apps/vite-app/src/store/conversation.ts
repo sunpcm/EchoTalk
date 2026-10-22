@@ -7,10 +7,12 @@
 import { create } from "zustand";
 import {
   createSession,
+  getSessionDetail,
   getSessionToken,
   endSession as apiEndSession,
   checkHealthReady,
   getCallCapabilities,
+  isValidUuid,
 } from "@/lib/api";
 import type { CurriculumRecommendation, DocContext } from "@/lib/api";
 import {
@@ -20,6 +22,7 @@ import {
   subscribeAuthSnapshot,
   type AuthPrincipal,
 } from "@/lib/auth";
+import { createWebLifecycleAdapter } from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
 interface ActiveStartupTracker {
@@ -67,6 +70,11 @@ interface ConversationStore {
 
   /** 开始新会话：创建 session -> 获取 token -> 切换到 session 视图 */
   startSession: (mode: string, docContext?: DocContext) => Promise<void>;
+  /** 恢复已有会话：独立校验 -> 能力检查 -> 会话详情 -> 健康检查 -> 获取令牌 -> 切换到 session 视图 */
+  resumeSession: (
+    sessionId: string,
+    origin: { principal: AuthPrincipal; revision: number },
+  ) => Promise<boolean>;
   /** 结束当前会话 */
   endSession: () => Promise<void>;
   /** LiveKit 房间连接成功后调用，切换到 active 状态 */
@@ -280,6 +288,322 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         error: err instanceof Error ? err.message : "连接失败",
       });
     }
+  },
+
+  resumeSession: async (
+    sessionId: string,
+    origin: { principal: AuthPrincipal; revision: number },
+  ): Promise<boolean> => {
+    // 1. 启动槽位去重（与 startSession 共享一个启动槽位）
+    if (get().connectionState !== "idle") return false;
+
+    // 2. 独立校验 sessionId UUID 格式
+    if (!isValidUuid(sessionId)) return false;
+
+    // 3. 独立校验 origin 结构
+    if (
+      !origin ||
+      typeof origin !== "object" ||
+      !origin.principal ||
+      typeof origin.principal !== "object" ||
+      typeof origin.principal.issuer !== "string" ||
+      origin.principal.issuer.trim() === "" ||
+      typeof origin.principal.subject !== "string" ||
+      origin.principal.subject.trim() === "" ||
+      typeof origin.revision !== "number" ||
+      !Number.isSafeInteger(origin.revision) ||
+      origin.revision <= 0
+    ) {
+      return false;
+    }
+
+    // 4. 独立校验 origin 与当前认证快照及 revision 严格一致
+    const authSnapshot = getAuthSnapshot();
+    if (
+      authSnapshot.state !== "authenticated" ||
+      !authSnapshot.principal ||
+      !arePrincipalsEqual(authSnapshot.principal, origin.principal) ||
+      getAuthRevision() !== origin.revision
+    ) {
+      return false;
+    }
+
+    // 5. 独立校验前台/在线提示门禁（unknown/null 保留未知语义，hidden 或 false 失败关闭）
+    const lifecycleAdapter = createWebLifecycleAdapter();
+    const initialLifeSnap = lifecycleAdapter.getSnapshot();
+    if (initialLifeSnap.visibility === "hidden" || initialLifeSnap.online === false) {
+      lifecycleAdapter.dispose();
+      return false;
+    }
+
+    const startRevision = origin.revision;
+    const startPrincipal = origin.principal;
+    const targetGen = get().sessionGen + 1;
+
+    // 清理先前可能遗留的 tracker
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
+
+    let tracker: ActiveStartupTracker | null = null;
+
+    const unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
+      if (get().sessionGen !== targetGen) {
+        tracker?.cleanup();
+        return;
+      }
+      const state = get();
+      const isStarting =
+        state.connectionState === "checking_health" ||
+        (state.connectionState === "connecting" && !state.token);
+      if (!isStarting) {
+        return;
+      }
+
+      const currentRev = getAuthRevision();
+      const isStillValid =
+        nextSnapshot.state === "authenticated" &&
+        nextSnapshot.principal !== null &&
+        arePrincipalsEqual(nextSnapshot.principal, startPrincipal) &&
+        currentRev === startRevision;
+
+      if (!isStillValid) {
+        tracker?.cleanup();
+        set({
+          sessionGen: targetGen + 1,
+          connectionState: "idle",
+          appView: "dashboard",
+          sessionId: null,
+          token: null,
+          wsUrl: null,
+          error: null,
+        });
+      }
+    });
+
+    const unsubscribeLifecycle = lifecycleAdapter.subscribe((event) => {
+      if (get().sessionGen !== targetGen) {
+        tracker?.cleanup();
+        return;
+      }
+      const state = get();
+      const isStarting =
+        state.connectionState === "checking_health" ||
+        (state.connectionState === "connecting" && !state.token);
+      if (!isStarting) {
+        return;
+      }
+      if (
+        event.type === "suspend" ||
+        event.snapshot.visibility === "hidden" ||
+        event.snapshot.online === false
+      ) {
+        tracker?.cleanup();
+        set({
+          sessionGen: targetGen + 1,
+          connectionState: "idle",
+          appView: "dashboard",
+          sessionId: null,
+          token: null,
+          wsUrl: null,
+          error: null,
+        });
+      }
+    });
+
+    tracker = {
+      gen: targetGen,
+      principal: startPrincipal,
+      revision: startRevision,
+      cleanup: () => {
+        unsubscribeAuth();
+        unsubscribeLifecycle();
+        lifecycleAdapter.dispose();
+        if (currentStartupTracker === tracker) {
+          currentStartupTracker = null;
+        }
+      },
+    };
+    currentStartupTracker = tracker;
+
+    const isGenCurrent = (): boolean => get().sessionGen === targetGen;
+    const isAuthCurrent = (): boolean => {
+      const currentSnap = getAuthSnapshot();
+      if (currentSnap.state !== "authenticated" || !currentSnap.principal) return false;
+      if (!arePrincipalsEqual(currentSnap.principal, startPrincipal)) return false;
+      if (getAuthRevision() !== startRevision) return false;
+      return true;
+    };
+    const isLifecycleCurrent = (): boolean => {
+      const lifeSnap = lifecycleAdapter.getSnapshot();
+      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) return false;
+      return true;
+    };
+
+    const checkOrRelease = (): boolean => {
+      if (!isGenCurrent()) {
+        tracker?.cleanup();
+        return false;
+      }
+      if (!isAuthCurrent() || !isLifecycleCurrent()) {
+        tracker?.cleanup();
+        set({
+          sessionGen: targetGen + 1,
+          connectionState: "idle",
+          appView: "dashboard",
+          sessionId: null,
+          token: null,
+          wsUrl: null,
+          error: null,
+        });
+        return false;
+      }
+      return true;
+    };
+
+    // 先置为 checking_health 状态，不切换视图，代际递增，成功 Token 前不写 sessionId
+    set({
+      sessionGen: targetGen,
+      connectionState: "checking_health",
+      error: null,
+    });
+
+    if (!checkOrRelease()) return false;
+
+    // Step 1: getCallCapabilities
+    let capabilities;
+    try {
+      capabilities = await getCallCapabilities();
+    } catch (err) {
+      if (!checkOrRelease()) return false;
+      console.error("Call capabilities check failed:", err);
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.conversation.capabilitiesFailed,
+      });
+      return false;
+    }
+
+    if (!checkOrRelease()) return false;
+
+    if (capabilities.call_lease_mode !== "disabled") {
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.conversation.capabilitiesUnsupported,
+      });
+      return false;
+    }
+
+    // Step 2: getSessionDetail(sessionId)
+    let sessionDetail;
+    try {
+      sessionDetail = await getSessionDetail(sessionId);
+    } catch (err) {
+      if (!checkOrRelease()) return false;
+      console.error("Get session detail failed:", err);
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.activeSessions.resumeError,
+      });
+      return false;
+    }
+
+    if (!checkOrRelease()) return false;
+
+    // 详情校验：只接受对象、id 与目标 UUID 大小写等价、status 严格 active 且 ended_at 严格 null
+    const isValidDetail =
+      sessionDetail &&
+      typeof sessionDetail === "object" &&
+      !Array.isArray(sessionDetail) &&
+      typeof sessionDetail.id === "string" &&
+      sessionDetail.id.toLowerCase() === sessionId.toLowerCase() &&
+      sessionDetail.status === "active" &&
+      sessionDetail.ended_at === null;
+
+    if (!isValidDetail) {
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.activeSessions.resumeError,
+      });
+      return false;
+    }
+
+    // Step 3: checkHealthReady
+    try {
+      await checkHealthReady();
+    } catch (err) {
+      if (!checkOrRelease()) return false;
+      console.error("Health check failed:", err);
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.activeSessions.resumeError,
+      });
+      return false;
+    }
+
+    if (!checkOrRelease()) return false;
+
+    // Step 4: getSessionToken(sessionId, 不传 owner)
+    let tokenRes;
+    try {
+      tokenRes = await getSessionToken(sessionId);
+    } catch (err) {
+      if (!checkOrRelease()) return false;
+      console.error("Get session token failed:", err);
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.activeSessions.resumeError,
+      });
+      return false;
+    }
+
+    if (!checkOrRelease()) return false;
+
+    // Token 结果校验：必须为非空字符串 token 和 ws_url
+    const isValidToken =
+      tokenRes &&
+      typeof tokenRes === "object" &&
+      typeof tokenRes.token === "string" &&
+      tokenRes.token.trim() !== "" &&
+      typeof tokenRes.ws_url === "string" &&
+      tokenRes.ws_url.trim() !== "";
+
+    if (!isValidToken) {
+      tracker?.cleanup();
+      set({
+        connectionState: "idle",
+        appView: "dashboard",
+        error: zhCN.activeSessions.resumeError,
+      });
+      return false;
+    }
+
+    if (!checkOrRelease()) return false;
+
+    // Step 5: 有效 Token 完成后才原子发布 sessionId、token、wsUrl、connectionState=connecting 及 appView=session
+    tracker?.cleanup();
+    set({
+      sessionId,
+      token: tokenRes.token,
+      wsUrl: tokenRes.ws_url,
+      connectionState: "connecting",
+      appView: "session",
+      error: null,
+    });
+    return true;
   },
 
   endSession: async () => {
