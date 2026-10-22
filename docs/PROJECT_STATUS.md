@@ -183,3 +183,9 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 419产品/18构建脚本/21独立模拟Room探针/6既有Chromium、2有效变异和完整7门禁通过，详见[调度失败验证](./verification/cross-platform/CP-02-AGENT-DISPATCH.md)。后端未改，本轮未跑数据库，不冒充真实媒体、原生或Provider验收。仅本地提交与隔离集成，不push/deploy，Cloud严格接管和连接离线/Token失效仍待完成。
 
 本轮skill cd09a3a、3次尝试/1400.71活动秒；初次模型识别失败、同步可重入缺口、报告指纹与评审入口问题均记本地日志。未证明净Codex额度收益，不自动优化全局skill；在本小里程碑停止下一模型派发。
+
+## 2026-10-22 A13 Web连接中断本地增量
+
+产品97e4c75独立APPROVED：SDK错误/断开及Web后台离线时停止本地音轨、清Token/卸载Room，安全提示与显式恢复，无reload/自动重连；SDK/effect清理、来源认证/代际与同步空窗经过独立验证。441产品/18构建、49私有探针、6既有Chromium和2有效变异及完整7门禁通过，详见[验证](./verification/cross-platform/CP-02-CONNECTION-FAILURE.md)。真实媒体、原生和Cloud仍未验。
+
+同会话两次CLI终止ERROR保留，原模型同账本冷启动后完整交付恢复；不修改错误结果。账本和单调时间差异、探针语法错误及四类产品返工均记本地。用户最新要求连续推进，已授权并完成匹配WebKit下载/启动冒烟，下一步补CP-06双浏览器门禁；不自动改skill或推送部署。
