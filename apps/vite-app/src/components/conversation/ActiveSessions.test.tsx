@@ -139,8 +139,11 @@ describe("ActiveSessions Component", () => {
       );
       expect(screen.getByTestId("session-started-at-session-abc-123")).toBeInTheDocument();
 
-      // 验证无恢复、接管或结束按钮
-      expect(screen.queryByRole("button", { name: /恢复|接管|结束|开始/ })).not.toBeInTheDocument();
+      // 验证无恢复、接管或开始按钮，并验证每行提供本地化“结束记录”
+      expect(screen.queryByRole("button", { name: /恢复|接管|开始/ })).not.toBeInTheDocument();
+      expect(screen.getByTestId("end-session-button-session-abc-123")).toHaveTextContent(
+        t.endRecord,
+      );
     });
 
     it("renders empty state when session list is empty", async () => {
@@ -1197,8 +1200,8 @@ describe("ActiveSessions Component", () => {
       });
     });
 
-    describe("Read-only contract invariants", () => {
-      it("strictly performs read-only discovery without rendering or triggering any session mutating controls", async () => {
+    describe("Read-only contract invariants & end capability", () => {
+      it("strictly performs discovery with explicit end capability but no resume or takeover controls", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
         listSpy.mockResolvedValueOnce([
           {
@@ -1218,9 +1221,694 @@ describe("ActiveSessions Component", () => {
         expect(screen.getByText("session-readonly-invariants")).toBeInTheDocument();
         expect(
           screen.queryByRole("button", {
-            name: /创建|接管|恢复|结束|开始|claim|heartbeat|dispatch/i,
+            name: /创建|接管|恢复|开始|claim|heartbeat|dispatch/i,
           }),
         ).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("end-session-button-session-readonly-invariants"),
+        ).toHaveTextContent(t.endRecord);
+      });
+    });
+
+    describe("Explicit End Active Session (CP-02 §2)", () => {
+      const mockSessions: api.SessionListItem[] = [
+        {
+          id: "sess-end-1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2026-10-21T10:00:00Z",
+          ended_at: null,
+        },
+        {
+          id: "sess-end-2",
+          mode: "doc_chat",
+          status: "active",
+          started_at: "2026-10-21T11:00:00Z",
+          ended_at: null,
+        },
+      ];
+
+      it("displays inline confirmation without window.confirm and allows cancellation without network request", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const confirmSpy = vi.spyOn(window, "confirm");
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        // 初始状态下无内联确认
+        expect(screen.queryByTestId("end-confirm-panel-sess-end-1")).not.toBeInTheDocument();
+
+        // 点击“结束记录”
+        const endBtn1 = screen.getByTestId("end-session-button-sess-end-1");
+        fireEvent.click(endBtn1);
+
+        // 验证内联确认面板、目标ID标签与文案提示
+        expect(screen.getByTestId("end-confirm-panel-sess-end-1")).toBeInTheDocument();
+        expect(screen.getByText(t.targetIdLabel)).toBeInTheDocument();
+        expect(screen.getByTestId("confirm-session-id-sess-end-1")).toHaveTextContent("sess-end-1");
+        expect(screen.getByText(t.endConfirmDisclaimer)).toBeInTheDocument();
+        expect(confirmSpy).not.toHaveBeenCalled();
+
+        // 验证确认和取消按钮存在
+        const confirmBtn = screen.getByTestId("confirm-end-button-sess-end-1");
+        const cancelBtn = screen.getByTestId("cancel-end-button-sess-end-1");
+        expect(confirmBtn).toHaveTextContent(t.confirmEnd);
+        expect(cancelBtn).toHaveTextContent(t.cancelEnd);
+
+        // 点击“取消”
+        fireEvent.click(cancelBtn);
+
+        // 确认面板关闭，无网络请求
+        expect(screen.queryByTestId("end-confirm-panel-sess-end-1")).not.toBeInTheDocument();
+        expect(endSpy).not.toHaveBeenCalled();
+      });
+
+      it("blocks end request (zero POST) when principal changes between start confirm and confirm click before auth event broadcast (END-01)", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        // 1. 在当前 user-1 身份下点击结束记录，展开确认
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        expect(screen.getByTestId("end-confirm-panel-sess-end-1")).toBeInTheDocument();
+
+        // 2. 模拟受控时序：外部 getAuthSnapshot 先变更为 user-2，但暂未发布订阅通知
+        currentSnapshot = {
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-2" },
+        };
+
+        // 3. 点击旧确认按钮
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        // 4. 契约校验：确认意图绑定选择时的认证代际，绝不能将旧目标升级为新账号请求，必须零 POST！
+        expect(endSpy).not.toHaveBeenCalled();
+      });
+
+      it("blocks end request (zero POST) when revision increments between start confirm and confirm click before auth event broadcast (END-01)", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        // 1. 在当前 revision 下点击结束记录，展开确认
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        expect(screen.getByTestId("end-confirm-panel-sess-end-1")).toBeInTheDocument();
+
+        // 2. 模拟受控时序：外部 getAuthRevision 先递增，但暂未发布订阅通知
+        currentRevision += 1;
+
+        // 3. 点击旧确认按钮
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        // 4. 契约校验：revision 不匹配时拦截，必须零 POST！
+        expect(endSpy).not.toHaveBeenCalled();
+      });
+
+      it("successfully ends session with exact ID and status=completed, removing target and retaining others", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const deferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        // 展开 sess-end-1 确认
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        const confirmBtn = screen.getByTestId("confirm-end-button-sess-end-1");
+
+        // 点击确认结束
+        fireEvent.click(confirmBtn);
+
+        expect(endSpy).toHaveBeenCalledTimes(1);
+        expect(endSpy).toHaveBeenCalledWith("sess-end-1");
+
+        // 正在结束文案
+        expect(screen.getByTestId("confirm-end-button-sess-end-1")).toHaveTextContent(t.ending);
+        expect(screen.getByTestId("confirm-end-button-sess-end-1")).toBeDisabled();
+
+        // 成功响应 (status=completed)
+        await act(async () => {
+          deferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+
+        // sess-end-1 被移除，sess-end-2 保留
+        expect(screen.queryByTestId("active-session-item-sess-end-1")).not.toBeInTheDocument();
+        expect(screen.getByTestId("active-session-item-sess-end-2")).toBeInTheDocument();
+      });
+
+      it("treats abnormal response (status not completed or id mismatch) as failure", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const deferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        // 服务端返回 status 仍为 active
+        await act(async () => {
+          deferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: null,
+            transcripts: [],
+          });
+        });
+
+        // 判定为失败，展示安全本地化错误，会话项未被移除
+        expect(screen.getByTestId("end-error-sess-end-1")).toHaveTextContent(t.endError);
+        expect(screen.getByTestId("active-session-item-sess-end-1")).toBeInTheDocument();
+        expect(screen.getByTestId("retry-end-button-sess-end-1")).toHaveTextContent(t.retryEnd);
+      });
+
+      it("deduplicates requests on repeated clicks while in-flight", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const deferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        const confirmBtn = screen.getByTestId("confirm-end-button-sess-end-1");
+
+        // 连续多次点击
+        fireEvent.click(confirmBtn);
+        fireEvent.click(confirmBtn);
+        fireEvent.click(confirmBtn);
+
+        // 仅发一次请求
+        expect(endSpy).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          deferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+      });
+
+      it("disables other rows and prevents replacing in-flight target while ending is in-flight", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const deferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        // sess-end-2 的按钮此时应处于 disabled 状态
+        const endBtn2 = screen.getByTestId("end-session-button-sess-end-2");
+        expect(endBtn2).toBeDisabled();
+
+        // 点击 sess-end-2 不起作用，不能替换在途目标
+        fireEvent.click(endBtn2);
+        expect(screen.queryByTestId("end-confirm-panel-sess-end-2")).not.toBeInTheDocument();
+        expect(endSpy).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          deferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+
+        // 结束完成后，sess-end-2 恢复可用
+        expect(screen.getByTestId("end-session-button-sess-end-2")).not.toBeDisabled();
+      });
+
+      it("retains target on failure, hides sensitive server error text, supports retry with same ID, and allows cancel to exit confirmation", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const deferred1 = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred1.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        // 模拟带内部网络/敏感信息的服务端异常
+        await act(async () => {
+          deferred1.reject(new Error("Internal Postgres 5432 deadlock at session end endpoint"));
+        });
+
+        // 绝不回显服务端敏感异常正文
+        expect(screen.queryByText(/Postgres 5432/)).not.toBeInTheDocument();
+        // 展示安全本地化错误
+        expect(screen.getByTestId("end-error-sess-end-1")).toHaveTextContent(t.endError);
+        // 目标ID保持
+        expect(screen.getByTestId("confirm-session-id-sess-end-1")).toHaveTextContent("sess-end-1");
+
+        // 重试按钮可用
+        const retryBtn = screen.getByTestId("retry-end-button-sess-end-1");
+        expect(retryBtn).toHaveTextContent(t.retryEnd);
+
+        // 点击重试，相同 ID 再次发起
+        const deferred2 = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred2.promise);
+
+        fireEvent.click(retryBtn);
+        expect(endSpy).toHaveBeenCalledTimes(2);
+        expect(endSpy).toHaveBeenLastCalledWith("sess-end-1");
+
+        // 再次失败
+        await act(async () => {
+          deferred2.reject(new Error("Another failure"));
+        });
+
+        // 依然可以点击取消按钮退出确认
+        const cancelBtn = screen.getByTestId("cancel-end-button-sess-end-1");
+        fireEvent.click(cancelBtn);
+
+        // 退出内联确认面板
+        expect(screen.queryByTestId("end-confirm-panel-sess-end-1")).not.toBeInTheDocument();
+      });
+
+      it("blocks end confirmation when visibility is hidden or offline, and allows when visible and online", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        const confirmBtn = screen.getByTestId("confirm-end-button-sess-end-1");
+
+        // 1. 切后台 hidden
+        await act(async () => {
+          dispatchVisibilityChange("hidden");
+        });
+        fireEvent.click(confirmBtn);
+        // 门禁拦截，不发送网络请求
+        expect(endSpy).not.toHaveBeenCalled();
+
+        // 2. 切回 visible 但 offline
+        await act(async () => {
+          dispatchOffline();
+        });
+        await act(async () => {
+          dispatchVisibilityChange("visible");
+        });
+        fireEvent.click(confirmBtn);
+        expect(endSpy).not.toHaveBeenCalled();
+
+        // 3. 恢复 online 且 visible
+        await act(async () => {
+          dispatchOnline();
+        });
+
+        const deferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred.promise);
+
+        fireEvent.click(confirmBtn);
+        expect(endSpy).toHaveBeenCalledTimes(1);
+        expect(endSpy).toHaveBeenCalledWith("sess-end-1");
+
+        await act(async () => {
+          deferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+      });
+
+      it("cancels in-flight list request when issuing end request", async () => {
+        const listSpy = vi.spyOn(api, "listActiveSessions");
+        const listDeferred1 = createDeferred<api.SessionListItem[]>();
+        listSpy.mockReturnValueOnce(listDeferred1.promise);
+
+        render(<ActiveSessions />);
+        // 列表请求在途
+        expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+        await act(async () => {
+          listDeferred1.resolve(mockSessions);
+        });
+
+        // 发起第二轮列表刷新
+        const listDeferred2 = createDeferred<api.SessionListItem[]>();
+        listSpy.mockReturnValueOnce(listDeferred2.promise);
+
+        await act(async () => {
+          dispatchPageShow();
+        });
+        expect(listSpy).toHaveBeenCalledTimes(2);
+
+        // 此时用户开始操作结束
+        const endSpy = vi.spyOn(api, "endSession");
+        const endDeferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(endDeferred.promise);
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        // 确认结束前，在途列表请求被作废且退出 loading
+        expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+
+        // 旧列表请求迟到 resolve
+        await act(async () => {
+          listDeferred2.resolve([
+            {
+              id: "stale-polluted-list-session",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-21T12:00:00Z",
+              ended_at: null,
+            },
+          ]);
+        });
+        // 不污染界面
+        expect(screen.queryByText("stale-polluted-list-session")).not.toBeInTheDocument();
+
+        // 结束请求完成
+        await act(async () => {
+          endDeferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+
+        expect(screen.queryByTestId("active-session-item-sess-end-1")).not.toBeInTheDocument();
+      });
+
+      it("pauses list refresh without queueing while ending is in-flight", async () => {
+        const listSpy = vi.spyOn(api, "listActiveSessions");
+        listSpy.mockResolvedValueOnce(mockSessions);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(listSpy).toHaveBeenCalledTimes(1);
+
+        const endSpy = vi.spyOn(api, "endSession");
+        const endDeferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(endDeferred.promise);
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+        expect(endSpy).toHaveBeenCalledTimes(1);
+
+        // 结束在途期间触发各种生命周期事件
+        await act(async () => {
+          dispatchPageShow();
+          dispatchVisibilityChange("visible");
+          dispatchOnline();
+        });
+
+        // 列表刷新被暂停且不排队，listActiveSessions 调用次数依然为 1
+        expect(listSpy).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          endDeferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+      });
+
+      it("does not release end slot or replay end on suspend or offline", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const endDeferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(endDeferred.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+        expect(endSpy).toHaveBeenCalledTimes(1);
+
+        // 挂起 suspend / 离线 offline
+        await act(async () => {
+          dispatchVisibilityChange("hidden");
+          dispatchOffline();
+        });
+
+        // 结束操作的在途状态依然保持，不能被误释放
+        expect(screen.getByTestId("confirm-end-button-sess-end-1")).toBeDisabled();
+
+        // 恢复 resume / online，只读发现不能重放结束请求
+        await act(async () => {
+          dispatchOnline();
+          dispatchVisibilityChange("visible");
+        });
+
+        // endSpy 依然仅被调用 1 次，绝不自动重发
+        expect(endSpy).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          endDeferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+      });
+
+      it("prevents stale list responses or subsequent discoveries from resurrecting completed session", async () => {
+        const listSpy = vi.spyOn(api, "listActiveSessions");
+        listSpy.mockResolvedValueOnce(mockSessions);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        const endSpy = vi.spyOn(api, "endSession");
+        endSpy.mockResolvedValueOnce({
+          id: "sess-end-1",
+          user_id: "user-1",
+          mode: "free_talk",
+          status: "completed",
+          started_at: "2026-10-21T10:00:00Z",
+          ended_at: "2026-10-21T10:15:00Z",
+          transcripts: [],
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(screen.queryByTestId("active-session-item-sess-end-1")).not.toBeInTheDocument();
+
+        // 之后触发列表刷新，假设后端列表仍包含旧的 sess-end-1（例如缓存或慢写入）
+        listSpy.mockResolvedValueOnce(mockSessions);
+        await act(async () => {
+          dispatchPageShow();
+        });
+
+        // sess-end-1 绝不被复活
+        expect(screen.queryByTestId("active-session-item-sess-end-1")).not.toBeInTheDocument();
+        expect(screen.getByTestId("active-session-item-sess-end-2")).toBeInTheDocument();
+      });
+
+      it("clears confirmation and error immediately upon logout / account switch / revision bump, discarding old response", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const deferredOld = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferredOld.promise);
+
+        render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        // 换号到 user-2
+        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce([
+          {
+            id: "user-2-session",
+            mode: "scenario",
+            status: "active",
+            started_at: "2026-10-21T12:00:00Z",
+            ended_at: null,
+          },
+        ]);
+
+        await act(async () => {
+          emitAuthSnapshot({
+            state: "authenticated",
+            principal: { issuer: "https://auth.example.com", subject: "user-2" },
+          });
+        });
+
+        // 确认面板和旧会话立即清空
+        expect(screen.queryByTestId("end-confirm-panel-sess-end-1")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("active-session-item-sess-end-1")).not.toBeInTheDocument();
+        expect(screen.getByTestId("active-session-item-user-2-session")).toBeInTheDocument();
+
+        // user-2 下的新结束操作可以正常发起
+        const deferredNew = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferredNew.promise);
+
+        fireEvent.click(screen.getByTestId("end-session-button-user-2-session"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-user-2-session"));
+
+        // 旧 user-1 的结束请求此时 resolve 或 reject
+        await act(async () => {
+          deferredOld.reject(new Error("Old request aborted"));
+        });
+
+        // 绝不污染 user-2 的界面或给 user-2 报错
+        expect(screen.queryByTestId("end-error-user-2-session")).not.toBeInTheDocument();
+
+        // 新请求正常成功
+        await act(async () => {
+          deferredNew.resolve({
+            id: "user-2-session",
+            user_id: "user-2",
+            mode: "scenario",
+            status: "completed",
+            started_at: "2026-10-21T12:00:00Z",
+            ended_at: "2026-10-21T12:10:00Z",
+            transcripts: [],
+          });
+        });
+
+        expect(screen.queryByTestId("active-session-item-user-2-session")).not.toBeInTheDocument();
+      });
+
+      it("safely ignores in-flight end response on unmount", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        const deferred = createDeferred<api.Session>();
+        endSpy.mockReturnValueOnce(deferred.promise);
+
+        const { unmount } = render(<ActiveSessions />);
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        unmount();
+
+        // 卸载后结束请求返回，不抛出异常
+        await act(async () => {
+          deferred.resolve({
+            id: "sess-end-1",
+            user_id: "user-1",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: "2026-10-21T10:15:00Z",
+            transcripts: [],
+          });
+        });
+      });
+
+      it("operates normally with end session under React StrictMode", async () => {
+        vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+        const endSpy = vi.spyOn(api, "endSession");
+        endSpy.mockResolvedValueOnce({
+          id: "sess-end-1",
+          user_id: "user-1",
+          mode: "free_talk",
+          status: "completed",
+          started_at: "2026-10-21T10:00:00Z",
+          ended_at: "2026-10-21T10:15:00Z",
+          transcripts: [],
+        });
+
+        render(
+          <StrictMode>
+            <ActiveSessions />
+          </StrictMode>,
+        );
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        fireEvent.click(screen.getByTestId("end-session-button-sess-end-1"));
+        fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
+
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        expect(screen.queryByTestId("active-session-item-sess-end-1")).not.toBeInTheDocument();
       });
     });
   });
