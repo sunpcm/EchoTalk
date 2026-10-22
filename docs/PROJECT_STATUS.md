@@ -189,3 +189,9 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 产品97e4c75独立APPROVED：SDK错误/断开及Web后台离线时停止本地音轨、清Token/卸载Room，安全提示与显式恢复，无reload/自动重连；SDK/effect清理、来源认证/代际与同步空窗经过独立验证。441产品/18构建、49私有探针、6既有Chromium和2有效变异及完整7门禁通过，详见[验证](./verification/cross-platform/CP-02-CONNECTION-FAILURE.md)。真实媒体、原生和Cloud仍未验。
 
 同会话两次CLI终止ERROR保留，原模型同账本冷启动后完整交付恢复；不修改错误结果。账本和单调时间差异、探针语法错误及四类产品返工均记本地。用户最新要求连续推进，已授权并完成匹配WebKit下载/启动冒烟，下一步补CP-06双浏览器门禁；不自动改skill或推送部署。
+
+## 2026-10-22 A14双浏览器本地门禁
+
+产品be242b2独立APPROVED：默认Chromium/WebKit各11项共22 E2E，含5类新增真实UI恢复/401边界；保留全部质量门禁并更新CI安装接线。独立441产品/18构建、5项Fake API进程探针、2有效变异及完整7门禁通过。详见[验证](./verification/cross-platform/CP-06-WEBKIT.md)。无产品/依赖/锁变更，Linux CI、真实IdP/媒体/原生未验，P2 fixture grammar后缀已记TODO。
+
+中断后原流SUCCESS但无OS退出码，正式记录未知退出而不伪造0；同账本冷启动补完整交付且源码不变。2次尝试、问题/用量口径记本地日志；继续后续任务，不自动推送部署。

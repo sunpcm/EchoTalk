@@ -147,3 +147,9 @@ A13同会话两次终止ERROR stream interrupted而代码/quality已完成，原
 账本wall活动时间与RuntimeStatus单调时间在宿主暂停/时钟变化情况下可能不一致，原因尚未核实；分别保存原始来源，不重写历史或用墙钟推断精确计费/净省额。后续可考虑用量展示与模型目录预检优化，先积累证据。
 
 用户另行明确批准仅下载匹配WebKit，未升级Playwright/锁文件；现有旧WebKit不匹配，安装webkit-2336并本地启动通过，为后续双浏览器验收准备。仍不冒充Safari/WKWebView真机或真实Provider结果。
+
+## A14宿主中断退出证明与双浏览器（2026-10-22）
+
+宿主中断后先核对PID/进程组与账本，原controller/child均gone而无OS退出记录，尽管raw终止SUCCESS也不推断exit0。使用exit_code:null正式finish并保留原流，经授权范围内reconcile在同账本冷启动原模型补完整交付；消耗次数与活动时间不重置，源码与前轮相同。账本time含恢复等待，不能冒充精确模型计算/计费。
+
+Chromium/WebKit真实收集11/11、0skip；独立Fake API进程探针与行为变异验证新增测试有实际断言。双项目共享analysis-failure ID状态污染由独立项目后缀修复，P2 success grammar派生路径留TODO。报告的媒体mock/本轮未改源码用语在最终验证文档明确边界，不外推真实链路。原始证据在本地.review/reports/workflow-webkit-a14，通用skill未自动改动。
