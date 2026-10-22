@@ -51,6 +51,15 @@
 - 新版skill7306f2b的文件清单预检/事件摘要已实接，agy一次模型尝试527.85活动秒，无产品返工；四项问题/局限只记本地。Token口径见[验证记录](./verification/cross-platform/CP-02-LEASE-API.md)，不声称已证明净节省。
 - 集成7项固定门禁通过，未推送、部署或真实Provider联调。占用状态机/心跳/恢复/显式接管与原生链路仍待实现，CP-02整体未完成。此处停止下一模型派发。
 
+## 2026-10-22 两条独立客户端前置工作线集成
+
+A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已分别APPROVED并串行合入本地组合`8c38a01`。两条agy在不同worktree实际并行，累计约560秒执行重叠；共享服务与集成串行，不能据此直接宣称净提速/节约。
+
+- A修复旧挂起请求/Promise清理代际泄漏及实际写前取消守卫；B修复无监听期间旧快照与重订阅恢复失真。各有一次独立返工，原失败证据保留。
+- 组合336产品Vitest、18构建隔离、40私有探针（A29/B11）、两线21项Chromium/Fake API及集成既有6项、6个有效变异、格式/lint/类型/双构建通过；后端269/73.72%与受保护schema前检通过。冗余候选变异未计入杀死数。
+- 契约与验收见[占用控制器](./verification/cross-platform/CP-02-LEASE-CONTROLLER.md)、[Web生命周期](./verification/cross-platform/CP-01-WEB-LIFECYCLE.md)。未接conversation/UI、未开启Cloud开始门禁，无真实Provider/原生媒体验收，不代表CP-01/02/05整体完成。
+- 本轮实际接入skill c133e3f的父/子运行摘要，问题及完整证据仅存`.review/reports/workflow-parallel-a8/`。Codex当前及中断turn的完整用量留待自然结束后提取，不伪造即时总额，不报告未经对照的省额比例。
+
 ## 当前功能
 
 | 领域           | 当前实现                                                                           | 状态与边界                                                 |

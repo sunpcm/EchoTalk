@@ -109,3 +109,21 @@ EchoTalk数据库前置检查仍由项目维护：核对专用容器/数据库�
 专用数据库wrapper已补30秒pg_isready及schema/Alembic/必要表检查，失败即停，不自动迁移。实际269项后端回归通过。未启动其他数据库、未访问真实Provider。
 
 A7 API前置里程碑本地通过，四项新工作流问题在`.review/reports/workflow-lease-api/issues.md`，原失败与报告保留。后续收益仍需观察，精确Codex任务Token不可得，不报节省率；未继续下一模型任务。
+
+## A7后续skill优化（2026-10-22）
+
+用户另行授权后，通用skill本地更新`c133e3f`，两端同步未推送。新增codex_usage.py用于指定本地JSONL的已完成turn核算，真实A7回放与原追溯一致；历史报告/账本不覆盖。父turn/子Agent、缓存/非缓存与会员扣减分开，不报告未经对照的节省率。
+
+runtime_status要求绝对路径，可用--child显式读取本轮子batch。控制器必须传递确认过的路径，不能扫描“最新文件”猜归属；子状态不替代父完成或APPROVED。契约格式先于基线，测试数字引用runner证据。详细边界和验证见skill CHANGELOG/usage-accounting以及本地`.review/reports/skill-a7-update/`。
+
+本次只修改skill与本地过程文档，业务继续停在A7里程碑；真实新任务接入子batch路径和收益观察仍待后续，不自行派发。
+
+## A8双工作线本地试点（2026-10-22）
+
+用户要求继续后，从共同基线并行启动A独立占用控制器与B Web生命周期适配器，均Gemini3.8FlashMedium；每线独立3次/1800活动秒/连续2次无进展、单轮900秒，固定命令与路径范围，未扩权限。两线各2次模型尝试（首轮+一次同会话返工），Codex亲自独立review，B先集成、A后合并，最终组合336产品测试及7门禁通过。
+
+运行摘要实接父进程和由nonce绑定的本轮子batch路径，聚合仅元数据，不把子checks_passed当父APPROVED。日志`.review/reports/workflow-parallel-a8/`保留生命周期恢复快照缺陷、评审去重Promise夹具问题、跨代际在途标记/写前检查缺口，以及行为冗余候选变异等四项新记录。
+
+实际模型活动累计约1783.48秒，其中重叠约560.36秒，只是观测值，不是对照测得提速。两会话最终累计agy total分别498165与211777，续跑累计不再叠r0；缓存/思考单列，不能等同账单或Codex节省。本轮跨中断与继续turn，Codex完整用量在自然结束后另提取，不特意唤醒模型。
+
+本地阶段不push/deploy、不接真实Provider，Cloud/UI/原生恢复后续仍需实现。此里程碑停止下一产品派发，不因文档自动启动新任务。

@@ -40,3 +40,6 @@
 - 失效设计可直接删除，历史内容由 Git 保存，无需重复建立归档副本。
 
 - [CP-02 客户端占用API前置验证](./verification/cross-platform/CP-02-LEASE-API.md)：API原语与本地独立证据，未开放Cloud通话。
+
+- [CP-02 独立占用控制器验证](./verification/cross-platform/CP-02-LEASE-CONTROLLER.md)：未接UI/Cloud的本地前置模块。
+- [CP-01/05 Web生命周期验证](./verification/cross-platform/CP-01-WEB-LIFECYCLE.md)：事件边界、恢复快照与清理，真实原生事件后验。
