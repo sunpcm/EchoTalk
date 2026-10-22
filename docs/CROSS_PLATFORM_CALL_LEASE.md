@@ -60,3 +60,20 @@ Cloud模式end先按统一锁顺序处理；如该session持有当前held占用�
 开始在途去重涵盖能力查询，重复点击不能创建并行启动。reset/goHome/end/退出换号使旧能力结果失效；沿用精确认证身份和authRevision，旧请求在身份或revision变化后不得继续health/create/token或回填状态。每一步异步边界均核验本轮启动归属；不修改既有auth.ts安全底座，不盲目重放任何写请求。没有有效认证快照时不发起开始；已有显式dev认证边界保持，测试应初始化真实边界或按真实快照语义mock，不通过弱化生产认证修复fixture。
 
 此增量仅建立协议发现与开始门禁；不新增会话恢复、占用写接口、后台采音、Keychain、Provider访问或依赖。不代表CP-02整体或三端真实链路完成。旧端不提供能力端点时同样失败关闭，发布需服务端先升级；本轮不发布。
+
+
+## 9. 共享客户端占用API层（本地前置增量）
+
+本增量仅添加可独立测试的API原语，不接入conversation/UI，不解除§8的Cloud开始门禁，不改变默认disabled，不持久化设备ID/代际/媒体Token，不启用心跳定时器或自动接管。
+
+`claimCallLease(sessionId, deviceId, takeover=false)`、`heartbeatCallLease(sessionId, owner)`、`releaseCallLease(sessionId, owner)`复用既有认证request；owner为`{device_id,generation}`。claim只在显式布尔true参数时发takeover=true；默认false。每次调用只发送一次请求，无网络/401/409/502重试、无补偿claim或自动release。
+
+新增原语在fetch前校验session/device为标准带连字符UUID（大小写等价，不限制UUID版本），generation为JS正安全整数；运行时takeover必须为boolean。输入非法不发网络请求。请求只序列化契约字段，不携带调用方额外属性。
+
+claim/heartbeat成功只接受精确五字段`session_id,device_id,generation,state,expires_at`：UUID合法且与请求对应（大小写等价），generation为正安全整数，state严格held，expires_at为合法日历日期/时间及明确时区的ISO时间戳（Z或±HH:MM）。heartbeat还须generation与请求一致；不根据本机时钟判远端租约是否过期，时序判断留后续状态机。release成功只接受精确`released:true,generation`且代际匹配。无效/缺失/额外字段或响应错配均失败关闭，不发布占用结果。
+
+`getSessionToken(sessionId, owner?)`及`dispatchAgent(sessionId, owner?)`新增可选owner参数；不传owner保留既有调用行为，传owner时校验session/device/generation并仅附加`X-Call-Device-Id`和十进制`X-Call-Generation`，复用Authorization，不把owner放URL/query/body。owner对象被错误传入null或非法字段时不得静默走无占用路径。无跨请求全局owner缓存；后续无owner请求不能继承前次头。
+
+业务失败继续使用ApiError的status/data原样保留结构化detail.code及冲突字段，HTTP401沿既有reqRevision失效规则，不盲目重放写请求。本轮不新增面向用户的业务错误文案，不把API层通过宣称为Cloud通话或恢复完成。
+
+本地验证：三个POST的路径/method/精确body/认证、默认与显式接管、owner头及无owner隔离、所有成功响应校验、非法输入无fetch、业务409/502/503与401不重放、网络/JSON解析失败不自动补偿。既有disabled开始流程及全部测试树保持。
