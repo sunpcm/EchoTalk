@@ -76,3 +76,17 @@ claim/heartbeat成功只接受精确五字段`session_id,device_id,generation,st
 业务失败继续使用ApiError的status/data原样保留结构化detail.code及冲突字段，HTTP401沿既有reqRevision失效规则，不盲目重放写请求。本轮不新增面向用户的业务错误文案，不把API层通过宣称为Cloud通话或恢复完成。
 
 本地验证：三个POST的路径/method/精确body/认证、默认与显式接管、owner头及无owner隔离、所有成功响应校验、非法输入无fetch、业务409/502/503与401不重放、网络/JSON解析失败不自动补偿。既有disabled开始流程及全部测试树保持。
+
+## 10. 独立客户端占用控制器（本地前置增量）
+
+新增lib/callLeaseController.ts及对应测试，不接conversation/UI、不开Cloud门禁、不创建会话/Token、不采音、不持久化。设备UUID由调用方显式提供，原生存储/稳定设备ID策略后续处理。
+
+公开工厂`createCallLeaseController(deps)`，deps为claim/heartbeat/release（签名与§9原语相同）、`isCurrent:()=>boolean`（调用方提供认证/操作归属检查）、可选`onChange(snapshot)`、`now:()=>number`（默认Date.now）、可选setTimeout/clearTimeout（默认原生）。公开方法`getSnapshot()`、`claim(sessionId,deviceId,takeover=false):Promise<void>`、`release():Promise<void>`、`invalidate():void`、`dispose():void`。不得默认导入单例或在模块加载时创建定时器/订阅。对外snapshot只含`status: idle|claiming|held|releasing|release_failed|lost`、`lease: CallLeaseResponse|null`、`reason: null|claim_failed|heartbeat_failed|release_failed|invalidated|expired`；对外对象为防御性拷贝，调用者修改不能影响内部owner。
+
+一次控制器最多一个有效操作，claim在claiming/held/releasing/release_failed时不重复请求；显式claim只允许idle/lost。claim默认false且仅原样传显式true，不自动接管/重试/补偿。依赖抛错或输入错误受控回idle、reason=claim_failed，可显式再次claim；无当前身份时进入lost且不发请求。每个异步前后核对操作代际、未dispose及isCurrent，旧成功/失败不得覆盖新状态、设定时器或清除新owner。invalidate立即取消所有定时器、清本地lease，进入lost；dispose同样清理并永久拒绝后续动作，幂等。不得为迟到claim自动发release（服务端写入可能已发生，是否授予以服务端为准，后续显式恢复处理）。
+
+held后按20秒setTimeout串行heartbeat，前次未结束不发送下一次；保留独立expires_at到期watchdog，网络挂起也不能无限显示held。每次发送前核对归属及到期；延迟/唤醒越过期限进入lost/expired，不自动claim。收到有效续期仅当前操作可更新owner和重排两个定时器；heartbeat任何失败或身份失效进入lost，清owner/定时器，不自动重试。过期判断为本地now与带时区expires_at，仅本地保守保护，服务端仍是权威；本机时钟偏差可能导致提前失败关闭，真实设备另验。响应须由§9原语校验；控制器仍须验证返回tuple与请求匹配、held及合法未来expires_at，以便替换依赖时不绕不变量。
+
+release在held/release_failed且有owner时才发同tuple一次，立即取消heartbeat/watchdog并置releasing；重复调用去重。成功清owner回idle，失败保留同tuple置release_failed、停止心跳，仅用户显式release重试，不能claim/采音；不发起自动补偿。invalidate/dispose后旧release结果不得改状态。错误只保留上述reason，不存任意服务端错误文字/Token。onChange若抛错不应破坏状态清理、计时或异步操作结算。
+
+必须通过fake timers/可控Promise覆盖：正常claim/续期/释放、默认/显式接管、在途去重、心跳串行与独立到期watchdog、失败后最终状态和用户重试、身份变化/失效/dispose、迟到成功/失败、旧回调不清新owner、防御性快照、observer抛错、无模块副作用。此增量不表示Cloud/媒体恢复已验收。
