@@ -155,8 +155,9 @@ CP-00 自动化准备已于 2026-10-21 独立评审通过；已补录 iPhone 17 
 - [x] 客户端占用API原语：claim/heartbeat/release及token/dispatch可选owner头；精确schema/关联校验、默认不接管和不重放经本地独立验收。仅API层，Cloud开始门禁保留，见[验证](./docs/verification/cross-platform/CP-02-LEASE-API.md)。
 - [x] 独立客户端占用控制器：显式claim、心跳/到期watchdog、同tuple释放重试、代际/身份隔离与清理通过本地独立验收；未接UI/媒体/Cloud门禁，见[验证](./docs/verification/cross-platform/CP-02-LEASE-CONTROLLER.md)。
 - [x] Dashboard显式结束已发现的活动记录：确认/取消、失败同ID重试、认证意图代际与在途保护通过本地独立验收；不表示其他端媒体停止，见[验证](./docs/verification/cross-platform/CP-02-DISCOVERY-END.md)。
-- [ ] 下次修改ActiveSessions时同步纠正文件头的首轮“仅GET”描述（P2）；不为注释另开模型轮次。
-- [ ] 增加活动会话发现与重新获取 Token/状态的恢复入口；验收：刷新或重启后可选择恢复/结束，已结束会话不能重连，不持久化 LiveKit Token。
+- [x] ActiveSessions文件头已随显式恢复开发同步更新为发现/结束/恢复，关闭P2过期注释。
+- [x] disabled模式已有会话显式恢复：确认后重新核验身份/能力/详情/Token且零create，store及UI取消/代际隔离经本地独立验收，见[验证](./docs/verification/cross-platform/CP-02-EXPLICIT-RECOVERY.md)。
+- [ ] 完善Cloud占用下恢复入口与真实媒体/三端恢复验收；验收：刷新或重启后可选择恢复/结束，已结束会话不能重连，不持久化 LiveKit Token。
 - [ ] 明确并落实单设备会话占用、过期释放及显式接管；验收：双端竞争不造成隐式踢人，旧设备失去占用后不能自动抢回，会话中断后的遗留状态有回收路径。
 - [ ] UI 明确展示 Agent 调度失败及可恢复操作；验收：API 502、离线、Token 失效不再只写 console 或长期显示假在线。
 
