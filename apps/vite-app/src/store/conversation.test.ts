@@ -1894,4 +1894,155 @@ describe("useConversationStore", () => {
       expect(state.dispatchedSessionId).toBeNull();
     });
   });
+
+  describe("Web connection failure and interruption (A13)", () => {
+    it("failConnection clears token and wsUrl and sets state to connection_failed when matching", () => {
+      useConversationStore.setState({
+        sessionId: "sess-conn-fail",
+        sessionGen: 2,
+        token: "tok-conn-fail",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+      });
+
+      // 不同的 sessionId 忽略
+      useConversationStore.getState().failConnection("sess-other", 2);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-conn-fail");
+
+      // 不同的 sessionGen 忽略
+      useConversationStore.getState().failConnection("sess-conn-fail", 1);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-conn-fail");
+
+      // 匹配时执行
+      useConversationStore.getState().failConnection("sess-conn-fail", 2);
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connection_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+      expect(state.sessionId).toBe("sess-conn-fail");
+      expect(state.sessionGen).toBe(2);
+    });
+
+    it("failConnection works from active state", () => {
+      useConversationStore.setState({
+        sessionId: "sess-conn-active",
+        sessionGen: 5,
+        token: "tok-active",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+      });
+
+      useConversationStore.getState().failConnection("sess-conn-active", 5);
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connection_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+    });
+
+    it("failConnection does not mutate state when already ended, ending, end_failed, or idle", () => {
+      for (const nonActive of ["ended", "ending", "end_failed", "idle"] as const) {
+        useConversationStore.setState({
+          sessionId: "sess-conn-ignore",
+          sessionGen: 1,
+          token: null,
+          connectionState: nonActive,
+        });
+
+        useConversationStore.getState().failConnection("sess-conn-ignore", 1);
+        expect(useConversationStore.getState().connectionState).toBe(nonActive);
+      }
+    });
+
+    it("stale failConnection does not cancel active startup tracker (CON-03)", async () => {
+      let resolveCaps!: (val: api.CallCapabilitiesResponse) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCaps = resolve;
+          }),
+      );
+
+      // 发起 startup
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 收到过期的 failConnection 调用（不匹配的 sessionId 或 sessionGen）
+      useConversationStore.getState().failConnection("stale-sess", 999);
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 验证 currentStartupTracker 依然完好，未被过期的 failConnection 取消或清空
+      // 触发 authSnapshotListener 事件
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      for (const listener of Array.from(authSnapshotListeners)) {
+        listener({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+        });
+      }
+
+      // 状态成功被 startupTracker 中止并重置为 idle
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+
+      resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
+      await promise;
+    });
+
+    it("setActive cannot revive connection_failed state", () => {
+      useConversationStore.setState({
+        sessionId: "sess-dead-conn",
+        sessionGen: 1,
+        token: null,
+        connectionState: "connection_failed",
+      });
+
+      useConversationStore.getState().setActive("sess-dead-conn", 1);
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+    });
+
+    it("goHome resets connection_failed state to idle, increments generation, and allows new session", async () => {
+      useConversationStore.setState({
+        sessionId: "sess-cf-home",
+        sessionGen: 3,
+        token: null,
+        connectionState: "connection_failed",
+        appView: "session",
+      });
+
+      useConversationStore.getState().goHome();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.sessionGen).toBe(4);
+
+      // 从 idle 允许发起新会话
+      vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValueOnce({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValueOnce({
+        id: "sess-after-cf",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValueOnce({
+        token: "tok-after-cf",
+        ws_url: "wss://lk.test",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().sessionId).toBe("sess-after-cf");
+      expect(useConversationStore.getState().token).toBe("tok-after-cf");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+  });
 });

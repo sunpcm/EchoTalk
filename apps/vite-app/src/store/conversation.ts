@@ -43,7 +43,8 @@ export type ConnectionState =
   | "ending"
   | "end_failed"
   | "ended"
-  | "dispatch_failed";
+  | "dispatch_failed"
+  | "connection_failed";
 
 /** 顶层视图枚举 */
 export type AppView = "dashboard" | "session" | "doc-chat-setup";
@@ -75,6 +76,8 @@ interface ConversationStore {
   markDispatched: (sessionId: string, forGen: number) => boolean;
   /** 标记 Agent 调度失败：立即清除 Token/URL，状态进入 dispatch_failed */
   failDispatch: (forSessionId?: string, forGen?: number) => void;
+  /** 标记语音连接失败或中断：立即清除 Token/URL，状态进入 connection_failed */
+  failConnection: (forSessionId?: string, forGen?: number) => void;
 
   /** 开始新会话：创建 session -> 获取 token -> 切换到 session 视图 */
   startSession: (mode: string, docContext?: DocContext) => Promise<void>;
@@ -132,6 +135,29 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }
     set({
       connectionState: "dispatch_failed",
+      token: null,
+      wsUrl: null,
+      error: null,
+    });
+  },
+
+  failConnection: (forSessionId?: string, forGen?: number) => {
+    const state = get();
+    if (forSessionId && state.sessionId !== forSessionId) {
+      return;
+    }
+    if (forGen !== undefined && state.sessionGen !== forGen) {
+      return;
+    }
+    if (state.connectionState !== "connecting" && state.connectionState !== "active") {
+      return;
+    }
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
+    set({
+      connectionState: "connection_failed",
       token: null,
       wsUrl: null,
       error: null,

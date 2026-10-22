@@ -6,6 +6,7 @@ import { useConversationStore } from "@/store/conversation";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
+import * as platform from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
 const mockTrackStop = vi.fn();
@@ -199,13 +200,37 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 // Mock platform
+const mockWebLifecycleListeners = new Set<(event: any) => void>();
+let mockCurrentSnapshot = {
+  visibility: "visible" as "visible" | "hidden" | "unknown",
+  online: true as boolean | null,
+};
+const mockLifecycleDispose = vi.fn();
+
 vi.mock("@/platform", () => ({
   getLiveKitWsUrl: vi.fn(({ tokenWsUrl }) => tokenWsUrl || "wss://test.livekit.io"),
+  createWebLifecycleAdapter: vi.fn(() => ({
+    capabilities: { webEvents: true, nativeAppState: false },
+    getSnapshot: () => ({ ...mockCurrentSnapshot }),
+    subscribe: (listener: (event: any) => void) => {
+      mockWebLifecycleListeners.add(listener);
+      return () => {
+        mockWebLifecycleListeners.delete(listener);
+      };
+    },
+    dispose: vi.fn(() => {
+      mockLifecycleDispose();
+      mockWebLifecycleListeners.clear();
+    }),
+  })),
 }));
 
 describe("VoiceInterface - CP-02 client end release & generation protection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWebLifecycleListeners.clear();
+    mockCurrentSnapshot = { visibility: "visible", online: true };
+    mockLifecycleDispose.mockClear();
     roomInstanceCounter = 0;
     capturedRoomCallbacks.clear();
     currentMockRoom = createMockRoom();
@@ -530,7 +555,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(api.dispatchAgent).not.toHaveBeenCalled();
   });
 
-  it("does not trigger warnings when old Room onError or onDisconnected fires after generation change", () => {
+  it("does not enter connection_failed when old Room onError or onDisconnected fires after generation change", () => {
     useConversationStore.setState({
       connectionState: "active",
       appView: "session",
@@ -546,6 +571,10 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     useConversationStore.setState({
       sessionGen: 2,
       sessionId: "sess-gen-2",
+      token: "tok-2",
+      wsUrl: "wss://lk.test",
+      connectionState: "active",
+      appView: "session",
     });
 
     // 旧 Room 的错误与断开回调触发
@@ -555,8 +584,10 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     const disconnBtn = screen.getByTestId("trigger-disconnected");
     fireEvent.click(disconnBtn);
 
-    // 绝不展示错误 Toast
-    expect(screen.queryByText(zhCN.connectionWarning.title)).not.toBeInTheDocument();
+    // 绝不进入 connection_failed，新会话保持正常
+    expect(useConversationStore.getState().connectionState).toBe("active");
+    expect(useConversationStore.getState().sessionId).toBe("sess-gen-2");
+    expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
   });
 
   it("allows returning to dashboard from ending or end_failed view", () => {
@@ -1000,6 +1031,560 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
         expect(api.dispatchAgent).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe("A13 Web connection failure, interruption, and Web lifecycle (CP-02/CP-05)", () => {
+    it("stops owned local tracks, clears token and wsUrl, unmounts room, and renders connection_failed view on SDK onError", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-err-test",
+        token: "tok-err-test",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      act(() => {
+        callbacks.onError?.(new Error("Sensitive WebSocket token rejected 401"));
+      });
+
+      // 1. 同步停止所属本地音轨
+      expect(callbacks.trackStopMock).toHaveBeenCalled();
+      expect(mockTrackStop).toHaveBeenCalled();
+
+      // 2. Room 卸载，Token/wsUrl 清除，进入 connection_failed 状态
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connection_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+      expect(state.sessionId).toBe("sess-err-test");
+
+      // 3. 渲染 connection_failed 视图与本地化文案，不回显原始敏感错误
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+      expect(screen.getByText(zhCN.conversation.connectionFailedTitle)).toBeInTheDocument();
+      expect(screen.getByText(zhCN.conversation.connectionFailedMessage)).toBeInTheDocument();
+      expect(screen.queryByText(/token rejected/i)).not.toBeInTheDocument();
+
+      // 4. 零自动 endSession 与零分析轮询
+      expect(api.endSession).not.toHaveBeenCalled();
+      expect(usePollingAssessment).not.toHaveBeenCalledWith("sess-err-test");
+
+      // 5. 点击返回主页重置为 idle
+      const goHomeBtn = screen.getByRole("button", { name: zhCN.dashboard.goHome });
+      fireEvent.click(goHomeBtn);
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+    });
+
+    it("stops owned local tracks, clears token, and enters connection_failed on SDK onDisconnected for any reason while active with token", () => {
+      vi.spyOn(console, "log").mockImplementation(() => {});
+
+      for (const reason of [undefined, 0, 3, "network_loss"]) {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: `sess-disconn-${String(reason)}`,
+          token: "tok-active",
+          wsUrl: "wss://lk.test",
+          connectionState: "active",
+          appView: "session",
+        });
+
+        const { unmount } = render(<VoiceInterface />);
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+        act(() => {
+          callbacks.onDisconnected?.(reason);
+        });
+
+        expect(callbacks.trackStopMock).toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+        expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+
+        unmount();
+      }
+    });
+
+    it("does not enter connection_failed on onDisconnected when session is already ending or ended by user", () => {
+      vi.spyOn(console, "log").mockImplementation(() => {});
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-user-ending",
+        token: "tok-active",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 用户点击结束
+      const endBtn = screen.getByRole("button", { name: zhCN.conversation.endButton });
+      fireEvent.click(endBtn);
+
+      expect(useConversationStore.getState().connectionState).toBe("ending");
+      expect(useConversationStore.getState().token).toBeNull();
+
+      // 随后 Room 触发 onDisconnected
+      act(() => {
+        callbacks.onDisconnected?.(0);
+      });
+
+      // 绝不进入 connection_failed，保持 ending
+      expect(useConversationStore.getState().connectionState).toBe("ending");
+      expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
+    });
+
+    it("does not enter connection_failed on onDisconnected when agentError already ended the session", () => {
+      vi.spyOn(console, "log").mockImplementation(() => {});
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-agent-err",
+        token: "tok-active",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 收到 agent_error
+      act(() => {
+        useConversationStore.getState().setAgentError({
+          code: "PROVIDER_ERROR",
+          message: "Custom key failed",
+        });
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().token).toBeNull();
+
+      // 随后 Room 触发 onDisconnected
+      act(() => {
+        callbacks.onDisconnected?.(3);
+      });
+
+      // 绝不覆盖 agentError，保持 ended
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().agentError?.code).toBe("PROVIDER_ERROR");
+      expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
+    });
+
+    it("blocks mounting LiveKitRoom when initial Web snapshot is hidden, entering connection_failed with zero audio tracks", async () => {
+      mockCurrentSnapshot = { visibility: "hidden", online: true };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-initial-hidden",
+        token: "tok-initial-hidden",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      // LiveKitRoom 绝不被挂载，音频绝不被初始化
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      // 即刻自动进入 connection_failed 状态
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+    });
+
+    it("blocks mounting LiveKitRoom when initial Web snapshot is offline (online === false), entering connection_failed", async () => {
+      mockCurrentSnapshot = { visibility: "visible", online: false };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-initial-offline",
+        token: "tok-initial-offline",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+    });
+
+    it("does not block mounting LiveKitRoom when initial Web snapshot has visibility unknown and online null", () => {
+      mockCurrentSnapshot = { visibility: "unknown", online: null };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-initial-unknown",
+        token: "tok-initial-unknown",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      // 正常挂载 LiveKitRoom
+      expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
+    });
+
+    it("stops local tracks, unmounts room, and enters connection_failed on Web suspend event", () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-suspend",
+        token: "tok-suspend",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      expect(mockWebLifecycleListeners.size).toBeGreaterThan(0);
+
+      // 触发 suspend 事件（如切后台或 pagehide）
+      act(() => {
+        for (const listener of Array.from(mockWebLifecycleListeners)) {
+          listener({
+            type: "suspend",
+            snapshot: { visibility: "hidden", online: true },
+          });
+        }
+      });
+
+      expect(callbacks.trackStopMock).toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+    });
+
+    it("stops local tracks, unmounts room, and enters connection_failed on Web connectivity offline event", () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-offline-evt",
+        token: "tok-offline-evt",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 触发 online === false 事件
+      act(() => {
+        for (const listener of Array.from(mockWebLifecycleListeners)) {
+          listener({
+            type: "connectivity",
+            snapshot: { visibility: "visible", online: false },
+          });
+        }
+      });
+
+      expect(callbacks.trackStopMock).toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+    });
+
+    it("does not auto-resume audio or revive room when Web resume or online event fires after connection_failed", () => {
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-no-resume",
+        token: null,
+        wsUrl: null,
+        connectionState: "connection_failed",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      // 模拟外部 resume / online 事件
+      act(() => {
+        for (const listener of Array.from(mockWebLifecycleListeners)) {
+          listener({
+            type: "resume",
+            snapshot: { visibility: "visible", online: true },
+          });
+          listener({
+            type: "connectivity",
+            snapshot: { visibility: "visible", online: true },
+          });
+        }
+      });
+
+      // 绝不复活房间
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+    });
+
+    it("disposes Web lifecycle adapter on unmount, leaving zero listeners", () => {
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-dispose",
+        token: "tok-dispose",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      const { unmount } = render(<VoiceInterface />);
+      expect(mockWebLifecycleListeners.size).toBeGreaterThan(0);
+
+      unmount();
+
+      expect(mockLifecycleDispose).toHaveBeenCalled();
+      expect(mockWebLifecycleListeners.size).toBe(0);
+    });
+
+    it("drops in-flight dispatchAgent success or failure if connection_failed occurs in-flight", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      let resolveDispatch!: (val: { dispatched: boolean }) => void;
+      vi.mocked(api.dispatchAgent).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDispatch = resolve;
+          }),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-in-flight-cf",
+        token: "tok-in-flight",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 触发 onConnected 发起 dispatchAgent
+      act(() => {
+        callbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      // 在途期间发生连接断开 -> 进入 connection_failed
+      act(() => {
+        callbacks.onDisconnected?.();
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+
+      // dispatchAgent 随后成功返回
+      await act(async () => {
+        resolveDispatch({ dispatched: true });
+      });
+
+      // 绝不能被改为 active，保持 connection_failed
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+    });
+
+    it("drops Room onError or onDisconnected if auth revision or principal changed", () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-drop",
+        token: "tok-auth-drop",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 认证 revision 变更（如用户重新登录或换号）
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      act(() => {
+        callbacks.onError?.(new Error("Stale error"));
+      });
+
+      // 绝不以旧 Room 身份影响新认证
+      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
+    });
+
+    it("drops retained Room onError, onDisconnected, and lifecycle events after unmount (CON-01)", () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-unmount-guard",
+        token: "tok-unmount-guard",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      let capturedLifecycleListener: ((event: any) => void) | null = null;
+      const { unmount } = render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      for (const listener of Array.from(mockWebLifecycleListeners)) {
+        capturedLifecycleListener = listener;
+      }
+
+      // 卸载组件
+      unmount();
+      mockTrackStop.mockClear();
+
+      // 触发保留的 Room onError 和 onDisconnected
+      act(() => {
+        callbacks.onError?.(new Error("Late error after unmount"));
+        callbacks.onDisconnected?.();
+      });
+
+      // 触发保留的生命周期监听器
+      act(() => {
+        capturedLifecycleListener?.({
+          type: "pause",
+          snapshot: { visibility: "hidden", online: true },
+        });
+      });
+
+      // 验证未对 store 造成副作用，也未调用 track.stop
+      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(mockTrackStop).not.toHaveBeenCalled();
+    });
+
+    it("silently drops onConnected when auth revision or principal changes (CON-02)", async () => {
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-conn",
+        token: "tok-auth-conn",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 认证 revision 变更
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      mockTrackStop.mockClear();
+
+      act(() => {
+        callbacks.onConnected?.();
+      });
+
+      // 静默丢弃：不调用 dispatchAgent，不调用 failDispatch，不停止 tracks
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
+    });
+
+    it("detects hidden or offline environment in post-subscribe snapshot check and fails closed immediately (CON-04)", () => {
+      let callCount = 0;
+      mockCurrentSnapshot = { visibility: "visible", online: true };
+
+      // 第一次 getSnapshot（VoiceInterface 渲染初始判定）返回 visible
+      // 第二次 getSnapshot（RoomLifecycleWatcher 订阅挂载后立即复查）返回 hidden
+      vi.mocked(platform.createWebLifecycleAdapter).mockImplementation(() => ({
+        capabilities: { webEvents: true, nativeAppState: false },
+        getSnapshot: () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return { visibility: "visible", online: true };
+          }
+          return { visibility: "hidden", online: true };
+        },
+        subscribe: (listener: (event: any) => void) => {
+          mockWebLifecycleListeners.add(listener);
+          return () => {
+            mockWebLifecycleListeners.delete(listener);
+          };
+        },
+        dispose: vi.fn(() => {
+          mockLifecycleDispose();
+          mockWebLifecycleListeners.clear();
+        }),
+      }));
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-gap-fail",
+        token: "tok-gap",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      // 渲染后立即因订阅后的快照检查进入 connection_failed
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+      expect(mockTrackStop).toHaveBeenCalled();
     });
   });
 });
