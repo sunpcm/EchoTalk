@@ -42,7 +42,8 @@ export type ConnectionState =
   | "active"
   | "ending"
   | "end_failed"
-  | "ended";
+  | "ended"
+  | "dispatch_failed";
 
 /** 顶层视图枚举 */
 export type AppView = "dashboard" | "session" | "doc-chat-setup";
@@ -67,6 +68,13 @@ interface ConversationStore {
   selectedScenario: CurriculumRecommendation | null;
   /** Agent DataChannel 错误（自定义轨 fail-fast） */
   agentError: { code: string; message: string } | null;
+  /** 已调度的会话 ID 与代际（用于 LiveKit dispatchAgent 单次去重） */
+  dispatchedGen: number | null;
+  dispatchedSessionId: string | null;
+  /** 检查并标记本次会话代际已发起调度，成功返回 true，已调度过返回 false */
+  markDispatched: (sessionId: string, forGen: number) => boolean;
+  /** 标记 Agent 调度失败：立即清除 Token/URL，状态进入 dispatch_failed */
+  failDispatch: (forSessionId?: string, forGen?: number) => void;
 
   /** 开始新会话：创建 session -> 获取 token -> 切换到 session 视图 */
   startSession: (mode: string, docContext?: DocContext) => Promise<void>;
@@ -99,6 +107,36 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   error: null,
   selectedScenario: null,
   agentError: null,
+  dispatchedGen: null,
+  dispatchedSessionId: null,
+
+  markDispatched: (sessionId: string, forGen: number) => {
+    const state = get();
+    if (state.dispatchedSessionId === sessionId && state.dispatchedGen === forGen) {
+      return false;
+    }
+    set({ dispatchedSessionId: sessionId, dispatchedGen: forGen });
+    return true;
+  },
+
+  failDispatch: (forSessionId?: string, forGen?: number) => {
+    const state = get();
+    if (forSessionId && state.sessionId !== forSessionId) {
+      return;
+    }
+    if (forGen !== undefined && state.sessionGen !== forGen) {
+      return;
+    }
+    if (state.connectionState !== "connecting" && state.connectionState !== "active") {
+      return;
+    }
+    set({
+      connectionState: "dispatch_failed",
+      token: null,
+      wsUrl: null,
+      error: null,
+    });
+  },
 
   startSession: async (mode: string, docContext?: DocContext) => {
     // 1. 防止重复调用（如双击或 StrictMode 双渲染），在途能力查询和启动去重
@@ -715,6 +753,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       wsUrl: null,
       error: null,
       agentError: null,
+      dispatchedGen: null,
+      dispatchedSessionId: null,
     }));
   },
 
@@ -733,6 +773,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       error: null,
       selectedScenario: null,
       agentError: null,
+      dispatchedGen: null,
+      dispatchedSessionId: null,
     }));
   },
 }));

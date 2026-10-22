@@ -5,6 +5,7 @@ import { VoiceInterface } from "./VoiceInterface";
 import { useConversationStore } from "@/store/conversation";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import * as api from "@/lib/api";
+import * as auth from "@/lib/auth";
 import { zhCN } from "@/i18n/zh-CN";
 
 const mockTrackStop = vi.fn();
@@ -177,11 +178,24 @@ vi.mock("@/hooks/usePollingAssessment", () => ({
 
 // Mock API
 vi.mock("@/lib/api", () => ({
-  dispatchAgent: vi.fn().mockResolvedValue({ status: "dispatched" }),
+  dispatchAgent: vi.fn().mockResolvedValue({ dispatched: true }),
   endSession: vi.fn(),
   checkHealthReady: vi.fn(),
   createSession: vi.fn(),
   getSessionToken: vi.fn(),
+}));
+
+// Mock Auth
+vi.mock("@/lib/auth", () => ({
+  getAuthSnapshot: vi.fn(() => ({
+    state: "authenticated",
+    principal: { issuer: "https://auth.example.com", subject: "user-1" },
+  })),
+  getAuthRevision: vi.fn(() => 1),
+  arePrincipalsEqual: vi.fn(
+    (a: any, b: any) => a === b || (a && b && a.issuer === b.issuer && a.subject === b.subject),
+  ),
+  subscribeAuthSnapshot: vi.fn(() => () => {}),
 }));
 
 // Mock platform
@@ -196,6 +210,12 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     capturedRoomCallbacks.clear();
     currentMockRoom = createMockRoom();
     useConversationStore.getState().goHome();
+    vi.mocked(api.dispatchAgent).mockResolvedValue({ dispatched: true });
+    vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+      state: "authenticated",
+      principal: { issuer: "https://auth.example.com", subject: "user-1" },
+    });
+    vi.mocked(auth.getAuthRevision).mockReturnValue(1);
   });
 
   afterEach(() => {
@@ -555,5 +575,431 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(useConversationStore.getState().connectionState).toBe("idle");
     expect(useConversationStore.getState().appView).toBe("dashboard");
     expect(useConversationStore.getState().sessionId).toBeNull();
+  });
+
+  describe("A12 Agent dispatch failure and recovery (CP-02 §2, §3, §4)", () => {
+    it("actively stops owned local tracks, clears tokens, unmounts room, and renders dispatch failed view without raw error echo or polling", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(api.dispatchAgent).mockRejectedValue(
+        new Error("Sensitive backend 502 Bad Gateway: livekit token leaked"),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-dispatch-fail",
+        token: "tok-fail-123",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 触发 onConnected 引起 dispatch
+      act(() => {
+        callbacks.onConnected?.();
+      });
+
+      // 验证仅调用了一次 dispatchAgent，无自动重试
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+      expect(api.dispatchAgent).toHaveBeenCalledWith("sess-dispatch-fail");
+
+      // 等待异步失败关闭完成
+      await waitFor(() => {
+        expect(screen.getByTestId("dispatch-failed-view")).toBeInTheDocument();
+      });
+
+      // 1. 同步停止了所属本地音轨
+      expect(callbacks.trackStopMock).toHaveBeenCalled();
+      expect(mockTrackStop).toHaveBeenCalled();
+
+      // 2. Room 卸载，Token/URL 清除
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("dispatch_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+
+      // 3. 绝不回显原始异常信息
+      expect(screen.getByText(zhCN.conversation.dispatchFailedTitle)).toBeInTheDocument();
+      expect(screen.getByText(zhCN.conversation.dispatchFailedMessage)).toBeInTheDocument();
+      expect(screen.queryByText(/502 Bad Gateway/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/tok-fail-123/)).not.toBeInTheDocument();
+
+      // 4. 零自动 endSession 与零分析轮询
+      expect(api.endSession).not.toHaveBeenCalled();
+      expect(usePollingAssessment).not.toHaveBeenCalledWith("sess-dispatch-fail");
+
+      // 5. 只有一个返回主页按钮，点击后恢复为 idle，允许后续操作
+      const goHomeBtn = screen.getByRole("button", { name: zhCN.dashboard.goHome });
+      expect(screen.queryByRole("button", { name: /重试/ })).not.toBeInTheDocument();
+
+      fireEvent.click(goHomeBtn);
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+    });
+
+    it("treats invalid success response (dispatched !== true) as failure and triggers safe shutdown", async () => {
+      // 模拟旧假 fixture { status: 'dispatched' } 或 { dispatched: false }
+      vi.mocked(api.dispatchAgent).mockResolvedValueOnce({
+        status: "dispatched",
+      } as any);
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-invalid-resp",
+        token: "tok-resp-1",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      act(() => {
+        callbacks.onConnected?.();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("dispatch-failed-view")).toBeInTheDocument();
+      });
+
+      expect(callbacks.trackStopMock).toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+    });
+
+    it("deduplicates dispatchAgent requests across repeated onConnected calls during in-flight and after success", async () => {
+      let resolveDispatch!: (val: { dispatched: boolean }) => void;
+      vi.mocked(api.dispatchAgent).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDispatch = resolve;
+          }),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-dedup",
+        token: "tok-dedup",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      // 第一次触发
+      act(() => {
+        callbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      // 在途重复触发
+      act(() => {
+        callbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      // 解析成功
+      await act(async () => {
+        resolveDispatch({ dispatched: true });
+      });
+
+      // 成功后再次触发
+      act(() => {
+        callbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops stale dispatch failure if user ended session or went home during in-flight request", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      let rejectDispatch!: (err: Error) => void;
+      vi.mocked(api.dispatchAgent).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectDispatch = reject;
+          }),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-stale-fail",
+        token: "tok-stale",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      act(() => {
+        callbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      // 在途期间用户返回主页
+      act(() => {
+        useConversationStore.getState().goHome();
+      });
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+
+      // 迟到的调度失败到达
+      await act(async () => {
+        rejectDispatch(new Error("Network drop"));
+      });
+
+      // 绝不篡改主页状态为 dispatch_failed
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(screen.queryByTestId("dispatch-failed-view")).not.toBeInTheDocument();
+    });
+
+    it("drops stale dispatch result if auth revision or principal changed during in-flight request", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      let rejectDispatch!: (err: Error) => void;
+      vi.mocked(api.dispatchAgent).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectDispatch = reject;
+          }),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-change",
+        token: "tok-auth",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      act(() => {
+        callbacks.onConnected?.();
+      });
+
+      // 认证 revision 改变（如换号或重新登录）
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      // 迟到的调度失败到达
+      await act(async () => {
+        rejectDispatch(new Error("Network drop"));
+      });
+
+      // 绝不进入 dispatch_failed 状态，旧失败结果被隔离
+      expect(useConversationStore.getState().connectionState).not.toBe("dispatch_failed");
+      expect(screen.queryByTestId("dispatch-failed-view")).not.toBeInTheDocument();
+    });
+
+    it("drops late dispatch failure after component unmounts without mutating store", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      let rejectDispatch!: (err: Error) => void;
+      vi.mocked(api.dispatchAgent).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectDispatch = reject;
+          }),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-unmount-fail",
+        token: "tok-unmount",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      const { unmount } = render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      act(() => {
+        callbacks.onConnected?.();
+      });
+
+      // 组件卸载
+      unmount();
+
+      // 迟到的调度失败到达
+      await act(async () => {
+        rejectDispatch(new Error("Late error after unmount"));
+      });
+
+      // 卸载后的迟到失败绝不更新当前 store
+      expect(useConversationStore.getState().connectionState).not.toBe("dispatch_failed");
+    });
+
+    it("does not revive room via setActive or stale callbacks when in dispatch_failed state", () => {
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-dead",
+        token: null,
+        wsUrl: null,
+        connectionState: "dispatch_failed",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      // 绝不渲染 LiveKitRoom
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(screen.getByTestId("dispatch-failed-view")).toBeInTheDocument();
+
+      // 调用 setActive
+      useConversationStore.getState().setActive("sess-dead", 1);
+      expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+    });
+
+    describe("DSP-01 synchronous reentrancy protection", () => {
+      it("drops dispatchAgent when subscriber calls goHome on dispatchedSessionId write (0 calls)", () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-reentrant-gohome",
+          token: "tok-reentrant",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        const unsub = useConversationStore.subscribe((state) => {
+          if (state.dispatchedSessionId === "sess-reentrant-gohome") {
+            useConversationStore.getState().goHome();
+          }
+        });
+
+        render(<VoiceInterface />);
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+        act(() => {
+          callbacks.onConnected?.();
+        });
+        unsub();
+
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("idle");
+      });
+
+      it("drops dispatchAgent when subscriber calls endSession on dispatchedSessionId write (0 calls)", async () => {
+        vi.mocked(api.endSession).mockResolvedValue({} as api.Session);
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-reentrant-end",
+          token: "tok-reentrant",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        const unsub = useConversationStore.subscribe((state) => {
+          if (state.dispatchedSessionId === "sess-reentrant-end") {
+            void useConversationStore.getState().endSession();
+          }
+        });
+
+        render(<VoiceInterface />);
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+        act(() => {
+          callbacks.onConnected?.();
+        });
+        unsub();
+
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("ending");
+      });
+
+      it("drops dispatchAgent when subscriber changes revision for same principal on dispatchedSessionId write (0 calls)", () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-reentrant-rev",
+          token: "tok-reentrant",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        const unsub = useConversationStore.subscribe((state) => {
+          if (state.dispatchedSessionId === "sess-reentrant-rev") {
+            vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+          }
+        });
+
+        render(<VoiceInterface />);
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+        act(() => {
+          callbacks.onConnected?.();
+        });
+        unsub();
+
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+      });
+
+      it("drops dispatchAgent when subscriber unmounts component on dispatchedSessionId write (0 calls)", () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-reentrant-unmount",
+          token: "tok-reentrant",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        const unmountHolder = { current: () => {} };
+        const unsub = useConversationStore.subscribe((state) => {
+          if (state.dispatchedSessionId === "sess-reentrant-unmount") {
+            unmountHolder.current();
+          }
+        });
+
+        const { unmount } = render(<VoiceInterface />);
+        unmountHolder.current = unmount;
+
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+        act(() => {
+          callbacks.onConnected?.();
+        });
+        unsub();
+
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+      });
+    });
   });
 });

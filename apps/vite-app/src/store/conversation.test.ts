@@ -1801,4 +1801,97 @@ describe("useConversationStore", () => {
       expect(useConversationStore.getState().connectionState).toBe("connecting");
     });
   });
+
+  describe("Agent dispatch failure and deduplication (CP-02 §2, §3)", () => {
+    it("markDispatched only succeeds once per sessionId and sessionGen pair", () => {
+      const store = useConversationStore.getState();
+      expect(store.markDispatched("sess-1", 1)).toBe(true);
+      // 同一 pair 重复调用返回 false
+      expect(store.markDispatched("sess-1", 1)).toBe(false);
+
+      // 新代际允许再次成功
+      expect(store.markDispatched("sess-1", 2)).toBe(true);
+      expect(store.markDispatched("sess-1", 2)).toBe(false);
+
+      // 新 session 允许再次成功
+      expect(store.markDispatched("sess-2", 2)).toBe(true);
+      expect(store.markDispatched("sess-2", 2)).toBe(false);
+    });
+
+    it("failDispatch clears token and wsUrl and sets state to dispatch_failed when matching", () => {
+      useConversationStore.setState({
+        sessionId: "sess-fail-target",
+        sessionGen: 3,
+        token: "tok-to-clear",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+      });
+
+      // 不同的 sessionId 忽略
+      useConversationStore.getState().failDispatch("sess-other", 3);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-to-clear");
+
+      // 不同的 sessionGen 忽略
+      useConversationStore.getState().failDispatch("sess-fail-target", 2);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-to-clear");
+
+      // 匹配时执行
+      useConversationStore.getState().failDispatch("sess-fail-target", 3);
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("dispatch_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+      expect(state.sessionId).toBe("sess-fail-target");
+    });
+
+    it("failDispatch does not mutate state when already ended, ending, or idle", () => {
+      for (const nonActive of ["ended", "ending", "end_failed", "idle"] as const) {
+        useConversationStore.setState({
+          sessionId: "sess-ignore",
+          sessionGen: 1,
+          token: null,
+          connectionState: nonActive,
+        });
+
+        useConversationStore.getState().failDispatch("sess-ignore", 1);
+        expect(useConversationStore.getState().connectionState).toBe(nonActive);
+      }
+    });
+
+    it("setActive cannot revive dispatch_failed state", () => {
+      useConversationStore.setState({
+        sessionId: "sess-cannot-revive",
+        sessionGen: 1,
+        token: null,
+        connectionState: "dispatch_failed",
+      });
+
+      useConversationStore.getState().setActive("sess-cannot-revive", 1);
+      expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+    });
+
+    it("goHome resets dispatch_failed state to idle and increments generation", () => {
+      useConversationStore.setState({
+        sessionId: "sess-go-home",
+        sessionGen: 1,
+        token: null,
+        connectionState: "dispatch_failed",
+        appView: "session",
+        dispatchedGen: 1,
+        dispatchedSessionId: "sess-go-home",
+      });
+
+      useConversationStore.getState().goHome();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.sessionGen).toBe(2);
+      expect(state.dispatchedGen).toBeNull();
+      expect(state.dispatchedSessionId).toBeNull();
+    });
+  });
 });

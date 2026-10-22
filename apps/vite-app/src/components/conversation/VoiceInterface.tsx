@@ -8,7 +8,7 @@
  *          显示红色错误卡片并阻止自动重连。
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -25,6 +25,7 @@ import { useConversationStore } from "@/store/conversation";
 import { useAssessmentStore } from "@/store/assessment";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import { dispatchAgent } from "@/lib/api";
+import { getAuthSnapshot, getAuthRevision, arePrincipalsEqual } from "@/lib/auth";
 import { PronunciationFeedback } from "@/components/pronunciation/PronunciationFeedback";
 import { SkillTree } from "@/components/learning/SkillTree";
 import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
@@ -39,11 +40,13 @@ const tWarn = zhCN.connectionWarning;
 const tAgentErr = zhCN.agentError;
 
 /** 同步停止指定 Room 拥有的全部本地音轨（不等待网络 disconnect） */
-export function stopRoomLocalTracks(room?: {
-  localParticipant?: {
-    trackPublications?: Map<unknown, { track?: { stop?: () => void } }>;
-  };
-}) {
+export function stopRoomLocalTracks(
+  room?: {
+    localParticipant?: {
+      trackPublications?: Map<unknown, { track?: { stop?: () => void } }>;
+    };
+  } | null,
+) {
   if (!room?.localParticipant?.trackPublications) return;
   try {
     room.localParticipant.trackPublications.forEach((pub) => {
@@ -58,12 +61,28 @@ export function stopRoomLocalTracks(room?: {
   }
 }
 
+type TrackHolderRoom = Parameters<typeof stopRoomLocalTracks>[0];
+
 /** 主入口：根据 connectionState 渲染不同视图 */
 export function VoiceInterface() {
   const { connectionState, sessionId, token, wsUrl, error, goHome, sessionGen } =
     useConversationStore();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showWarning, setShowWarning] = useState(false);
+
+  const mountedSessionId = sessionId;
+  const mountedGen = sessionGen;
+  const isMountedRef = useRef(true);
+  const roomRef = useRef<TrackHolderRoom | null>(null);
+  const dispatchedKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      stopRoomLocalTracks(roomRef.current);
+    };
+  }, []);
 
   // idle 状态不应在 session 视图出现，作为安全回退
   if (connectionState === "idle") {
@@ -98,6 +117,10 @@ export function VoiceInterface() {
     return <EndedView />;
   }
 
+  if (connectionState === "dispatch_failed") {
+    return <DispatchFailedView />;
+  }
+
   // 严格安全门禁：除 connecting/active 且 token 存在外，绝不挂载 LiveKitRoom
   if ((connectionState !== "connecting" && connectionState !== "active") || !token) {
     return <ConnectingView />;
@@ -122,9 +145,6 @@ export function VoiceInterface() {
       </div>
     );
   }
-
-  const mountedSessionId = sessionId;
-  const mountedGen = sessionGen;
 
   return (
     <>
@@ -154,17 +174,149 @@ export function VoiceInterface() {
           if (
             current.sessionGen !== mountedGen ||
             current.sessionId !== mountedSessionId ||
-            (current.connectionState !== "connecting" && current.connectionState !== "active")
+            (current.connectionState !== "connecting" && current.connectionState !== "active") ||
+            !mountedSessionId ||
+            !current.token
           ) {
             return;
           }
+
+          // 组件存活检查
+          if (!isMountedRef.current) {
+            return;
+          }
+
+          // 去重检查：当前 sessionId/sessionGen 最多发送一次 dispatch POST
+          const dispatchKey = `${mountedGen}:${mountedSessionId}`;
+          if (dispatchedKeyRef.current === dispatchKey) {
+            return;
+          }
+
+          // 核心门禁 (DSP-01)：在触发任何可能引起外部订阅者同步回调的动作之前，先捕获请求来源精确认证快照与 revision
+          const authSnap = getAuthSnapshot();
+          if (authSnap.state !== "authenticated" || !authSnap.principal) {
+            stopRoomLocalTracks(roomRef.current);
+            current.failDispatch(mountedSessionId, mountedGen);
+            return;
+          }
+          const reqPrincipal = authSnap.principal;
+          const reqRevision = getAuthRevision();
+
+          // 记录本地 ref 并同步标记 store（注意：markDispatched 是同步 set，会同步触发所有 store 订阅者）
+          dispatchedKeyRef.current = dispatchKey;
+          if (!current.markDispatched(mountedSessionId, mountedGen)) {
+            return;
+          }
+
+          // 核心门禁 (DSP-01)：在 markDispatched 同步触发订阅者之后，必须重新核验同步可重入边界：
+          // 1. 组件是否依然存活
+          if (!isMountedRef.current) {
+            return;
+          }
+
+          // 2. 当前 session/gen/state/token 是否依然一致且有效
+          const afterSetState = useConversationStore.getState();
+          if (
+            afterSetState.sessionGen !== mountedGen ||
+            afterSetState.sessionId !== mountedSessionId ||
+            (afterSetState.connectionState !== "connecting" &&
+              afterSetState.connectionState !== "active") ||
+            !afterSetState.token
+          ) {
+            return;
+          }
+
+          // 3. 原始认证快照与 revision 是否在 markDispatched 期间保持一致（防篡改/换人/同 principal 新 revision 冒充旧连接来源）
+          const afterSetAuth = getAuthSnapshot();
+          const afterSetRev = getAuthRevision();
+          if (
+            afterSetAuth.state !== "authenticated" ||
+            !afterSetAuth.principal ||
+            !arePrincipalsEqual(afterSetAuth.principal, reqPrincipal) ||
+            afterSetRev !== reqRevision
+          ) {
+            return;
+          }
+
           setConnectionError(null);
           setShowWarning(false);
-          if (mountedSessionId) {
-            dispatchAgent(mountedSessionId).catch((err) =>
-              console.error("Agent dispatch failed:", err),
-            );
-          }
+
+          dispatchAgent(mountedSessionId)
+            .then((res) => {
+              // 门禁核对：组件存活
+              if (!isMountedRef.current) return;
+
+              // 门禁核对：sessionId 与 sessionGen 归属
+              const latest = useConversationStore.getState();
+              if (latest.sessionGen !== mountedGen || latest.sessionId !== mountedSessionId) {
+                return;
+              }
+
+              // 门禁核对：连接状态仍为 connecting 或 active
+              if (latest.connectionState !== "connecting" && latest.connectionState !== "active") {
+                return;
+              }
+
+              // 门禁核对：来源认证严格一致
+              const latestAuth = getAuthSnapshot();
+              const latestRev = getAuthRevision();
+              if (
+                latestAuth.state !== "authenticated" ||
+                !latestAuth.principal ||
+                !arePrincipalsEqual(latestAuth.principal, reqPrincipal) ||
+                latestRev !== reqRevision
+              ) {
+                return;
+              }
+
+              // 响应格式核验：API 成功仅接受对象且 dispatched 严格 true
+              const isDispatchedSuccess =
+                res !== null &&
+                typeof res === "object" &&
+                !Array.isArray(res) &&
+                "dispatched" in res &&
+                (res as { dispatched: unknown }).dispatched === true;
+
+              if (!isDispatchedSuccess) {
+                stopRoomLocalTracks(roomRef.current);
+                latest.failDispatch(mountedSessionId, mountedGen);
+                return;
+              }
+
+              // 成功维持原界面，无需额外操作
+            })
+            .catch(() => {
+              // 门禁核对：组件存活
+              if (!isMountedRef.current) return;
+
+              // 门禁核对：sessionId 与 sessionGen 归属
+              const latest = useConversationStore.getState();
+              if (latest.sessionGen !== mountedGen || latest.sessionId !== mountedSessionId) {
+                return;
+              }
+
+              // 门禁核对：连接状态仍为 connecting 或 active
+              if (latest.connectionState !== "connecting" && latest.connectionState !== "active") {
+                return;
+              }
+
+              // 门禁核对：来源认证严格一致
+              const latestAuth = getAuthSnapshot();
+              const latestRev = getAuthRevision();
+              if (
+                latestAuth.state !== "authenticated" ||
+                !latestAuth.principal ||
+                !arePrincipalsEqual(latestAuth.principal, reqPrincipal) ||
+                latestRev !== reqRevision
+              ) {
+                return;
+              }
+
+              // P2 安全固定日志：避免异常内容回显或日志泄漏 Token
+              console.error("Agent dispatch failed");
+              stopRoomLocalTracks(roomRef.current);
+              latest.failDispatch(mountedSessionId, mountedGen);
+            });
         }}
         onError={(error) => {
           const current = useConversationStore.getState();
@@ -194,10 +346,63 @@ export function VoiceInterface() {
         data-lk-theme="default"
         className="flex min-h-[60vh] flex-col"
       >
+        <RoomContextSync
+          onRoom={(r) => {
+            roomRef.current = r;
+          }}
+        />
         <ActiveView />
         <RoomAudioRenderer />
       </LiveKitRoom>
     </>
+  );
+}
+
+/** 内部组件：同步 Room 上下文引用供本地音轨主动 stop */
+function RoomContextSync({ onRoom }: { onRoom: (room: TrackHolderRoom | null) => void }) {
+  const room = useRoomContext();
+  useEffect(() => {
+    onRoom(room);
+    return () => {
+      onRoom(null);
+    };
+  }, [room, onRoom]);
+  return null;
+}
+
+/** 调度失败视图：AI 服务启动未确认，音频已停止 */
+function DispatchFailedView() {
+  const goHome = useConversationStore((s) => s.goHome);
+
+  return (
+    <div className="flex flex-col items-center gap-6 py-8" data-testid="dispatch-failed-view">
+      <div className="border-danger-border bg-danger-bg w-full max-w-md rounded-[20px] border p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 shrink-0">
+            <svg className="text-danger h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <div className="flex-1 text-left">
+            <h3 className="text-danger-text text-base font-semibold">
+              {tConv.dispatchFailedTitle}
+            </h3>
+            <p className="text-danger-text mt-1 text-sm leading-relaxed">
+              {tConv.dispatchFailedMessage}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-4">
+        <button onClick={goHome} className="btn-primary px-6 py-2.5 text-sm font-medium">
+          {tDash.goHome}
+        </button>
+      </div>
+    </div>
   );
 }
 

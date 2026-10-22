@@ -39,6 +39,8 @@ export const zhCN = {
     capabilitiesUnsupported: "当前客户端尚未支持此通话模式",
     capabilitiesFailed: "通话能力检查失败，请稍后重试",
     resumeFailed: "恢复会话失败，请稍后重试",
+    dispatchFailedTitle: "AI服务启动未确认，音频已停止",
+    dispatchFailedMessage: "AI服务启动未确认，音频已停止。返回主页后可从活动记录明确恢复。",
   },
   assessment: {
     pending: "分析任务排队中...",
