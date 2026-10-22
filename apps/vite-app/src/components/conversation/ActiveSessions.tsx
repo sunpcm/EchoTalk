@@ -14,6 +14,11 @@ import {
   type AuthPrincipal,
   type AuthSnapshot,
 } from "@/lib/auth";
+import {
+  createWebLifecycleAdapter,
+  type WebLifecycleAdapter,
+  type WebLifecycleEvent,
+} from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
 const t = zhCN.activeSessions;
@@ -57,6 +62,7 @@ export function ActiveSessions() {
   const isMountedRef = useRef<boolean>(true);
   const activePrincipalRef = useRef<AuthPrincipal | null>(snapshot.principal);
   const activeRevisionRef = useRef<number>(getAuthRevision());
+  const lifecycleAdapterRef = useRef<WebLifecycleAdapter | null>(null);
 
   const fetchActiveSessions = useCallback(() => {
     const currentSnap = getAuthSnapshot();
@@ -68,6 +74,16 @@ export function ActiveSessions() {
       setError(false);
       setLoading(false);
       return;
+    }
+
+    // 生命周期门禁：仅在 visibility 不是 hidden 且 online 不是 false 时请求
+    // unknown/null 代表未知而不是失败，允许原有发现
+    const adapter = lifecycleAdapterRef.current;
+    if (adapter) {
+      const lifeSnap = adapter.getSnapshot();
+      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) {
+        return;
+      }
     }
 
     // 一个已挂载实例同时最多一个有效请求；重试期间禁重复提交
@@ -143,6 +159,43 @@ export function ActiveSessions() {
   useEffect(() => {
     isMountedRef.current = true;
 
+    // 创建独立Web适配器
+    const adapter = createWebLifecycleAdapter();
+    lifecycleAdapterRef.current = adapter;
+
+    const handleLifecycleEvent = (event: WebLifecycleEvent) => {
+      if (!isMountedRef.current) return;
+
+      // suspend或online=false立即作废当前请求并释放在途槽位、退出loading，保留同一账号已展示列表、不新增错误提示
+      if (
+        event.type === "suspend" ||
+        event.snapshot.visibility === "hidden" ||
+        event.snapshot.online === false
+      ) {
+        if (inFlightRef.current) {
+          activeRequestIdRef.current++;
+          inFlightRef.current = false;
+          setLoading(false);
+        }
+      }
+
+      // resume事件仅visibility为visible且online不是false时刷新
+      if (event.type === "resume") {
+        if (event.snapshot.visibility === "visible" && event.snapshot.online !== false) {
+          fetchActiveSessions();
+        }
+      } else if (event.type === "connectivity") {
+        // connectivity事件仅online为true且visibility不是hidden时刷新
+        if (event.snapshot.online === true && event.snapshot.visibility !== "hidden") {
+          fetchActiveSessions();
+        }
+      }
+    };
+
+    // 先订阅后读取当前快照
+    const unsubscribeLifecycle = adapter.subscribe(handleLifecycleEvent);
+    const initialLifeSnap = adapter.getSnapshot();
+
     const handleSnapshotChange = (nextSnap: AuthSnapshot) => {
       if (!isMountedRef.current) return;
 
@@ -178,7 +231,7 @@ export function ActiveSessions() {
       }
     };
 
-    const unsubscribe = subscribeAuthSnapshot(handleSnapshotChange);
+    const unsubscribeAuth = subscribeAuthSnapshot(handleSnapshotChange);
 
     const initialSnap = getAuthSnapshot();
     activePrincipalRef.current = initialSnap.principal;
@@ -186,7 +239,11 @@ export function ActiveSessions() {
     setSnapshot(initialSnap);
 
     if (initialSnap.state === "authenticated" && initialSnap.principal) {
-      fetchActiveSessions();
+      if (initialLifeSnap.visibility !== "hidden" && initialLifeSnap.online !== false) {
+        fetchActiveSessions();
+      } else {
+        setLoading(false);
+      }
     } else {
       setSessions([]);
       setError(false);
@@ -198,7 +255,10 @@ export function ActiveSessions() {
       // 卸载时作废在途请求，消除 StrictMode 下的残留阻断
       activeRequestIdRef.current++;
       inFlightRef.current = false;
-      unsubscribe();
+      unsubscribeAuth();
+      unsubscribeLifecycle();
+      adapter.dispose();
+      lifecycleAdapterRef.current = null;
     };
   }, [fetchActiveSessions]);
 
