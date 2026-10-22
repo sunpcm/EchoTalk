@@ -50,3 +50,13 @@ Cloud模式end先按统一锁顺序处理；如该session持有当前held占用�
 该接口复用现有认证依赖，缺少/无效认证401；不访问媒体 SDK，不创建、释放或更新会话/租约，不增加数据库迁移和构建变量。`disabled` 同样可以发现，保持旧 token/dispatch/end 行为。不得因能力查询失败而在客户端静默假定 disabled；后续客户端在显式开始或恢复前读取，失败受控提示并允许用户重试。前端接入另轮实施，本接口通过不表示三端恢复/接管 UI 已完成，也不改变默认模式。
 
 本地验收覆盖：真实路由注册，两种模式的精确响应，认证401，禁止响应额外字段及no-store，不调用媒体服务、不写DB；既有后端全量测试保持通过。
+
+## 8. 共享客户端能力发现与开始门禁（本地阶段）
+
+每次用户显式开始练习（含DocTalk）先读取`GET /api/call-capabilities`，成功响应只接受对象、精确两字段、`protocol_version === 1`及`call_lease_mode`为`disabled`或`livekit_cloud`。使用现有认证request，并设置fetch的`cache: "no-store"`，不持久化、不跨开始请求缓存能力，也不因失败回退disabled。未知版本/模式、字段缺失/额外字段、错误类型、HTTP失败均受控失败关闭。
+
+当前客户端尚未实现claim/heartbeat/token-generation及接管UI，只有disabled可进入既有health→create→token流程。livekit_cloud显示通用本地化“当前客户端尚未支持此通话模式”，不得调用health/create/token/dispatch或采音；未来占用客户端实现后另轮解除此临时门禁。能力查询失败或不兼容显示通用本地化提示，留在dashboard并恢复可开始状态，由用户显式重试；不回显任意服务端报错，不改变服务端默认模式。
+
+开始在途去重涵盖能力查询，重复点击不能创建并行启动。reset/goHome/end/退出换号使旧能力结果失效；沿用精确认证身份和authRevision，旧请求在身份或revision变化后不得继续health/create/token或回填状态。每一步异步边界均核验本轮启动归属；不修改既有auth.ts安全底座，不盲目重放任何写请求。没有有效认证快照时不发起开始；已有显式dev认证边界保持，测试应初始化真实边界或按真实快照语义mock，不通过弱化生产认证修复fixture。
+
+此增量仅建立协议发现与开始门禁；不新增会话恢复、占用写接口、后台采音、Keychain、Provider访问或依赖。不代表CP-02整体或三端真实链路完成。旧端不提供能力端点时同样失败关闭，发布需服务端先升级；本轮不发布。
