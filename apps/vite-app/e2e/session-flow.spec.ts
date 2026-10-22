@@ -72,8 +72,11 @@ for (const state of ["pending", "running"] as const) {
   });
 }
 
-test("shows an analysis failure and lets the user exit to the dashboard", async ({ page }) => {
-  await showEndedSession(page, "analysis-failure");
+test("shows an analysis failure and lets the user exit to the dashboard", async ({
+  page,
+}, testInfo) => {
+  const failureId = `analysis-failure-${testInfo.project.name}`;
+  await showEndedSession(page, failureId);
 
   await expect(page.getByText("分析失败，请重试或返回主页")).toBeVisible();
   await page.getByRole("button", { name: "重新分析" }).click();
