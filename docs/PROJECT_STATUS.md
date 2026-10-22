@@ -34,6 +34,15 @@
 - 活动记录不等于媒体在线或持有占用；本轮不获取媒体Token，不恢复采音，不接管、不发心跳、不自动轮询或持久化列表。真实IdP/WebKit/原生回跳/iOS真机/Cloud媒体仍未验收，**CP-02整体仍未完成**。
 - 到此停止下一批派发，按用户约定评估新版review-loop。完整证据仅存本地 `.review/reports/workflow-discovery/`；工作流变更不等于已证明节省Codex额度。
 
+## 2026-10-22 本地通话能力门禁增量
+
+客户端每次开始练习（含DocTalk）先读取已认证的`GET /api/call-capabilities`，严格验证协议1的精确两字段并禁用缓存。只有disabled进入既有health/create/token；查询失败、接口缺失、不兼容协议或livekit_cloud模式均失败关闭并允许用户显式重试。认证事件及异步完成边界会释放失效启动，旧回调不覆盖新启动，同principal更新不打断已启动的正常通话。代码`0753dab`已独立评审并快进本地隔离集成分支，未推送/部署。
+
+- 本地独立证据：252产品测试、18构建脚本测试、20私有探针、既有6项与新增6项Chromium/Fake API用例，格式/lint/类型/双构建通过；3个关键变异被产品断言拦截，原字节恢复后重验通过。
+- 专用测试容器恢复并核验空schema后，沿既有授权恢复已审查迁移；后端269项、覆盖率73.72%通过，原始环境失败记录保留。未访问应用/生产库或真实Provider。
+- 新版skill的正式预检、解析和账本入口已用于本轮；新发现的5类工作流问题只存本地`.review/reports/workflow-capabilities/issues.md`，本轮未再改全局skill。文档见[能力门禁验证](./verification/cross-platform/CP-02-CAPABILITIES.md)。
+- Cloud客户端claim/heartbeat/接管/媒体恢复、真实IdP/原生凭据/真机和三端真实链路仍未完成。发布前需服务端能力接口先就绪，旧服务端缺端点时新客户端会阻止开始；本次未发布，CP-02整体不勾选。
+
 ## 当前功能
 
 | 领域           | 当前实现                                                                           | 状态与边界                                                 |
