@@ -201,3 +201,9 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 产品0edf750独立APPROVED：状态/结果/knowledge整个读取周期合并重复事件，后台离线立即取消读代际、释放槽位，恢复新查询不被旧挂起阻塞；认证/会话/pollVersion及同步通知隔离保持。472产品/18构建、27私有探针、22双浏览器与两个有效变异通过；完整集成门禁证据见[验证](./verification/cross-platform/CP-05-ANALYSIS.md)。本轮数据库、原生及真实Provider未验。
 
 两次agy尝试，1044.37账本活动秒；同会话最后total408174，续跑不累加，非Codex节省证明。用户关于20–30分钟任务减少无变化轮询的建议记入本地问题和流程文档，待后续评估，不自动改全局skill。继续已授权@capacitor/app@8.1.2原生生命周期任务，仅本地build+sync，不Xcode/签名/真实服务或push/deploy。
+
+## 2026-10-23 A16原生生命周期适配器
+
+产品bcf008c独立APPROVED：统一factory/iOS官方App状态监听、异步就绪/事件版本/失败恢复/释放边界；509产品/18构建、22独立探针、22双浏览器、两个有效变异及完整门禁通过。固定App8.1.2新增依赖，iOS development与production示例模式build+sync生成插件SPM与AppPlugin注册，保留原production webDir。见[验证](./verification/cross-platform/CP-05-NATIVE-ADAPTER.md)。消费者尚未迁移，原生OS/真实Provider/Xcode/签名未验，不冒充三端完成。
+
+用户要求先优化工作流后继续：skill a42fde9两端本地同步，66项离线回归及结构校验通过；项目固定诊断入口跨cwd一致，证据复用三种错误输入拒绝。A16同账本5次尝试，网络reset保留，CLI1.4.6漂移模型前拦截后受限接纳，同模型冷启动完整补交；报告P2实际路径在本验证文档纠正。新问题/用量原始记录仅本地，未证明净省额，不自动push/deploy；继续只读消费者接线。

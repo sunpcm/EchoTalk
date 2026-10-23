@@ -182,6 +182,8 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 
 ### CP-05：生命周期与响应式体验
 
+- [x] iOS原生生命周期薄适配器与统一工厂：509产品/22独立探针/双浏览器22项、本地iOS build+sync通过，见[验证](./docs/verification/cross-platform/CP-05-NATIVE-ADAPTER.md)；业务消费者仍待接线。
+
 - [x] 分析页Web后台/离线暂停与恢复安全轮询：472产品、27独立探针、双浏览器22项通过；见[本地验证](./docs/verification/cross-platform/CP-05-ANALYSIS.md)，原生OS仍待验。
 
 - [ ] Web visibility/online 与原生前后台/唤醒统一进入恢复流程；验收：重新校验身份、服务端状态和 LiveKit 连接，回前台立即刷新分析，避免并行轮询或重复 dispatch。
