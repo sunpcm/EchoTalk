@@ -213,3 +213,9 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 产品d1a69d1独立APPROVED：活动列表与分析轮询默认factory接原生App事件，pending/失败/后台关闭读取，恢复只GET，局部effect和旧响应/槽位守卫保持。独立525产品/18构建、35私有探针、22双浏览器与两个有效变异通过，见[验证](./verification/cross-platform/CP-05-NATIVE-CONSUMERS.md)。仅四文件，无依赖/后端改动，通话启动/Room、真实OS/Provider仍未验；仅本地隔离集成，不push/deploy。
 
 skill a42fde9新矩阵用于本轮，agy一次651.89账本活动秒、完整无拒权交付；独立探针API名错误和P2未查询空态/旧注释已记录，未发现需产品返工的P0/P1。精确Codex净额度收益未测，外部累计不能当省额；继续下一通话生命周期阶段，原生就绪永久挂起的可达退出先落实设计。
+
+## 2026-10-23 A18原生启动与显式恢复
+
+产品91f80d2独立APPROVED：先保留槽位再等原生就绪，pending零外部调用，10秒安全退出、取消释放与旧setup/ready/Token隔离；同意图认证失效卡槽位及初始化同步重入P1已关闭。547产品/18构建、30独立探针、22双浏览器与两个有效变异通过，见[验证](./verification/cross-platform/CP-05-NATIVE-STARTUP.md)。通话Room尚未接原生、真实OS/Provider/Xcode/签名未验，整体CP-05仍未完成。
+
+skill a42fde9在本轮继续应用，3次尝试，r1新版checkpoint事件未知被失败关闭；同模型冷启动补完整交付，保留旧流与检查hash，独立七门禁不减。夹具缺字段、时序返工、测试全局注入/重复逻辑维护候选及格式兼容新问题已记本地；收益未作对照，不报Codex净节省率。不push/deploy，下一本地增量为Room原生挂载与音轨中断。
