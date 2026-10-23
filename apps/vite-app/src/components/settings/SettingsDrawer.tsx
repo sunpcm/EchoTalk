@@ -56,6 +56,18 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     }
   }, [open, fetchSettings]);
 
+  // 监听 Escape 键关闭抽屉
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   // 从后端数据同步到本地表单
   useEffect(() => {
     if (settings) {
@@ -132,6 +144,9 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
       {/* Drawer */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-drawer-title"
         className="bg-bg fixed inset-y-0 right-0 z-50 w-full max-w-sm animate-[slideInRight_0.25s_ease-out] overflow-y-auto shadow-xl"
         style={{
           paddingTop: "env(safe-area-inset-top)",
@@ -156,7 +171,9 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
         {/* Header */}
         <div className="border-border-default flex items-center justify-between border-b px-6 py-4">
-          <h2 className="text-text-default text-lg font-semibold">{t.title}</h2>
+          <h2 id="settings-drawer-title" className="text-text-default text-lg font-semibold">
+            {t.title}
+          </h2>
           <button
             onClick={onClose}
             className="text-text-faint hover:bg-surface-alt hover:text-text-default focus-visible:ring-accent rounded-md p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"

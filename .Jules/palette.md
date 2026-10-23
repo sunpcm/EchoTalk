@@ -14,3 +14,8 @@
 
 **Learning:** Custom progress bar components (such as daily conversation turn counters and skill mastery levels) rendered as styled `<div>` elements are completely invisible to screen readers without `role="progressbar"` and standard ARIA progress attributes.
 **Action:** Always wrap visual progress indicators in `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`, and `aria-label`.
+
+## 2025-03-03 - Dialog ARIA Attributes and Escape Key Dismissal for Slide-over Drawers
+
+**Learning:** Slide-over drawers (such as settings panels) rendered as overlay containers lack dialog semantics (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`) and fail to dismiss when pressing the `Escape` key unless explicit event listeners and ARIA properties are configured.
+**Action:** Always decorate modal drawers with `role="dialog"`, `aria-modal="true"`, and `aria-labelledby`, and attach an `Escape` keydown listener to trigger `onClose` when open.
