@@ -225,3 +225,9 @@ skill a42fde9在本轮继续应用，3次尝试，r1新版checkpoint事件未知
 产品fdf3d5e独立APPROVED：native就绪前零采音Room，10秒失败退出，后台/离线同步stop本地音轨，旧回调隔离及前台不自动写。565产品/18构建、20独立探针、22双浏览器、两个有效变异及iOS development/production示例build+sync通过，见[验证](./verification/cross-platform/CP-05-NATIVE-ROOM.md)。三项P1独立复现后关闭，健康重渲染不会误停麦克风。真实OS音频中断/路由、Provider、Xcode/签名、Cloud接管仍待验。
 
 同账本5次/3421.81活动秒；评审文件跨允许目录拒权、旧上下文误读旧报告、503与EOF保留。原模型冷启动补完整交付，hash保护8份旧检查，独立门禁不减；工作流新问题本地记录，未证明净Codex省额，不自动改全局skill或push/deploy。
+
+## 2026-10-23 A20活动列表查询事实
+
+产品9273c95独立APPROVED：尚未查询不误报空，成功事实绑定精确principal/revision，取消及旧响应隔离，同账号后台保留已知列表；分析hook仅更新过期注释。574产品/18构建、14私有探针、22双浏览器及两个有效变异通过，见[验证](./verification/cross-platform/CP-05-DISCOVERY-QUERY-STATE.md)。四文件，无后端/依赖改动，不改变结束/恢复语义。
+
+首轮650.89活动秒，完整无拒权交付；本轮未发现需产品返工P0/P1，交接观察与契约适用边界记本地issues。外部累计237606不能换算Codex净省额。不push/deploy，真实OS音频/认证、Cloud及发布仍待独立验收。
