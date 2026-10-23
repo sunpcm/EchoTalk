@@ -3399,4 +3399,429 @@ describe("ActiveSessions Component", () => {
       expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
     });
   });
+
+  describe("CP-05 / A23 Resume Error States & Cancellation Terminal States", () => {
+    const mockSessions: api.SessionListItem[] = [
+      {
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      },
+      {
+        id: "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2026-10-21T11:00:00Z",
+        ended_at: null,
+      },
+    ];
+
+    it("real store linkage: getSessionDetail 503 synchronous idle notification does not swallow error, retains full UUID, and renders 44px retry button", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi
+        .spyOn(api, "getSessionDetail")
+        .mockRejectedValue(new api.ApiError(503, "Service Unavailable"));
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+      const createSpy = vi.spyOn(api, "createSession");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+
+      // 点击确认恢复（真实 store.resumeSession 执行）
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      // 验证：同步 idle 通知不得吞错！专用 resume-error 正常显示，完整 UUID 保留
+      expect(screen.getByTestId(`resume-confirm-panel-${id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+
+      // 专用重试按钮与取消按钮均可用且具备文案与目标
+      const retryBtn = screen.getByTestId(`retry-resume-button-${id}`);
+      expect(retryBtn).toHaveTextContent(t.retryResume);
+      expect(retryBtn).not.toBeDisabled();
+      const cancelBtn = screen.getByTestId(`cancel-resume-button-${id}`);
+      expect(cancelBtn).not.toBeDisabled();
+
+      // 零隐式 Token 或写操作
+      expect(tokenSpy).not.toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+
+      // 测试点击专用重试按钮再次触发真实恢复流程
+      detailSpy.mockResolvedValueOnce({
+        id,
+        user_id: "user-1",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      } as any);
+      vi.spyOn(api, "checkHealthReady").mockResolvedValueOnce({ status: "ready" } as any);
+      tokenSpy.mockResolvedValueOnce({ token: "test-token", ws_url: "wss://lk.test" });
+
+      await act(async () => {
+        fireEvent.click(retryBtn);
+      });
+
+      // 重试成功后，进入 session 视图并关闭恢复面板
+      expect(detailSpy).toHaveBeenCalledTimes(2);
+      expect(tokenSpy).toHaveBeenCalledTimes(1);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().sessionId).toBe(id);
+      expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
+    });
+
+    it("preceding failure: getCallCapabilities rejection shows dedicated resumeError, preserves target UUID, and sends zero detail or token requests", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockRejectedValue(new Error("cap fail"));
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`cancel-resume-button-${id}`)).not.toBeDisabled();
+
+      expect(detailSpy).not.toHaveBeenCalled();
+      expect(tokenSpy).not.toHaveBeenCalled();
+    });
+
+    it("preceding failure: invalid session detail (status not active or ended_at not null) shows dedicated resumeError and sends zero token request", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockResolvedValue({
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        user_id: "user-1",
+        mode: "scenario",
+        status: "completed",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: "2026-10-21T10:30:00Z",
+      } as any);
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(tokenSpy).not.toHaveBeenCalled();
+    });
+
+    it("preceding failure: checkHealthReady rejection shows dedicated resumeError and sends zero token request", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockResolvedValue({
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        user_id: "user-1",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      } as any);
+      vi.spyOn(api, "checkHealthReady").mockRejectedValue(new Error("Health check failed"));
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(tokenSpy).not.toHaveBeenCalled();
+    });
+
+    it("preceding failure: getSessionToken rejection shows dedicated resumeError and preserves confirm panel", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockResolvedValue({
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        user_id: "user-1",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      } as any);
+      vi.spyOn(api, "checkHealthReady").mockResolvedValue({ status: "ready" } as any);
+      vi.spyOn(api, "getSessionToken").mockRejectedValue(new Error("Token failure"));
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+    });
+
+    it("prevents duplicate requests during retry in-flight (single sequential execution)", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+
+      // 首次失败
+      detailSpy.mockRejectedValueOnce(new api.ApiError(503, "503"));
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+
+      // 第 2 次重试，使用 deferred
+      const deferredDetail = createDeferred<any>();
+      detailSpy.mockReturnValueOnce(deferredDetail.promise);
+
+      const retryBtn = screen.getByTestId(`retry-resume-button-${id}`);
+      fireEvent.click(retryBtn);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 在途状态下重复点击
+      fireEvent.click(retryBtn);
+      fireEvent.click(retryBtn);
+
+      // 严格单次触发，不重复发起请求
+      expect(detailSpy).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        deferredDetail.reject(new Error("fail again"));
+      });
+    });
+
+    it("user cancellation after failure clears panel, error, and intent with zero side-effects", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockRejectedValue(new api.ApiError(503, "503"));
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toBeInTheDocument();
+
+      // 点击取消
+      fireEvent.click(screen.getByTestId(`cancel-resume-button-${id}`));
+
+      // 面板顺利关闭
+      expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
+
+      // 重新打开该记录恢复面板：错误态已被清除，展示原始确认文案
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+      expect(screen.getByTestId(`resume-confirm-panel-${id}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`confirm-resume-button-${id}`)).toHaveTextContent(t.confirmResume);
+    });
+
+    it("cancellation isolation: store.reset during in-flight resume releases slot immediately; late completion of old promise does not pollute new intent", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+      const deferredOld = createDeferred<any>();
+      const deferredNew = createDeferred<any>();
+      detailSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+      fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId(`cancel-resume-button-${id1}`)).toBeDisabled();
+
+      // 触发 store.reset()
+      act(() => {
+        useConversationStore.getState().reset();
+      });
+
+      // UI 槽位立即释放，取消按钮恢复可用
+      expect(screen.getByTestId(`cancel-resume-button-${id1}`)).not.toBeDisabled();
+      fireEvent.click(screen.getByTestId(`cancel-resume-button-${id1}`));
+      expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+      // 发起新会话 id2 恢复
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+      fireEvent.click(screen.getByTestId(`confirm-resume-button-${id2}`));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(detailSpy).toHaveBeenCalledTimes(2);
+
+      // 旧的 id1 迟到失败
+      await act(async () => {
+        deferredOld.reject(new Error("Old request 503 aborted"));
+      });
+
+      // 验证：新在途操作不被旧请求污染，不弹出虚假错误
+      expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`resume-error-${id2}`)).not.toBeInTheDocument();
+
+      // 新的 id2 完成失败
+      await act(async () => {
+        deferredNew.reject(new api.ApiError(503, "503"));
+      });
+
+      // 此时 id2 正常展示专用错误
+      expect(screen.getByTestId(`resume-error-${id2}`)).toHaveTextContent(t.resumeError);
+    });
+
+    it("does not mutate or clear shared useConversationStore.error upon resume failure (RESUME23-01)", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockRejectedValue(
+        new api.ApiError(503, "503 Service Unavailable"),
+      );
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      // 组件自身展示专用局部错误
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      // store 的全局错误由 store 状态机自身管理，ActiveSessions 严禁反向抹除为 null
+      expect(useConversationStore.getState().error).toBe(t.resumeError);
+    });
+
+    it("subscriber-triggered reset during failure suppresses local error emission (RESUME23-01 / RESUME23-02)", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+      const deferredDetail = createDeferred<any>();
+      deferredDetail.promise.catch(() => {});
+      detailSpy.mockReturnValue(deferredDetail.promise);
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+      fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+
+      // 模拟外部订阅或用户操作在在途期间执行 reset() 作废代际
+      act(() => {
+        useConversationStore.getState().reset();
+      });
+
+      // 随后异步详情查询失败返回
+      await act(async () => {
+        deferredDetail.reject(new api.ApiError(500, "500 Server Error"));
+      });
+
+      // 验证：代际已被作废，卡片不展示残留错误
+      expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`confirm-resume-button-${id}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`retry-resume-button-${id}`)).not.toBeInTheDocument();
+    });
+  });
 });

@@ -89,6 +89,7 @@ export function ActiveSessions() {
   const resumeInFlightRef = useRef<boolean>(false);
   const activeEndingSessionIdRef = useRef<string | null>(null);
   const activeResumingSessionIdRef = useRef<string | null>(null);
+  const activeResumeGenRef = useRef<number>(useConversationStore.getState().sessionGen);
   const endedSessionIdsRef = useRef<Set<string>>(new Set());
   const confirmIntentRef = useRef<ConfirmIntent | null>(null);
   const resumeIntentRef = useRef<ConfirmIntent | null>(null);
@@ -327,6 +328,7 @@ export function ActiveSessions() {
     resumeInFlightRef.current = true;
     const reqId = ++resumeRequestIdRef.current;
     activeResumingSessionIdRef.current = targetSessionId;
+    activeResumeGenRef.current = useConversationStore.getState().sessionGen;
     const reqPrincipal = intent.principal;
     const reqRevision = intent.revision;
 
@@ -644,11 +646,19 @@ export function ActiveSessions() {
 
     const unsubscribeStore = useConversationStore.subscribe((state) => {
       if (!isEffectActive || !isMountedRef.current) return;
-      // 当恢复在途期间，若 store 回到 idle 或 ended（例如 reset() / goHome() / store生命周期监听取消回idle），
+      if (
+        state.connectionState === "checking_health" ||
+        state.connectionState === "connecting" ||
+        state.connectionState === "active"
+      ) {
+        activeResumeGenRef.current = state.sessionGen;
+      }
+      // 当恢复在途期间，若 store 回到 idle 或 ended 且会话代际被作废（例如 reset() / goHome() / store生命周期监听取消回idle），
       // 说明 store 已取消或重置本次启动，组件必须同步作废对应 UI 代际并释放恢复槽位
       if (
         resumeInFlightRef.current &&
-        (state.connectionState === "idle" || state.connectionState === "ended")
+        (state.connectionState === "idle" || state.connectionState === "ended") &&
+        state.sessionGen !== activeResumeGenRef.current
       ) {
         resumeRequestIdRef.current++;
         resumeInFlightRef.current = false;

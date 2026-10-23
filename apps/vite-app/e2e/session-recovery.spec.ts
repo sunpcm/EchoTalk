@@ -131,8 +131,9 @@ test.describe("Session Recovery and Auth Boundary Gates", () => {
     expect(capCount).toBe(1);
 
     // 只有再次明确点击重试才增加请求
-    const retryBtn = page.getByTestId(`confirm-resume-button-${targetId}`);
+    const retryBtn = page.getByTestId(`retry-resume-button-${targetId}`);
     await expect(retryBtn).toBeVisible();
+    await expect(retryBtn).toBeEnabled();
     await retryBtn.click();
 
     await expect.poll(() => capCount).toBe(2);
@@ -208,7 +209,9 @@ test.describe("Session Recovery and Auth Boundary Gates", () => {
     await page.getByTestId(`confirm-resume-button-${targetId}`).click();
 
     // 重新查询详情，已结束记录拒绝恢复
-    await expect(page.getByText("恢复会话失败")).toBeVisible();
+    const errorAlert = page.getByTestId(`resume-error-${targetId}`);
+    await expect(errorAlert).toBeVisible();
+    await expect(errorAlert).toHaveText("恢复会话失败");
 
     // 证明实际重新查询了详情
     expect(
