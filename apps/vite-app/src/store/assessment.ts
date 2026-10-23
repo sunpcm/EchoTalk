@@ -45,12 +45,16 @@ interface AssessmentStore {
 
   /**
    * 刷新持久化任务状态；成功后并行加载评估和语法结果。
+   * 支持可选 isCurrent 谓词参数，在发送前、状态后、结果GET前及数据/错误写入前核验。
    */
-  refreshAnalysis: (sessionId: string) => Promise<AnalysisJobStatus>;
+  refreshAnalysis: (
+    sessionId: string,
+    isCurrent?: () => boolean,
+  ) => Promise<AnalysisJobStatus | null>;
   /** 人工重试最终失败或超时任务 */
   retryFailedAnalysis: (sessionId: string) => Promise<void>;
-  /** 获取知识状态（静默，失败不阻塞） */
-  fetchKnowledgeStates: () => Promise<void>;
+  /** 获取知识状态（静默，失败不阻塞，支持可选 isCurrent 谓词） */
+  fetchKnowledgeStates: (isCurrent?: () => boolean) => Promise<void>;
   /** 重置 store（新一轮对话时调用，必须递增操作代际且不重置为0） */
   reset: () => void;
 }
@@ -66,18 +70,42 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
   job: null,
   pollVersion: 0,
 
-  refreshAnalysis: async (sessionId: string): Promise<AnalysisJobStatus> => {
+  refreshAnalysis: async (
+    sessionId: string,
+    isCurrent?: () => boolean,
+  ): Promise<AnalysisJobStatus | null> => {
     const gen = assessmentGeneration;
+
+    // 读取发送前核验
+    if (isCurrent && !isCurrent()) {
+      return null;
+    }
+
     try {
       const job = await getAnalysisStatus(sessionId);
+
+      // status 之后核验
+      if (isCurrent && !isCurrent()) {
+        return null;
+      }
       if (assessmentGeneration !== gen) {
         return job.status;
       }
+
       if (job.status === "pending" || job.status === "running") {
+        // 数据写前核验
+        if (isCurrent && !isCurrent()) {
+          return null;
+        }
         set({ loadState: job.status, job, error: null });
         return job.status;
       }
+
       if (job.status === "failed") {
+        // 失败写前核验
+        if (isCurrent && !isCurrent()) {
+          return null;
+        }
         set({
           loadState: "failed",
           job,
@@ -86,13 +114,24 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
         return job.status;
       }
 
+      // status 之后结果 GET 之前核验
+      if (isCurrent && !isCurrent()) {
+        return null;
+      }
+
       const [assessment, grammarErrors] = await Promise.all([
         getAssessment(sessionId),
         getGrammarErrors(sessionId),
       ]);
+
+      // 结果数据写前核验
+      if (isCurrent && !isCurrent()) {
+        return null;
+      }
       if (assessmentGeneration !== gen) {
         return job.status;
       }
+
       set({
         loadState: "loaded",
         assessment,
@@ -102,6 +141,10 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
       });
       return job.status;
     } catch (err) {
+      // 失败写前核验：predicate失效则不发后续请求、不写旧数据/错误，也不抛出未处理拒绝
+      if (isCurrent && !isCurrent()) {
+        return null;
+      }
       if (assessmentGeneration === gen) {
         set({
           loadState: "error",
@@ -136,10 +179,21 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
     }
   },
 
-  fetchKnowledgeStates: async () => {
+  fetchKnowledgeStates: async (isCurrent?: () => boolean) => {
     const gen = assessmentGeneration;
+
+    // knowledge 发送前核验
+    if (isCurrent && !isCurrent()) {
+      return;
+    }
+
     try {
       const states = await getKnowledgeStates();
+
+      // knowledge 写入前核验
+      if (isCurrent && !isCurrent()) {
+        return;
+      }
       if (assessmentGeneration !== gen) {
         return;
       }
