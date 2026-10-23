@@ -182,6 +182,8 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 
 ### CP-05：生命周期与响应式体验
 
+- [x] 活动列表与分析页消费iOS原生生命周期：525产品、35独立探针、双浏览器22项通过；见[验证](./docs/verification/cross-platform/CP-05-NATIVE-CONSUMERS.md)，通话启动/Room仍待接线。
+
 - [x] iOS原生生命周期薄适配器与统一工厂：509产品/22独立探针/双浏览器22项、本地iOS build+sync通过，见[验证](./docs/verification/cross-platform/CP-05-NATIVE-ADAPTER.md)；业务消费者仍待接线。
 
 - [x] 分析页Web后台/离线暂停与恢复安全轮询：472产品、27独立探针、双浏览器22项通过；见[本地验证](./docs/verification/cross-platform/CP-05-ANALYSIS.md)，原生OS仍待验。
@@ -208,6 +210,8 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 记录各端版本、最低支持 OS、已知限制与回滚步骤；验收：发布候选通过不等于已对外发布，部署、上传和商店提交由用户确认发布边界后执行。
 
 ### 后续候选（不阻断本轮）
+
+- [ ] 修正分析hook头部旧Web措辞；列表原生状态未就绪时区分尚未查询与已确认空，A17 P2保留。
 
 - [ ] Fake API严格解析带项目后缀的analysis-success grammar路径并补回归；当前双浏览器门禁不依赖该路径，A14 P2保留。
 

@@ -207,3 +207,9 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 产品bcf008c独立APPROVED：统一factory/iOS官方App状态监听、异步就绪/事件版本/失败恢复/释放边界；509产品/18构建、22独立探针、22双浏览器、两个有效变异及完整门禁通过。固定App8.1.2新增依赖，iOS development与production示例模式build+sync生成插件SPM与AppPlugin注册，保留原production webDir。见[验证](./verification/cross-platform/CP-05-NATIVE-ADAPTER.md)。消费者尚未迁移，原生OS/真实Provider/Xcode/签名未验，不冒充三端完成。
 
 用户要求先优化工作流后继续：skill a42fde9两端本地同步，66项离线回归及结构校验通过；项目固定诊断入口跨cwd一致，证据复用三种错误输入拒绝。A16同账本5次尝试，网络reset保留，CLI1.4.6漂移模型前拦截后受限接纳，同模型冷启动完整补交；报告P2实际路径在本验证文档纠正。新问题/用量原始记录仅本地，未证明净省额，不自动push/deploy；继续只读消费者接线。
+
+## 2026-10-23 A17原生只读消费者
+
+产品d1a69d1独立APPROVED：活动列表与分析轮询默认factory接原生App事件，pending/失败/后台关闭读取，恢复只GET，局部effect和旧响应/槽位守卫保持。独立525产品/18构建、35私有探针、22双浏览器与两个有效变异通过，见[验证](./verification/cross-platform/CP-05-NATIVE-CONSUMERS.md)。仅四文件，无依赖/后端改动，通话启动/Room、真实OS/Provider仍未验；仅本地隔离集成，不push/deploy。
+
+skill a42fde9新矩阵用于本轮，agy一次651.89账本活动秒、完整无拒权交付；独立探针API名错误和P2未查询空态/旧注释已记录，未发现需产品返工的P0/P1。精确Codex净额度收益未测，外部累计不能当省额；继续下一通话生命周期阶段，原生就绪永久挂起的可达退出先落实设计。
