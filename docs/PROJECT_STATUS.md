@@ -195,3 +195,9 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 产品be242b2独立APPROVED：默认Chromium/WebKit各11项共22 E2E，含5类新增真实UI恢复/401边界；保留全部质量门禁并更新CI安装接线。独立441产品/18构建、5项Fake API进程探针、2有效变异及完整7门禁通过。详见[验证](./verification/cross-platform/CP-06-WEBKIT.md)。无产品/依赖/锁变更，Linux CI、真实IdP/媒体/原生未验，P2 fixture grammar后缀已记TODO。
 
 中断后原流SUCCESS但无OS退出码，正式记录未知退出而不伪造0；同账本冷启动补完整交付且源码不变。2次尝试、问题/用量口径记本地日志；继续后续任务，不自动推送部署。
+
+## 2026-10-23 A15分析轮询本地增量
+
+产品0edf750独立APPROVED：状态/结果/knowledge整个读取周期合并重复事件，后台离线立即取消读代际、释放槽位，恢复新查询不被旧挂起阻塞；认证/会话/pollVersion及同步通知隔离保持。472产品/18构建、27私有探针、22双浏览器与两个有效变异通过；完整集成门禁证据见[验证](./verification/cross-platform/CP-05-ANALYSIS.md)。本轮数据库、原生及真实Provider未验。
+
+两次agy尝试，1044.37账本活动秒；同会话最后total408174，续跑不累加，非Codex节省证明。用户关于20–30分钟任务减少无变化轮询的建议记入本地问题和流程文档，待后续评估，不自动改全局skill。继续已授权@capacitor/app@8.1.2原生生命周期任务，仅本地build+sync，不Xcode/签名/真实服务或push/deploy。

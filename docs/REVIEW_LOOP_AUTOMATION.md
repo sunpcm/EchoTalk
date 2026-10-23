@@ -153,3 +153,9 @@ A13同会话两次终止ERROR stream interrupted而代码/quality已完成，原
 宿主中断后先核对PID/进程组与账本，原controller/child均gone而无OS退出记录，尽管raw终止SUCCESS也不推断exit0。使用exit_code:null正式finish并保留原流，经授权范围内reconcile在同账本冷启动原模型补完整交付；消耗次数与活动时间不重置，源码与前轮相同。账本time含恢复等待，不能冒充精确模型计算/计费。
 
 Chromium/WebKit真实收集11/11、0skip；独立Fake API进程探针与行为变异验证新增测试有实际断言。双项目共享analysis-failure ID状态污染由独立项目后缀修复，P2 success grammar派生路径留TODO。报告的媒体mock/本轮未改源码用语在最终验证文档明确边界，不外推真实链路。原始证据在本地.review/reports/workflow-webkit-a14，通用skill未自动改动。
+
+## A15等待频率讨论点（2026-10-23）
+
+用户观察agy常需20–30分钟，希望减少无变化检查；WORKFLOW-WAIT-01保存在本地workflow-analysis-a15/issues.md。后续优先完成事件或较稀疏的有界等待，只导入状态/停止原因/证据索引；遵守宿主沟通要求，但不把重复摘要当新进展、不反复读原始流。轮询间隔具体策略尚待讨论和测量，本次不改通用skill。独立验收、失败关闭、取消及退出核验保持。
+
+A15关闭知识请求在途范围缺口；报告hook数量小错据实际runner更正，不增加模型轮。一个冗余守卫候选变异存活，两个行为关键变异确实失败，保留全部原始证据。后续原生插件新增和本地iOS build+sync已有用户明确授权，超出Xcode/签名/真实服务仍须交互。
