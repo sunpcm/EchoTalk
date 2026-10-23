@@ -5,6 +5,27 @@ import * as auth from "@/lib/auth";
 import { useAssessmentStore } from "@/store/assessment";
 import { usePollingAssessment } from "./usePollingAssessment";
 
+const fakeAppListeners = new Set<(state: { isActive: boolean }) => void>();
+let fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+let fakeAppAddListener = vi
+  .fn()
+  .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+    fakeAppListeners.add(listener);
+    return Promise.resolve({
+      remove: vi.fn().mockImplementation(() => {
+        fakeAppListeners.delete(listener);
+        return Promise.resolve();
+      }),
+    });
+  });
+
+vi.mock("@capacitor/app", () => ({
+  App: {
+    getState: (...args: unknown[]) => fakeAppGetState(...args),
+    addListener: (...args: unknown[]) => fakeAppAddListener(...args),
+  },
+}));
+
 let mockAuthSnapshot: auth.AuthSnapshot = {
   state: "authenticated",
   principal: { issuer: "https://auth.example.com", subject: "user-1" },
@@ -786,6 +807,275 @@ describe("usePollingAssessment hook", () => {
 
       // 即使 status="succeeded"，由于同步通知导致 unmount，绝不能调用 knowledge
       expect(api.getKnowledgeStates).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Native iOS Lifecycle Consumer (CP-05)", () => {
+    beforeEach(() => {
+      fakeAppListeners.clear();
+      fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+      fakeAppAddListener = vi
+        .fn()
+        .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+          fakeAppListeners.add(listener);
+          return Promise.resolve({
+            remove: vi.fn().mockImplementation(() => {
+              fakeAppListeners.delete(listener);
+              return Promise.resolve();
+            }),
+          });
+        });
+
+      (window as unknown as { Capacitor?: unknown }).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+    });
+
+    afterEach(() => {
+      delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+      fakeAppListeners.clear();
+    });
+
+    it("initial native pending does not trigger query until registered and active", async () => {
+      const addListenerDeferred = deferred<{ remove(): Promise<void> }>();
+      const getStateDeferred = deferred<{ isActive: boolean }>();
+      let capturedListener: ((state: { isActive: boolean }) => void) | null = null;
+
+      fakeAppAddListener.mockImplementationOnce(
+        (_event: string, listener: (state: { isActive: boolean }) => void) => {
+          capturedListener = listener;
+          fakeAppListeners.add(listener);
+          return addListenerDeferred.promise;
+        },
+      );
+      fakeAppGetState.mockImplementationOnce(() => getStateDeferred.promise);
+
+      vi.mocked(api.getAnalysisStatus).mockResolvedValue({
+        ...baseJob,
+        status: "succeeded",
+      });
+      vi.mocked(api.getAssessment).mockResolvedValue(baseAssessment);
+      vi.mocked(api.getGrammarErrors).mockResolvedValue([]);
+      vi.mocked(api.getKnowledgeStates).mockResolvedValue([]);
+
+      renderHook(() => usePollingAssessment("session-1"));
+
+      // pending 期间：不发起 GET
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.getAnalysisStatus).not.toHaveBeenCalled();
+
+      // addListener resolve
+      await act(async () => {
+        addListenerDeferred.resolve({
+          remove: async () => {
+            if (capturedListener) fakeAppListeners.delete(capturedListener);
+          },
+        });
+        await Promise.resolve();
+      });
+      expect(api.getAnalysisStatus).not.toHaveBeenCalled();
+
+      // getState resolve active
+      await act(async () => {
+        getStateDeferred.resolve({ isActive: true });
+        await Promise.resolve();
+      });
+
+      // 仅触发一次查询，不与 whenReady 重复发起
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it("initial native getState returning inactive does not trigger query", async () => {
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      renderHook(() => usePollingAssessment("session-1"));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(api.getAnalysisStatus).not.toHaveBeenCalled();
+    });
+
+    it("initial native registration failure does not trigger query", async () => {
+      fakeAppAddListener.mockImplementationOnce(() =>
+        Promise.reject(new Error("Registration failed")),
+      );
+
+      renderHook(() => usePollingAssessment("session-1"));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(api.getAnalysisStatus).not.toHaveBeenCalled();
+    });
+
+    it("query in flight when native transitions to inactive cancels active cycle and leaves timer cleared, then recovers on active", async () => {
+      const deferredStatus1 = deferred<api.AnalysisStatusResponse>();
+      const deferredStatus2 = deferred<api.AnalysisStatusResponse>();
+
+      vi.mocked(api.getAnalysisStatus)
+        .mockReturnValueOnce(deferredStatus1.promise)
+        .mockReturnValueOnce(deferredStatus2.promise);
+
+      renderHook(() => usePollingAssessment("session-1"));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(1);
+
+      // 原生切后台 (inactive)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+
+      // 旧请求迟到返回 pending
+      await act(async () => {
+        deferredStatus1.resolve({
+          ...baseJob,
+          status: "pending",
+        });
+        await Promise.resolve();
+      });
+
+      // 因为已被取消，定时器不得触发旧代际重试
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(1);
+
+      // 原生切前台 (active)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 立即重新发起查询
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(2);
+
+      // 第二次返回 pending，开始正常退避调度 (1000ms)
+      await act(async () => {
+        deferredStatus2.resolve({
+          ...baseJob,
+          status: "pending",
+        });
+        await Promise.resolve();
+      });
+
+      vi.mocked(api.getAnalysisStatus).mockResolvedValueOnce({
+        ...baseJob,
+        status: "succeeded",
+      });
+      vi.mocked(api.getAssessment).mockResolvedValueOnce(baseAssessment);
+      vi.mocked(api.getGrammarErrors).mockResolvedValueOnce([]);
+      vi.mocked(api.getKnowledgeStates).mockResolvedValueOnce([]);
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(3);
+    });
+
+    it("initial fetch failure can recover on subsequent valid native resume event", async () => {
+      vi.mocked(api.getAnalysisStatus)
+        .mockRejectedValueOnce(new Error("Network failure"))
+        .mockResolvedValueOnce({
+          ...baseJob,
+          status: "succeeded",
+        });
+      vi.mocked(api.getAssessment).mockResolvedValue(baseAssessment);
+      vi.mocked(api.getGrammarErrors).mockResolvedValue([]);
+      vi.mocked(api.getKnowledgeStates).mockResolvedValue([]);
+
+      renderHook(() => usePollingAssessment("session-1"));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(1);
+
+      // 错误后不自动重试，advanceTimers 不发新请求
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(1);
+
+      // 原生切后台再切前台（触发 resume）
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 成功恢复读取
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(2);
+      expect(api.getKnowledgeStates).toHaveBeenCalledTimes(1);
+    });
+
+    it("native inactive overrides DOM visibilitychange and window online/pageshow", async () => {
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      renderHook(() => usePollingAssessment("session-1"));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.getAnalysisStatus).not.toHaveBeenCalled();
+
+      // DOM 触发 visibilitychange visible、pageshow、online
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("pageshow"));
+        window.dispatchEvent(new Event("online"));
+        await Promise.resolve();
+      });
+
+      expect(api.getAnalysisStatus).not.toHaveBeenCalled();
+    });
+
+    it("two consumer instances independently register and unmounting one does not remove the other's listener", async () => {
+      vi.mocked(api.getAnalysisStatus).mockResolvedValue({
+        ...baseJob,
+        status: "pending",
+      });
+
+      const hookA = renderHook(() => usePollingAssessment("session-1"));
+      const hookB = renderHook(() => usePollingAssessment("session-2"));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(fakeAppListeners.size).toBe(2);
+
+      hookA.unmount();
+      expect(fakeAppListeners.size).toBe(1);
+
+      vi.mocked(api.getAnalysisStatus).mockClear();
+
+      // 原生状态变更触发（后台到前台），hookB 依然能响应
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      expect(api.getAnalysisStatus).toHaveBeenCalledTimes(1);
+
+      hookB.unmount();
+      expect(fakeAppListeners.size).toBe(0);
     });
   });
 });

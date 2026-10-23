@@ -17,11 +17,11 @@ import {
   arePrincipalsEqual,
 } from "@/lib/auth";
 import {
-  createWebLifecycleAdapter,
+  createLifecycleAdapter,
   type WebLifecycleOptions,
   type WebLifecycleSnapshot,
   type WebLifecycleEvent,
-} from "@/platform/webLifecycle";
+} from "@/platform";
 
 /** 轮询配置 */
 const INITIAL_DELAY_MS = 1000;
@@ -78,7 +78,9 @@ export function usePollingAssessment(
     };
 
     // 先 subscribe 再 getSnapshot 消除空窗
-    const adapter = createWebLifecycleAdapter(options?.lifecycleOptions);
+    const adapter = createLifecycleAdapter({
+      webOptions: options?.lifecycleOptions,
+    });
 
     const isEligibleSnapshot = (snapshot: WebLifecycleSnapshot): boolean => {
       return snapshot.visibility !== "hidden" && snapshot.online !== false;

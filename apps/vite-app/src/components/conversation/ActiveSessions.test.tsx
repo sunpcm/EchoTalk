@@ -7,6 +7,27 @@ import * as auth from "@/lib/auth";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
 
+const fakeAppListeners = new Set<(state: { isActive: boolean }) => void>();
+let fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+let fakeAppAddListener = vi
+  .fn()
+  .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+    fakeAppListeners.add(listener);
+    return Promise.resolve({
+      remove: vi.fn().mockImplementation(() => {
+        fakeAppListeners.delete(listener);
+        return Promise.resolve();
+      }),
+    });
+  });
+
+vi.mock("@capacitor/app", () => ({
+  App: {
+    getState: (...args: unknown[]) => fakeAppGetState(...args),
+    addListener: (...args: unknown[]) => fakeAppAddListener(...args),
+  },
+}));
+
 const t = zhCN.activeSessions;
 
 function createDeferred<T>() {
@@ -2673,6 +2694,361 @@ describe("ActiveSessions Component", () => {
 
         expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Native iOS Lifecycle Consumer (CP-05)", () => {
+    const mockSessions: api.SessionListItem[] = [
+      {
+        id: "sess-native-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2026-10-23T10:00:00Z",
+        ended_at: null,
+      },
+    ];
+
+    beforeEach(() => {
+      fakeAppListeners.clear();
+      fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+      fakeAppAddListener = vi
+        .fn()
+        .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+          fakeAppListeners.add(listener);
+          return Promise.resolve({
+            remove: vi.fn().mockImplementation(() => {
+              fakeAppListeners.delete(listener);
+              return Promise.resolve();
+            }),
+          });
+        });
+
+      (window as unknown as { Capacitor?: unknown }).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+    });
+
+    afterEach(() => {
+      delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+      fakeAppListeners.clear();
+    });
+
+    it("initial native pending does not trigger GET until registered and active, with exactly one query", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+
+      const addListenerDeferred = createDeferred<{ remove(): Promise<void> }>();
+      const getStateDeferred = createDeferred<{ isActive: boolean }>();
+      let capturedListener: ((state: { isActive: boolean }) => void) | null = null;
+
+      fakeAppAddListener.mockImplementationOnce(
+        (_event: string, listener: (state: { isActive: boolean }) => void) => {
+          capturedListener = listener;
+          fakeAppListeners.add(listener);
+          return addListenerDeferred.promise;
+        },
+      );
+      fakeAppGetState.mockImplementationOnce(() => getStateDeferred.promise);
+
+      render(<ActiveSessions />);
+
+      // 在注册 pending 期间：不发起 GET
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).not.toHaveBeenCalled();
+
+      // addListener resolve
+      await act(async () => {
+        addListenerDeferred.resolve({
+          remove: async () => {
+            if (capturedListener) fakeAppListeners.delete(capturedListener);
+          },
+        });
+        await Promise.resolve();
+      });
+      // getState 仍在 pending，依旧不触发 GET
+      expect(listSpy).not.toHaveBeenCalled();
+
+      // getState resolve active
+      await act(async () => {
+        getStateDeferred.resolve({ isActive: true });
+        await Promise.resolve();
+      });
+
+      // 成功 active 且 Web visible 后，只触发一次 GET 查询（不与 whenReady 重复发起）
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+    });
+
+    it("initial native getState returning inactive does not trigger GET", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("active-sessions-list")).not.toBeInTheDocument();
+    });
+
+    it("initial native registration failure does not trigger GET", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      fakeAppAddListener.mockImplementationOnce(() =>
+        Promise.reject(new Error("Bridge not ready")),
+      );
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("query in flight when native transitions to inactive cancels active cycle and leaves list intact, then recovers on active", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      // 初始 active 触发第 1 次 GET
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 原生切到后台 (inactive)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+
+      // 退出 loading，保留当前空或已有列表，不新增错误
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
+
+      // 旧请求迟到 resolve：由于周期已作废，被丢弃
+      await act(async () => {
+        deferred1.resolve(mockSessions);
+        await Promise.resolve();
+      });
+      // 仍然不展示旧数据
+      expect(screen.queryByTestId("session-id-sess-native-1")).not.toBeInTheDocument();
+
+      // 原生重新切回前台 (active)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 自动发起第 2 次查询
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      // 新请求成功 resolve
+      const updatedSessions: api.SessionListItem[] = [
+        {
+          id: "sess-native-2",
+          mode: "scenario",
+          status: "active",
+          started_at: "2026-10-23T11:00:00Z",
+          ended_at: null,
+        },
+      ];
+      await act(async () => {
+        deferred2.resolve(updatedSessions);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId("session-id-sess-native-2")).toHaveTextContent("sess-native-2");
+    });
+
+    it("initial fetch failure can recover on subsequent valid native resume event", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferredFail = createDeferred<api.SessionListItem[]>();
+      const deferredSuccess = createDeferred<api.SessionListItem[]>();
+      listSpy
+        .mockReturnValueOnce(deferredFail.promise)
+        .mockReturnValueOnce(deferredSuccess.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 首次读取失败 (500)
+      await act(async () => {
+        deferredFail.reject(new Error("Server 500 error"));
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.loadError)).toBeInTheDocument();
+
+      // 原生切后台再切前台（触发 resume）
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 自动重新发起查询
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        deferredSuccess.resolve(mockSessions);
+        await Promise.resolve();
+      });
+
+      // 错误状态清除，正常展示列表
+      expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+    });
+
+    it("native inactive overrides DOM visibilitychange and window online/pageshow", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).not.toHaveBeenCalled();
+
+      // DOM 触发 visibilitychange visible、pageshow、online
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("pageshow"));
+        window.dispatchEvent(new Event("online"));
+        await Promise.resolve();
+      });
+
+      // 因为原生 inactive 处于 hidden，原生覆盖 Web，不发起 GET
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("two consumer instances independently register and unmounting one does not remove the other's listener", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+
+      const compA = render(<ActiveSessions />);
+      const compB = render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(fakeAppListeners.size).toBe(2);
+
+      // 卸载组件 A
+      compA.unmount();
+      expect(fakeAppListeners.size).toBe(1);
+
+      listSpy.mockClear();
+
+      // 原生状态变更触发（后台到前台），仅存的组件 B 正常响应
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      compB.unmount();
+      expect(fakeAppListeners.size).toBe(0);
+    });
+
+    it("StrictMode unmount and auth revocation do not leak or perform queries on dead effects", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+
+      const { unmount } = render(
+        <StrictMode>
+          <ActiveSessions />
+        </StrictMode>,
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalled();
+
+      // 退出认证
+      emitAuthSnapshot({ state: "anonymous", principal: null });
+
+      listSpy.mockClear();
+
+      // 原生事件到达
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 未认证绝不发请求
+      expect(listSpy).not.toHaveBeenCalled();
+
+      unmount();
+      expect(fakeAppListeners.size).toBe(0);
+    });
+
+    it("lifecycle events during pending end/resume operations do not auto-retrigger or disrupt POSTs", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      const endSpy = vi.spyOn(api, "endSession");
+      const deferredEnd = createDeferred<api.Session>();
+      endSpy.mockReturnValueOnce(deferredEnd.promise);
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const sessId = "sess-native-1";
+      fireEvent.click(screen.getByTestId(`end-session-button-${sessId}`));
+      fireEvent.click(screen.getByTestId(`confirm-end-button-${sessId}`));
+
+      expect(endSpy).toHaveBeenCalledTimes(1);
+
+      // 在 end 请求在途期间发生原生切后台再恢复
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 不重复重发 endSession，已发 POST 保持进行
+      expect(endSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferredEnd.resolve({
+          id: sessId,
+          user_id: "user-1",
+          mode: "free_talk",
+          status: "completed",
+          started_at: "2026-10-23T10:00:00Z",
+          ended_at: "2026-10-23T10:05:00Z",
+          transcripts: [],
+        });
+        await Promise.resolve();
+      });
+
+      // 确认结束成功，移除该项
+      expect(screen.queryByTestId(`active-session-item-${sessId}`)).not.toBeInTheDocument();
     });
   });
 });

@@ -15,11 +15,7 @@ import {
   type AuthPrincipal,
   type AuthSnapshot,
 } from "@/lib/auth";
-import {
-  createWebLifecycleAdapter,
-  type WebLifecycleAdapter,
-  type WebLifecycleEvent,
-} from "@/platform";
+import { createLifecycleAdapter, type LifecycleAdapter, type WebLifecycleEvent } from "@/platform";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
 
@@ -98,7 +94,7 @@ export function ActiveSessions() {
   const isMountedRef = useRef<boolean>(true);
   const activePrincipalRef = useRef<AuthPrincipal | null>(snapshot.principal);
   const activeRevisionRef = useRef<number>(getAuthRevision());
-  const lifecycleAdapterRef = useRef<WebLifecycleAdapter | null>(null);
+  const lifecycleAdapterRef = useRef<LifecycleAdapter | null>(null);
 
   const fetchActiveSessions = useCallback(() => {
     // 结束在途或启动/恢复在途暂停列表刷新且不排队
@@ -509,14 +505,15 @@ export function ActiveSessions() {
   };
 
   useEffect(() => {
+    let isEffectActive = true;
     isMountedRef.current = true;
 
-    // 创建独立Web适配器
-    const adapter = createWebLifecycleAdapter();
+    // 创建独立生命周期适配器
+    const adapter = createLifecycleAdapter();
     lifecycleAdapterRef.current = adapter;
 
     const handleLifecycleEvent = (event: WebLifecycleEvent) => {
-      if (!isMountedRef.current) return;
+      if (!isEffectActive || !isMountedRef.current) return;
 
       // suspend或online=false立即作废当前列表请求并释放在途槽位、退出loading，保留同一账号已展示列表、不新增错误提示
       // 契约明确：“结束槽位不能被离线/挂起当列表请求释放；不因suspend/offline释放结束槽位或自动重发已发送POST”
@@ -562,7 +559,7 @@ export function ActiveSessions() {
     const initialLifeSnap = adapter.getSnapshot();
 
     const handleSnapshotChange = (nextSnap: AuthSnapshot) => {
-      if (!isMountedRef.current) return;
+      if (!isEffectActive || !isMountedRef.current) return;
 
       const nextRev = getAuthRevision();
       const prevPrincipal = activePrincipalRef.current;
@@ -629,7 +626,7 @@ export function ActiveSessions() {
     const unsubscribeAuth = subscribeAuthSnapshot(handleSnapshotChange);
 
     const unsubscribeStore = useConversationStore.subscribe((state) => {
-      if (!isMountedRef.current) return;
+      if (!isEffectActive || !isMountedRef.current) return;
       // 当恢复在途期间，若 store 回到 idle 或 ended（例如 reset() / goHome() / store生命周期监听取消回idle），
       // 说明 store 已取消或重置本次启动，组件必须同步作废对应 UI 代际并释放恢复槽位
       if (
@@ -661,6 +658,7 @@ export function ActiveSessions() {
     }
 
     return () => {
+      isEffectActive = false;
       isMountedRef.current = false;
       // 卸载时作废在途请求与操作，消除 StrictMode 下的残留阻断
       activeRequestIdRef.current++;
