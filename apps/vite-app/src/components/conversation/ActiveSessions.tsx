@@ -708,7 +708,7 @@ export function ActiveSessions() {
         <h2 id="active-sessions-title" className="text-text-default text-lg font-bold">
           {t.title}
         </h2>
-        <p className="text-text-muted text-xs">{t.disclaimer}</p>
+        <p className="text-text-muted text-xs leading-relaxed break-words">{t.disclaimer}</p>
       </div>
 
       {loading && sessions.length === 0 && (
@@ -718,14 +718,14 @@ export function ActiveSessions() {
       {error && (
         <div
           role="alert"
-          className="bg-danger-bg text-danger-text flex flex-col items-center justify-center gap-2 rounded-lg p-4 text-center text-sm"
+          className="bg-danger-bg text-danger-text flex flex-col items-center justify-center gap-3 rounded-lg p-4 text-center text-sm"
         >
-          <p className="font-medium">{t.loadError}</p>
+          <p className="leading-relaxed font-medium break-words">{t.loadError}</p>
           <button
             type="button"
             onClick={fetchActiveSessions}
             disabled={loading}
-            className="bg-accent hover:bg-accent-hover rounded-md px-3 py-1 text-sm font-medium text-white transition-colors disabled:opacity-50"
+            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
           >
             {t.retry}
           </button>
@@ -755,114 +755,121 @@ export function ActiveSessions() {
               <li
                 key={session.id}
                 data-testid={`active-session-item-${session.id}`}
-                className="bg-surface-alt flex flex-col gap-2 rounded-[12px] px-3 py-2 text-sm"
+                className="bg-surface-alt flex flex-col gap-2.5 rounded-[12px] p-3 text-sm"
               >
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
                         data-testid={`session-mode-${session.id}`}
-                        className="text-accent bg-accent-soft-bg rounded px-1.5 py-0.5 text-xs font-medium"
+                        className="text-accent bg-accent-soft-bg shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
                       >
                         {modeLabel}
                       </span>
                       <span
                         data-testid={`session-id-${session.id}`}
-                        className="text-text-muted truncate font-mono text-xs"
+                        className="text-text-muted font-mono text-xs break-all"
                         title={session.id}
                       >
                         {session.id}
                       </span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
                     <time
                       dateTime={session.started_at}
                       data-testid={`session-started-at-${session.id}`}
-                      className="text-text-faint ml-2 shrink-0 text-xs"
+                      className="text-text-faint text-xs"
                     >
                       {formatStartedAt(session.started_at)}
                     </time>
-                    {!isConfirmingEnd && !isConfirmingResume && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          data-testid={`resume-session-button-${session.id}`}
-                          onClick={() => handleStartResumeConfirm(session.id)}
-                          disabled={isActionInFlight}
-                          className="text-accent hover:text-accent-hover rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
-                        >
-                          {t.resumeRecord}
-                        </button>
-                        <button
-                          type="button"
-                          data-testid={`end-session-button-${session.id}`}
-                          onClick={() => handleStartConfirm(session.id)}
-                          disabled={isActionInFlight}
-                          className="text-danger hover:text-danger-hover rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
-                        >
-                          {t.endRecord}
-                        </button>
-                      </div>
-                    )}
                   </div>
+                  {!isConfirmingEnd && !isConfirmingResume && (
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        tabIndex={0}
+                        data-testid={`resume-session-button-${session.id}`}
+                        onClick={() => handleStartResumeConfirm(session.id)}
+                        disabled={isActionInFlight}
+                        className="text-accent hover:text-accent-hover bg-accent-soft-bg hover:bg-accent-soft-bg/80 focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                      >
+                        {t.resumeRecord}
+                      </button>
+                      <button
+                        type="button"
+                        tabIndex={0}
+                        data-testid={`end-session-button-${session.id}`}
+                        onClick={() => handleStartConfirm(session.id)}
+                        disabled={isActionInFlight}
+                        className="text-danger hover:text-danger-hover bg-danger-bg hover:bg-danger-bg/80 focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                      >
+                        {t.endRecord}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {isConfirmingEnd && (
                   <div
                     data-testid={`end-confirm-panel-${session.id}`}
-                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2 rounded-lg border p-2.5 text-xs"
+                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
                   >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-text-muted font-medium">{t.targetIdLabel}</span>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-wrap items-baseline gap-1.5">
+                        <span className="text-text-muted shrink-0 font-medium">
+                          {t.targetIdLabel}
+                        </span>
                         <span
                           data-testid={`confirm-session-id-${session.id}`}
-                          className="text-text-default font-mono font-semibold"
+                          className="text-text-default font-mono font-semibold break-all"
                         >
                           {session.id}
                         </span>
                       </div>
-                      <p className="text-text-muted">{t.endConfirmDisclaimer}</p>
+                      <p className="text-text-muted leading-relaxed break-words">
+                        {t.endConfirmDisclaimer}
+                      </p>
                     </div>
 
                     {endError && (
                       <div
                         role="alert"
                         data-testid={`end-error-${session.id}`}
-                        className="text-danger-text bg-danger-bg rounded px-2 py-1 font-medium"
+                        className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
                       >
                         {t.endError}
                       </div>
                     )}
 
-                    <div className="flex items-center justify-end gap-2 pt-1">
+                    <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
                       <button
                         type="button"
+                        tabIndex={0}
                         data-testid={`cancel-end-button-${session.id}`}
                         onClick={handleCancelConfirm}
                         disabled={isEnding}
-                        className="text-text-muted hover:text-text-default rounded px-2.5 py-1 text-xs transition-colors disabled:opacity-50"
+                        className="text-text-muted hover:text-text-default border-border-subtle focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                       >
                         {t.cancelEnd}
                       </button>
                       {endError ? (
                         <button
                           type="button"
+                          tabIndex={0}
                           data-testid={`retry-end-button-${session.id}`}
                           onClick={() => handleConfirmEnd(session.id)}
                           disabled={isEnding}
-                          className="bg-danger hover:bg-danger-hover rounded px-2.5 py-1 text-xs font-medium text-white transition-colors disabled:opacity-50"
+                          className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                         >
                           {isEnding ? t.ending : t.retryEnd}
                         </button>
                       ) : (
                         <button
                           type="button"
+                          tabIndex={0}
                           data-testid={`confirm-end-button-${session.id}`}
                           onClick={() => handleConfirmEnd(session.id)}
                           disabled={isEnding}
-                          className="bg-danger hover:bg-danger-hover rounded px-2.5 py-1 text-xs font-medium text-white transition-colors disabled:opacity-50"
+                          className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                         >
                           {isEnding ? t.ending : t.confirmEnd}
                         </button>
@@ -874,58 +881,65 @@ export function ActiveSessions() {
                 {isConfirmingResume && (
                   <div
                     data-testid={`resume-confirm-panel-${session.id}`}
-                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2 rounded-lg border p-2.5 text-xs"
+                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
                   >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-text-muted font-medium">{t.targetIdLabel}</span>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-wrap items-baseline gap-1.5">
+                        <span className="text-text-muted shrink-0 font-medium">
+                          {t.targetIdLabel}
+                        </span>
                         <span
                           data-testid={`confirm-resume-session-id-${session.id}`}
-                          className="text-text-default font-mono font-semibold"
+                          className="text-text-default font-mono font-semibold break-all"
                         >
                           {session.id}
                         </span>
                       </div>
-                      <p className="text-text-muted">{t.resumeConfirmDisclaimer}</p>
+                      <p className="text-text-muted leading-relaxed break-words">
+                        {t.resumeConfirmDisclaimer}
+                      </p>
                     </div>
 
                     {resumeError && (
                       <div
                         role="alert"
                         data-testid={`resume-error-${session.id}`}
-                        className="text-danger-text bg-danger-bg rounded px-2 py-1 font-medium"
+                        className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
                       >
                         {t.resumeError}
                       </div>
                     )}
 
-                    <div className="flex items-center justify-end gap-2 pt-1">
+                    <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
                       <button
                         type="button"
+                        tabIndex={0}
                         data-testid={`cancel-resume-button-${session.id}`}
                         onClick={handleCancelResume}
                         disabled={isResuming}
-                        className="text-text-muted hover:text-text-default rounded px-2.5 py-1 text-xs transition-colors disabled:opacity-50"
+                        className="text-text-muted hover:text-text-default border-border-subtle focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                       >
                         {t.cancelResume}
                       </button>
                       {resumeError ? (
                         <button
                           type="button"
+                          tabIndex={0}
                           data-testid={`retry-resume-button-${session.id}`}
                           onClick={() => handleConfirmResume(session.id)}
                           disabled={isResuming}
-                          className="bg-accent hover:bg-accent-hover rounded px-2.5 py-1 text-xs font-medium text-white transition-colors disabled:opacity-50"
+                          className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                         >
                           {isResuming ? t.resuming : t.retryResume}
                         </button>
                       ) : (
                         <button
                           type="button"
+                          tabIndex={0}
                           data-testid={`confirm-resume-button-${session.id}`}
                           onClick={() => handleConfirmResume(session.id)}
                           disabled={isResuming}
-                          className="bg-accent hover:bg-accent-hover rounded px-2.5 py-1 text-xs font-medium text-white transition-colors disabled:opacity-50"
+                          className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                         >
                           {isResuming ? t.resuming : t.confirmResume}
                         </button>
