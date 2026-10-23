@@ -183,3 +183,7 @@ CLI1.4.6 r1流出现step_update.step_type=checkpoint（DONE），终止SUCCESS�
 最新本地skill1c1b68d继续实际运行，A22完成活动列表布局，A23修复真实store正常失败与取消的通知区分。每次浏览器采用独立output目录，旧失败附件保留。A23首轮仍出现测试选择器约束诱发的产品状态写，独立同步订阅反例后集中关闭；仅放开两处过期定位器迁移，不弱化旧副作用断言。r1 checkpoint未知流继续失败关闭，同模型冷启动短交付+源码和8旧证据hash复用恢复，不临时放宽解析。
 
 新问题在本地workflow-resume-error-a23/issues.md，包含长等待沟通噪声、选择器与行为断言范围区分、私有Vitest依赖解析及产品测试名称不代表同步订阅事实；不自动再改skill。用量见本轮验证文档，按每会话末累计去重，不把agy用量等量当Codex节约。
+
+## A24 本地导入里程碑（2026-10-24）
+
+继续使用本地skill1c1b68d，Flash首轮与集中返工均完整交付，无权限或流恢复问题。独立审查在七门禁全绿后仍发现提交至passive清理间隙P1、旧回调测试optional空调用未实际触发、BOM二次删除正文三项；集中关闭，11时序/18真实浏览器与两有效变异证实。细节与用量见[验证](./verification/cross-platform/CP-05-DOC-IMPORT.md)，问题保存在本地workflow-doc-import-a24/issues.md，当前不再扩全局skill；真机与真实环境边界保留。
