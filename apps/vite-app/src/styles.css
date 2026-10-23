@@ -36,6 +36,16 @@
   .card {
     @apply bg-surface border-border-default rounded-[20px] border p-6 shadow-[0_6px_22px_-14px_var(--card-shadow)];
   }
+
+  /* 设置抽屉原生 dialog 与 backdrop */
+  dialog.settings-drawer {
+    color: inherit;
+    box-sizing: border-box;
+  }
+
+  dialog.settings-drawer::backdrop {
+    background-color: rgba(0, 0, 0, 0.3);
+  }
 }
 
 @keyframes slideDown {
