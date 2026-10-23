@@ -43,6 +43,7 @@ export const zhCN = {
     dispatchFailedMessage: "AI服务启动未确认，音频已停止。返回主页后可从活动记录明确恢复。",
     connectionFailedTitle: "语音连接已中断，音频已停止",
     connectionFailedMessage: "语音连接已中断，音频已停止。返回后可明确恢复已有记录。",
+    lifecycleUnavailable: "应用状态暂不可用，请回到前台后重试",
   },
   assessment: {
     pending: "分析任务排队中...",
