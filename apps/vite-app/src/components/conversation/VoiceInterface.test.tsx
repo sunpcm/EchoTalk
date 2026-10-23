@@ -48,6 +48,7 @@ interface MockRoomContextValue {
 const MockRoomContext = React.createContext<MockRoomContextValue | null>(null);
 
 let roomInstanceCounter = 0;
+let onLiveKitRoomLayoutEffect: (() => void) | null = null;
 const capturedRoomCallbacks = new Map<
   string,
   {
@@ -105,6 +106,10 @@ vi.mock("@livekit/components-react", () => ({
       setConnState("connected");
       onConnected?.();
     }, [onConnected]);
+
+    React.useLayoutEffect(() => {
+      onLiveKitRoomLayoutEffect?.();
+    }, []);
 
     React.useEffect(() => {
       capturedRoomCallbacks.set(instanceId, {
@@ -199,6 +204,52 @@ vi.mock("@/lib/auth", () => ({
   subscribeAuthSnapshot: vi.fn(() => () => {}),
 }));
 
+function createFakeApp(initialActive = true) {
+  let capturedListener: ((state: { isActive: boolean }) => void) | null = null;
+  const removeMock = vi.fn(async () => {});
+
+  const getState = vi.fn(async () => ({ isActive: initialActive }));
+  const addListener = vi.fn(
+    async (
+      eventName: string,
+      listener: (state: { isActive: boolean }) => void,
+    ): Promise<{ remove(): Promise<void> }> => {
+      if (eventName === "appStateChange") {
+        capturedListener = listener;
+      }
+      return { remove: removeMock };
+    },
+  );
+
+  return {
+    getState,
+    addListener,
+    triggerAppStateChange(state: { isActive: boolean }) {
+      capturedListener?.(state);
+    },
+    get capturedListener() {
+      return capturedListener;
+    },
+    removeMock,
+  };
+}
+
+type FakeAppType = ReturnType<typeof createFakeApp>;
+let currentFakeApp: FakeAppType | null = null;
+
+vi.mock("@capacitor/app", () => ({
+  App: {
+    getState: vi.fn((...args: any[]) => {
+      if (!currentFakeApp) return Promise.resolve({ isActive: true });
+      return (currentFakeApp.getState as any)(...args);
+    }),
+    addListener: vi.fn((...args: any[]) => {
+      if (!currentFakeApp) return Promise.resolve({ remove: async () => {} });
+      return (currentFakeApp.addListener as any)(...args);
+    }),
+  },
+}));
+
 // Mock platform
 const mockWebLifecycleListeners = new Set<(event: any) => void>();
 let mockCurrentSnapshot = {
@@ -207,27 +258,51 @@ let mockCurrentSnapshot = {
 };
 const mockLifecycleDispose = vi.fn();
 
-vi.mock("@/platform", () => ({
-  getLiveKitWsUrl: vi.fn(({ tokenWsUrl }) => tokenWsUrl || "wss://test.livekit.io"),
-  createWebLifecycleAdapter: vi.fn(() => ({
-    capabilities: { webEvents: true, nativeAppState: false },
-    getSnapshot: () => ({ ...mockCurrentSnapshot }),
-    subscribe: (listener: (event: any) => void) => {
-      mockWebLifecycleListeners.add(listener);
-      return () => {
-        mockWebLifecycleListeners.delete(listener);
+vi.mock("@/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/platform")>();
+  return {
+    ...actual,
+    getLiveKitWsUrl: vi.fn(({ tokenWsUrl }) => tokenWsUrl || "wss://test.livekit.io"),
+    createWebLifecycleAdapter: vi.fn(() => ({
+      capabilities: { webEvents: true, nativeAppState: false },
+      getSnapshot: () => ({ ...mockCurrentSnapshot }),
+      subscribe: (listener: (event: any) => void) => {
+        mockWebLifecycleListeners.add(listener);
+        return () => {
+          mockWebLifecycleListeners.delete(listener);
+        };
+      },
+      dispose: vi.fn(() => {
+        mockLifecycleDispose();
+        mockWebLifecycleListeners.clear();
+      }),
+    })),
+    createLifecycleAdapter: vi.fn((options?: any) => {
+      const resolvedPlatform = options?.platform ?? actual.detectPlatform();
+      if (resolvedPlatform === "ios") {
+        return actual.createLifecycleAdapter({
+          ...options,
+          platform: "ios",
+        });
+      }
+      const web = (platform.createWebLifecycleAdapter as any)(options?.webOptions);
+      return {
+        capabilities: web.capabilities,
+        getSnapshot: () => web.getSnapshot(),
+        subscribe: (listener: (event: any) => void) => web.subscribe(listener),
+        dispose: () => web.dispose(),
+        whenReady: () => Promise.resolve(),
       };
-    },
-    dispose: vi.fn(() => {
-      mockLifecycleDispose();
-      mockWebLifecycleListeners.clear();
     }),
-  })),
-}));
+  };
+});
 
 describe("VoiceInterface - CP-02 client end release & generation protection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete (window as any).Capacitor;
+    currentFakeApp = null;
+    onLiveKitRoomLayoutEffect = null;
     mockWebLifecycleListeners.clear();
     mockCurrentSnapshot = { visibility: "visible", online: true };
     mockLifecycleDispose.mockClear();
@@ -1585,6 +1660,705 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(useConversationStore.getState().token).toBeNull();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
       expect(mockTrackStop).toHaveBeenCalled();
+    });
+  });
+
+  describe("A19 Native Room mounting, gating and interruption (CP-05 §§1–5)", () => {
+    it("does not mount LiveKitRoom and zero dispatchAgent while native listener registration/state is pending", async () => {
+      let resolveGetState!: (val: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-native-pending",
+        token: "tok-native-pending",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      // 1. 原生 pending 期间零挂载 LiveKitRoom
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      // 2. 处于连接等待中
+      expect(screen.getByText(zhCN.conversation.connecting)).toBeInTheDocument();
+      // 3. 零 dispatchAgent
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+
+      // 4. 等待 getState 真实被调用后，后续 getState 解析为 true
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      await act(async () => {
+        resolveGetState({ isActive: true });
+      });
+
+      // 5. 挂载 LiveKitRoom
+      await waitFor(() => {
+        expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      });
+    });
+
+    it("mounts LiveKitRoom exactly once after native becomes active, without duplicate rooms", async () => {
+      currentFakeApp = createFakeApp(true);
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-native-active-once",
+        token: "tok-active-once",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      });
+      expect(screen.getAllByTestId("livekit-room")).toHaveLength(1);
+    });
+
+    it("fails connection and never mounts room when native addListener rejects", async () => {
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.addListener.mockRejectedValue(new Error("Native plugin unavailable"));
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-reg-fail",
+        token: "tok-reg-fail",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+    });
+
+    it("fails connection and never mounts room when native initial getState returns isActive: false", async () => {
+      currentFakeApp = createFakeApp(false);
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-inactive-start",
+        token: "tok-inactive-start",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+    });
+
+    it("fails connection and clears token safely when native pending times out after 10 seconds", async () => {
+      vi.useFakeTimers();
+      try {
+        currentFakeApp = createFakeApp(true);
+        currentFakeApp.getState.mockImplementation(() => new Promise(() => {})); // never resolves
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-timeout",
+          token: "tok-timeout",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+
+        // 前进 9.9 秒，仍 pending
+        act(() => {
+          vi.advanceTimersByTime(9900);
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+
+        // 达到 10 秒
+        act(() => {
+          vi.advanceTimersByTime(100);
+        });
+
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+        expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("drops delayed native ready and does not mount room or dispatch when session cancelled during pending", async () => {
+      let resolveGetState!: (val: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-cancelled-during-pending",
+        token: "tok-pending-1",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      // 在 pending 期间用户返回主页前，等待 listener 和 getState 建立
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      act(() => {
+        useConversationStore.getState().goHome();
+      });
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+
+      // 随后迟到的 native ready 到达
+      await act(async () => {
+        resolveGetState({ isActive: true });
+      });
+
+      // 绝不复活或挂载房间，也不 dispatch
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+    });
+
+    it("releases late listener handle via remove() in StrictMode unmount without leaks", async () => {
+      let resolveListenerHandle!: (val: { remove(): Promise<void> }) => void;
+      const removeMock = vi.fn(async () => {});
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.addListener.mockImplementation(
+        () =>
+          new Promise<{ remove(): Promise<void> }>((resolve) => {
+            resolveListenerHandle = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-strict-mode",
+        token: "tok-strict",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      const { unmount } = render(<VoiceInterface />);
+
+      // 第一次卸载（模拟 StrictMode unmount）
+      unmount();
+
+      // 卸载后，延迟的 addListener 才 resolve
+      await act(async () => {
+        resolveListenerHandle({ remove: removeMock });
+      });
+
+      // 验证必须调用了 remove() 释放句柄
+      expect(removeMock).toHaveBeenCalled();
+    });
+
+    it("fails connection and stops audio if native inactive occurs right when ready before room completes mounting", async () => {
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-gap-inactive",
+        token: "tok-gap-inactive",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      // getState 尚未 resolve 时触发了 inactive 事件
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: false });
+      });
+
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+    });
+
+    it("synchronously stops all owned local tracks BEFORE native event callback returns when connected", async () => {
+      currentFakeApp = createFakeApp(true);
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-sync-stop",
+        token: "tok-sync-stop",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      });
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      expect(mockTrackStop).not.toHaveBeenCalled();
+
+      // 关键断言：在 triggerAppStateChange 回调返回前，pub.track.stop 必须已被同步调用！
+      let stopCalledDuringCallback = false;
+      mockTrackStop.mockImplementationOnce(() => {
+        stopCalledDuringCallback = true;
+      });
+
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: false });
+        expect(stopCalledDuringCallback).toBe(true);
+      });
+
+      expect(callbacks.trackStopMock).toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+    });
+
+    it("does not auto-reconnect, auto-dispatch, or revive room when native active fires after connection_failed", async () => {
+      currentFakeApp = createFakeApp(true);
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-no-auto-revive",
+        token: "tok-auto-revive",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      });
+
+      // 切后台 -> 进入 connection_failed
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: false });
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      vi.mocked(api.dispatchAgent).mockClear();
+
+      // 切回前台
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: true });
+      });
+
+      // 绝不自动重连、复活房间或 dispatchAgent
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+    });
+
+    it("allows explicit return to dashboard and starting a new session successfully after native failure", async () => {
+      currentFakeApp = createFakeApp(false);
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-fail-first",
+        token: "tok-fail-1",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      const { rerender } = render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+
+      // 用户点击返回主页
+      const goHomeBtn = screen.getByRole("button", { name: zhCN.dashboard.goHome });
+      fireEvent.click(goHomeBtn);
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+
+      // 用户重新进入前台并开启新会话
+      currentFakeApp = createFakeApp(true);
+      useConversationStore.setState({
+        sessionGen: 2,
+        sessionId: "sess-retry-success",
+        token: "tok-retry-success",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      rerender(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    describe("ROOM-01: Auth revision/issuer/subject guards on pending timeout", () => {
+      it("does not failConnection or clear token when auth revision changes from 1 to 2 during native pending timeout", () => {
+        vi.useFakeTimers();
+        try {
+          currentFakeApp = createFakeApp(true);
+          currentFakeApp.getState.mockImplementation(() => new Promise(() => {})); // never resolves
+          (window as any).Capacitor = {
+            isNativePlatform: () => true,
+            getPlatform: () => "ios",
+          };
+
+          useConversationStore.setState({
+            sessionGen: 1,
+            sessionId: "sess-auth-rev-change",
+            token: "tok-preserved",
+            wsUrl: "wss://lk.test",
+            connectionState: "connecting",
+            appView: "session",
+          });
+
+          render(<VoiceInterface />);
+          expect(useConversationStore.getState().connectionState).toBe("connecting");
+          expect(useConversationStore.getState().token).toBe("tok-preserved");
+
+          // 认证 revision 从 1 变 2（sessionGen / sessionId 不变）
+          vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+          // 模拟 10000ms 超时到达
+          act(() => {
+            vi.advanceTimersByTime(10000);
+          });
+
+          // 关键断言：旧 timer 必须静默，不得 clear token，不得 failConnection！
+          expect(useConversationStore.getState().connectionState).toBe("connecting");
+          expect(useConversationStore.getState().token).toBe("tok-preserved");
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it("does not failConnection or clear token when auth issuer changes during native pending timeout", () => {
+        vi.useFakeTimers();
+        try {
+          currentFakeApp = createFakeApp(true);
+          currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+          (window as any).Capacitor = {
+            isNativePlatform: () => true,
+            getPlatform: () => "ios",
+          };
+
+          useConversationStore.setState({
+            sessionGen: 1,
+            sessionId: "sess-issuer-change",
+            token: "tok-issuer-preserve",
+            wsUrl: "wss://lk.test",
+            connectionState: "connecting",
+            appView: "session",
+          });
+
+          render(<VoiceInterface />);
+
+          // 认证 issuer 变化
+          vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+            state: "authenticated",
+            principal: { issuer: "https://other-auth.example.com", subject: "user-1" },
+          });
+
+          act(() => {
+            vi.advanceTimersByTime(10000);
+          });
+
+          expect(useConversationStore.getState().connectionState).toBe("connecting");
+          expect(useConversationStore.getState().token).toBe("tok-issuer-preserve");
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it("does not failConnection or clear token when auth subject changes during native pending timeout", () => {
+        vi.useFakeTimers();
+        try {
+          currentFakeApp = createFakeApp(true);
+          currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+          (window as any).Capacitor = {
+            isNativePlatform: () => true,
+            getPlatform: () => "ios",
+          };
+
+          useConversationStore.setState({
+            sessionGen: 1,
+            sessionId: "sess-subj-change",
+            token: "tok-subj-preserve",
+            wsUrl: "wss://lk.test",
+            connectionState: "connecting",
+            appView: "session",
+          });
+
+          render(<VoiceInterface />);
+
+          // 认证 subject 变化
+          vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+            state: "authenticated",
+            principal: { issuer: "https://auth.example.com", subject: "user-2" },
+          });
+
+          act(() => {
+            vi.advanceTimersByTime(10000);
+          });
+
+          expect(useConversationStore.getState().connectionState).toBe("connecting");
+          expect(useConversationStore.getState().token).toBe("tok-subj-preserve");
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it("truly current session with matching auth exits safely on 10s timeout", () => {
+        vi.useFakeTimers();
+        try {
+          currentFakeApp = createFakeApp(true);
+          currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+          (window as any).Capacitor = {
+            isNativePlatform: () => true,
+            getPlatform: () => "ios",
+          };
+
+          useConversationStore.setState({
+            sessionGen: 1,
+            sessionId: "sess-current-timeout",
+            token: "tok-curr",
+            wsUrl: "wss://lk.test",
+            connectionState: "connecting",
+            appView: "session",
+          });
+
+          render(<VoiceInterface />);
+
+          act(() => {
+            vi.advanceTimersByTime(10000);
+          });
+
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+          expect(useConversationStore.getState().token).toBeNull();
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+    });
+
+    describe("ROOM-02: Commit/layout timing guard for synchronous track stop", () => {
+      it("synchronously stops owned local tracks before native event returns even if inactive occurs during commit/layout effect before passive effects run", async () => {
+        currentFakeApp = createFakeApp(true);
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        let stopOccurredBeforeCallbackReturn = false;
+        mockTrackStop.mockImplementation(() => {
+          stopOccurredBeforeCallbackReturn = true;
+        });
+
+        // 模拟 LiveKitRoom 在 commit 阶段的 layout effect（子组件已提交而 passive useEffect 未运行）
+        onLiveKitRoomLayoutEffect = () => {
+          currentFakeApp!.triggerAppStateChange({ isActive: false });
+          // 断言：在 triggerAppStateChange 回调返回的同一同步时刻，track 必须已被停止
+          expect(stopOccurredBeforeCallbackReturn).toBe(true);
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-layout-inactive",
+          token: "tok-layout",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        // 等待挂载并中断
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+
+        // 验证停止确已调用且进入 connection_failed
+        expect(mockTrackStop).toHaveBeenCalled();
+        expect(useConversationStore.getState().token).toBeNull();
+        expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      });
+    });
+
+    describe("ROOM-03: Stable room ownership and cleanup without stopping tracks on normal re-renders", () => {
+      it("does not stop tracks during normal connection, dispatch, setActive, and unrelated store re-renders on native", async () => {
+        currentFakeApp = createFakeApp(true);
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-room-03",
+          token: "tok-room-03",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        // 等待原生就绪并挂载 LiveKitRoom
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        // 初始挂载期间未 stop
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        // 触发连接就绪，进入 onConnected -> markDispatched -> dispatchAgent -> setActive 流程
+        const triggerConnectedBtn = screen.getByTestId("trigger-connected");
+        await act(async () => {
+          fireEvent.click(triggerConnectedBtn);
+        });
+
+        // 等待状态成功流转至 active
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("active");
+        });
+
+        // 核心验证 (ROOM-03): connected -> dispatch -> active 正常重渲染期间绝不能调用 stopRoomLocalTracks
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        // 验证不相关的 store 更新引起的重渲染也不会触发 stop
+        act(() => {
+          useConversationStore.setState({ error: "transient-warning" });
+        });
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        // 验证真实生命周期中断（如原生进入后台/inactive）时，音轨被正确停止
+        act(() => {
+          currentFakeApp!.triggerAppStateChange({ isActive: false });
+        });
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
+
+      it("stops tracks when component unmounts on user leaving session or navigating home", async () => {
+        currentFakeApp = createFakeApp(true);
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-room-03-unmount",
+          token: "tok-room-03-unmount",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        const { unmount } = render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        // 组件正常卸载退出
+        unmount();
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
     });
   });
 });

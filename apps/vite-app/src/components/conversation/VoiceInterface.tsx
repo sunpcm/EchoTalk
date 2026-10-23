@@ -8,7 +8,7 @@
  *          显示红色错误卡片并阻止自动重连。
  */
 
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -25,13 +25,18 @@ import { useConversationStore } from "@/store/conversation";
 import { useAssessmentStore } from "@/store/assessment";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import { dispatchAgent } from "@/lib/api";
-import { getAuthSnapshot, getAuthRevision, arePrincipalsEqual } from "@/lib/auth";
+import {
+  getAuthSnapshot,
+  getAuthRevision,
+  arePrincipalsEqual,
+  subscribeAuthSnapshot,
+} from "@/lib/auth";
 import { PronunciationFeedback } from "@/components/pronunciation/PronunciationFeedback";
 import { SkillTree } from "@/components/learning/SkillTree";
 import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
 import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
-import { getLiveKitWsUrl, createWebLifecycleAdapter } from "@/platform";
+import { getLiveKitWsUrl, createLifecycleAdapter, detectPlatform } from "@/platform";
 import type { AuthPrincipal } from "@/lib/auth";
 
 const tConv = zhCN.conversation;
@@ -67,42 +72,6 @@ type TrackHolderRoom = Parameters<typeof stopRoomLocalTracks>[0];
 export function VoiceInterface() {
   const { connectionState, sessionId, token, wsUrl, error, goHome, sessionGen } =
     useConversationStore();
-
-  const mountedSessionId = sessionId;
-  const mountedGen = sessionGen;
-  const isMountedRef = useRef(true);
-  const roomRef = useRef<TrackHolderRoom | null>(null);
-  const dispatchedKeyRef = useRef<string | null>(null);
-
-  // 绑定创建/进入该 Room 时的认证快照与 revision，防重渲染修改身份
-  const mountAuthRef = useRef<{
-    gen: number;
-    sessionId: string | null;
-    principal: AuthPrincipal | null;
-    revision: number;
-  }>({
-    gen: sessionGen,
-    sessionId,
-    principal: getAuthSnapshot().principal,
-    revision: getAuthRevision(),
-  });
-
-  if (mountAuthRef.current.gen !== sessionGen || mountAuthRef.current.sessionId !== sessionId) {
-    mountAuthRef.current = {
-      gen: sessionGen,
-      sessionId,
-      principal: getAuthSnapshot().principal,
-      revision: getAuthRevision(),
-    };
-  }
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      stopRoomLocalTracks(roomRef.current);
-    };
-  }, []);
 
   // idle 状态不应在 session 视图出现，作为安全回退
   if (connectionState === "idle") {
@@ -150,15 +119,233 @@ export function VoiceInterface() {
     return <ConnectingView />;
   }
 
+  return (
+    <RoomSession
+      key={`lk-session-${sessionGen}-${sessionId}`}
+      sessionId={sessionId}
+      sessionGen={sessionGen}
+      token={token}
+      wsUrl={wsUrl}
+    />
+  );
+}
+
+interface RoomSessionProps {
+  sessionId: string;
+  sessionGen: number;
+  token: string;
+  wsUrl: string | null;
+}
+
+function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) {
+  const isMountedRef = useRef(true);
+  const roomRef = useRef<TrackHolderRoom | null>(null);
+  const dispatchedKeyRef = useRef<string | null>(null);
+  const goHome = useConversationStore((s) => s.goHome);
+
+  // 绑定进入该会话时的认证快照与 revision，防重渲染修改身份
+  const boundPrincipalRef = useRef<AuthPrincipal | null>(null);
+  const boundRevisionRef = useRef<number>(0);
+  const isInitializedAuth = useRef(false);
+
+  if (!isInitializedAuth.current) {
+    isInitializedAuth.current = true;
+    boundPrincipalRef.current = getAuthSnapshot().principal;
+    boundRevisionRef.current = getAuthRevision();
+  }
+
+  const boundPrincipal = boundPrincipalRef.current;
+  const boundRevision = boundRevisionRef.current;
+
+  // 检测平台：iOS 原生 App 容器使用异步 native 门禁，Web / Tauri 无需额外等待
+  const isNative = detectPlatform() === "ios";
+
+  // 原生首次注册/状态 pending 期间不得挂载 audio=true 的 LiveKitRoom
+  const [isNativeReady, setIsNativeReady] = React.useState(!isNative);
+
   // 初次进入已有 Token 的 Room 前进行 Web 快照检查：
   // 若 Web 快照 hidden/offline 则立即失败关闭，不短暂保留可采音 Room。unknown/null 不当作离线。
-  const lifecycleAdapter = createWebLifecycleAdapter();
-  const initialSnap = lifecycleAdapter.getSnapshot();
-  lifecycleAdapter.dispose();
-  const isInitialBlocked = initialSnap.visibility === "hidden" || initialSnap.online === false;
+  const initialSnap = !isNative ? createLifecycleAdapter().getSnapshot() : null;
+  const isInitialBlocked =
+    !isNative &&
+    initialSnap !== null &&
+    (initialSnap.visibility === "hidden" || initialSnap.online === false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    let isActive = true;
+
+    // Room 消费统一 createLifecycleAdapter
+    const adapter = createLifecycleAdapter();
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // 核心中断与事件处理：原生 inactive、Web hidden/suspend、offline
+    // 必须同步 stop 所属 Room 全部本地 track，再 failConnection 并清 token/unmount
+    const handleLifecycleEvent = (event: {
+      type: string;
+      snapshot: { visibility: string; online: boolean | null };
+    }) => {
+      if (!isActive) return;
+
+      if (
+        event.type === "suspend" ||
+        event.snapshot.visibility === "hidden" ||
+        event.snapshot.online === false
+      ) {
+        const current = useConversationStore.getState();
+        if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
+          return;
+        }
+        if (
+          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
+          !current.token
+        ) {
+          return;
+        }
+        const currentAuth = getAuthSnapshot();
+        const currentRev = getAuthRevision();
+        if (
+          currentAuth.state !== "authenticated" ||
+          !currentAuth.principal ||
+          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
+          currentRev !== boundRevision
+        ) {
+          return;
+        }
+
+        console.warn("Lifecycle interrupted audio connection");
+        // 关键契约：必须同步停止所属 Room 全部本地音轨，再 failConnection
+        stopRoomLocalTracks(roomRef.current);
+        current.failConnection(sessionId, sessionGen);
+      }
+    };
+
+    // subscribe-before-snapshot: 消除就绪到 Room 挂载/roomRef 绑定/订阅的空窗
+    const unsubscribe = adapter.subscribe(handleLifecycleEvent);
+
+    // ROOM-01: 监听认证快照，认证 revision 或 principal 变化立即作废计时器
+    const unsubAuth = subscribeAuthSnapshot((snap) => {
+      if (!isActive) return;
+      if (
+        snap.state !== "authenticated" ||
+        !snap.principal ||
+        !arePrincipalsEqual(snap.principal, boundPrincipal) ||
+        getAuthRevision() !== boundRevision
+      ) {
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          pendingTimer = null;
+        }
+      }
+    });
+
+    if (isNative) {
+      // 原生状态 pending 最多 10 秒后 failConnection、清 token 及资源，安全提示，不自动重试
+      pendingTimer = setTimeout(() => {
+        if (!isActive) return;
+        const current = useConversationStore.getState();
+        if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
+          return;
+        }
+        if (
+          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
+          !current.token
+        ) {
+          return;
+        }
+        // ROOM-01: 所有 timer 副作用前核验原 principal(issuer+subject)/revision/auth 状态；旧回调静默
+        const currentAuth = getAuthSnapshot();
+        const currentRev = getAuthRevision();
+        if (
+          currentAuth.state !== "authenticated" ||
+          !currentAuth.principal ||
+          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
+          currentRev !== boundRevision
+        ) {
+          return;
+        }
+
+        console.warn("Native lifecycle pending timed out after 10s");
+        stopRoomLocalTracks(roomRef.current);
+        current.failConnection(sessionId, sessionGen);
+      }, 10000);
+
+      // 等待原生 whenReady
+      adapter.whenReady().then(() => {
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          pendingTimer = null;
+        }
+        if (!isActive) return;
+
+        // 原生 whenReady 后重新核验 snapshot/auth/gen/token/state 才能挂载；失败或 hidden/offline 关闭
+        const current = useConversationStore.getState();
+        if (
+          current.sessionGen !== sessionGen ||
+          current.sessionId !== sessionId ||
+          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
+          !current.token
+        ) {
+          return;
+        }
+
+        const currentAuth = getAuthSnapshot();
+        const currentRev = getAuthRevision();
+        if (
+          currentAuth.state !== "authenticated" ||
+          !currentAuth.principal ||
+          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
+          currentRev !== boundRevision
+        ) {
+          return;
+        }
+
+        const snap = adapter.getSnapshot();
+        // 原生注册失败/读取失败/未就绪/hidden/offline 关闭
+        if (
+          !adapter.capabilities.nativeAppState ||
+          snap.visibility === "hidden" ||
+          snap.online === false
+        ) {
+          stopRoomLocalTracks(roomRef.current);
+          current.failConnection(sessionId, sessionGen);
+          return;
+        }
+
+        // 门禁全部通过，挂载 Room
+        setIsNativeReady(true);
+      });
+    } else {
+      // Web / Tauri: 订阅后立即读取当前快照 (CON-04)，消除渲染到订阅之间的空窗
+      const snap = adapter.getSnapshot();
+      if (snap.visibility === "hidden" || snap.online === false) {
+        handleLifecycleEvent({
+          type: snap.visibility === "hidden" ? "suspend" : "connectivity",
+          snapshot: snap,
+        });
+      }
+    }
+
+    return () => {
+      isActive = false;
+      isMountedRef.current = false;
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        pendingTimer = null;
+      }
+      unsubAuth();
+      unsubscribe();
+      adapter.dispose();
+      stopRoomLocalTracks(roomRef.current);
+    };
+  }, [sessionId, sessionGen, isNative, boundPrincipal, boundRevision]);
 
   if (isInitialBlocked) {
     return <InitialBlockedHandler sessionId={sessionId} sessionGen={sessionGen} />;
+  }
+
+  if (isNative && !isNativeReady) {
+    return <ConnectingView />;
   }
 
   // connecting（有 token）或 active 状态：解析并渲染 LiveKit 房间
@@ -183,7 +370,7 @@ export function VoiceInterface() {
 
   return (
     <LiveKitRoom
-      key={`lk-room-${mountedGen}-${mountedSessionId ?? "none"}`}
+      key={`lk-room-${sessionGen}-${sessionId}`}
       serverUrl={effectiveWsUrl ?? undefined}
       token={token ?? undefined}
       connect={true}
@@ -193,10 +380,10 @@ export function VoiceInterface() {
         const current = useConversationStore.getState();
         // 代际/SessionId 检查与状态防守：旧 Room 回调或过期 Session 不 dispatchAgent
         if (
-          current.sessionGen !== mountedGen ||
-          current.sessionId !== mountedSessionId ||
+          current.sessionGen !== sessionGen ||
+          current.sessionId !== sessionId ||
           (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !mountedSessionId ||
+          !sessionId ||
           !current.token
         ) {
           return;
@@ -208,7 +395,7 @@ export function VoiceInterface() {
         }
 
         // 去重检查：当前 sessionId/sessionGen 最多发送一次 dispatch POST
-        const dispatchKey = `${mountedGen}:${mountedSessionId}`;
+        const dispatchKey = `${sessionGen}:${sessionId}`;
         if (dispatchedKeyRef.current === dispatchKey) {
           return;
         }
@@ -218,18 +405,18 @@ export function VoiceInterface() {
         if (
           authSnap.state !== "authenticated" ||
           !authSnap.principal ||
-          !arePrincipalsEqual(authSnap.principal, mountAuthRef.current.principal) ||
-          getAuthRevision() !== mountAuthRef.current.revision
+          !arePrincipalsEqual(authSnap.principal, boundPrincipal) ||
+          getAuthRevision() !== boundRevision
         ) {
           // CON-02: 认证 revision 变化或同 subject 异 issuer 等旧身份来源，静默丢弃，不停止新归属 Room 或修改 store
           return;
         }
-        const reqPrincipal = mountAuthRef.current.principal;
-        const reqRevision = mountAuthRef.current.revision;
+        const reqPrincipal = boundPrincipal;
+        const reqRevision = boundRevision;
 
         // 记录本地 ref 并同步标记 store（注意：markDispatched 是同步 set，会同步触发所有 store 订阅者）
         dispatchedKeyRef.current = dispatchKey;
-        if (!current.markDispatched(mountedSessionId, mountedGen)) {
+        if (!current.markDispatched(sessionId, sessionGen)) {
           return;
         }
 
@@ -242,8 +429,8 @@ export function VoiceInterface() {
         // 2. 当前 session/gen/state/token 是否依然一致且有效
         const afterSetState = useConversationStore.getState();
         if (
-          afterSetState.sessionGen !== mountedGen ||
-          afterSetState.sessionId !== mountedSessionId ||
+          afterSetState.sessionGen !== sessionGen ||
+          afterSetState.sessionId !== sessionId ||
           (afterSetState.connectionState !== "connecting" &&
             afterSetState.connectionState !== "active") ||
           !afterSetState.token
@@ -263,14 +450,14 @@ export function VoiceInterface() {
           return;
         }
 
-        dispatchAgent(mountedSessionId)
+        dispatchAgent(sessionId)
           .then((res) => {
             // 门禁核对：组件存活
             if (!isMountedRef.current) return;
 
             // 门禁核对：sessionId 与 sessionGen 归属
             const latest = useConversationStore.getState();
-            if (latest.sessionGen !== mountedGen || latest.sessionId !== mountedSessionId) {
+            if (latest.sessionGen !== sessionGen || latest.sessionId !== sessionId) {
               return;
             }
 
@@ -301,7 +488,7 @@ export function VoiceInterface() {
 
             if (!isDispatchedSuccess) {
               stopRoomLocalTracks(roomRef.current);
-              latest.failDispatch(mountedSessionId, mountedGen);
+              latest.failDispatch(sessionId, sessionGen);
               return;
             }
 
@@ -313,7 +500,7 @@ export function VoiceInterface() {
 
             // 门禁核对：sessionId 与 sessionGen 归属
             const latest = useConversationStore.getState();
-            if (latest.sessionGen !== mountedGen || latest.sessionId !== mountedSessionId) {
+            if (latest.sessionGen !== sessionGen || latest.sessionId !== sessionId) {
               return;
             }
 
@@ -337,14 +524,14 @@ export function VoiceInterface() {
             // P2 安全固定日志：避免异常内容回显或日志泄漏 Token
             console.error("Agent dispatch failed");
             stopRoomLocalTracks(roomRef.current);
-            latest.failDispatch(mountedSessionId, mountedGen);
+            latest.failDispatch(sessionId, sessionGen);
           });
       }}
       onError={() => {
         if (!isMountedRef.current) return;
         const current = useConversationStore.getState();
         // 旧 Room 实例的错误不污染当前新会话
-        if (current.sessionGen !== mountedGen || current.sessionId !== mountedSessionId) {
+        if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
           return;
         }
         if (
@@ -358,21 +545,21 @@ export function VoiceInterface() {
         if (
           currentAuth.state !== "authenticated" ||
           !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, mountAuthRef.current.principal) ||
-          currentRev !== mountAuthRef.current.revision
+          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
+          currentRev !== boundRevision
         ) {
           return;
         }
 
         console.error("LiveKit connection failure");
         stopRoomLocalTracks(roomRef.current);
-        current.failConnection(mountedSessionId ?? undefined, mountedGen);
+        current.failConnection(sessionId, sessionGen);
       }}
       onDisconnected={() => {
         if (!isMountedRef.current) return;
         const current = useConversationStore.getState();
         // 旧 Room 实例的断开不污染当前新会话
-        if (current.sessionGen !== mountedGen || current.sessionId !== mountedSessionId) {
+        if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
           return;
         }
         // 只要客户端状态仍 connecting/active 且有 Token（无论断开原因）
@@ -387,48 +574,62 @@ export function VoiceInterface() {
         if (
           currentAuth.state !== "authenticated" ||
           !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, mountAuthRef.current.principal) ||
-          currentRev !== mountAuthRef.current.revision
+          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
+          currentRev !== boundRevision
         ) {
           return;
         }
 
         console.log("LiveKit disconnected during active connection");
         stopRoomLocalTracks(roomRef.current);
-        current.failConnection(mountedSessionId ?? undefined, mountedGen);
+        current.failConnection(sessionId, sessionGen);
       }}
       data-lk-theme="default"
       className="flex min-h-[60vh] flex-col"
     >
-      <RoomContextSync
-        onRoom={(r) => {
-          roomRef.current = r;
-        }}
-      />
-      <RoomLifecycleWatcher
-        boundSessionId={mountedSessionId}
-        boundGen={mountedGen}
-        boundPrincipal={mountAuthRef.current.principal}
-        boundRevision={mountAuthRef.current.revision}
-      />
-      <ActiveView
-        boundPrincipal={mountAuthRef.current.principal}
-        boundRevision={mountAuthRef.current.revision}
-      />
+      <RoomContextSync roomRef={roomRef} />
+      <ActiveView boundPrincipal={boundPrincipal} boundRevision={boundRevision} />
       <RoomAudioRenderer />
     </LiveKitRoom>
   );
 }
 
 /** 内部组件：同步 Room 上下文引用供本地音轨主动 stop */
-function RoomContextSync({ onRoom }: { onRoom: (room: TrackHolderRoom | null) => void }) {
+function RoomContextSync({
+  onRoom,
+  roomRef,
+}: {
+  onRoom?: (room: TrackHolderRoom | null) => void;
+  roomRef?: React.MutableRefObject<TrackHolderRoom | null>;
+}) {
   const room = useRoomContext();
-  useEffect(() => {
-    onRoom(room);
+  const onRoomRef = useRef(onRoom);
+  onRoomRef.current = onRoom;
+
+  // 核心守卫 (ROOM-02): 必须在 render 阶段及 useLayoutEffect 阶段同步绑定 roomRef，
+  // 消除 child 已提交但 passive useEffect 尚未运行期间因外部或父级 layout effect 产生 inactive 时
+  // roomRef 仍为 null 的空窗，确保在生命周期事件返回前所属音轨已被同步停止。
+  if (roomRef) {
+    roomRef.current = room;
+  }
+
+  // 核心守卫 (ROOM-03): useLayoutEffect 依赖项仅保持稳定的 [room, roomRef]，
+  // 绝不能依赖易变闭包 (如 onRoom)，避免在 connected/dispatch/setActive 等正常 store 更新重渲染时
+  // 误触发 cleanup 导致 healthy 的麦克风音轨被停止。实际 Room 退出/替换/中断时才执行 cleanup。
+  useLayoutEffect(() => {
+    if (roomRef) {
+      roomRef.current = room;
+    }
+    onRoomRef.current?.(room);
     return () => {
-      onRoom(null);
+      stopRoomLocalTracks(room);
+      if (roomRef && roomRef.current === room) {
+        roomRef.current = null;
+      }
+      onRoomRef.current?.(null);
     };
-  }, [room, onRoom]);
+  }, [room, roomRef]);
+
   return null;
 }
 
@@ -658,85 +859,6 @@ function AgentStatusText({ state }: { state: string }) {
   })();
 
   return <p className="text-text-muted text-center text-sm font-medium">{text}</p>;
-}
-
-/** Web 生命周期订阅组件：仅在已有 Token 的 Room 挂载期间订阅，卸载时清理 */
-function RoomLifecycleWatcher({
-  boundSessionId,
-  boundGen,
-  boundPrincipal,
-  boundRevision,
-}: {
-  boundSessionId: string | null;
-  boundGen: number;
-  boundPrincipal: AuthPrincipal | null;
-  boundRevision: number;
-}) {
-  const room = useRoomContext();
-
-  useEffect(() => {
-    let isActive = true;
-    const adapter = createWebLifecycleAdapter();
-
-    const handleEvent = (event: {
-      type: string;
-      snapshot: { visibility: string; online: boolean | null };
-    }) => {
-      // CON-01: effect 存活门禁，防止保留的 listener 函数在清理/卸载后被外部调用修改 store
-      if (!isActive) return;
-
-      if (
-        event.type === "suspend" ||
-        event.snapshot.visibility === "hidden" ||
-        event.snapshot.online === false
-      ) {
-        const current = useConversationStore.getState();
-        if (current.sessionGen !== boundGen || current.sessionId !== boundSessionId) {
-          return;
-        }
-        if (
-          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !current.token
-        ) {
-          return;
-        }
-        const currentAuth = getAuthSnapshot();
-        const currentRev = getAuthRevision();
-        if (
-          currentAuth.state !== "authenticated" ||
-          !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
-          currentRev !== boundRevision
-        ) {
-          return;
-        }
-
-        console.warn("Web lifecycle interrupted audio connection");
-        stopRoomLocalTracks(room);
-        current.failConnection(boundSessionId ?? undefined, boundGen);
-      }
-    };
-
-    // CON-04: 先 subscribe 监听后续 DOM 事件
-    const unsubscribe = adapter.subscribe(handleEvent);
-
-    // CON-04: 订阅后立即读取当前快照，消除渲染到订阅之间的空窗
-    const snap = adapter.getSnapshot();
-    if (snap.visibility === "hidden" || snap.online === false) {
-      handleEvent({
-        type: snap.visibility === "hidden" ? "suspend" : "connectivity",
-        snapshot: snap,
-      });
-    }
-
-    return () => {
-      isActive = false;
-      unsubscribe();
-      adapter.dispose();
-    };
-  }, [room, boundGen, boundSessionId, boundPrincipal, boundRevision]);
-
-  return null;
 }
 
 /** 初次进入已有 Token 的 Room 时，若快照已处于 hidden/offline，立即触发失败关闭，不挂载 Room */
