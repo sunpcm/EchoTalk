@@ -17,3 +17,7 @@
 新增至少一项真实store的默认双浏览器详情503→专用安全错误/完整目标/44px重试→再次显式点击→同记录再次GET（无Token/写）→成功或可恢复错误，不能spy替换resumeSession冒充真实通知联动。补充产品单测覆盖其他前序失败、重试单次/取消零副作用；goHome/reset和生命周期/认证取消后立即新操作，旧Promise晚成败不污染新操作；正常失败的同步idle通知不得吞错。已有全部测试/56默认E2E保留，不能使用任意sleep替代可观测状态。
 
 完整七门禁、独立审查/变异/本地隔离集成。每次浏览器output独立且截图testInfo.outputPath。真实OS/Provider/数据库/依赖安装/Xcode/设备/签名/push/deploy不在范围，不宣称三端完成。
+
+## 4. r1定位器迁移例外
+
+独立评审核实原session-recovery.spec.ts在能力失败后以confirm-resume-button定位再次操作，及全局getByText恢复失败依赖只有一个错误节点。专用错误修复后，允许仅将这两处定位到真实retry-resume-button和目标resume-error，并增强按钮可用/副作用断言；不删除或弱化既有用例。此精确例外优先于§1对既有E2E的泛化禁止。不为测试兼容添加嵌套伪确认testid或清理共享错误状态。其余范围保持，产品取消/归属判据不变。
