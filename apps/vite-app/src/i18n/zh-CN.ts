@@ -88,6 +88,7 @@ export const zhCN = {
     disclaimer: "尚未结束的记录不代表正在通话；接管暂未开放",
     loading: "正在加载活动会话...",
     empty: "暂无活动会话",
+    unqueried: "活动会话尚未查询",
     loadError: "加载活动会话失败",
     retry: "重试",
     unknownMode: "其他模式",

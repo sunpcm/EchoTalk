@@ -59,6 +59,10 @@ export function ActiveSessions() {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<boolean>(false);
+  const [queriedIdentity, setQueriedIdentity] = useState<{
+    principal: AuthPrincipal;
+    revision: number;
+  } | null>(null);
 
   const resumeSession = useConversationStore((s) => s.resumeSession);
   const connectionState = useConversationStore((s) => s.connectionState);
@@ -96,6 +100,15 @@ export function ActiveSessions() {
   const activeRevisionRef = useRef<number>(getAuthRevision());
   const lifecycleAdapterRef = useRef<LifecycleAdapter | null>(null);
 
+  const currentRevision = getAuthRevision();
+  const hasQueried =
+    queriedIdentity !== null &&
+    snapshot.state === "authenticated" &&
+    snapshot.principal !== null &&
+    arePrincipalsEqual(queriedIdentity.principal, snapshot.principal) &&
+    queriedIdentity.revision === currentRevision &&
+    queriedIdentity.revision === activeRevisionRef.current;
+
   const fetchActiveSessions = useCallback(() => {
     // 结束在途或启动/恢复在途暂停列表刷新且不排队
     const currentConvState = useConversationStore.getState();
@@ -115,6 +128,7 @@ export function ActiveSessions() {
       setSessions([]);
       setError(false);
       setLoading(false);
+      setQueriedIdentity(null);
       return;
     }
 
@@ -161,6 +175,7 @@ export function ActiveSessions() {
         const filtered = data.filter((s) => !endedSessionIdsRef.current.has(s.id));
         setSessions(filtered);
         setError(false);
+        setQueriedIdentity({ principal: reqPrincipal, revision: reqRevision });
       })
       .catch(() => {
         const latestSnap = getAuthSnapshot();
@@ -594,6 +609,7 @@ export function ActiveSessions() {
         setSessions([]);
         setError(false);
         setLoading(false);
+        setQueriedIdentity(null);
         return;
       }
 
@@ -619,6 +635,7 @@ export function ActiveSessions() {
         setSessions([]);
         setError(false);
         setLoading(false);
+        setQueriedIdentity(null);
         fetchActiveSessions();
       }
     };
@@ -655,6 +672,7 @@ export function ActiveSessions() {
       setSessions([]);
       setError(false);
       setLoading(false);
+      setQueriedIdentity(null);
     }
 
     return () => {
@@ -714,9 +732,16 @@ export function ActiveSessions() {
         </div>
       )}
 
-      {!loading && !error && sessions.length === 0 && (
-        <p className="text-text-faint py-2 text-center text-sm">{t.empty}</p>
-      )}
+      {!loading &&
+        !error &&
+        sessions.length === 0 &&
+        (hasQueried ? (
+          <p className="text-text-faint py-2 text-center text-sm">{t.empty}</p>
+        ) : (
+          <p role="status" className="text-text-faint py-2 text-center text-sm">
+            {t.unqueried}
+          </p>
+        ))}
 
       {sessions.length > 0 && (
         <ul className="space-y-2" data-testid="active-sessions-list">

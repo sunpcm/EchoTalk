@@ -2757,6 +2757,9 @@ describe("ActiveSessions Component", () => {
         await Promise.resolve();
       });
       expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
 
       // addListener resolve
       await act(async () => {
@@ -2793,6 +2796,9 @@ describe("ActiveSessions Component", () => {
 
       expect(listSpy).not.toHaveBeenCalled();
       expect(screen.queryByTestId("active-sessions-list")).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
     });
 
     it("initial native registration failure does not trigger GET", async () => {
@@ -2808,6 +2814,9 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
     });
 
     it("query in flight when native transitions to inactive cancels active cycle and leaves list intact, then recovers on active", async () => {
@@ -3049,6 +3058,345 @@ describe("ActiveSessions Component", () => {
 
       // 确认结束成功，移除该项
       expect(screen.queryByTestId(`active-session-item-${sessId}`)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Query Fact & Lifecycle State (A20 / CROSS_PLATFORM_DISCOVERY_QUERY_STATE)", () => {
+    const mockData: api.SessionListItem[] = [
+      {
+        id: "sess-a20-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2026-10-23T10:00:00Z",
+        ended_at: null,
+      },
+    ];
+
+    beforeEach(() => {
+      fakeAppListeners.clear();
+      fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+      fakeAppAddListener = vi
+        .fn()
+        .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+          fakeAppListeners.add(listener);
+          return Promise.resolve({
+            remove: vi.fn().mockImplementation(() => {
+              fakeAppListeners.delete(listener);
+              return Promise.resolve();
+            }),
+          });
+        });
+
+      (window as unknown as { Capacitor?: unknown }).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+    });
+
+    afterEach(() => {
+      delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+      fakeAppListeners.clear();
+    });
+
+    it("renders unqueried state with status semantics (not empty) on initial native inactive zero-GET", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue([]);
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
+    });
+
+    it("transitions from unqueried to loading, and only renders empty when GET succeeds with empty array []", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+
+      await act(async () => {
+        deferred.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+    });
+
+    it("transitions from unqueried to loading, and renders active session list on non-empty success", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      await act(async () => {
+        deferred.resolve(mockData);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-id-sess-a20-1")).toHaveTextContent("sess-a20-1");
+    });
+
+    it("preserves unqueried state on initial failure and transitions to empty only after retry succeeds with []", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferredFail = createDeferred<api.SessionListItem[]>();
+      const deferredSuccess = createDeferred<api.SessionListItem[]>();
+      listSpy
+        .mockReturnValueOnce(deferredFail.promise)
+        .mockReturnValueOnce(deferredSuccess.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 初次请求失败
+      await act(async () => {
+        deferredFail.reject(new Error("Network Error"));
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.loadError)).toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+
+      // 点击重试
+      const retryBtn = screen.getByRole("button", { name: t.retry });
+      fireEvent.click(retryBtn);
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 重试成功返回空列表
+      await act(async () => {
+        deferredSuccess.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+    });
+
+    it("background cancellation of in-flight GET does not create empty fact when late response arrives, and recovers after active", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 原生切到后台 (inactive)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+
+      // 退出 loading，由于从未建立成功事实，显示尚未查询，绝不误报空
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
+
+      // 旧 GET 迟到 resolve 返回 []，不得新建空事实
+      await act(async () => {
+        deferred1.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+
+      // 原生重新切回前台 (active)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 新请求成功 resolve []
+      await act(async () => {
+        deferred2.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+    });
+
+    it("preserves confirmed empty or non-empty fact for the same account across backgrounding/suspend without fabricating new success", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      listSpy.mockResolvedValueOnce([]);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 已建立空事实
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+
+      // 切到后台 (inactive)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+
+      // 同账号后台保留此前真实成功事实，不回退为尚未查询
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+    });
+
+    it("account switch clears query fact and displays unqueried for new account until new GET succeeds", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 换号到 user-2
+      await act(async () => {
+        emitAuthSnapshot({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-2" },
+        });
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      // 旧 user-1 的请求迟到返回 []
+      await act(async () => {
+        deferred1.resolve([]);
+        await Promise.resolve();
+      });
+
+      // user-2 处于 loading，旧 user-1 迟到不产生影响
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // user-2 请求成功返回空列表
+      await act(async () => {
+        deferred2.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+    });
+
+    it("same principal re-login with bumped revision clears query fact and ignores stale revision response", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 同账号登出
+      await act(async () => {
+        emitAuthSnapshot({ state: "anonymous", principal: null }, true);
+      });
+
+      // 再次登入同账号（revision 递增）
+      await act(async () => {
+        emitAuthSnapshot(
+          {
+            state: "authenticated",
+            principal: { issuer: "https://auth.example.com", subject: "user-1" },
+          },
+          true,
+        );
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      // 旧 revision 1 请求迟到返回 []
+      await act(async () => {
+        deferred1.resolve([]);
+        await Promise.resolve();
+      });
+
+      // 新 revision 仍在 loading
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 新 revision 2 请求成功返回 []
+      await act(async () => {
+        deferred2.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+    });
+
+    it("StrictMode does not leak stale query fact or allow dead effects to create empty state", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue([]);
+
+      render(
+        <StrictMode>
+          <ActiveSessions />
+        </StrictMode>,
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalled();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
     });
   });
 });
