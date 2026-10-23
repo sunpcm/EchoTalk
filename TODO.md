@@ -182,7 +182,9 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 
 ### CP-05：生命周期与响应式体验
 
-- [x] 开始/显式恢复原生就绪门禁、10秒安全退出与旧意图隔离：547产品/30独立探针/双浏览器22项；见[验证](./docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)。Room音轨仍待接线。
+- [x] Room原生就绪挂载门禁、10秒安全退出、后台同步停轨与健康渲染保护：565产品/20独立探针/双浏览器22项及iOS build+sync通过；见[验证](./docs/verification/cross-platform/CP-05-NATIVE-ROOM.md)，真实系统音频中断/路由仍待验。
+
+- [x] 开始/显式恢复原生就绪门禁、10秒安全退出与旧意图隔离：547产品/30独立探针/双浏览器22项；见[验证](./docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)。Room后续已由A19本地接线，真实OS仍待验。
 
 - [x] 活动列表与分析页消费iOS原生生命周期：525产品、35独立探针、双浏览器22项通过；见[验证](./docs/verification/cross-platform/CP-05-NATIVE-CONSUMERS.md)，通话启动/Room仍待接线。
 
@@ -212,6 +214,8 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 记录各端版本、最低支持 OS、已知限制与回滚步骤；验收：发布候选通过不等于已对外发布，部署、上传和商店提交由用户确认发布边界后执行。
 
 ### 后续候选（不阻断本轮）
+
+- [ ] 在回归保护下简化Room初始Web快照与RoomContextSync引用所有权，移除多余可选回调并补并发渲染/SDK身份变化测试（A19 P2）。
 
 - [ ] 在回归保护下减少start/resume重复生命周期逻辑及全局测试注入入口；A18维护候选，不阻断本地增量。
 

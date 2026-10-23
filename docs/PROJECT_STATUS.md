@@ -219,3 +219,9 @@ skill a42fde9新矩阵用于本轮，agy一次651.89账本活动秒、完整无�
 产品91f80d2独立APPROVED：先保留槽位再等原生就绪，pending零外部调用，10秒安全退出、取消释放与旧setup/ready/Token隔离；同意图认证失效卡槽位及初始化同步重入P1已关闭。547产品/18构建、30独立探针、22双浏览器与两个有效变异通过，见[验证](./verification/cross-platform/CP-05-NATIVE-STARTUP.md)。通话Room尚未接原生、真实OS/Provider/Xcode/签名未验，整体CP-05仍未完成。
 
 skill a42fde9在本轮继续应用，3次尝试，r1新版checkpoint事件未知被失败关闭；同模型冷启动补完整交付，保留旧流与检查hash，独立七门禁不减。夹具缺字段、时序返工、测试全局注入/重复逻辑维护候选及格式兼容新问题已记本地；收益未作对照，不报Codex净节省率。不push/deploy，下一本地增量为Room原生挂载与音轨中断。
+
+## 2026-10-23 A19原生Room挂载与同步停轨
+
+产品fdf3d5e独立APPROVED：native就绪前零采音Room，10秒失败退出，后台/离线同步stop本地音轨，旧回调隔离及前台不自动写。565产品/18构建、20独立探针、22双浏览器、两个有效变异及iOS development/production示例build+sync通过，见[验证](./verification/cross-platform/CP-05-NATIVE-ROOM.md)。三项P1独立复现后关闭，健康重渲染不会误停麦克风。真实OS音频中断/路由、Provider、Xcode/签名、Cloud接管仍待验。
+
+同账本5次/3421.81活动秒；评审文件跨允许目录拒权、旧上下文误读旧报告、503与EOF保留。原模型冷启动补完整交付，hash保护8份旧检查，独立门禁不减；工作流新问题本地记录，未证明净Codex省额，不自动改全局skill或push/deploy。
