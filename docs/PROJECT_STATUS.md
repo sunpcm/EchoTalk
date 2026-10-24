@@ -14,6 +14,14 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地回答推荐作用域无歧义编码实施记录（A33）
+
+基于 TODO.md A26 P2 后续候选“将回答推荐scope键的id/text直接拼接替换为无歧义元组编码，并覆盖分隔符外部ID”完成实施。消除直接冒号拼接导致外部包含冒号的合法 ID 与文本发生碰撞的缺陷（如 `id='seg', text='What:is your hobby?'` 与 `id='seg:What', text='is your hobby?'`），将 `AnswerRecommendations.tsx` 中的 `currentScopeKey` 编码升级为无歧义二元组 `JSON.stringify([latestQuestionSegment.id ?? "", latestQuestionSegment.text.trim()])`。
+
+- 本地实现与作用域隔离：采用标准 JSON 序列化二元组，保持原 `isWaiting` 与 `null` 门禁，保持默认空 ID 与空白 trim 语义；同问题健康重渲染保留复制反馈，原 1500ms 定时器到期准时清除且不被重渲染重置计时，卸载清理机制不变；其他产品逻辑、布局、文案均逐字节保持。
+- 质量验证覆盖：单测 `AnswerRecommendations.test.tsx` 新增 5 项真实回归用例（覆盖冒号边界碰撞切题即时清除、旧 pending 复制切题后延迟完成不污染新题目、冒号碰撞交叉竞争下新题目反馈不被旧回调/旧定时器篡改、同 tuple 重渲染不重置 1500ms 计时、缺少 ID/引号/反斜杠/Unicode/空白 trim 边界）；`e2e/answer-recommendations.spec.ts` 复用现有隔离 fixture 与 hook stub 新增双浏览器回归，覆盖冒号边界碰撞切题及迟到 clipboard 场景，断言新题目可再次成功复制、0 pageerror 及零会话/令牌/租约/调度隐式业务写。
+- 契约与记录见 [回答推荐作用域编码验证](./verification/cross-platform/CP-05-ANSWER-SCOPE.md)。未推送、未部署、无真实外部 Provider 或多设备联调，不代表三端整体完成。
+
 ## 2026-10-25 本地主题 Token 引用清点与确认面板修复实施记录（A32）
 
 基于 TODO.md P2“清点主题 token：保留 Webpack 正在使用的 brand-_，处理未使用的 scrollbar-thumb、header-bg”完成实施。经运行时引用审计，删除 `packages/configs/tailwind-config/theme-tokens.css` 中无运行时引用的 `--scrollbar-thumb` 与 `--header-bg` 在三主题下的定义（总 6 行）；保留 Webpack 应用正在活跃消费的 `brand-_`及全部其他主题 token。同时修复`ActiveSessions.tsx`确认面板因类名拼写缺失桥接导致的背景透明与边框继承缺陷，将结束/恢复两面板的`bg-surface-subtle`修复为既有`bg-surface-alt`，两面板及取消按钮的 `border-border-subtle`修复为既有`border-border-soft`（共 4 处元素替换）。
@@ -318,3 +326,7 @@ Codex 独立评审 APPROVED：660 产品 / 18 构建脚本 / 53 Fake API Node / 
 ## 2026-10-25 A32 独立验收
 
 Codex 独立评审 APPROVED：103份运行源码引用审计、6项独立双浏览器与2有效变异通过，产品仅6处颜色utility替换、6行无用token定义删除，其他业务逻辑逐字节未变。完整8项门禁660单测/18构建脚本/53 Fake API Node/134双浏览器，专用PostgreSQL 269（73.72%）及Ruff通过。测试中主题PUT断言仅检查含theme的P2精度问题保留本地issues；实际源码没有新增写路径。未推送/部署，真实环境与远端CI仍待验。
+
+## 2026-10-25 A33 独立验收
+
+Codex 独立评审 APPROVED：无歧义tuple编码隔离冒号边界碰撞，665单测/18构建脚本/53 Fake API Node/138双浏览器及269专用库后端（73.72%）与Ruff通过；5独立时序探针含真实旧timer调用，2有效变异通过。新增测试旧timer空回调/剪贴板断言精度P2已记录，不将其计为实际覆盖；产品只改一行编码和注释。未推送、部署或连接真实外部环境。
