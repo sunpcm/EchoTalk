@@ -191,3 +191,15 @@ CLI1.4.6 r1流出现step_update.step_type=checkpoint（DONE），终止SUCCESS�
 ## A25 中断恢复与布局验收（2026-10-24）
 
 从已核实的A24完成点续做A25，无重复启动。首轮非必需CLI配置读取命中deny，保持规则与失败记录，正式reconcile后同Flash冷启动恢复；未请求新增权限。独立审查在全页几何通过后发现标题自身32px/scroll59溢出，集中关闭并补默认回归。完整最终证据与用量见[验证](./verification/cross-platform/CP-05-DOC-LAYOUT.md)。快速三项检查与完整七项可能共享task名，必须据确定summary的实际check ids判断，不只读finished/checks_passed。其余候选留本地workflow-doc-layout-a25/issues.md，不自动扩skill。
+
+## 2026-10-24 检查范围与拒权早停优化
+
+本次只优化工作流，不启动新的产品任务或模型会话。固定runner的baseline/quality清单现在分别声明check_kind和required_check_ids；当前B线完整quality为format、lint、typecheck、test、build-script-test、build、e2e，baseline仅前三项。组合进度显示声明范围及预期/结束/通过ID，不能凭task名或checks_passed认定完整验收；coverage=complete也可能包含失败，必须结合逐项状态。
+
+下一轮本地控制器模板为`.review/reports/tools/pilot-frontend-next-agy.py`，需要评审方准备`workflow-frontend-next/plan.json`、task_id、prompt_prefix、分支/基线及既有授权文件后才能启动；不得复用已完成A25账本。模板读取既有完整行时接通通用permission_denied辅助函数，命中已验证tool ERROR拒权即记录early-stop.json、停止自有进程组，原始流不改，最终normalize与finish仍保留blocked_permission和消费。CLI及累计任务时间默认沿用用户选择的不限时；不修改权限。A24/A25旧控制器和证据原样保留。
+
+迟到回调实际执行规则进入通用评审指南；几何范围与截图经验留[项目布局清单](./verification/cross-platform/UI-LOCAL-CHECKLIST.md)。无阶段变化时等待沟通简短，详细日志仅在诊断或验收读取。
+
+验证仅使用临时Git仓、本地子进程及脱敏流，覆盖拒权早停、进程组清理、部分交付分类、账本计数和范围缺项预检。没有用真实agy调用验证新模板，也没有净Codex额度节约的新结论；下一次真实开发继续观察并记录问题。
+
+本轮同步skill提交为`b09b925`（Codex/Claude两份一致），各79项离线测试及quick_validate通过。实际固定runner的B线baseline已通过三项检查，回执明确kind=baseline、expected/completed/passed均为三项；没有以此声称完整七项quality或真实模型验收通过。
