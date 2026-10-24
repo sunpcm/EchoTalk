@@ -14,6 +14,14 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地主题缓存异常容错实施记录（A31）
+
+基于 TODO.md P2“主题保存后端支持跨设备水合”与既有 CP-05-THEME-SYNC 契约完成浏览器 localStorage 异常容错实施。针对浏览器隐私模式、跨域限制或存储配额已满时 `localStorage` 抛出 `SecurityError` 或 `QuotaExceededError` 的场景，提供安全回退与持久化恢复能力，防止阻断 store 冷导入、UI 即时渲染或将成功后端水合误报为 API 失败。
+
+- 本地实现与容错：`readStoredTheme` 对属性 getter 与 `getItem` 实施窄范围 `try/catch`，异常时安全回退 `"warm"` 默认主题；封装内部 `safeSetStoredTheme`，`setTheme` 写缓存失败不阻断 store/DOM 更新与认证状态下的后台 300ms 防抖 PUT 调度；`fetchSettings` 水合成功时写缓存失败被内部隔离，store 正常水合并清除 `loading`，`error` 保持为 `null` 且不误发额外 PUT；真正 API 失败原有错误报告不受影响；Storage 恢复后下一次显式选择正常持久化；仅拦截 `localStorage`，严格避免破坏 `sessionStorage` 中的认证凭据。
+- 质量验证覆盖：单测 `settings.test.ts` 新增 12 项回归用例（覆盖 getter/getItem 抛错、非法值/空值、配额溢出与安全异常、默认值回退、匿名零请求、认证 PUT 不受阻、水合写缓存失败不误判、真实 API 报错完整保留、恢复后再次选择持久化）；新增 `e2e/theme-storage.spec.ts` 双浏览器真实页面回归，覆盖冷启动 getter 抛错安全回退、切主题写配额超限与恢复持久化、后端水合写缓存失败无报错，全流程 0 pageerror。
+- 契约与记录见 [主题缓存容错验证](./verification/cross-platform/CP-05-THEME-STORAGE.md)。未推送、未部署、无真实外部 Provider 或多设备联调，不代表三端整体完成。
+
 ## 2026-10-24 本地 CI 质量门禁接线实施记录（A30）
 
 基于 TODO.md RF-04 CI 真实性与 CP-06 完整质量门禁要求，完成本地 `.github/workflows/ci.yml` 的 `test-frontend` steps 顺序与命令对齐实施。将 CI 执行步骤对齐本地 8 项真实质量门禁（Format、Lint、Typecheck、直接 Vitest 单测、18 项构建脚本测试、Fake API 原生子进程测试、Build 以及双浏览器 E2E）。通过精确 `--filter vite-app` 入口排除根目录测试占位任务，并通过 `turbo --force` 避免 CI 缓存回放；保持依赖冻结安装、Playwright 安装步骤与 working-directory、Node 22 / pnpm 10.26.0、test-backend 与 ci 聚合 job 成功断言全部不变。
@@ -294,3 +302,7 @@ Fake API 主题必需字段及 success/failure 项目后缀 assessment/grammar �
 ## 2026-10-25 A30 CI 真实测试入口
 
 Codex 独立评审 APPROVED：前端 CI 显式执行 Vitest、构建脚本与 Fake API Node 测试，lint/typecheck/build 强制执行；后端、触发器及聚合成功断言保持不变。648 产品 / 18 构建 / 53 Fake API Node / 120 双浏览器和专用 PostgreSQL 269 通过，YAML 语义不变量及两有效变异通过。见[验证](./verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。这仅完成本地配置与验证，远端 Linux CI、RF-04 整体验收及发布仍待执行；未推送或部署。
+
+## 2026-10-25 A31 独立验收
+
+Codex 独立评审 APPROVED：660 产品 / 18 构建脚本 / 53 Fake API Node / 126 双浏览器与专用 PostgreSQL 269（覆盖率73.72%）及 Ruff 通过；另35独立 Storage/时序探针、4独立双浏览器和2有效变异通过。Storage 访问失败安全回退，不阻断本地主题/认证同步或成功水合；恢复缓存后实际reload仍保留选择。测试维护P2与原报告计数偏差留存本地issues，未改skill、推送或部署。

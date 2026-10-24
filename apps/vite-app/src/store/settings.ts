@@ -213,11 +213,25 @@ function scheduleDebouncedThemeSync(theme: ThemeName, ctx: SyncContext, sequence
   }, 300);
 }
 
-/** 读取本地持久化的主题（无则回退暖色） */
+/** 读取本地持久化的主题（无则或抛错安全回退暖色） */
 export function readStoredTheme(): ThemeName {
   if (typeof window === "undefined") return "warm";
-  const v = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return v === "cool" || v === "dark" ? v : "warm";
+  try {
+    const v = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return v === "cool" || v === "dark" ? v : "warm";
+  } catch {
+    return "warm";
+  }
+}
+
+/** 安全持久化主题至本地 Storage，捕获 QuotaExceededError / SecurityError 等异常，不阻断即时更新或网络同步 */
+function safeSetStoredTheme(theme: ThemeName): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Storage I/O 故障安全忽略，保持 local-first 与网络同步
+  }
 }
 
 /** 把主题写到 <html data-theme> 上（warm 为默认，仍显式写便于调试） */
@@ -260,9 +274,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setTheme: (theme: ThemeName) => {
     applyThemeAttr(theme);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    }
+    safeSetStoredTheme(theme);
 
     const currentGen = settingsGeneration;
     const auth = getAuthSnapshot();
@@ -422,9 +434,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       if (!hasConflict) {
         const backendTheme = settings.theme;
         applyThemeAttr(backendTheme);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(THEME_STORAGE_KEY, backendTheme);
-        }
+        safeSetStoredTheme(backendTheme);
         set({ settings, theme: backendTheme });
       } else {
         const localTheme = get().theme;

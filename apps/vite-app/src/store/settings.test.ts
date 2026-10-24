@@ -1896,4 +1896,229 @@ describe("settings store & theme helpers", () => {
       unsubscribe();
     });
   });
+
+  describe("CP-05 A31: Storage fallback & fault tolerance", () => {
+    const originalLocalStorage = window.localStorage;
+
+    afterEach(() => {
+      // 保证恢复原始 localStorage 属性描述符
+      Object.defineProperty(window, "localStorage", {
+        value: originalLocalStorage,
+        configurable: true,
+        writable: true,
+      });
+      localStorage.clear();
+      vi.restoreAllMocks();
+    });
+
+    describe("readStoredTheme", () => {
+      it("returns 'warm' when window.localStorage getter throws SecurityError", () => {
+        Object.defineProperty(window, "localStorage", {
+          configurable: true,
+          get() {
+            throw new DOMException("The operation is insecure.", "SecurityError");
+          },
+        });
+
+        expect(readStoredTheme()).toBe("warm");
+      });
+
+      it("returns 'warm' when localStorage.getItem throws SecurityError", () => {
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+          throw new DOMException("The operation is insecure.", "SecurityError");
+        });
+
+        expect(readStoredTheme()).toBe("warm");
+      });
+
+      it("returns 'warm' fallback on null, empty string, or invalid values", () => {
+        localStorage.removeItem(THEME_STORAGE_KEY);
+        expect(readStoredTheme()).toBe("warm");
+
+        localStorage.setItem(THEME_STORAGE_KEY, "");
+        expect(readStoredTheme()).toBe("warm");
+
+        localStorage.setItem(THEME_STORAGE_KEY, "invalid-theme");
+        expect(readStoredTheme()).toBe("warm");
+
+        localStorage.setItem(THEME_STORAGE_KEY, "neon");
+        expect(readStoredTheme()).toBe("warm");
+      });
+
+      it("returns stored theme value when valid ('cool' | 'dark')", () => {
+        localStorage.setItem(THEME_STORAGE_KEY, "cool");
+        expect(readStoredTheme()).toBe("cool");
+
+        localStorage.setItem(THEME_STORAGE_KEY, "dark");
+        expect(readStoredTheme()).toBe("dark");
+      });
+
+      it("safely initializes store with fallback 'warm' when storage is broken", () => {
+        Object.defineProperty(window, "localStorage", {
+          configurable: true,
+          get() {
+            throw new DOMException("The operation is insecure.", "SecurityError");
+          },
+        });
+
+        const initialTheme = readStoredTheme();
+        expect(initialTheme).toBe("warm");
+      });
+    });
+
+    describe("setTheme with storage failures", () => {
+      it("updates store and document attribute without throwing when setItem throws QuotaExceededError", () => {
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+          throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+        });
+
+        expect(() => {
+          useSettingsStore.getState().setTheme("dark");
+        }).not.toThrow();
+
+        expect(useSettingsStore.getState().theme).toBe("dark");
+        expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+      });
+
+      it("updates store and document attribute without throwing when localStorage getter throws SecurityError", () => {
+        Object.defineProperty(window, "localStorage", {
+          configurable: true,
+          get() {
+            throw new DOMException("The operation is insecure.", "SecurityError");
+          },
+        });
+
+        expect(() => {
+          useSettingsStore.getState().setTheme("cool");
+        }).not.toThrow();
+
+        expect(useSettingsStore.getState().theme).toBe("cool");
+        expect(document.documentElement.getAttribute("data-theme")).toBe("cool");
+      });
+
+      it("anonymous user setTheme with broken storage updates local UI and makes zero network requests", async () => {
+        vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+          state: "anonymous",
+          principal: null,
+        });
+
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+          throw new DOMException("The operation is insecure.", "SecurityError");
+        });
+
+        useSettingsStore.getState().setTheme("dark");
+
+        expect(useSettingsStore.getState().theme).toBe("dark");
+        expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+        vi.advanceTimersByTime(500);
+        expect(api.updateUserSettings).not.toHaveBeenCalled();
+      });
+
+      it("authenticated user setTheme with broken storage still dispatches debounced PUT and syncs backend", async () => {
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+          throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+        });
+
+        vi.mocked(api.updateUserSettings).mockResolvedValueOnce({
+          is_custom_mode: false,
+          theme: "dark",
+          stt_provider: null,
+          llm_provider: null,
+          llm_model: null,
+          tts_provider: null,
+          has_stt_key: false,
+          has_llm_key: false,
+          has_tts_key: false,
+          stt_status: "unconfigured",
+          llm_status: "unconfigured",
+          tts_status: "unconfigured",
+        });
+
+        useSettingsStore.getState().setTheme("dark");
+
+        expect(useSettingsStore.getState().theme).toBe("dark");
+        expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+        vi.advanceTimersByTime(300);
+        for (let i = 0; i < 5; i++) {
+          await Promise.resolve();
+        }
+
+        expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
+        expect(api.updateUserSettings).toHaveBeenCalledWith({ theme: "dark" });
+      });
+
+      it("persists to storage upon next explicit selection after storage recovers", () => {
+        const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(() => {
+          throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+        });
+
+        // 第一次操作：Storage 故障，不崩溃
+        useSettingsStore.getState().setTheme("dark");
+        expect(useSettingsStore.getState().theme).toBe("dark");
+        expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+
+        // 第二次操作：已恢复原生存储行为，显式切换到 cool，正常持久化
+        useSettingsStore.getState().setTheme("cool");
+        expect(useSettingsStore.getState().theme).toBe("cool");
+        expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("cool");
+        expect(setItemSpy).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe("fetchSettings with storage failures", () => {
+      it("successful GET hydrates store and DOM even if cache write fails, clears loading, zero error and zero PUT", async () => {
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+          throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+        });
+
+        vi.mocked(api.getUserSettings).mockResolvedValueOnce({
+          is_custom_mode: false,
+          is_custom_verified: false,
+          subscription_tier: "free",
+          theme: "dark",
+          stt_provider: null,
+          llm_provider: null,
+          llm_model: null,
+          tts_provider: null,
+          has_stt_key: false,
+          has_llm_key: false,
+          has_tts_key: false,
+          stt_status: "unconfigured",
+          llm_status: "unconfigured",
+          tts_status: "unconfigured",
+        });
+
+        const fetchPromise = useSettingsStore.getState().fetchSettings();
+        expect(useSettingsStore.getState().loading).toBe(true);
+
+        await fetchPromise;
+
+        // 状态水合成功，无错误，loading 已清除
+        expect(useSettingsStore.getState().loading).toBe(false);
+        expect(useSettingsStore.getState().error).toBeNull();
+        expect(useSettingsStore.getState().theme).toBe("dark");
+        expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+        // 绝对不误触发任何更新 PUT 请求
+        vi.advanceTimersByTime(500);
+        expect(api.updateUserSettings).not.toHaveBeenCalled();
+      });
+
+      it("reports real API failure properly and does not mask original error", async () => {
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+          throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+        });
+
+        vi.mocked(api.getUserSettings).mockRejectedValueOnce(new Error("网络连接失败"));
+
+        await useSettingsStore.getState().fetchSettings();
+
+        expect(useSettingsStore.getState().loading).toBe(false);
+        expect(useSettingsStore.getState().error).toBe("网络连接失败");
+        expect(api.updateUserSettings).not.toHaveBeenCalled();
+      });
+    });
+  });
 });

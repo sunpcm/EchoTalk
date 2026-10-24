@@ -112,6 +112,9 @@
 - [x] 将主题保存到后端 `user_settings.theme`，支持跨设备水合（A28 本地独立评审通过）；
       客户端 local-first、认证与代际绑定、单在途意图串行合并与水合竞争防护经本地回归通过；
       不代表真实双物理设备验收，见 [主题同步验证](./docs/verification/cross-platform/CP-05-THEME-SYNC.md)。
+      A31 补充浏览器 localStorage 异常容错（SecurityError/QuotaExceededError 读写安全回退、
+      不阻断 UI/store 与后台 PUT 同步、成功水合不误判 API 失败、恢复后正常持久化），
+      见 [主题缓存容错验证](./docs/verification/cross-platform/CP-05-THEME-STORAGE.md)。
 - [x] 统一主题按钮边框宽度，消除选中时 1px 布局抖动（A28 本地独立评审通过）；
       主题单选按钮统一使用 2px 固定边框，窄屏、默认与 200% 字号下选择前后内容位移为 0，见 [验证](./docs/verification/cross-platform/CP-05-THEME-SYNC.md)。
 - [x] 为颜色过渡和抽屉动画支持 `prefers-reduced-motion`（A27 本地独立评审通过）；
