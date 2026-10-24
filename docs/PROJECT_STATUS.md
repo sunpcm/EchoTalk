@@ -14,6 +14,14 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地主题 Token 引用清点与确认面板修复实施记录（A32）
+
+基于 TODO.md P2“清点主题 token：保留 Webpack 正在使用的 brand-_，处理未使用的 scrollbar-thumb、header-bg”完成实施。经运行时引用审计，删除 `packages/configs/tailwind-config/theme-tokens.css` 中无运行时引用的 `--scrollbar-thumb` 与 `--header-bg` 在三主题下的定义（总 6 行）；保留 Webpack 应用正在活跃消费的 `brand-_`及全部其他主题 token。同时修复`ActiveSessions.tsx`确认面板因类名拼写缺失桥接导致的背景透明与边框继承缺陷，将结束/恢复两面板的`bg-surface-subtle`修复为既有`bg-surface-alt`，两面板及取消按钮的 `border-border-subtle`修复为既有`border-border-soft`（共 4 处元素替换）。
+
+- 本地实现与样式修复：删除 2 个未被消费的主题 token；采用既有桥接语义色修复两面板弱背景与软边框，不添加 alias 掩盖拼写，不引入 transition 或动画，保留 44px 触控与全部已有业务交互；不改变 DOM 结构与文案。
+- 质量验证覆盖：新增 `apps/vite-app/e2e/theme-tokens.spec.ts` 双浏览器真实页面回归，结合既有 active fixture 与主题选择器，逐主题（warm/cool/dark）验证结束与恢复两面板的 computed `backgroundColor` 与 `borderColor` 精确匹配真实 CSS 变量 `--surface-alt` 与 `--border-soft`，断言背景非透明；覆盖 390px 窄屏与 200% 根字号布局无横向溢出；验证取消后原列表可再次操作、确认前与取消零业务写、全流程 0 pageerror。
+- 契约与记录见 [主题 Token 审计与确认面板验证](./verification/cross-platform/CP-05-THEME-TOKENS.md)。未推送、未部署、无真实外部 Provider 或多设备联调，不代表三端整体完成。
+
 ## 2026-10-25 本地主题缓存异常容错实施记录（A31）
 
 基于 TODO.md P2“主题保存后端支持跨设备水合”与既有 CP-05-THEME-SYNC 契约完成浏览器 localStorage 异常容错实施。针对浏览器隐私模式、跨域限制或存储配额已满时 `localStorage` 抛出 `SecurityError` 或 `QuotaExceededError` 的场景，提供安全回退与持久化恢复能力，防止阻断 store 冷导入、UI 即时渲染或将成功后端水合误报为 API 失败。
@@ -306,3 +314,7 @@ Codex 独立评审 APPROVED：前端 CI 显式执行 Vitest、构建脚本与 Fa
 ## 2026-10-25 A31 独立验收
 
 Codex 独立评审 APPROVED：660 产品 / 18 构建脚本 / 53 Fake API Node / 126 双浏览器与专用 PostgreSQL 269（覆盖率73.72%）及 Ruff 通过；另35独立 Storage/时序探针、4独立双浏览器和2有效变异通过。Storage 访问失败安全回退，不阻断本地主题/认证同步或成功水合；恢复缓存后实际reload仍保留选择。测试维护P2与原报告计数偏差留存本地issues，未改skill、推送或部署。
+
+## 2026-10-25 A32 独立验收
+
+Codex 独立评审 APPROVED：103份运行源码引用审计、6项独立双浏览器与2有效变异通过，产品仅6处颜色utility替换、6行无用token定义删除，其他业务逻辑逐字节未变。完整8项门禁660单测/18构建脚本/53 Fake API Node/134双浏览器，专用PostgreSQL 269（73.72%）及Ruff通过。测试中主题PUT断言仅检查含theme的P2精度问题保留本地issues；实际源码没有新增写路径。未推送/部署，真实环境与远端CI仍待验。

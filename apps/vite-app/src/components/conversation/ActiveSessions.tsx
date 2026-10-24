@@ -821,7 +821,7 @@ export function ActiveSessions() {
                 {isConfirmingEnd && (
                   <div
                     data-testid={`end-confirm-panel-${session.id}`}
-                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
+                    className="bg-surface-alt border-border-soft mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
                   >
                     <div className="flex flex-col gap-1.5">
                       <div className="flex flex-wrap items-baseline gap-1.5">
@@ -857,7 +857,7 @@ export function ActiveSessions() {
                         data-testid={`cancel-end-button-${session.id}`}
                         onClick={handleCancelConfirm}
                         disabled={isEnding}
-                        className="text-text-muted hover:text-text-default border-border-subtle focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                        className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                       >
                         {t.cancelEnd}
                       </button>
@@ -891,7 +891,7 @@ export function ActiveSessions() {
                 {isConfirmingResume && (
                   <div
                     data-testid={`resume-confirm-panel-${session.id}`}
-                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
+                    className="bg-surface-alt border-border-soft mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
                   >
                     <div className="flex flex-col gap-1.5">
                       <div className="flex flex-wrap items-baseline gap-1.5">
@@ -927,7 +927,7 @@ export function ActiveSessions() {
                         data-testid={`cancel-resume-button-${session.id}`}
                         onClick={handleCancelResume}
                         disabled={isResuming}
-                        className="text-text-muted hover:text-text-default border-border-subtle focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                        className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                       >
                         {t.cancelResume}
                       </button>

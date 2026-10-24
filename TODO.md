@@ -107,7 +107,8 @@
 - [x] 每日进度与技能掌握度进度条提供可访问名称、范围和值（[#90](https://github.com/sunpcm/EchoTalk/pull/90)）；
       回归覆盖每日 0/5/20/25 完成量，超目标时数值封顶、文本保留实际总量。
 
-- [ ] 清点主题 token：保留 Webpack 正在使用的 `brand-*`，处理未使用的 `scrollbar-thumb`、`header-bg`。
+- [x] 清点主题 token：保留 Webpack 正在使用的 `brand-*`，处理未使用的 `scrollbar-thumb`、`header-bg`（A32 本地独立评审通过）；
+      删除无运行时引用的 2 个主题 token 并修复 ActiveSessions 确认面板背景透明与边框继承缺陷，双浏览器逐主题 computed 变量解析验证通过，见 [主题 token 审计与确认面板验证](./docs/verification/cross-platform/CP-05-THEME-TOKENS.md)。
 - [x] 将 Vite 入口的 `<html lang="en">` 改为 `zh-CN`。
 - [x] 将主题保存到后端 `user_settings.theme`，支持跨设备水合（A28 本地独立评审通过）；
       客户端 local-first、认证与代际绑定、单在途意图串行合并与水合竞争防护经本地回归通过；
