@@ -51,10 +51,11 @@ export function DocChatSetup() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="relative text-center">
+      <div className="relative flex flex-col items-start gap-2 sm:block sm:text-center">
         <button
           onClick={goHome}
-          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 left-0 rounded-lg p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          data-testid="doc-chat-back-button"
+          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:absolute sm:top-0 sm:left-0"
           title={t.goBack}
           aria-label={t.goBack}
         >
@@ -66,8 +67,17 @@ export function DocChatSetup() {
             />
           </svg>
         </button>
-        <h1 className="text-accent mb-1 text-3xl font-bold">{t.title}</h1>
-        <p className="text-text-muted">{t.subtitle}</p>
+        <div className="w-full text-center sm:px-14">
+          <h1
+            data-testid="doc-chat-title"
+            className="text-accent mb-1 text-3xl font-bold break-words"
+          >
+            {t.title}
+          </h1>
+          <p data-testid="doc-chat-subtitle" className="text-text-muted break-words">
+            {t.subtitle}
+          </p>
+        </div>
       </div>
 
       {/* Error feedback */}
@@ -88,7 +98,8 @@ export function DocChatSetup() {
         onClick={handleStart}
         disabled={isDisabled || isLoading}
         title={isEmpty ? t.emptyDocError : isOverLimit ? t.charOverLimit : undefined}
-        className="btn-primary focus-visible:ring-accent flex w-full items-center justify-center py-3 text-base focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        data-testid="doc-chat-start-button"
+        className="btn-primary focus-visible:ring-accent flex min-h-[44px] w-full items-center justify-center py-3 text-base focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isLoading ? (
           <>
