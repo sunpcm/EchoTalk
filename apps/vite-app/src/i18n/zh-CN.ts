@@ -126,6 +126,9 @@ export const zhCN = {
     title: "回答推荐",
     hint: "不知道怎么回答？试试以下表达：",
     waiting: "等待 AI 提问中...",
+    copied: "已复制",
+    clickToCopy: "点击复制",
+    copyAriaLabel: "复制推荐回答 {index}: {text}",
   },
   connectionWarning: {
     title: "语音通道连接失败",

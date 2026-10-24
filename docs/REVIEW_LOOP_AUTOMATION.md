@@ -203,3 +203,9 @@ CLI1.4.6 r1流出现step_update.step_type=checkpoint（DONE），终止SUCCESS�
 验证仅使用临时Git仓、本地子进程及脱敏流，覆盖拒权早停、进程组清理、部分交付分类、账本计数和范围缺项预检。没有用真实agy调用验证新模板，也没有净Codex额度节约的新结论；下一次真实开发继续观察并记录问题。
 
 本轮同步skill提交为`b09b925`（Codex/Claude两份一致），各79项离线测试及quick_validate通过。实际固定runner的B线baseline已通过三项检查，回执明确kind=baseline、expected/completed/passed均为三项；没有以此声称完整七项quality或真实模型验收通过。
+
+## A26 使用新工作流的实际观测（2026-10-24）
+
+skill b09b925完成回答推荐本地增量，过程见[验证](./verification/cross-platform/CP-05-ANSWER-RECOMMENDATIONS.md)。r0 lint失败即停，check_scope准确显示quality覆盖未完成；r1七项全绿时才显示完整。未触发真实拒权，不能声称早停已在本轮真实CLI验证。
+
+独立评审仍发现作用域文本遗漏、StrictMode效果重放、render取消已提交timer与16px逐字竖排，集中返工关闭；这属于已有评审规则/项目几何清单的实施遗漏，不自动增加通用规则。版本漂移在模型前阻断，20项本地适配回归和help核对后受限接纳1.4.7，实际流完整无拒绝，计数不洗掉。完整账本输出应由控制器capture后只给小元数据；长任务宿主沟通与低频状态读取分别记录。原证据与问题留本地，未push或连接真实业务服务。

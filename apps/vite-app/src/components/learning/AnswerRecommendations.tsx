@@ -4,7 +4,7 @@
  * 提供 2-3 条简短英文回答推荐帮助用户回答。
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useLayoutEffect, useEffect } from "react";
 import { useVoiceAssistant } from "@livekit/components-react";
 import { zhCN } from "@/i18n/zh-CN";
 
@@ -106,37 +106,122 @@ function generateRecommendations(question: string): string[] {
 
 export function AnswerRecommendations() {
   const { agentTranscriptions, state } = useVoiceAssistant();
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   // 从 agent 转录中提取最后一条 final 消息
-  const latestQuestion = useMemo(() => {
+  const latestQuestionSegment = useMemo(() => {
     const finalSegments = agentTranscriptions.filter((seg) => seg.final && seg.text.trim());
     if (finalSegments.length === 0) return null;
     const last = finalSegments[finalSegments.length - 1];
-    return detectQuestion(last.text) ? last.text.trim() : null;
+    return detectQuestion(last.text) ? last : null;
   }, [agentTranscriptions]);
+
+  const latestQuestion = latestQuestionSegment?.text.trim() ?? null;
+  const isWaiting = !latestQuestion || state === "thinking" || state === "speaking";
 
   const recommendations = useMemo(() => {
     if (!latestQuestion) return [];
     return generateRecommendations(latestQuestion);
   }, [latestQuestion]);
 
-  const isWaiting = !latestQuestion || state === "thinking" || state === "speaking";
+  // 问题身份覆盖影响推荐内容的全部已提交输入（包含 segment id 与转录文本），
+  // 兼顾同文不同 segment id 隔离、同 segment id 更新文本隔离与健康重渲染
+  const currentScopeKey = useMemo(() => {
+    if (isWaiting || !latestQuestionSegment) return null;
+    return `${latestQuestionSegment.id ?? ""}:${latestQuestionSegment.text.trim()}`;
+  }, [isWaiting, latestQuestionSegment]);
+
+  // 操作序列与已提交作用域追踪
+  const opSeqRef = useRef<number>(0);
+  const activeOpIdRef = useRef<number>(0);
+  const committedScopeKeyRef = useRef<string | null>(null);
+  const activeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+
+  const [copiedState, setCopiedState] = useState<{
+    scopeKey: string;
+    opId: number;
+    index: number;
+  } | null>(null);
+
+  // 资源/操作有效性严格按提交归属管理：
+  // 仅在 commit 阶段（useLayoutEffect）同步 committedScopeKey 并失效旧操作，
+  // 严禁在 render 阶段执行资源取消或清除定时器，以防未提交的 render（如 startTransition / Suspense）破坏已提交界面状态
+  useLayoutEffect(() => {
+    isMountedRef.current = true;
+    if (committedScopeKeyRef.current !== currentScopeKey) {
+      committedScopeKeyRef.current = currentScopeKey;
+      activeOpIdRef.current = ++opSeqRef.current;
+      if (activeTimerRef.current) {
+        clearTimeout(activeTimerRef.current);
+        activeTimerRef.current = null;
+      }
+      setCopiedState(null);
+    }
+  }, [currentScopeKey]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (activeTimerRef.current) {
+        clearTimeout(activeTimerRef.current);
+        activeTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCopy = async (rec: string, index: number) => {
+    if (!currentScopeKey || isWaiting) return;
+
+    const opScopeKey = currentScopeKey;
+    const opId = ++opSeqRef.current;
+    activeOpIdRef.current = opId;
+
+    if (activeTimerRef.current) {
+      clearTimeout(activeTimerRef.current);
+      activeTimerRef.current = null;
+    }
+
     try {
       await navigator.clipboard.writeText(rec);
-      setCopiedIndex(index);
-      setTimeout(() => setCopiedIndex(null), 1500);
+
+      // 异步回调检查：组件仍挂载、作用域仍属于发起时的 committed scope，且本操作仍为最新
+      if (
+        !isMountedRef.current ||
+        committedScopeKeyRef.current !== opScopeKey ||
+        activeOpIdRef.current !== opId
+      ) {
+        return;
+      }
+
+      setCopiedState({ scopeKey: opScopeKey, opId, index });
+
+      const timer = setTimeout(() => {
+        if (
+          isMountedRef.current &&
+          committedScopeKeyRef.current === opScopeKey &&
+          activeOpIdRef.current === opId
+        ) {
+          setCopiedState(null);
+        }
+      }, 1500);
+      activeTimerRef.current = timer;
     } catch {
-      // 剪贴板接口异常时不中断应用
+      // 剪贴板异常时不中断应用，失败不显示成功，不自动重试
+      if (
+        isMountedRef.current &&
+        committedScopeKeyRef.current === opScopeKey &&
+        activeOpIdRef.current === opId
+      ) {
+        setCopiedState(null);
+      }
     }
   };
 
   return (
     <section
       aria-label={t.title}
-      className="border-success-border bg-success-bg rounded-[20px] border p-4 shadow-[0_6px_22px_-14px_var(--card-shadow)]"
+      className="border-success-border bg-success-bg rounded-[20px] border p-3 shadow-[0_6px_22px_-14px_var(--card-shadow)] sm:p-4"
     >
       <h3 className="text-success-text mb-2 text-sm font-semibold">{t.title}</h3>
 
@@ -147,30 +232,42 @@ export function AnswerRecommendations() {
           <p className="text-success mb-3 text-xs">{t.hint}</p>
           <div className="space-y-2">
             {recommendations.map((rec, i) => {
-              const isCopied = copiedIndex === i;
+              const isCopied =
+                copiedState !== null &&
+                currentScopeKey !== null &&
+                copiedState.scopeKey === currentScopeKey &&
+                copiedState.opId === activeOpIdRef.current &&
+                copiedState.index === i;
+
               return (
                 <button
                   key={i}
                   type="button"
                   onClick={() => void handleCopy(rec, i)}
-                  aria-label={`复制推荐回答 ${i + 1}: ${rec}`}
-                  className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex w-full items-center justify-between rounded-[12px] border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                  aria-label={t.copyAriaLabel
+                    .replace("{index}", String(i + 1))
+                    .replace("{text}", rec)}
+                  className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex min-h-[44px] w-full flex-col justify-center rounded-[12px] border p-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:p-3"
                 >
-                  <div className="flex min-w-0 items-center pr-2">
-                    <span className="bg-success mr-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
+                  <div className="flex w-full items-start gap-2">
+                    <span className="bg-success mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="truncate">{rec}</span>
+                    <span className="min-w-0 flex-1 text-sm leading-snug [overflow-wrap:anywhere] break-words whitespace-normal">
+                      {rec}
+                    </span>
                   </div>
-                  {isCopied ? (
-                    <span className="bg-success/15 text-success shrink-0 rounded-md px-2 py-0.5 text-xs font-medium">
-                      已复制
-                    </span>
-                  ) : (
-                    <span className="text-text-faint hover:text-success shrink-0 text-xs transition-colors">
-                      点击复制
-                    </span>
-                  )}
+                  <div className="mt-1 flex w-full items-center justify-end">
+                    {isCopied ? (
+                      <span className="bg-success/15 text-success rounded-md px-2 py-0.5 text-xs font-medium">
+                        {t.copied}
+                      </span>
+                    ) : (
+                      <span className="text-text-faint hover:text-success text-xs transition-colors">
+                        {t.clickToCopy}
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })}
