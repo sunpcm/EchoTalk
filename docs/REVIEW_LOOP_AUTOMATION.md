@@ -215,3 +215,9 @@ skill b09b925完成回答推荐本地增量，过程见[验证](./verification/c
 用户要求核验 main/远端/worktree 后继续，实际均为 `80fb8ec`，仅主目录和 cp00 保留；旧 lane 已归档。评审备份本地 runner/基线后，将既有 b 角色重绑 cp00，控制器也使用同一精确 worktree；旧报告命名空间保留，旧账本不重置。通用 skill 使用本地最新版 `a93a1a8`，未因新问题修改 skill。
 
 Flash Medium 首轮正常交付，Codex 自行审源码、复跑 7 项 quality/后端测试，并做独立浏览器探针与有效变异。文档用语和评审探针 cwd 失误原始记录保存在 `.review/reports/workflow-reduced-motion-a27/issues.md`。专用库初始停止且为空，按既有授权核验身份、审查既有迁移后恢复；未触应用库。未扩模型/权限/源码外发范围，不推送或连接真实业务环境。净额度收益仍未证实。
+
+## 2026-10-24 本地 CI 质量门禁对齐（A30）
+
+基于 RF-04 与 CP-06 门禁真实性要求，将 `.github/workflows/ci.yml` 的 `test-frontend` 执行步骤对齐本地 8 项质量门禁（format、全 workspace lint、全 workspace typecheck、直接 Vite Vitest、构建脚本测试 `test:build`、Fake API 原生进程测试 `test:fake-api`、全 workspace build、Chromium/WebKit 双浏览器 E2E）。
+
+lint、typecheck 与 build 经 `turbo --force` 避免 CI 缓存回放；直接使用 `--filter vite-app` 排除根 `pnpm run test` 中的空任务占位，使所有步骤均对应真实测试 runner。保持既有依赖冻结安装、Playwright 两浏览器安装步骤与 working-directory、Node 22 与 pnpm 10.26.0、test-backend 与 ci 聚合 job 成功断言不变。不修改旧授权策略，未触发远端 Actions，不把本地通过视为远端 Linux CI 已通过。

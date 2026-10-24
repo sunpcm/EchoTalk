@@ -28,16 +28,22 @@ jobs:
         run: pnpm run format:check
 
       - name: Lint
-        run: pnpm run lint
+        run: pnpm exec turbo run lint --force
 
       - name: Typecheck
-        run: pnpm run typecheck
-
-      - name: Build
-        run: pnpm run build
+        run: pnpm exec turbo run typecheck --force
 
       - name: Test (Vitest)
-        run: pnpm run test
+        run: pnpm --filter vite-app test
+
+      - name: Test (Build Scripts)
+        run: pnpm --filter vite-app test:build
+
+      - name: Test (Fake API)
+        run: pnpm --filter vite-app test:fake-api
+
+      - name: Build
+        run: pnpm exec turbo run build --force
 
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium webkit

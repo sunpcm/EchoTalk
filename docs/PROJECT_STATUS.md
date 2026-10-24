@@ -14,6 +14,13 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-24 本地 CI 质量门禁接线实施记录（A30）
+
+基于 TODO.md RF-04 CI 真实性与 CP-06 完整质量门禁要求，完成本地 `.github/workflows/ci.yml` 的 `test-frontend` steps 顺序与命令对齐实施。将 CI 执行步骤对齐本地 8 项真实质量门禁（Format、Lint、Typecheck、直接 Vitest 单测、18 项构建脚本测试、Fake API 原生子进程测试、Build 以及双浏览器 E2E）。通过精确 `--filter vite-app` 入口排除根目录测试占位任务，并通过 `turbo --force` 避免 CI 缓存回放；保持依赖冻结安装、Playwright 安装步骤与 working-directory、Node 22 / pnpm 10.26.0、test-backend 与 ci 聚合 job 成功断言全部不变。
+
+- 本地配置与命令映射见 [CI 质量门禁验证](./verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
+- 本节仅记录本地配置与实施事实，不宣称独立评审或验收结论；未触发远端 GitHub Actions，不把本地门禁通过当做远端 Linux CI 已通过。
+
 ## 2026-10-24 本地 Fake API 契约与真实进程回归增量（A29）
 
 基于 TODO.md P2“Fake API严格解析带项目后缀的analysis-success grammar路径并补回归”及真实 `lib/api.ts` 的 `UserSettingsResponse.theme` 必需三值枚举契约完成实施。修复了 Mock 缺少 theme 字段的问题，重构了 assessment 与 grammar 的严格完整 pathname 锚定匹配，支持项目后缀 slug 并拒绝假命中；支持 `E2E_API_PORT=0` 并新增 Node 原生 `node:test` 真实子进程回归测试套件。本地增量经本地门禁与评审核验通过；无真实外部 Provider 或生产部署。
@@ -283,3 +290,7 @@ skill1c1b68d实际接入12/15必读路径预检，同源CLI目录及专用handof
 ## 2026-10-24 A29 独立验收与本地集成
 
 Fake API 主题必需字段及 success/failure 项目后缀 assessment/grammar 严格路由修复经 Codex 独立评审 APPROVED；新增 Node 真实子进程 runner，使本地完整 quality 为 8 项。648 产品 / 18 构建 / 53 Fake API Node / 120 双浏览器与专用 PostgreSQL 269 通过，另 33 独立 HTTP、生命周期故障探针及两有效变异通过。启动失败/挂起 body/并发终止与断言异常清理均有本地证据。后续继续补齐 CI 显式执行步骤；远端 CI、真实链路与发布仍分别验收，未推送或部署。
+
+## 2026-10-25 A30 CI 真实测试入口
+
+Codex 独立评审 APPROVED：前端 CI 显式执行 Vitest、构建脚本与 Fake API Node 测试，lint/typecheck/build 强制执行；后端、触发器及聚合成功断言保持不变。648 产品 / 18 构建 / 53 Fake API Node / 120 双浏览器和专用 PostgreSQL 269 通过，YAML 语义不变量及两有效变异通过。见[验证](./verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。这仅完成本地配置与验证，远端 Linux CI、RF-04 整体验收及发布仍待执行；未推送或部署。

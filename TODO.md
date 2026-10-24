@@ -27,7 +27,10 @@
 
 - [ ] **RF-04 CI 真实性**：真实 Web + Fake API E2E 覆盖健康检查、创建/结束会话、
       分析成功、分析失败与失败后退出；统一 Ruff；PostgreSQL 空库迁移与合理覆盖率进入
-      CI；聚合 `CI` 仅在必要任务全部成功后通过。
+      CI；聚合 `CI` 仅在必要任务全部成功后通过。本地配置已将 `test-frontend` 对齐
+      8 项真实质量门禁（直接 Vitest、18 项构建脚本测试及 Fake API 原生进程回归，经
+      turbo --force 避免缓存回放，见 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)）；
+      远端 Linux CI 实际通过证据仍待独立验收，整项保持未勾选。
 
 ### Phase 1：分析可靠性
 
@@ -219,7 +222,7 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 ### CP-06：自动化与真实链路回归
 
 - [x] 本地双浏览器门禁：保留完整质量检查，Chromium/WebKit各11项，覆盖分析/恢复/401边界、0skip；CI安装接线已更新，见[验证](./docs/verification/cross-platform/CP-06-WEBKIT.md)。
-- [ ] 取得Linux CI双浏览器实际通过证据并完成真实链路回归；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态；Mock 测试与真实 Provider 验收分别报告。
+- [ ] 取得Linux CI双浏览器实际通过证据并完成真实链路回归；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态；Mock 测试与真实 Provider 验收分别报告。本地 CI 已对齐 8 项门禁接线（含直接 Vitest、构建脚本及 Fake API 原生子进程测试，经 turbo --force），见 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；真实 Linux CI 证据仍待远端完成。
 - [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。
