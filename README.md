@@ -30,6 +30,8 @@
 
 ## 技术架构
 
+当前状态与验证边界见 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)，三端目标与交付门禁见 [docs/CROSS_PLATFORM_ARCHITECTURE.md](docs/CROSS_PLATFORM_ARCHITECTURE.md)；[历史架构审计](docs/ARCHITECTURE.md)保留早期设计与风险快照。
+
 ```
 ┌────────────────────────────────────────────────────────┐
 │ 前端 (Vite + React 19 + TypeScript)                      │
@@ -59,7 +61,9 @@
 
 ---
 
-## Docker 容器化部署（生产环境推荐）
+## Docker Compose 本地集成基线
+
+> Compose 用于本地集成和单机验证；当前仓库入口仅提供 HTTP，迁移与语料播种须单独执行，生产 TLS、备份及高可用需要另行配置。
 
 ### 前置条件
 
