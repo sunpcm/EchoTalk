@@ -187,3 +187,7 @@ CLI1.4.6 r1流出现step_update.step_type=checkpoint（DONE），终止SUCCESS�
 ## A24 本地导入里程碑（2026-10-24）
 
 继续使用本地skill1c1b68d，Flash首轮与集中返工均完整交付，无权限或流恢复问题。独立审查在七门禁全绿后仍发现提交至passive清理间隙P1、旧回调测试optional空调用未实际触发、BOM二次删除正文三项；集中关闭，11时序/18真实浏览器与两有效变异证实。细节与用量见[验证](./verification/cross-platform/CP-05-DOC-IMPORT.md)，问题保存在本地workflow-doc-import-a24/issues.md，当前不再扩全局skill；真机与真实环境边界保留。
+
+## A25 中断恢复与布局验收（2026-10-24）
+
+从已核实的A24完成点续做A25，无重复启动。首轮非必需CLI配置读取命中deny，保持规则与失败记录，正式reconcile后同Flash冷启动恢复；未请求新增权限。独立审查在全页几何通过后发现标题自身32px/scroll59溢出，集中关闭并补默认回归。完整最终证据与用量见[验证](./verification/cross-platform/CP-05-DOC-LAYOUT.md)。快速三项检查与完整七项可能共享task名，必须据确定summary的实际check ids判断，不只读finished/checks_passed。其余候选留本地workflow-doc-layout-a25/issues.md，不自动扩skill。
