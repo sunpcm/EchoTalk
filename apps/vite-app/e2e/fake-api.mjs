@@ -63,6 +63,7 @@ const server = createServer(async (request, response) => {
       is_custom_mode: false,
       is_custom_verified: false,
       subscription_tier: "free",
+      theme: "warm",
       stt_provider: null,
       llm_provider: null,
       llm_model: null,
@@ -221,27 +222,22 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (
-    method === "GET" &&
-    (pathname.includes("/assessments/analysis-success/grammar") ||
-      (pathname.includes("/assessments/analysis-failure") && pathname.endsWith("/grammar")))
-  ) {
+  const assessmentGrammarMatch = pathname.match(
+    /^\/api\/assessments\/((?:analysis-success|analysis-failure)(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?)\/grammar$/,
+  );
+  if (method === "GET" && assessmentGrammarMatch) {
     sendJson(response, 200, []);
     return;
   }
 
-  if (
-    method === "GET" &&
-    (pathname.startsWith("/api/assessments/analysis-success") ||
-      pathname.startsWith("/api/assessments/analysis-failure"))
-  ) {
-    const isFailure = pathname.includes("analysis-failure");
-    const requestedSessionId =
-      pathname.split("/api/assessments/")[1] ??
-      (isFailure ? "analysis-failure" : "analysis-success");
+  const assessmentDetailMatch = pathname.match(
+    /^\/api\/assessments\/((?:analysis-success|analysis-failure)(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?)$/,
+  );
+  if (method === "GET" && assessmentDetailMatch) {
+    const sessionId = assessmentDetailMatch[1];
     sendJson(response, 200, {
       id: randomUUID(),
-      session_id: requestedSessionId,
+      session_id: sessionId,
       overall_score: 88,
       phoneme_alignment: [
         {
@@ -266,7 +262,11 @@ const server = createServer(async (request, response) => {
   sendJson(response, 404, { detail: `No fake route for ${method} ${pathname}` });
 });
 
-server.listen(port, host);
+server.listen(port, host, () => {
+  const address = server.address();
+  const actualPort = typeof address === "object" && address !== null ? address.port : port;
+  console.log(`[fake-api] ready on http://${host}:${actualPort}`);
+});
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {

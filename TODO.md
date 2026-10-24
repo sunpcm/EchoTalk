@@ -241,7 +241,7 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 
 - [x] 修正分析hook头部旧Web措辞；列表原生状态未就绪区分尚未查询与已确认空，A20已关闭A17 P2。
 
-- [ ] Fake API严格解析带项目后缀的analysis-success grammar路径并补回归；当前双浏览器门禁不依赖该路径，A14 P2保留。
+- [x] Fake API严格解析带项目后缀的analysis-success/failure与grammar路径并补真实Node子进程回归（test:fake-api），同时修复Fake API缺失必需theme字段的schema问题（A29本地独立评审通过）。
 
 - [ ] Android / Windows：产品确认进入范围后独立做平台最小验证。
 - [ ] 后台持续语音、实时跨设备接力、桌面托盘/全局快捷键与自动更新：有明确需求后单独设计和验收。

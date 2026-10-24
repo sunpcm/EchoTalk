@@ -14,6 +14,14 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-24 本地 Fake API 契约与真实进程回归增量（A29）
+
+基于 TODO.md P2“Fake API严格解析带项目后缀的analysis-success grammar路径并补回归”及真实 `lib/api.ts` 的 `UserSettingsResponse.theme` 必需三值枚举契约完成实施。修复了 Mock 缺少 theme 字段的问题，重构了 assessment 与 grammar 的严格完整 pathname 锚定匹配，支持项目后缀 slug 并拒绝假命中；支持 `E2E_API_PORT=0` 并新增 Node 原生 `node:test` 真实子进程回归测试套件。本地增量经本地门禁与评审核验通过；无真实外部 Provider 或生产部署。
+
+- 本地质量验证：新增真实 runner `pnpm test:fake-api`（`node --test scripts/fake-api-test.mjs`），覆盖 8 个测试套件/27 项断言，包括动态端口绑定、稳定就绪消息、无需认证的健康检查、401 缺/错 token、theme 必填三值枚举、带项目后缀的 assessment 与精确 session_id、带项目后缀的 grammar 与精确空数组返回、12 类负向 404 路由测试，以及有界子进程退出与清理保护。
+- 门禁扩展与 E2E 保持：quality 门禁正式由 7 项扩展为 8 项（含 `fake-api-test`），648 项 Vitest、18 项构建脚本测试、120 项 Chromium/WebKit 双浏览器 E2E（0 skip / 0 failure）全部通过。
+- 契约与记录见 [Fake API 契约验证](./verification/cross-platform/CP-06-FAKE-API-CONTRACTS.md)。真实 Provider、真实 LiveKit 及多设备仍待后续外部验收，不代表三端整体完成。
+
 ## 2026-10-24 本地主题持久化可靠性与稳定选择器增量
 
 基于 TODO.md P2“主题保存后端支持跨设备水合”与“统一主题按钮边框宽度，消除选中时 1px 布局抖动”契约完成客户端本地实施。保持 local-first 体验，完善了认证代际与精确身份绑定、单在途串行意图合并、水合竞争防护及 2px 固定边框无抖动选择器。本地增量经 Codex 独立评审 APPROVED；无真实设备或 Provider 联调，未推送或部署。
@@ -271,3 +279,7 @@ skill1c1b68d实际接入12/15必读路径预检，同源CLI目录及专用handof
 ## 2026-10-24 A25 DocTalk设置页响应式与触控
 
 产品6604516独立APPROVED：窄屏返回与标题/副标题重排，全部动作至少44px，桌面窗口缩小/横屏/200%字号可读且草稿保留；两组件return前与A24文件读取哈希完全保持。首轮固定rem留白造成标题32px内部溢出的P1已关闭；606产品/18构建脚本/82默认双浏览器、22独立浏览器与两有效变异通过，见[验证](./verification/cross-platform/CP-05-DOC-LAYOUT.md)。首轮CLI配置拒读记录保留，权限不变，正式恢复后同Flash冷启动完整交付。仍仅本地隔离集成，不等同真机键盘/safe-area或发布验收。
+
+## 2026-10-24 A29 独立验收与本地集成
+
+Fake API 主题必需字段及 success/failure 项目后缀 assessment/grammar 严格路由修复经 Codex 独立评审 APPROVED；新增 Node 真实子进程 runner，使本地完整 quality 为 8 项。648 产品 / 18 构建 / 53 Fake API Node / 120 双浏览器与专用 PostgreSQL 269 通过，另 33 独立 HTTP、生命周期故障探针及两有效变异通过。启动失败/挂起 body/并发终止与断言异常清理均有本地证据。后续继续补齐 CI 显式执行步骤；远端 CI、真实链路与发布仍分别验收，未推送或部署。
