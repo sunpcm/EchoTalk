@@ -32,15 +32,16 @@ function ScenarioCard({
   onEnter: (scenario: CurriculumRecommendation) => void;
 }) {
   const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-surface-alt text-text-muted";
+  const formattedTitle = formatTitle(scenario.scenario_name);
 
   return (
     <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
-        <h3 className="text-text-default leading-tight font-semibold">
-          {formatTitle(scenario.scenario_name)}
-        </h3>
+        <h3 className="text-text-default leading-tight font-semibold">{formattedTitle}</h3>
         <span
+          title={`难度: ${scenario.difficulty_cefr}`}
+          aria-label={`难度: ${scenario.difficulty_cefr}`}
           className={`ml-2 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cefrColor}`}
         >
           {scenario.difficulty_cefr}
@@ -66,7 +67,8 @@ function ScenarioCard({
       <button
         onClick={() => onEnter(scenario)}
         disabled={isChecking}
-        className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
+        aria-label={`${t.enterPractice}: ${formattedTitle}`}
+        className="btn-primary focus-visible:ring-accent flex w-full items-center justify-center focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isChecking ? (
           <>
@@ -75,6 +77,7 @@ function ScenarioCard({
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <circle
                 className="opacity-25"
