@@ -189,3 +189,11 @@ Turbo缓存显式包含影响构建的公开环境变量、根构建控制变量
 ### 8.8 CP-02 客户端能力发现与开始门禁
 
 按单端占用契约§7/8完成能力发现及开始前失败关闭，本地实现`0753dab`通过独立评审。Cloud客户端协议仍未实现，当前明确不可用；不以能力读取通过宣称接管/恢复可用。认证代际失效的旧启动可释放槽位并显式重试，不干扰新启动。证据及部署先后要求见[能力门禁验证](./verification/cross-platform/CP-02-CAPABILITIES.md)。
+
+### 8.9 CP-02 Agent调度失败闭环（2026-10-22）
+
+PR96已将至A11成果合入main@344e317。下一本地增量按[调度契约](./CROSS_PLATFORM_AGENT_DISPATCH.md)与[验证记录](./verification/cross-platform/CP-02-AGENT-DISPATCH.md)完成共享客户端调度失败提示和停止音频、单次调度及归属门禁。只有用户返回主页后再次明确开始/恢复才推进，不自动重试写请求。Cloud模式、真实媒体、连接离线/Token失效和原生恢复仍待验；默认disabled不变。
+
+### 8.10 CP-02/CP-05 Web连接中断（2026-10-22）
+
+按[连接中断契约](./CROSS_PLATFORM_CONNECTION_FAILURE.md)补齐本地安全关闭与显式恢复，验证见[记录](./verification/cross-platform/CP-02-CONNECTION-FAILURE.md)。只处理已有Token的共享客户端，SDK模拟/DOM事件不替代真实Token过期、物理音频、Cloud及原生系统验收。顺利后连续推进WebKit门禁，仍保留独立评审和权限/产品交互门禁。

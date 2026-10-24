@@ -97,6 +97,9 @@ importers:
       "@biu/ui-lib":
         specifier: workspace:*
         version: link:../../packages/ui-lib
+      "@capacitor/app":
+        specifier: 8.1.2
+        version: 8.1.2(@capacitor/core@8.5.0)
       "@capacitor/core":
         specifier: ^8.5.0
         version: 8.5.0
@@ -1322,6 +1325,14 @@ packages:
       {
         integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==,
       }
+
+  "@capacitor/app@8.1.2":
+    resolution:
+      {
+        integrity: sha512-uKBlsrXH0IdvUn69e/KKYbZ32A06pcrUdG8LWuZ/6y33YMXZXLEEdNSwl+jKS/SrsTWqnePs8EqSWaiQM3mUGA==,
+      }
+    peerDependencies:
+      "@capacitor/core": ">=8.0.0"
 
   "@capacitor/cli@8.5.0":
     resolution:
@@ -10660,6 +10671,10 @@ snapshots:
       css-tree: 3.2.1
 
   "@bufbuild/protobuf@1.10.1": {}
+
+  "@capacitor/app@8.1.2(@capacitor/core@8.5.0)":
+    dependencies:
+      "@capacitor/core": 8.5.0
 
   "@capacitor/cli@8.5.0":
     dependencies:

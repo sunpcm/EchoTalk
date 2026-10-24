@@ -122,6 +122,25 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (method === "GET" && pathname === "/api/sessions/active") {
+    const activeSessions = [...sessions.values()]
+      .filter((s) => s.status === "active")
+      .map(({ id, mode, status, started_at, ended_at }) => ({
+        id,
+        mode,
+        status,
+        started_at,
+        ended_at,
+      }))
+      .sort((a, b) => {
+        const timeDiff = new Date(b.started_at).getTime() - new Date(a.started_at).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return b.id.localeCompare(a.id);
+      });
+    sendJson(response, 200, activeSessions);
+    return;
+  }
+
   const sessionDetailMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/);
   if (method === "GET" && sessionDetailMatch) {
     const session = sessions.get(sessionDetailMatch[1]);
@@ -149,15 +168,15 @@ const server = createServer(async (request, response) => {
     const queuedStatus = analysisJobs.get(sessionId);
     const status = queuedStatus
       ? queuedStatus
-      : sessionId === "analysis-success"
+      : sessionId.startsWith("analysis-success")
         ? "succeeded"
-        : sessionId === "analysis-failure"
+        : sessionId.startsWith("analysis-failure")
           ? "failed"
-          : sessionId === "analysis-unsupported"
+          : sessionId.startsWith("analysis-unsupported")
             ? "failed"
-            : sessionId === "analysis-pending"
+            : sessionId.startsWith("analysis-pending")
               ? "pending"
-              : sessionId === "analysis-running"
+              : sessionId.startsWith("analysis-running")
                 ? "running"
                 : undefined;
     if (!status) {
@@ -170,16 +189,16 @@ const server = createServer(async (request, response) => {
       attempt_count: status === "failed" ? 3 : status === "pending" ? 0 : 1,
       error_code:
         status === "failed"
-          ? sessionId === "analysis-unsupported"
+          ? sessionId.startsWith("analysis-unsupported")
             ? "analysis_unsupported"
             : "analysis_failed"
           : null,
-      retryable: status === "failed" && sessionId !== "analysis-unsupported",
+      retryable: status === "failed" && !sessionId.startsWith("analysis-unsupported"),
       started_at: status === "pending" ? null : new Date().toISOString(),
       finished_at: status === "succeeded" || status === "failed" ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     });
-    if (sessionId === "analysis-failure" && status === "pending") {
+    if (sessionId.startsWith("analysis-failure") && status === "pending") {
       analysisJobs.set(sessionId, "succeeded");
     }
     return;
@@ -204,8 +223,8 @@ const server = createServer(async (request, response) => {
 
   if (
     method === "GET" &&
-    (pathname === "/api/assessments/analysis-success/grammar" ||
-      pathname === "/api/assessments/analysis-failure/grammar")
+    (pathname.includes("/assessments/analysis-success/grammar") ||
+      (pathname.includes("/assessments/analysis-failure") && pathname.endsWith("/grammar")))
   ) {
     sendJson(response, 200, []);
     return;
@@ -213,12 +232,16 @@ const server = createServer(async (request, response) => {
 
   if (
     method === "GET" &&
-    (pathname === "/api/assessments/analysis-success" ||
-      pathname === "/api/assessments/analysis-failure")
+    (pathname.startsWith("/api/assessments/analysis-success") ||
+      pathname.startsWith("/api/assessments/analysis-failure"))
   ) {
+    const isFailure = pathname.includes("analysis-failure");
+    const requestedSessionId =
+      pathname.split("/api/assessments/")[1] ??
+      (isFailure ? "analysis-failure" : "analysis-success");
     sendJson(response, 200, {
       id: randomUUID(),
-      session_id: pathname.endsWith("analysis-failure") ? "analysis-failure" : "analysis-success",
+      session_id: requestedSessionId,
       overall_score: 88,
       phoneme_alignment: [
         {

@@ -18,7 +18,7 @@
 
 ## 当前架构与验收
 
-- [系统架构](./ARCHITECTURE.md)：系统边界和核心链路。
+- [历史系统架构审计](./ARCHITECTURE.md)：2026-09-20 基线快照；当前状态以 PROJECT_STATUS、TODO 和代码为准。
 - [三端架构与交付门禁](./CROSS_PLATFORM_ARCHITECTURE.md)：Web/iOS/macOS 当前事实与交付目标。
 
 | 阶段               | 技术说明                                         | 验收手册                                           | 补充设计                                                     |

@@ -7,6 +7,27 @@ import * as auth from "@/lib/auth";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
 
+const fakeAppListeners = new Set<(state: { isActive: boolean }) => void>();
+let fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+let fakeAppAddListener = vi
+  .fn()
+  .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+    fakeAppListeners.add(listener);
+    return Promise.resolve({
+      remove: vi.fn().mockImplementation(() => {
+        fakeAppListeners.delete(listener);
+        return Promise.resolve();
+      }),
+    });
+  });
+
+vi.mock("@capacitor/app", () => ({
+  App: {
+    getState: (...args: unknown[]) => fakeAppGetState(...args),
+    addListener: (...args: unknown[]) => fakeAppAddListener(...args),
+  },
+}));
+
 const t = zhCN.activeSessions;
 
 function createDeferred<T>() {
@@ -2673,6 +2694,1134 @@ describe("ActiveSessions Component", () => {
 
         expect(screen.queryByTestId(`resume-confirm-panel-${id2}`)).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Native iOS Lifecycle Consumer (CP-05)", () => {
+    const mockSessions: api.SessionListItem[] = [
+      {
+        id: "sess-native-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2026-10-23T10:00:00Z",
+        ended_at: null,
+      },
+    ];
+
+    beforeEach(() => {
+      fakeAppListeners.clear();
+      fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+      fakeAppAddListener = vi
+        .fn()
+        .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+          fakeAppListeners.add(listener);
+          return Promise.resolve({
+            remove: vi.fn().mockImplementation(() => {
+              fakeAppListeners.delete(listener);
+              return Promise.resolve();
+            }),
+          });
+        });
+
+      (window as unknown as { Capacitor?: unknown }).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+    });
+
+    afterEach(() => {
+      delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+      fakeAppListeners.clear();
+    });
+
+    it("initial native pending does not trigger GET until registered and active, with exactly one query", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+
+      const addListenerDeferred = createDeferred<{ remove(): Promise<void> }>();
+      const getStateDeferred = createDeferred<{ isActive: boolean }>();
+      let capturedListener: ((state: { isActive: boolean }) => void) | null = null;
+
+      fakeAppAddListener.mockImplementationOnce(
+        (_event: string, listener: (state: { isActive: boolean }) => void) => {
+          capturedListener = listener;
+          fakeAppListeners.add(listener);
+          return addListenerDeferred.promise;
+        },
+      );
+      fakeAppGetState.mockImplementationOnce(() => getStateDeferred.promise);
+
+      render(<ActiveSessions />);
+
+      // 在注册 pending 期间：不发起 GET
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
+
+      // addListener resolve
+      await act(async () => {
+        addListenerDeferred.resolve({
+          remove: async () => {
+            if (capturedListener) fakeAppListeners.delete(capturedListener);
+          },
+        });
+        await Promise.resolve();
+      });
+      // getState 仍在 pending，依旧不触发 GET
+      expect(listSpy).not.toHaveBeenCalled();
+
+      // getState resolve active
+      await act(async () => {
+        getStateDeferred.resolve({ isActive: true });
+        await Promise.resolve();
+      });
+
+      // 成功 active 且 Web visible 后，只触发一次 GET 查询（不与 whenReady 重复发起）
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+    });
+
+    it("initial native getState returning inactive does not trigger GET", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("active-sessions-list")).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
+    });
+
+    it("initial native registration failure does not trigger GET", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      fakeAppAddListener.mockImplementationOnce(() =>
+        Promise.reject(new Error("Bridge not ready")),
+      );
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
+    });
+
+    it("query in flight when native transitions to inactive cancels active cycle and leaves list intact, then recovers on active", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      // 初始 active 触发第 1 次 GET
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 原生切到后台 (inactive)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+
+      // 退出 loading，保留当前空或已有列表，不新增错误
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
+
+      // 旧请求迟到 resolve：由于周期已作废，被丢弃
+      await act(async () => {
+        deferred1.resolve(mockSessions);
+        await Promise.resolve();
+      });
+      // 仍然不展示旧数据
+      expect(screen.queryByTestId("session-id-sess-native-1")).not.toBeInTheDocument();
+
+      // 原生重新切回前台 (active)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 自动发起第 2 次查询
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      // 新请求成功 resolve
+      const updatedSessions: api.SessionListItem[] = [
+        {
+          id: "sess-native-2",
+          mode: "scenario",
+          status: "active",
+          started_at: "2026-10-23T11:00:00Z",
+          ended_at: null,
+        },
+      ];
+      await act(async () => {
+        deferred2.resolve(updatedSessions);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId("session-id-sess-native-2")).toHaveTextContent("sess-native-2");
+    });
+
+    it("initial fetch failure can recover on subsequent valid native resume event", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferredFail = createDeferred<api.SessionListItem[]>();
+      const deferredSuccess = createDeferred<api.SessionListItem[]>();
+      listSpy
+        .mockReturnValueOnce(deferredFail.promise)
+        .mockReturnValueOnce(deferredSuccess.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 首次读取失败 (500)
+      await act(async () => {
+        deferredFail.reject(new Error("Server 500 error"));
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.loadError)).toBeInTheDocument();
+
+      // 原生切后台再切前台（触发 resume）
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 自动重新发起查询
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        deferredSuccess.resolve(mockSessions);
+        await Promise.resolve();
+      });
+
+      // 错误状态清除，正常展示列表
+      expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+    });
+
+    it("native inactive overrides DOM visibilitychange and window online/pageshow", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).not.toHaveBeenCalled();
+
+      // DOM 触发 visibilitychange visible、pageshow、online
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("pageshow"));
+        window.dispatchEvent(new Event("online"));
+        await Promise.resolve();
+      });
+
+      // 因为原生 inactive 处于 hidden，原生覆盖 Web，不发起 GET
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("two consumer instances independently register and unmounting one does not remove the other's listener", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+
+      const compA = render(<ActiveSessions />);
+      const compB = render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(fakeAppListeners.size).toBe(2);
+
+      // 卸载组件 A
+      compA.unmount();
+      expect(fakeAppListeners.size).toBe(1);
+
+      listSpy.mockClear();
+
+      // 原生状态变更触发（后台到前台），仅存的组件 B 正常响应
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      compB.unmount();
+      expect(fakeAppListeners.size).toBe(0);
+    });
+
+    it("StrictMode unmount and auth revocation do not leak or perform queries on dead effects", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+
+      const { unmount } = render(
+        <StrictMode>
+          <ActiveSessions />
+        </StrictMode>,
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalled();
+
+      // 退出认证
+      emitAuthSnapshot({ state: "anonymous", principal: null });
+
+      listSpy.mockClear();
+
+      // 原生事件到达
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 未认证绝不发请求
+      expect(listSpy).not.toHaveBeenCalled();
+
+      unmount();
+      expect(fakeAppListeners.size).toBe(0);
+    });
+
+    it("lifecycle events during pending end/resume operations do not auto-retrigger or disrupt POSTs", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      const endSpy = vi.spyOn(api, "endSession");
+      const deferredEnd = createDeferred<api.Session>();
+      endSpy.mockReturnValueOnce(deferredEnd.promise);
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const sessId = "sess-native-1";
+      fireEvent.click(screen.getByTestId(`end-session-button-${sessId}`));
+      fireEvent.click(screen.getByTestId(`confirm-end-button-${sessId}`));
+
+      expect(endSpy).toHaveBeenCalledTimes(1);
+
+      // 在 end 请求在途期间发生原生切后台再恢复
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      // 不重复重发 endSession，已发 POST 保持进行
+      expect(endSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferredEnd.resolve({
+          id: sessId,
+          user_id: "user-1",
+          mode: "free_talk",
+          status: "completed",
+          started_at: "2026-10-23T10:00:00Z",
+          ended_at: "2026-10-23T10:05:00Z",
+          transcripts: [],
+        });
+        await Promise.resolve();
+      });
+
+      // 确认结束成功，移除该项
+      expect(screen.queryByTestId(`active-session-item-${sessId}`)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Query Fact & Lifecycle State (A20 / CROSS_PLATFORM_DISCOVERY_QUERY_STATE)", () => {
+    const mockData: api.SessionListItem[] = [
+      {
+        id: "sess-a20-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2026-10-23T10:00:00Z",
+        ended_at: null,
+      },
+    ];
+
+    beforeEach(() => {
+      fakeAppListeners.clear();
+      fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
+      fakeAppAddListener = vi
+        .fn()
+        .mockImplementation((_event: string, listener: (state: { isActive: boolean }) => void) => {
+          fakeAppListeners.add(listener);
+          return Promise.resolve({
+            remove: vi.fn().mockImplementation(() => {
+              fakeAppListeners.delete(listener);
+              return Promise.resolve();
+            }),
+          });
+        });
+
+      (window as unknown as { Capacitor?: unknown }).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+    });
+
+    afterEach(() => {
+      delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+      fakeAppListeners.clear();
+    });
+
+    it("renders unqueried state with status semantics (not empty) on initial native inactive zero-GET", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue([]);
+      fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
+    });
+
+    it("transitions from unqueried to loading, and only renders empty when GET succeeds with empty array []", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+
+      await act(async () => {
+        deferred.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+    });
+
+    it("transitions from unqueried to loading, and renders active session list on non-empty success", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      await act(async () => {
+        deferred.resolve(mockData);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-id-sess-a20-1")).toHaveTextContent("sess-a20-1");
+    });
+
+    it("preserves unqueried state on initial failure and transitions to empty only after retry succeeds with []", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferredFail = createDeferred<api.SessionListItem[]>();
+      const deferredSuccess = createDeferred<api.SessionListItem[]>();
+      listSpy
+        .mockReturnValueOnce(deferredFail.promise)
+        .mockReturnValueOnce(deferredSuccess.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 初次请求失败
+      await act(async () => {
+        deferredFail.reject(new Error("Network Error"));
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.loadError)).toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+
+      // 点击重试
+      const retryBtn = screen.getByRole("button", { name: t.retry });
+      fireEvent.click(retryBtn);
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 重试成功返回空列表
+      await act(async () => {
+        deferredSuccess.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+    });
+
+    it("background cancellation of in-flight GET does not create empty fact when late response arrives, and recovers after active", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 原生切到后台 (inactive)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+
+      // 退出 loading，由于从未建立成功事实，显示尚未查询，绝不误报空
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(t.unqueried);
+
+      // 旧 GET 迟到 resolve 返回 []，不得新建空事实
+      await act(async () => {
+        deferred1.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
+      expect(screen.getByText(t.unqueried)).toBeInTheDocument();
+
+      // 原生重新切回前台 (active)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: true }));
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 新请求成功 resolve []
+      await act(async () => {
+        deferred2.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+    });
+
+    it("preserves confirmed empty or non-empty fact for the same account across backgrounding/suspend without fabricating new success", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      listSpy.mockResolvedValueOnce([]);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 已建立空事实
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+
+      // 切到后台 (inactive)
+      await act(async () => {
+        fakeAppListeners.forEach((l) => l({ isActive: false }));
+        await Promise.resolve();
+      });
+
+      // 同账号后台保留此前真实成功事实，不回退为尚未查询
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+    });
+
+    it("account switch clears query fact and displays unqueried for new account until new GET succeeds", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 换号到 user-2
+      await act(async () => {
+        emitAuthSnapshot({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-2" },
+        });
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      // 旧 user-1 的请求迟到返回 []
+      await act(async () => {
+        deferred1.resolve([]);
+        await Promise.resolve();
+      });
+
+      // user-2 处于 loading，旧 user-1 迟到不产生影响
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // user-2 请求成功返回空列表
+      await act(async () => {
+        deferred2.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+    });
+
+    it("same principal re-login with bumped revision clears query fact and ignores stale revision response", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions");
+      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListItem[]>();
+      listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
+
+      render(<ActiveSessions />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // 同账号登出
+      await act(async () => {
+        emitAuthSnapshot({ state: "anonymous", principal: null }, true);
+      });
+
+      // 再次登入同账号（revision 递增）
+      await act(async () => {
+        emitAuthSnapshot(
+          {
+            state: "authenticated",
+            principal: { issuer: "https://auth.example.com", subject: "user-1" },
+          },
+          true,
+        );
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      // 旧 revision 1 请求迟到返回 []
+      await act(async () => {
+        deferred1.resolve([]);
+        await Promise.resolve();
+      });
+
+      // 新 revision 仍在 loading
+      expect(screen.getByText(t.loading)).toBeInTheDocument();
+
+      // 新 revision 2 请求成功返回 []
+      await act(async () => {
+        deferred2.resolve([]);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+    });
+
+    it("StrictMode does not leak stale query fact or allow dead effects to create empty state", async () => {
+      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue([]);
+
+      render(
+        <StrictMode>
+          <ActiveSessions />
+        </StrictMode>,
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(listSpy).toHaveBeenCalled();
+      expect(screen.getByText(t.empty)).toBeInTheDocument();
+      expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("CP-05 / A23 Resume Error States & Cancellation Terminal States", () => {
+    const mockSessions: api.SessionListItem[] = [
+      {
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      },
+      {
+        id: "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2026-10-21T11:00:00Z",
+        ended_at: null,
+      },
+    ];
+
+    it("real store linkage: getSessionDetail 503 synchronous idle notification does not swallow error, retains full UUID, and renders 44px retry button", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi
+        .spyOn(api, "getSessionDetail")
+        .mockRejectedValue(new api.ApiError(503, "Service Unavailable"));
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+      const createSpy = vi.spyOn(api, "createSession");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+
+      // 点击确认恢复（真实 store.resumeSession 执行）
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      // 验证：同步 idle 通知不得吞错！专用 resume-error 正常显示，完整 UUID 保留
+      expect(screen.getByTestId(`resume-confirm-panel-${id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+
+      // 专用重试按钮与取消按钮均可用且具备文案与目标
+      const retryBtn = screen.getByTestId(`retry-resume-button-${id}`);
+      expect(retryBtn).toHaveTextContent(t.retryResume);
+      expect(retryBtn).not.toBeDisabled();
+      const cancelBtn = screen.getByTestId(`cancel-resume-button-${id}`);
+      expect(cancelBtn).not.toBeDisabled();
+
+      // 零隐式 Token 或写操作
+      expect(tokenSpy).not.toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+
+      // 测试点击专用重试按钮再次触发真实恢复流程
+      detailSpy.mockResolvedValueOnce({
+        id,
+        user_id: "user-1",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      } as any);
+      vi.spyOn(api, "checkHealthReady").mockResolvedValueOnce({ status: "ready" } as any);
+      tokenSpy.mockResolvedValueOnce({ token: "test-token", ws_url: "wss://lk.test" });
+
+      await act(async () => {
+        fireEvent.click(retryBtn);
+      });
+
+      // 重试成功后，进入 session 视图并关闭恢复面板
+      expect(detailSpy).toHaveBeenCalledTimes(2);
+      expect(tokenSpy).toHaveBeenCalledTimes(1);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().sessionId).toBe(id);
+      expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
+    });
+
+    it("preceding failure: getCallCapabilities rejection shows dedicated resumeError, preserves target UUID, and sends zero detail or token requests", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockRejectedValue(new Error("cap fail"));
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`cancel-resume-button-${id}`)).not.toBeDisabled();
+
+      expect(detailSpy).not.toHaveBeenCalled();
+      expect(tokenSpy).not.toHaveBeenCalled();
+    });
+
+    it("preceding failure: invalid session detail (status not active or ended_at not null) shows dedicated resumeError and sends zero token request", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockResolvedValue({
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        user_id: "user-1",
+        mode: "scenario",
+        status: "completed",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: "2026-10-21T10:30:00Z",
+      } as any);
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(tokenSpy).not.toHaveBeenCalled();
+    });
+
+    it("preceding failure: checkHealthReady rejection shows dedicated resumeError and sends zero token request", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockResolvedValue({
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        user_id: "user-1",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      } as any);
+      vi.spyOn(api, "checkHealthReady").mockRejectedValue(new Error("Health check failed"));
+      const tokenSpy = vi.spyOn(api, "getSessionToken");
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(tokenSpy).not.toHaveBeenCalled();
+    });
+
+    it("preceding failure: getSessionToken rejection shows dedicated resumeError and preserves confirm panel", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockResolvedValue({
+        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        user_id: "user-1",
+        mode: "scenario",
+        status: "active",
+        started_at: "2026-10-21T10:00:00Z",
+        ended_at: null,
+      } as any);
+      vi.spyOn(api, "checkHealthReady").mockResolvedValue({ status: "ready" } as any);
+      vi.spyOn(api, "getSessionToken").mockRejectedValue(new Error("Token failure"));
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+    });
+
+    it("prevents duplicate requests during retry in-flight (single sequential execution)", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+
+      // 首次失败
+      detailSpy.mockRejectedValueOnce(new api.ApiError(503, "503"));
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+
+      // 第 2 次重试，使用 deferred
+      const deferredDetail = createDeferred<any>();
+      detailSpy.mockReturnValueOnce(deferredDetail.promise);
+
+      const retryBtn = screen.getByTestId(`retry-resume-button-${id}`);
+      fireEvent.click(retryBtn);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 在途状态下重复点击
+      fireEvent.click(retryBtn);
+      fireEvent.click(retryBtn);
+
+      // 严格单次触发，不重复发起请求
+      expect(detailSpy).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        deferredDetail.reject(new Error("fail again"));
+      });
+    });
+
+    it("user cancellation after failure clears panel, error, and intent with zero side-effects", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockRejectedValue(new api.ApiError(503, "503"));
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      expect(screen.getByTestId(`resume-error-${id}`)).toBeInTheDocument();
+
+      // 点击取消
+      fireEvent.click(screen.getByTestId(`cancel-resume-button-${id}`));
+
+      // 面板顺利关闭
+      expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
+
+      // 重新打开该记录恢复面板：错误态已被清除，展示原始确认文案
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+      expect(screen.getByTestId(`resume-confirm-panel-${id}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`confirm-resume-button-${id}`)).toHaveTextContent(t.confirmResume);
+    });
+
+    it("cancellation isolation: store.reset during in-flight resume releases slot immediately; late completion of old promise does not pollute new intent", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+      const deferredOld = createDeferred<any>();
+      const deferredNew = createDeferred<any>();
+      detailSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id1 = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      const id2 = "4fa85f64-5717-4562-b3fc-2c963f66afa7";
+
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id1}`));
+      fireEvent.click(screen.getByTestId(`confirm-resume-button-${id1}`));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId(`cancel-resume-button-${id1}`)).toBeDisabled();
+
+      // 触发 store.reset()
+      act(() => {
+        useConversationStore.getState().reset();
+      });
+
+      // UI 槽位立即释放，取消按钮恢复可用
+      expect(screen.getByTestId(`cancel-resume-button-${id1}`)).not.toBeDisabled();
+      fireEvent.click(screen.getByTestId(`cancel-resume-button-${id1}`));
+      expect(screen.queryByTestId(`resume-confirm-panel-${id1}`)).not.toBeInTheDocument();
+
+      // 发起新会话 id2 恢复
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id2}`));
+      fireEvent.click(screen.getByTestId(`confirm-resume-button-${id2}`));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(detailSpy).toHaveBeenCalledTimes(2);
+
+      // 旧的 id1 迟到失败
+      await act(async () => {
+        deferredOld.reject(new Error("Old request 503 aborted"));
+      });
+
+      // 验证：新在途操作不被旧请求污染，不弹出虚假错误
+      expect(screen.getByTestId(`resume-confirm-panel-${id2}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`resume-error-${id2}`)).not.toBeInTheDocument();
+
+      // 新的 id2 完成失败
+      await act(async () => {
+        deferredNew.reject(new api.ApiError(503, "503"));
+      });
+
+      // 此时 id2 正常展示专用错误
+      expect(screen.getByTestId(`resume-error-${id2}`)).toHaveTextContent(t.resumeError);
+    });
+
+    it("does not mutate or clear shared useConversationStore.error upon resume failure (RESUME23-01)", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      vi.spyOn(api, "getSessionDetail").mockRejectedValue(
+        new api.ApiError(503, "503 Service Unavailable"),
+      );
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+      });
+
+      // 组件自身展示专用局部错误
+      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      // store 的全局错误由 store 状态机自身管理，ActiveSessions 严禁反向抹除为 null
+      expect(useConversationStore.getState().error).toBe(t.resumeError);
+    });
+
+    it("subscriber-triggered reset during failure suppresses local error emission (RESUME23-01 / RESUME23-02)", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
+      vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
+        call_lease_mode: "disabled",
+      } as any);
+      const detailSpy = vi.spyOn(api, "getSessionDetail");
+      const deferredDetail = createDeferred<any>();
+      deferredDetail.promise.catch(() => {});
+      detailSpy.mockReturnValue(deferredDetail.promise);
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+      fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
+      fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(detailSpy).toHaveBeenCalledTimes(1);
+
+      // 模拟外部订阅或用户操作在在途期间执行 reset() 作废代际
+      act(() => {
+        useConversationStore.getState().reset();
+      });
+
+      // 随后异步详情查询失败返回
+      await act(async () => {
+        deferredDetail.reject(new api.ApiError(500, "500 Server Error"));
+      });
+
+      // 验证：代际已被作废，卡片不展示残留错误
+      expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`confirm-resume-button-${id}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`retry-resume-button-${id}`)).not.toBeInTheDocument();
     });
   });
 });

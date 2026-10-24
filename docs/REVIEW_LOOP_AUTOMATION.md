@@ -127,3 +127,85 @@ runtime_status要求绝对路径，可用--child显式读取本轮子batch。控
 实际模型活动累计约1783.48秒，其中重叠约560.36秒，只是观测值，不是对照测得提速。两会话最终累计agy total分别498165与211777，续跑累计不再叠r0；缓存/思考单列，不能等同账单或Codex节省。本轮跨中断与继续turn，Codex完整用量在自然结束后另提取，不特意唤醒模型。
 
 本地阶段不push/deploy、不接真实Provider，Cloud/UI/原生恢复后续仍需实现。此里程碑停止下一产品派发，不因文档自动启动新任务。
+
+## A12 调度失败闭环和最新项目策略（2026-10-22）
+
+当前通用skill cd09a3a。EchoTalk按用户最新决定，每独立开发任务最多10次尝试，包含首轮及返工；继续/中断不重置预算，不能换名绕限。暂时关闭agy print-timeout、控制器单次与累计活动时限，继续记录真实活动耗时，保留连续2次无进展、权限拒绝/交付格式及独立评审等全部门禁。其他项目默认不随之改动，配置仍可恢复有限时间上限。
+
+A12从PR96合并后main@344e317建立独立账本，3次累计1400.71秒。首次CLI1.4.5却拒绝已授权Flash Medium，而只读models仍列出该ID；正式reconcile保留历史后同模型重试成功，不能宣称模型下架，也未擅自换模型或扩权限。预检可后续考虑模型目录可用性，目录存在仍不保证实际推理成功。
+
+r1常规quality通过但独立探针发现markDispatched同步通知订阅者后，取消/结束/认证revision/卸载仍发POST；r2补发送前复验关闭。报告起点指纹和原始错误日志一起修正。评审错误runner入口保留并纠正，只有正确lane结果作裁定；两有效变异、21私有探针和完整门禁通过。问题原文在本地.review/reports/workflow-dispatch-a12/issues.md；不自动扩全局skill。
+
+同一agy会话最后累计total733111，不能把r1与r2累计相加；cache_read14093775、thinking39150单列。Codex完整任务额度未测，不给净省额结论。在小里程碑停止下一模型任务，后续再按用户决定评估/优化流程。
+
+## A13与连续推进策略（2026-10-22）
+
+用户已要求顺利时直接进入下一里程碑，不逐里程碑请示/汇报，更新本地问题日志及仓内验证/计划，待集中查看。此策略替代先前各轮“里程碑后停止下一派发”的默认约定；既有授权范围内常规修复/检查/本地commit/隔离集成连续执行，产品决策、新权限/模型或不能继续的阻塞仍交互。单任务预算不重置，独立评审不减少，不自动push/远端merge/deploy或修改全局skill。
+
+A13同会话两次终止ERROR stream interrupted而代码/quality已完成，原始事实保留；同账本冷启动同模型形成完整交付，未改产品，不reparse伪造成功。源码四类P1由集中独立探针定位并修复；49私有探针/有效变异和完整门禁通过。复现及证据在本地.review/reports/workflow-connection-a13，不把项目事故原文写入通用skill。
+
+账本wall活动时间与RuntimeStatus单调时间在宿主暂停/时钟变化情况下可能不一致，原因尚未核实；分别保存原始来源，不重写历史或用墙钟推断精确计费/净省额。后续可考虑用量展示与模型目录预检优化，先积累证据。
+
+用户另行明确批准仅下载匹配WebKit，未升级Playwright/锁文件；现有旧WebKit不匹配，安装webkit-2336并本地启动通过，为后续双浏览器验收准备。仍不冒充Safari/WKWebView真机或真实Provider结果。
+
+## A14宿主中断退出证明与双浏览器（2026-10-22）
+
+宿主中断后先核对PID/进程组与账本，原controller/child均gone而无OS退出记录，尽管raw终止SUCCESS也不推断exit0。使用exit_code:null正式finish并保留原流，经授权范围内reconcile在同账本冷启动原模型补完整交付；消耗次数与活动时间不重置，源码与前轮相同。账本time含恢复等待，不能冒充精确模型计算/计费。
+
+Chromium/WebKit真实收集11/11、0skip；独立Fake API进程探针与行为变异验证新增测试有实际断言。双项目共享analysis-failure ID状态污染由独立项目后缀修复，P2 success grammar派生路径留TODO。报告的媒体mock/本轮未改源码用语在最终验证文档明确边界，不外推真实链路。原始证据在本地.review/reports/workflow-webkit-a14，通用skill未自动改动。
+
+## A15等待频率讨论点（2026-10-23）
+
+用户观察agy常需20–30分钟，希望减少无变化检查；WORKFLOW-WAIT-01保存在本地workflow-analysis-a15/issues.md。后续优先完成事件或较稀疏的有界等待，只导入状态/停止原因/证据索引；遵守宿主沟通要求，但不把重复摘要当新进展、不反复读原始流。轮询间隔具体策略尚待讨论和测量，本次不改通用skill。独立验收、失败关闭、取消及退出核验保持。
+
+A15关闭知识请求在途范围缺口；报告hook数量小错据实际runner更正，不增加模型轮。一个冗余守卫候选变异存活，两个行为关键变异确实失败，保留全部原始证据。后续原生插件新增和本地iOS build+sync已有用户明确授权，超出Xcode/签名/真实服务仍须交互。
+
+## A16流程优化与真实恢复（2026-10-23）
+
+本地通用skill a42fde9（Codex/Claude两checkout同步，未推送）新增最小时序矩阵、长任务低频检查和同账本增量交付；66项离线回归及quick_validate通过，不等同未来Agent遵循/额度收益证明。已知较慢CLI可从3–5分钟元数据检查起步，宿主沟通频率独立遵守，不额外读原始流或承诺不存在的后台事件。
+
+项目只读固定入口：python3 -B /Users/sunpcm/code/EchoTalk/.review/reports/tools/task-status.py workflow-native-a16 b r5；显式task/lane/round，路径从脚本位置确定，不依赖cwd。--diagnose仅失败时离线重放解析元数据，不改旧交付；未知行仅给行号，无正文/代理值。根目录与临时目录结果一致，旧r2失败保持不动。
+
+A16网络reset后复用旧门禁：reuse-r3/r4.json钉源码snapshot和8个证据hash，控制器begin前/结束后复核，任一变化拒绝。离线破坏源码指纹/hash/证据根均阻断，无模型调用/账本变化；补交不从头实现，独立评审与集成门禁保留。r3复用长会话仍失败，原模型新会话r5完整交付，不能据此断言网络根因。r4因CLI从1.4.5到1.4.6在模型前阻断，help/有限fixture后受限固定新版，真实流仍失败关闭。
+
+已记录后续讨论点：仅补交付不改源码仍递增no_progress，连续传输失败可能比10次总预算先触发2次门禁；当前不改定义/预算、不用无关改动绕限。短报告仍须提供完整实际产物路径，本次精简丢路径导致P2误报目录，由最终验证纠正。shell初始化可返回非零，必须核实所需proxy函数/环境和模型前预检；生成/检查仍fail-fast。全部新问题仅本地issues.md，暂不继续叠加全局规则。
+
+## A17/A18新流程观测（2026-10-23）
+
+A17首轮完整交付、无产品返工；35独立探针/两个接线变异通过。A18预置时序矩阵仍发现同步身份复核不释放与初始化早于槽位的P1，集中r1关闭；独立fixture字段错误另行更正并保留原失败，不误归因产品。矩阵是验收约束，不是实现正确/节省额度的证明。
+
+CLI1.4.6 r1流出现step_update.step_type=checkpoint（DONE），终止SUCCESS也因未知schema失败关闭。未临时扩大解析；同模型冷启动仅短交付，绑定旧源码和8个证据hash后完整恢复。后续支持checkpoint需专门脱敏fixture、字段和工具拒权边界验证，不直接放行任意step_type；事件原文和SHA仅本地报告。
+
+仅补交付回执补真实三文件绝对路径，A18短报告已准确；仍保留报告错误/传输与no_progress计数等后续讨论。项目诊断入口固定绝对路径与cwd无关，模型等待稀疏摘要检查，宿主沟通频率独立遵守。新问题只记本地，不因每个事故再膨胀通用skill；最终实际收益待可比较的Codex额度数据。
+
+## A22/A23里程碑观测（2026-10-24）
+
+最新本地skill1c1b68d继续实际运行，A22完成活动列表布局，A23修复真实store正常失败与取消的通知区分。每次浏览器采用独立output目录，旧失败附件保留。A23首轮仍出现测试选择器约束诱发的产品状态写，独立同步订阅反例后集中关闭；仅放开两处过期定位器迁移，不弱化旧副作用断言。r1 checkpoint未知流继续失败关闭，同模型冷启动短交付+源码和8旧证据hash复用恢复，不临时放宽解析。
+
+新问题在本地workflow-resume-error-a23/issues.md，包含长等待沟通噪声、选择器与行为断言范围区分、私有Vitest依赖解析及产品测试名称不代表同步订阅事实；不自动再改skill。用量见本轮验证文档，按每会话末累计去重，不把agy用量等量当Codex节约。
+
+## A24 本地导入里程碑（2026-10-24）
+
+继续使用本地skill1c1b68d，Flash首轮与集中返工均完整交付，无权限或流恢复问题。独立审查在七门禁全绿后仍发现提交至passive清理间隙P1、旧回调测试optional空调用未实际触发、BOM二次删除正文三项；集中关闭，11时序/18真实浏览器与两有效变异证实。细节与用量见[验证](./verification/cross-platform/CP-05-DOC-IMPORT.md)，问题保存在本地workflow-doc-import-a24/issues.md，当前不再扩全局skill；真机与真实环境边界保留。
+
+## A25 中断恢复与布局验收（2026-10-24）
+
+从已核实的A24完成点续做A25，无重复启动。首轮非必需CLI配置读取命中deny，保持规则与失败记录，正式reconcile后同Flash冷启动恢复；未请求新增权限。独立审查在全页几何通过后发现标题自身32px/scroll59溢出，集中关闭并补默认回归。完整最终证据与用量见[验证](./verification/cross-platform/CP-05-DOC-LAYOUT.md)。快速三项检查与完整七项可能共享task名，必须据确定summary的实际check ids判断，不只读finished/checks_passed。其余候选留本地workflow-doc-layout-a25/issues.md，不自动扩skill。
+
+## 2026-10-24 检查范围与拒权早停优化
+
+本次只优化工作流，不启动新的产品任务或模型会话。固定runner的baseline/quality清单现在分别声明check_kind和required_check_ids；当前B线完整quality为format、lint、typecheck、test、build-script-test、build、e2e，baseline仅前三项。组合进度显示声明范围及预期/结束/通过ID，不能凭task名或checks_passed认定完整验收；coverage=complete也可能包含失败，必须结合逐项状态。
+
+下一轮本地控制器模板为`.review/reports/tools/pilot-frontend-next-agy.py`，需要评审方准备`workflow-frontend-next/plan.json`、task_id、prompt_prefix、分支/基线及既有授权文件后才能启动；不得复用已完成A25账本。模板读取既有完整行时接通通用permission_denied辅助函数，命中已验证tool ERROR拒权即记录early-stop.json、停止自有进程组，原始流不改，最终normalize与finish仍保留blocked_permission和消费。CLI及累计任务时间默认沿用用户选择的不限时；不修改权限。A24/A25旧控制器和证据原样保留。
+
+迟到回调实际执行规则进入通用评审指南；几何范围与截图经验留[项目布局清单](./verification/cross-platform/UI-LOCAL-CHECKLIST.md)。无阶段变化时等待沟通简短，详细日志仅在诊断或验收读取。
+
+验证仅使用临时Git仓、本地子进程及脱敏流，覆盖拒权早停、进程组清理、部分交付分类、账本计数和范围缺项预检。没有用真实agy调用验证新模板，也没有净Codex额度节约的新结论；下一次真实开发继续观察并记录问题。
+
+本轮同步skill提交为`b09b925`（Codex/Claude两份一致），各79项离线测试及quick_validate通过。实际固定runner的B线baseline已通过三项检查，回执明确kind=baseline、expected/completed/passed均为三项；没有以此声称完整七项quality或真实模型验收通过。
+
+## A26 使用新工作流的实际观测（2026-10-24）
+
+skill b09b925完成回答推荐本地增量，过程见[验证](./verification/cross-platform/CP-05-ANSWER-RECOMMENDATIONS.md)。r0 lint失败即停，check_scope准确显示quality覆盖未完成；r1七项全绿时才显示完整。未触发真实拒权，不能声称早停已在本轮真实CLI验证。
+
+独立评审仍发现作用域文本遗漏、StrictMode效果重放、render取消已提交timer与16px逐字竖排，集中返工关闭；这属于已有评审规则/项目几何清单的实施遗漏，不自动增加通用规则。版本漂移在模型前阻断，20项本地适配回归和help核对后受限接纳1.4.7，实际流完整无拒绝，计数不洗掉。完整账本输出应由控制器capture后只给小元数据；长任务宿主沟通与低频状态读取分别记录。原证据与问题留本地，未push或连接真实业务服务。

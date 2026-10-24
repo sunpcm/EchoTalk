@@ -37,13 +37,14 @@ export function PromptBuilder({ value, onChange }: PromptBuilderProps) {
               type="button"
               aria-pressed={isActive}
               onClick={() => onChange(preset.prompt)}
-              className={`focus-visible:ring-accent rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
+              data-testid={`doc-prompt-preset-${preset.label}`}
+              className={`focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
                 isActive
                   ? "border-accent bg-accent text-accent-contrast font-semibold shadow-sm"
                   : "border-accent-soft-border bg-accent-soft-bg text-accent-soft-text hover:bg-accent-soft-bg-strong"
               }`}
             >
-              {preset.label}
+              <span className="break-words">{preset.label}</span>
             </button>
           );
         })}

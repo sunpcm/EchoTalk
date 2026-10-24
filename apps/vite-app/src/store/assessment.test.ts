@@ -194,4 +194,146 @@ describe("assessment store", () => {
       expect(useAssessmentStore.getState().knowledgeStates).toEqual([]);
     });
   });
+
+  describe("isCurrent predicate cancellation", () => {
+    it("aborts before getAnalysisStatus if isCurrent is initially false", async () => {
+      const isCurrent = vi.fn().mockReturnValue(false);
+      const res = await useAssessmentStore.getState().refreshAnalysis("session-1", isCurrent);
+
+      expect(res).toBeNull();
+      expect(api.getAnalysisStatus).not.toHaveBeenCalled();
+      expect(useAssessmentStore.getState().loadState).toBe("idle");
+    });
+
+    it("aborts after status check before result GET if isCurrent becomes false", async () => {
+      let current = true;
+      const isCurrent = () => current;
+
+      vi.mocked(api.getAnalysisStatus).mockImplementationOnce(async () => {
+        current = false;
+        return { ...baseJob, status: "succeeded" };
+      });
+
+      const res = await useAssessmentStore.getState().refreshAnalysis("session-1", isCurrent);
+
+      expect(res).toBeNull();
+      expect(api.getAssessment).not.toHaveBeenCalled();
+      expect(api.getGrammarErrors).not.toHaveBeenCalled();
+      expect(useAssessmentStore.getState().loadState).toBe("idle");
+    });
+
+    it("aborts before writing loaded state if isCurrent becomes false after result GET", async () => {
+      let current = true;
+      const isCurrent = () => current;
+
+      vi.mocked(api.getAnalysisStatus).mockResolvedValue({
+        ...baseJob,
+        status: "succeeded",
+      });
+      vi.mocked(api.getAssessment).mockImplementationOnce(async () => {
+        current = false;
+        return {
+          id: "assess-1",
+          session_id: "session-1",
+          overall_score: 80,
+          phoneme_alignment: [],
+          source: "test",
+          provider: null,
+          model_version: null,
+          is_synthetic: false,
+          confidence: null,
+          provider_response_ref: null,
+          created_at: "2026-09-21T00:00:00Z",
+        };
+      });
+      vi.mocked(api.getGrammarErrors).mockResolvedValue([]);
+
+      const res = await useAssessmentStore.getState().refreshAnalysis("session-1", isCurrent);
+
+      expect(res).toBeNull();
+      expect(useAssessmentStore.getState().loadState).toBe("idle");
+      expect(useAssessmentStore.getState().assessment).toBeNull();
+    });
+
+    it("silently swallows error without writing error state or throwing if isCurrent is false", async () => {
+      vi.mocked(api.getAnalysisStatus).mockRejectedValue(new Error("Network failed"));
+
+      const isCurrent = vi.fn().mockReturnValue(false);
+      const res = await useAssessmentStore.getState().refreshAnalysis("session-1", isCurrent);
+
+      expect(res).toBeNull();
+      expect(useAssessmentStore.getState().error).toBeNull();
+      expect(useAssessmentStore.getState().loadState).toBe("idle");
+    });
+
+    it("swallows error if isCurrent becomes false during getAnalysisStatus rejection", async () => {
+      let current = true;
+      const isCurrent = () => current;
+      vi.mocked(api.getAnalysisStatus).mockImplementationOnce(async () => {
+        current = false;
+        throw new Error("Network timeout");
+      });
+
+      const res = await useAssessmentStore.getState().refreshAnalysis("session-1", isCurrent);
+
+      expect(res).toBeNull();
+      expect(useAssessmentStore.getState().error).toBeNull();
+      expect(useAssessmentStore.getState().loadState).toBe("idle");
+    });
+
+    it("cancels fetchKnowledgeStates without requesting or writing if isCurrent is false", async () => {
+      const isCurrent = vi.fn().mockReturnValue(false);
+      await useAssessmentStore.getState().fetchKnowledgeStates(isCurrent);
+
+      expect(api.getKnowledgeStates).not.toHaveBeenCalled();
+      expect(useAssessmentStore.getState().knowledgeStates).toEqual([]);
+    });
+
+    it("discards knowledge results if isCurrent becomes false before write", async () => {
+      let current = true;
+      const isCurrent = () => current;
+      vi.mocked(api.getKnowledgeStates).mockImplementationOnce(async () => {
+        current = false;
+        return [
+          {
+            id: "k-1",
+            user_id: "u-1",
+            skill_id: "s-1",
+            skill_name: "Grammar",
+            skill_category: "grammar",
+            p_mastery: 0.95,
+            updated_at: "2026-01-01",
+          },
+        ];
+      });
+
+      await useAssessmentStore.getState().fetchKnowledgeStates(isCurrent);
+
+      expect(useAssessmentStore.getState().knowledgeStates).toEqual([]);
+    });
+
+    it("does not reset store or cancel in-flight retry POST when read is cancelled", async () => {
+      let resolveRetry!: (val: api.AnalysisStatusResponse) => void;
+      vi.mocked(api.retryAnalysis).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRetry = resolve;
+          }),
+      );
+
+      const retryPromise = useAssessmentStore.getState().retryFailedAnalysis("session-1");
+
+      const cancelledReadRes = await useAssessmentStore
+        .getState()
+        .refreshAnalysis("session-1", () => false);
+
+      expect(cancelledReadRes).toBeNull();
+
+      resolveRetry({ ...baseJob, attempt_count: 4, status: "pending" });
+      await retryPromise;
+
+      expect(useAssessmentStore.getState().loadState).toBe("pending");
+      expect(useAssessmentStore.getState().pollVersion).toBe(1);
+    });
+  });
 });

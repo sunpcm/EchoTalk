@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@biu/ui-lib": "workspace:*",
+    "@capacitor/app": "8.1.2",
     "@capacitor/core": "^8.5.0",
     "@livekit/components-react": "^2.9.20",
     "@livekit/components-styles": "^1.2.0",

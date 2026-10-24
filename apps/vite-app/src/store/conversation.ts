@@ -22,17 +22,73 @@ import {
   subscribeAuthSnapshot,
   type AuthPrincipal,
 } from "@/lib/auth";
-import { createWebLifecycleAdapter } from "@/platform";
+import {
+  createLifecycleAdapter,
+  detectPlatform,
+  type LifecycleAdapter,
+  type LifecycleOptions,
+} from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
 interface ActiveStartupTracker {
-  gen: number;
-  principal: AuthPrincipal;
-  revision: number;
+  readonly gen: number;
+  readonly principal: AuthPrincipal;
+  readonly revision: number;
+  readonly adapter: LifecycleAdapter;
+  isDisposed: boolean;
   cleanup: () => void;
 }
 
 let currentStartupTracker: ActiveStartupTracker | null = null;
+let testingLifecycleOptions: LifecycleOptions | null = null;
+
+/** 测试注入生命周期选项（仅用于测试，生产为 null 使用真实环境） */
+export function _setLifecycleOptionsForTesting(options: LifecycleOptions | null): void {
+  testingLifecycleOptions = options;
+}
+
+function isNativeIos(options?: LifecycleOptions | null): boolean {
+  const resolved =
+    options?.platform ??
+    detectPlatform({
+      window: options?.webOptions?.window,
+      navigator: options?.webOptions?.navigator as { userAgent?: string } | undefined,
+    });
+  return resolved === "ios";
+}
+
+function isValidOrigin(origin: unknown): origin is { principal: AuthPrincipal; revision: number } {
+  if (
+    !origin ||
+    typeof origin !== "object" ||
+    !("principal" in origin) ||
+    !("revision" in origin)
+  ) {
+    return false;
+  }
+  const o = origin as { principal?: unknown; revision?: unknown };
+  if (
+    !o.principal ||
+    typeof o.principal !== "object" ||
+    !("issuer" in o.principal) ||
+    !("subject" in o.principal)
+  ) {
+    return false;
+  }
+  const p = o.principal as { issuer?: unknown; subject?: unknown };
+  if (
+    typeof p.issuer !== "string" ||
+    p.issuer.trim() === "" ||
+    typeof p.subject !== "string" ||
+    p.subject.trim() === ""
+  ) {
+    return false;
+  }
+  if (typeof o.revision !== "number" || !Number.isSafeInteger(o.revision) || o.revision <= 0) {
+    return false;
+  }
+  return true;
+}
 
 /** 连接状态枚举 */
 export type ConnectionState =
@@ -42,7 +98,9 @@ export type ConnectionState =
   | "active"
   | "ending"
   | "end_failed"
-  | "ended";
+  | "ended"
+  | "dispatch_failed"
+  | "connection_failed";
 
 /** 顶层视图枚举 */
 export type AppView = "dashboard" | "session" | "doc-chat-setup";
@@ -67,6 +125,15 @@ interface ConversationStore {
   selectedScenario: CurriculumRecommendation | null;
   /** Agent DataChannel 错误（自定义轨 fail-fast） */
   agentError: { code: string; message: string } | null;
+  /** 已调度的会话 ID 与代际（用于 LiveKit dispatchAgent 单次去重） */
+  dispatchedGen: number | null;
+  dispatchedSessionId: string | null;
+  /** 检查并标记本次会话代际已发起调度，成功返回 true，已调度过返回 false */
+  markDispatched: (sessionId: string, forGen: number) => boolean;
+  /** 标记 Agent 调度失败：立即清除 Token/URL，状态进入 dispatch_failed */
+  failDispatch: (forSessionId?: string, forGen?: number) => void;
+  /** 标记语音连接失败或中断：立即清除 Token/URL，状态进入 connection_failed */
+  failConnection: (forSessionId?: string, forGen?: number) => void;
 
   /** 开始新会话：创建 session -> 获取 token -> 切换到 session 视图 */
   startSession: (mode: string, docContext?: DocContext) => Promise<void>;
@@ -99,6 +166,59 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   error: null,
   selectedScenario: null,
   agentError: null,
+  dispatchedGen: null,
+  dispatchedSessionId: null,
+
+  markDispatched: (sessionId: string, forGen: number) => {
+    const state = get();
+    if (state.dispatchedSessionId === sessionId && state.dispatchedGen === forGen) {
+      return false;
+    }
+    set({ dispatchedSessionId: sessionId, dispatchedGen: forGen });
+    return true;
+  },
+
+  failDispatch: (forSessionId?: string, forGen?: number) => {
+    const state = get();
+    if (forSessionId && state.sessionId !== forSessionId) {
+      return;
+    }
+    if (forGen !== undefined && state.sessionGen !== forGen) {
+      return;
+    }
+    if (state.connectionState !== "connecting" && state.connectionState !== "active") {
+      return;
+    }
+    set({
+      connectionState: "dispatch_failed",
+      token: null,
+      wsUrl: null,
+      error: null,
+    });
+  },
+
+  failConnection: (forSessionId?: string, forGen?: number) => {
+    const state = get();
+    if (forSessionId && state.sessionId !== forSessionId) {
+      return;
+    }
+    if (forGen !== undefined && state.sessionGen !== forGen) {
+      return;
+    }
+    if (state.connectionState !== "connecting" && state.connectionState !== "active") {
+      return;
+    }
+    if (currentStartupTracker) {
+      currentStartupTracker.cleanup();
+      currentStartupTracker = null;
+    }
+    set({
+      connectionState: "connection_failed",
+      token: null,
+      wsUrl: null,
+      error: null,
+    });
+  },
 
   startSession: async (mode: string, docContext?: DocContext) => {
     // 1. 防止重复调用（如双击或 StrictMode 双渲染），在途能力查询和启动去重
@@ -119,17 +239,120 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
     const targetGen = get().sessionGen + 1;
 
+    // 3. 先保留共享去重槽位，不切换视图，代际递增，防双击/同步 store 订阅者重入或 addListener 同步重入创建两次
+    set({
+      sessionGen: targetGen,
+      connectionState: "checking_health",
+      error: null,
+    });
+
+    // 写后立即复核同步订阅者通知是否已取消或改变认证（START-01/02）
+    if (get().sessionGen !== targetGen) {
+      return;
+    }
+    const postSetSnap = getAuthSnapshot();
+    if (
+      postSetSnap.state !== "authenticated" ||
+      !postSetSnap.principal ||
+      !arePrincipalsEqual(postSetSnap.principal, startPrincipal) ||
+      getAuthRevision() !== startRevision
+    ) {
+      set({
+        sessionGen: targetGen + 1,
+        connectionState: "idle",
+        appView: "dashboard",
+        sessionId: null,
+        token: null,
+        wsUrl: null,
+        error: null,
+      });
+      return;
+    }
+
     // 清理先前可能遗留的 tracker
     if (currentStartupTracker) {
       currentStartupTracker.cleanup();
       currentStartupTracker = null;
     }
 
-    let tracker: ActiveStartupTracker | null = null;
-    const unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
-      // 必须仍归属本次启动代际
-      if (get().sessionGen !== targetGen) {
-        tracker?.cleanup();
+    let lifecycleAdapter: LifecycleAdapter;
+    try {
+      lifecycleAdapter = createLifecycleAdapter(testingLifecycleOptions ?? undefined);
+    } catch {
+      if (get().sessionGen === targetGen) {
+        set({
+          sessionGen: targetGen + 1,
+          connectionState: "idle",
+          appView: "dashboard",
+          sessionId: null,
+          token: null,
+          wsUrl: null,
+          error: zhCN.conversation.lifecycleUnavailable,
+        });
+      }
+      return;
+    }
+
+    // 复核在 createLifecycleAdapter / addListener 同步执行期间是否发生取消、换号或新意图
+    if (get().sessionGen !== targetGen) {
+      lifecycleAdapter.dispose();
+      return;
+    }
+    const postAdapterSnap = getAuthSnapshot();
+    if (
+      postAdapterSnap.state !== "authenticated" ||
+      !postAdapterSnap.principal ||
+      !arePrincipalsEqual(postAdapterSnap.principal, startPrincipal) ||
+      getAuthRevision() !== startRevision
+    ) {
+      lifecycleAdapter.dispose();
+      set({
+        sessionGen: targetGen + 1,
+        connectionState: "idle",
+        appView: "dashboard",
+        sessionId: null,
+        token: null,
+        wsUrl: null,
+        error: null,
+      });
+      return;
+    }
+
+    let isReady = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let unsubscribeAuth: () => void = () => {};
+    let unsubscribeLifecycle: () => void = () => {};
+
+    const tracker: ActiveStartupTracker = {
+      gen: targetGen,
+      principal: startPrincipal,
+      revision: startRevision,
+      adapter: lifecycleAdapter,
+      isDisposed: false,
+      cleanup: () => {
+        if (tracker.isDisposed) return;
+        tracker.isDisposed = true;
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        unsubscribeAuth();
+        unsubscribeLifecycle();
+        try {
+          lifecycleAdapter.dispose();
+        } catch {
+          // swallow
+        }
+        if (currentStartupTracker === tracker) {
+          currentStartupTracker = null;
+        }
+      },
+    };
+    currentStartupTracker = tracker;
+
+    unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
+      if (get().sessionGen !== targetGen || tracker.isDisposed) {
+        tracker.cleanup();
         return;
       }
       const state = get();
@@ -148,34 +371,54 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         currentRev === startRevision;
 
       if (!isStillValid) {
-        tracker?.cleanup();
-        // 认证事件发生时立即释放启动槽位，状态恢复为可重试，不覆盖新启动
-        set({
-          sessionGen: targetGen + 1,
-          connectionState: "idle",
-          appView: "dashboard",
-          sessionId: null,
-          token: null,
-          wsUrl: null,
-          error: null,
-        });
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
+        }
       }
     });
 
-    tracker = {
-      gen: targetGen,
-      principal: startPrincipal,
-      revision: startRevision,
-      cleanup: () => {
-        unsubscribeAuth();
-        if (currentStartupTracker === tracker) {
-          currentStartupTracker = null;
+    unsubscribeLifecycle = lifecycleAdapter.subscribe((event) => {
+      if (get().sessionGen !== targetGen || tracker.isDisposed) {
+        tracker.cleanup();
+        return;
+      }
+      const state = get();
+      const isStarting =
+        state.connectionState === "checking_health" ||
+        (state.connectionState === "connecting" && !state.token);
+      if (!isStarting) {
+        return;
+      }
+      const shouldCancel =
+        event.type === "suspend" ||
+        event.snapshot.online === false ||
+        (isReady && event.snapshot.visibility === "hidden");
+      if (shouldCancel) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
         }
-      },
-    };
-    currentStartupTracker = tracker;
+      }
+    });
 
-    const isGenCurrent = (): boolean => get().sessionGen === targetGen;
+    const isGenCurrent = (): boolean => get().sessionGen === targetGen && !tracker.isDisposed;
     const isAuthCurrent = (): boolean => {
       const currentSnap = getAuthSnapshot();
       if (currentSnap.state !== "authenticated" || !currentSnap.principal) return false;
@@ -183,17 +426,58 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       if (getAuthRevision() !== startRevision) return false;
       return true;
     };
+    const isLifecycleCurrent = (): boolean => {
+      const lifeSnap = lifecycleAdapter.getSnapshot();
+      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) return false;
+      return true;
+    };
 
-    // 检查代际与认证归属：
-    // 若代际已过（如已 goHome 或进入新启动），绝不修改 store；
-    // 若代际匹配但认证已变，则释放启动槽位为 idle，使状态可重试，不卡死重复开始。
-    const checkOrRelease = (): boolean => {
+    const checkOrRelease = (customError?: string | null): boolean => {
       if (!isGenCurrent()) {
-        tracker?.cleanup();
+        tracker.cleanup();
         return false;
       }
       if (!isAuthCurrent()) {
-        tracker?.cleanup();
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: customError !== undefined ? customError : null,
+          });
+        }
+        return false;
+      }
+      if (!isLifecycleCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: customError !== undefined ? customError : zhCN.conversation.lifecycleUnavailable,
+          });
+        }
+        return false;
+      }
+      return true;
+    };
+
+    // 复核在订阅建立过程中是否有变动（原生环境在就绪前处于 pending，不得在此阶段按未就绪快照拒绝）
+    if (!isGenCurrent()) {
+      tracker.cleanup();
+      return;
+    }
+    if (!isAuthCurrent()) {
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
         set({
           sessionGen: targetGen + 1,
           connectionState: "idle",
@@ -203,90 +487,192 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           wsUrl: null,
           error: null,
         });
-        return false;
       }
-      return true;
-    };
+      return;
+    }
 
-    // 3. 先置为检查状态，不切换视图，代际递增，涵盖能力查询
-    set({
-      sessionGen: targetGen,
-      connectionState: "checking_health",
-      error: null,
-    });
+    if (isNativeIos(testingLifecycleOptions)) {
+      // 4. 原生环境：等待原生就绪门禁，最多 10 秒超时
+      let timedOut = false;
+      let readyFailed = false;
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("LIFECYCLE_TIMEOUT"));
+        }, 10000);
+      });
 
-    // 4. 通话能力发现与门禁 (CP-02 §8)
+      try {
+        await Promise.race([lifecycleAdapter.whenReady(), timeoutPromise]);
+      } catch {
+        // 超时或原生就绪抛错
+        readyFailed = true;
+      } finally {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      }
+
+      if (!isGenCurrent()) {
+        tracker.cleanup();
+        return;
+      }
+
+      if (!isAuthCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
+        }
+        return;
+      }
+
+      // 真正就绪后核验原生状态与在线提示
+      if (timedOut || readyFailed || !isLifecycleCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: zhCN.conversation.lifecycleUnavailable,
+          });
+        }
+        return;
+      }
+      isReady = true;
+    } else {
+      // Web 环境：立即就绪，检查初始显式 hidden / offline
+      if (!isGenCurrent()) {
+        tracker.cleanup();
+        return;
+      }
+      if (!isAuthCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
+        }
+        return;
+      }
+      if (!isLifecycleCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: zhCN.conversation.lifecycleUnavailable,
+          });
+        }
+        return;
+      }
+      isReady = true;
+    }
+
+    // 5. 通话能力发现与门禁 (CP-02 §8)
+    if (!checkOrRelease()) return;
     let capabilities;
     try {
       capabilities = await getCallCapabilities();
     } catch (err) {
       if (!checkOrRelease()) return;
       console.error("Call capabilities check failed:", err);
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.conversation.capabilitiesFailed,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.conversation.capabilitiesFailed,
+        });
+      }
       return;
     }
 
     if (!checkOrRelease()) return;
 
-    // 当前客户端仅支持 disabled 模式，livekit_cloud 模式受控失败关闭
     if (capabilities.call_lease_mode !== "disabled") {
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.conversation.capabilitiesUnsupported,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.conversation.capabilitiesUnsupported,
+        });
+      }
       return;
     }
 
-    // 5. 健康检查
+    // 6. 健康检查
+    if (!checkOrRelease()) return;
     try {
       await checkHealthReady();
     } catch (err) {
       if (!checkOrRelease()) return;
       console.error("Health check failed:", err);
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: err instanceof Error ? err.message : "服务不可用，请稍后再试或检查相关配置",
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: err instanceof Error ? err.message : "服务不可用，请稍后再试或检查相关配置",
+        });
+      }
       return;
     }
 
     if (!checkOrRelease()) return;
 
-    // 6. 检查可用后再切换到 session 视图并创建实际会话
+    // 7. 切换到 session 视图并创建实际会话
     set({ connectionState: "connecting", appView: "session", error: null });
+    if (!checkOrRelease()) return;
+
     try {
       const session = await createSession(mode, docContext);
       if (!checkOrRelease()) return;
 
-      // 创建成功立即保存归属 ID，防止在 getSessionToken 在途期间无法结束
       set({ sessionId: session.id });
+      if (!checkOrRelease()) return;
 
       const { token, ws_url } = await getSessionToken(session.id);
       if (!checkOrRelease()) return;
 
-      tracker?.cleanup();
+      tracker.cleanup();
       set({
         token,
         wsUrl: ws_url,
-        // 状态保持 connecting，等 LiveKit 连接成功后由 setActive 切到 active
       });
     } catch (err) {
       if (!checkOrRelease()) return;
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: err instanceof Error ? err.message : "连接失败",
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: err instanceof Error ? err.message : "连接失败",
+        });
+      }
     }
   },
 
@@ -301,21 +687,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     if (!isValidUuid(sessionId)) return false;
 
     // 3. 独立校验 origin 结构
-    if (
-      !origin ||
-      typeof origin !== "object" ||
-      !origin.principal ||
-      typeof origin.principal !== "object" ||
-      typeof origin.principal.issuer !== "string" ||
-      origin.principal.issuer.trim() === "" ||
-      typeof origin.principal.subject !== "string" ||
-      origin.principal.subject.trim() === "" ||
-      typeof origin.revision !== "number" ||
-      !Number.isSafeInteger(origin.revision) ||
-      origin.revision <= 0
-    ) {
-      return false;
-    }
+    if (!isValidOrigin(origin)) return false;
 
     // 4. 独立校验 origin 与当前认证快照及 revision 严格一致
     const authSnapshot = getAuthSnapshot();
@@ -328,17 +700,39 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       return false;
     }
 
-    // 5. 独立校验前台/在线提示门禁（unknown/null 保留未知语义，hidden 或 false 失败关闭）
-    const lifecycleAdapter = createWebLifecycleAdapter();
-    const initialLifeSnap = lifecycleAdapter.getSnapshot();
-    if (initialLifeSnap.visibility === "hidden" || initialLifeSnap.online === false) {
-      lifecycleAdapter.dispose();
-      return false;
-    }
-
     const startRevision = origin.revision;
     const startPrincipal = origin.principal;
     const targetGen = get().sessionGen + 1;
+
+    // 5. 先保留共享去重槽位，不切换视图，代际递增，防双击/同步 store 订阅者重入或 addListener 同步重入
+    set({
+      sessionGen: targetGen,
+      connectionState: "checking_health",
+      error: null,
+    });
+
+    // 写后立即复核同步订阅者通知是否已取消或改变认证（START-01/02）
+    if (get().sessionGen !== targetGen) {
+      return false;
+    }
+    const postSetSnap = getAuthSnapshot();
+    if (
+      postSetSnap.state !== "authenticated" ||
+      !postSetSnap.principal ||
+      !arePrincipalsEqual(postSetSnap.principal, startPrincipal) ||
+      getAuthRevision() !== startRevision
+    ) {
+      set({
+        sessionGen: targetGen + 1,
+        connectionState: "idle",
+        appView: "dashboard",
+        sessionId: null,
+        token: null,
+        wsUrl: null,
+        error: null,
+      });
+      return false;
+    }
 
     // 清理先前可能遗留的 tracker
     if (currentStartupTracker) {
@@ -346,11 +740,84 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       currentStartupTracker = null;
     }
 
-    let tracker: ActiveStartupTracker | null = null;
+    let lifecycleAdapter: LifecycleAdapter;
+    try {
+      lifecycleAdapter = createLifecycleAdapter(testingLifecycleOptions ?? undefined);
+    } catch {
+      if (get().sessionGen === targetGen) {
+        set({
+          sessionGen: targetGen + 1,
+          connectionState: "idle",
+          appView: "dashboard",
+          sessionId: null,
+          token: null,
+          wsUrl: null,
+          error: zhCN.conversation.lifecycleUnavailable,
+        });
+      }
+      return false;
+    }
 
-    const unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
-      if (get().sessionGen !== targetGen) {
-        tracker?.cleanup();
+    // 复核在 createLifecycleAdapter / addListener 同步执行期间是否发生取消、换号或新意图
+    if (get().sessionGen !== targetGen) {
+      lifecycleAdapter.dispose();
+      return false;
+    }
+    const postAdapterSnap = getAuthSnapshot();
+    if (
+      postAdapterSnap.state !== "authenticated" ||
+      !postAdapterSnap.principal ||
+      !arePrincipalsEqual(postAdapterSnap.principal, startPrincipal) ||
+      getAuthRevision() !== startRevision
+    ) {
+      lifecycleAdapter.dispose();
+      set({
+        sessionGen: targetGen + 1,
+        connectionState: "idle",
+        appView: "dashboard",
+        sessionId: null,
+        token: null,
+        wsUrl: null,
+        error: null,
+      });
+      return false;
+    }
+
+    let isReady = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let unsubscribeAuth: () => void = () => {};
+    let unsubscribeLifecycle: () => void = () => {};
+
+    const tracker: ActiveStartupTracker = {
+      gen: targetGen,
+      principal: startPrincipal,
+      revision: startRevision,
+      adapter: lifecycleAdapter,
+      isDisposed: false,
+      cleanup: () => {
+        if (tracker.isDisposed) return;
+        tracker.isDisposed = true;
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        unsubscribeAuth();
+        unsubscribeLifecycle();
+        try {
+          lifecycleAdapter.dispose();
+        } catch {
+          // swallow
+        }
+        if (currentStartupTracker === tracker) {
+          currentStartupTracker = null;
+        }
+      },
+    };
+    currentStartupTracker = tracker;
+
+    unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
+      if (get().sessionGen !== targetGen || tracker.isDisposed) {
+        tracker.cleanup();
         return;
       }
       const state = get();
@@ -369,22 +836,24 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         currentRev === startRevision;
 
       if (!isStillValid) {
-        tracker?.cleanup();
-        set({
-          sessionGen: targetGen + 1,
-          connectionState: "idle",
-          appView: "dashboard",
-          sessionId: null,
-          token: null,
-          wsUrl: null,
-          error: null,
-        });
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
+        }
       }
     });
 
-    const unsubscribeLifecycle = lifecycleAdapter.subscribe((event) => {
-      if (get().sessionGen !== targetGen) {
-        tracker?.cleanup();
+    unsubscribeLifecycle = lifecycleAdapter.subscribe((event) => {
+      if (get().sessionGen !== targetGen || tracker.isDisposed) {
+        tracker.cleanup();
         return;
       }
       const state = get();
@@ -394,40 +863,27 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       if (!isStarting) {
         return;
       }
-      if (
+      const shouldCancel =
         event.type === "suspend" ||
-        event.snapshot.visibility === "hidden" ||
-        event.snapshot.online === false
-      ) {
-        tracker?.cleanup();
-        set({
-          sessionGen: targetGen + 1,
-          connectionState: "idle",
-          appView: "dashboard",
-          sessionId: null,
-          token: null,
-          wsUrl: null,
-          error: null,
-        });
+        event.snapshot.online === false ||
+        (isReady && event.snapshot.visibility === "hidden");
+      if (shouldCancel) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
+        }
       }
     });
 
-    tracker = {
-      gen: targetGen,
-      principal: startPrincipal,
-      revision: startRevision,
-      cleanup: () => {
-        unsubscribeAuth();
-        unsubscribeLifecycle();
-        lifecycleAdapter.dispose();
-        if (currentStartupTracker === tracker) {
-          currentStartupTracker = null;
-        }
-      },
-    };
-    currentStartupTracker = tracker;
-
-    const isGenCurrent = (): boolean => get().sessionGen === targetGen;
+    const isGenCurrent = (): boolean => get().sessionGen === targetGen && !tracker.isDisposed;
     const isAuthCurrent = (): boolean => {
       const currentSnap = getAuthSnapshot();
       if (currentSnap.state !== "authenticated" || !currentSnap.principal) return false;
@@ -441,13 +897,52 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       return true;
     };
 
-    const checkOrRelease = (): boolean => {
+    const checkOrRelease = (customError?: string | null): boolean => {
       if (!isGenCurrent()) {
-        tracker?.cleanup();
+        tracker.cleanup();
         return false;
       }
-      if (!isAuthCurrent() || !isLifecycleCurrent()) {
-        tracker?.cleanup();
+      if (!isAuthCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: customError !== undefined ? customError : null,
+          });
+        }
+        return false;
+      }
+      if (!isLifecycleCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: customError !== undefined ? customError : zhCN.conversation.lifecycleUnavailable,
+          });
+        }
+        return false;
+      }
+      return true;
+    };
+
+    // 复核在订阅建立过程中是否有变动（原生环境在就绪前处于 pending，不得在此阶段按未就绪快照拒绝）
+    if (!isGenCurrent()) {
+      tracker.cleanup();
+      return false;
+    }
+    if (!isAuthCurrent()) {
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
         set({
           sessionGen: targetGen + 1,
           connectionState: "idle",
@@ -457,61 +952,159 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           wsUrl: null,
           error: null,
         });
+      }
+      return false;
+    }
+
+    if (isNativeIos(testingLifecycleOptions)) {
+      // 原生环境：等待原生就绪门禁，最多 10 秒超时
+      let timedOut = false;
+      let readyFailed = false;
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("LIFECYCLE_TIMEOUT"));
+        }, 10000);
+      });
+
+      try {
+        await Promise.race([lifecycleAdapter.whenReady(), timeoutPromise]);
+      } catch {
+        // 超时或原生就绪抛错
+        readyFailed = true;
+      } finally {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      }
+
+      if (!isGenCurrent()) {
+        tracker.cleanup();
         return false;
       }
-      return true;
-    };
 
-    // 先置为 checking_health 状态，不切换视图，代际递增，成功 Token 前不写 sessionId
-    set({
-      sessionGen: targetGen,
-      connectionState: "checking_health",
-      error: null,
-    });
+      if (!isAuthCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
+        }
+        return false;
+      }
 
-    if (!checkOrRelease()) return false;
+      // 真正就绪后核验原生状态与在线提示
+      if (timedOut || readyFailed || !isLifecycleCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: zhCN.conversation.lifecycleUnavailable,
+          });
+        }
+        return false;
+      }
+      isReady = true;
+    } else {
+      // Web 环境：立即就绪，检查初始显式 hidden / offline
+      if (!isGenCurrent()) {
+        tracker.cleanup();
+        return false;
+      }
+      if (!isAuthCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: null,
+          });
+        }
+        return false;
+      }
+      if (!isLifecycleCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          set({
+            sessionGen: targetGen + 1,
+            connectionState: "idle",
+            appView: "dashboard",
+            sessionId: null,
+            token: null,
+            wsUrl: null,
+            error: zhCN.conversation.lifecycleUnavailable,
+          });
+        }
+        return false;
+      }
+      isReady = true;
+    }
 
     // Step 1: getCallCapabilities
+    if (!checkOrRelease()) return false;
     let capabilities;
     try {
       capabilities = await getCallCapabilities();
     } catch (err) {
       if (!checkOrRelease()) return false;
       console.error("Call capabilities check failed:", err);
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.conversation.capabilitiesFailed,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.conversation.capabilitiesFailed,
+        });
+      }
       return false;
     }
 
     if (!checkOrRelease()) return false;
 
     if (capabilities.call_lease_mode !== "disabled") {
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.conversation.capabilitiesUnsupported,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.conversation.capabilitiesUnsupported,
+        });
+      }
       return false;
     }
 
     // Step 2: getSessionDetail(sessionId)
+    if (!checkOrRelease()) return false;
     let sessionDetail;
     try {
       sessionDetail = await getSessionDetail(sessionId);
     } catch (err) {
       if (!checkOrRelease()) return false;
       console.error("Get session detail failed:", err);
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.activeSessions.resumeError,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.activeSessions.resumeError,
+        });
+      }
       return false;
     }
 
@@ -528,27 +1121,32 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       sessionDetail.ended_at === null;
 
     if (!isValidDetail) {
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.activeSessions.resumeError,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.activeSessions.resumeError,
+        });
+      }
       return false;
     }
 
     // Step 3: checkHealthReady
+    if (!checkOrRelease()) return false;
     try {
       await checkHealthReady();
     } catch (err) {
       if (!checkOrRelease()) return false;
       console.error("Health check failed:", err);
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.activeSessions.resumeError,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.activeSessions.resumeError,
+        });
+      }
       return false;
     }
 
@@ -561,12 +1159,14 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     } catch (err) {
       if (!checkOrRelease()) return false;
       console.error("Get session token failed:", err);
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.activeSessions.resumeError,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.activeSessions.resumeError,
+        });
+      }
       return false;
     }
 
@@ -582,19 +1182,21 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       tokenRes.ws_url.trim() !== "";
 
     if (!isValidToken) {
-      tracker?.cleanup();
-      set({
-        connectionState: "idle",
-        appView: "dashboard",
-        error: zhCN.activeSessions.resumeError,
-      });
+      tracker.cleanup();
+      if (get().sessionGen === targetGen) {
+        set({
+          connectionState: "idle",
+          appView: "dashboard",
+          error: zhCN.activeSessions.resumeError,
+        });
+      }
       return false;
     }
 
     if (!checkOrRelease()) return false;
 
     // Step 5: 有效 Token 完成后才原子发布 sessionId、token、wsUrl、connectionState=connecting 及 appView=session
-    tracker?.cleanup();
+    tracker.cleanup();
     set({
       sessionId,
       token: tokenRes.token,
@@ -715,6 +1317,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       wsUrl: null,
       error: null,
       agentError: null,
+      dispatchedGen: null,
+      dispatchedSessionId: null,
     }));
   },
 
@@ -733,6 +1337,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       error: null,
       selectedScenario: null,
       agentError: null,
+      dispatchedGen: null,
+      dispatchedSessionId: null,
     }));
   },
 }));

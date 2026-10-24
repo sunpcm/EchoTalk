@@ -6,5 +6,5 @@
     "androidScheme": "https",
     "iosScheme": "capacitor"
   },
-  "packageClassList": []
+  "packageClassList": ["AppPlugin"]
 }

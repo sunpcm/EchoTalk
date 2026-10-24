@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { useConversationStore } from "./conversation";
+import { useConversationStore, _setLifecycleOptionsForTesting } from "./conversation";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
+import type { AppStateSource } from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
 vi.mock("@/lib/api", () => {
@@ -39,6 +40,7 @@ describe("useConversationStore", () => {
   beforeEach(() => {
     useConversationStore.getState().goHome();
     vi.clearAllMocks();
+    _setLifecycleOptionsForTesting(null);
     authSnapshotListeners.clear();
     vi.mocked(auth.getAuthSnapshot).mockReturnValue({
       state: "authenticated",
@@ -52,6 +54,7 @@ describe("useConversationStore", () => {
   });
 
   afterEach(() => {
+    _setLifecycleOptionsForTesting(null);
     vi.restoreAllMocks();
   });
 
@@ -1799,6 +1802,1154 @@ describe("useConversationStore", () => {
       await p1;
       expect(useConversationStore.getState().sessionId).toBe(validUuid);
       expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+  });
+
+  describe("Agent dispatch failure and deduplication (CP-02 §2, §3)", () => {
+    it("markDispatched only succeeds once per sessionId and sessionGen pair", () => {
+      const store = useConversationStore.getState();
+      expect(store.markDispatched("sess-1", 1)).toBe(true);
+      // 同一 pair 重复调用返回 false
+      expect(store.markDispatched("sess-1", 1)).toBe(false);
+
+      // 新代际允许再次成功
+      expect(store.markDispatched("sess-1", 2)).toBe(true);
+      expect(store.markDispatched("sess-1", 2)).toBe(false);
+
+      // 新 session 允许再次成功
+      expect(store.markDispatched("sess-2", 2)).toBe(true);
+      expect(store.markDispatched("sess-2", 2)).toBe(false);
+    });
+
+    it("failDispatch clears token and wsUrl and sets state to dispatch_failed when matching", () => {
+      useConversationStore.setState({
+        sessionId: "sess-fail-target",
+        sessionGen: 3,
+        token: "tok-to-clear",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+      });
+
+      // 不同的 sessionId 忽略
+      useConversationStore.getState().failDispatch("sess-other", 3);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-to-clear");
+
+      // 不同的 sessionGen 忽略
+      useConversationStore.getState().failDispatch("sess-fail-target", 2);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-to-clear");
+
+      // 匹配时执行
+      useConversationStore.getState().failDispatch("sess-fail-target", 3);
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("dispatch_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+      expect(state.sessionId).toBe("sess-fail-target");
+    });
+
+    it("failDispatch does not mutate state when already ended, ending, or idle", () => {
+      for (const nonActive of ["ended", "ending", "end_failed", "idle"] as const) {
+        useConversationStore.setState({
+          sessionId: "sess-ignore",
+          sessionGen: 1,
+          token: null,
+          connectionState: nonActive,
+        });
+
+        useConversationStore.getState().failDispatch("sess-ignore", 1);
+        expect(useConversationStore.getState().connectionState).toBe(nonActive);
+      }
+    });
+
+    it("setActive cannot revive dispatch_failed state", () => {
+      useConversationStore.setState({
+        sessionId: "sess-cannot-revive",
+        sessionGen: 1,
+        token: null,
+        connectionState: "dispatch_failed",
+      });
+
+      useConversationStore.getState().setActive("sess-cannot-revive", 1);
+      expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+    });
+
+    it("goHome resets dispatch_failed state to idle and increments generation", () => {
+      useConversationStore.setState({
+        sessionId: "sess-go-home",
+        sessionGen: 1,
+        token: null,
+        connectionState: "dispatch_failed",
+        appView: "session",
+        dispatchedGen: 1,
+        dispatchedSessionId: "sess-go-home",
+      });
+
+      useConversationStore.getState().goHome();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.sessionGen).toBe(2);
+      expect(state.dispatchedGen).toBeNull();
+      expect(state.dispatchedSessionId).toBeNull();
+    });
+  });
+
+  describe("Web connection failure and interruption (A13)", () => {
+    it("failConnection clears token and wsUrl and sets state to connection_failed when matching", () => {
+      useConversationStore.setState({
+        sessionId: "sess-conn-fail",
+        sessionGen: 2,
+        token: "tok-conn-fail",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+      });
+
+      // 不同的 sessionId 忽略
+      useConversationStore.getState().failConnection("sess-other", 2);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-conn-fail");
+
+      // 不同的 sessionGen 忽略
+      useConversationStore.getState().failConnection("sess-conn-fail", 1);
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).toBe("tok-conn-fail");
+
+      // 匹配时执行
+      useConversationStore.getState().failConnection("sess-conn-fail", 2);
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connection_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+      expect(state.sessionId).toBe("sess-conn-fail");
+      expect(state.sessionGen).toBe(2);
+    });
+
+    it("failConnection works from active state", () => {
+      useConversationStore.setState({
+        sessionId: "sess-conn-active",
+        sessionGen: 5,
+        token: "tok-active",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+      });
+
+      useConversationStore.getState().failConnection("sess-conn-active", 5);
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connection_failed");
+      expect(state.token).toBeNull();
+      expect(state.wsUrl).toBeNull();
+    });
+
+    it("failConnection does not mutate state when already ended, ending, end_failed, or idle", () => {
+      for (const nonActive of ["ended", "ending", "end_failed", "idle"] as const) {
+        useConversationStore.setState({
+          sessionId: "sess-conn-ignore",
+          sessionGen: 1,
+          token: null,
+          connectionState: nonActive,
+        });
+
+        useConversationStore.getState().failConnection("sess-conn-ignore", 1);
+        expect(useConversationStore.getState().connectionState).toBe(nonActive);
+      }
+    });
+
+    it("stale failConnection does not cancel active startup tracker (CON-03)", async () => {
+      let resolveCaps!: (val: api.CallCapabilitiesResponse) => void;
+      vi.mocked(api.getCallCapabilities).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCaps = resolve;
+          }),
+      );
+
+      // 发起 startup
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 收到过期的 failConnection 调用（不匹配的 sessionId 或 sessionGen）
+      useConversationStore.getState().failConnection("stale-sess", 999);
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 验证 currentStartupTracker 依然完好，未被过期的 failConnection 取消或清空
+      // 触发 authSnapshotListener 事件
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      for (const listener of Array.from(authSnapshotListeners)) {
+        listener({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+        });
+      }
+
+      // 状态成功被 startupTracker 中止并重置为 idle
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+
+      resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
+      await promise;
+    });
+
+    it("setActive cannot revive connection_failed state", () => {
+      useConversationStore.setState({
+        sessionId: "sess-dead-conn",
+        sessionGen: 1,
+        token: null,
+        connectionState: "connection_failed",
+      });
+
+      useConversationStore.getState().setActive("sess-dead-conn", 1);
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+    });
+
+    it("goHome resets connection_failed state to idle, increments generation, and allows new session", async () => {
+      useConversationStore.setState({
+        sessionId: "sess-cf-home",
+        sessionGen: 3,
+        token: null,
+        connectionState: "connection_failed",
+        appView: "session",
+      });
+
+      useConversationStore.getState().goHome();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.sessionGen).toBe(4);
+
+      // 从 idle 允许发起新会话
+      vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValueOnce({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValueOnce({
+        id: "sess-after-cf",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValueOnce({
+        token: "tok-after-cf",
+        ws_url: "wss://lk.test",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().sessionId).toBe("sess-after-cf");
+      expect(useConversationStore.getState().token).toBe("tok-after-cf");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+  });
+
+  describe("A18 Native startup & explicit resume readiness gate (CP-05 §§1–5)", () => {
+    interface FakeAppStateSource extends AppStateSource {
+      getState: ReturnType<typeof vi.fn<() => Promise<{ isActive: boolean }>>>;
+      addListener: ReturnType<
+        typeof vi.fn<
+          (
+            eventName: "appStateChange",
+            listenerFunc: (state: { isActive: boolean }) => void,
+          ) => Promise<{ remove(): Promise<void> }>
+        >
+      >;
+      emitAppStateChange: (state: { isActive: boolean }) => void;
+      removeMock: ReturnType<typeof vi.fn<() => Promise<void>>>;
+    }
+
+    function createFakeApp(initialActive = true): FakeAppStateSource {
+      let callback: ((state: { isActive: boolean }) => void) | undefined;
+      const removeMock = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      const addListener = vi.fn<
+        (
+          eventName: "appStateChange",
+          listenerFunc: (state: { isActive: boolean }) => void,
+        ) => Promise<{ remove(): Promise<void> }>
+      >((_eventName: "appStateChange", listenerFunc: (state: { isActive: boolean }) => void) => {
+        callback = listenerFunc;
+        return Promise.resolve({ remove: removeMock });
+      });
+      const getState = vi.fn<() => Promise<{ isActive: boolean }>>().mockResolvedValue({
+        isActive: initialActive,
+      });
+
+      return {
+        getState,
+        addListener,
+        removeMock,
+        emitAppStateChange(state: { isActive: boolean }) {
+          callback?.(state);
+        },
+      };
+    }
+
+    const validUuid = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const validOrigin = {
+      principal: { issuer: "https://auth.example.com", subject: "user-1" },
+      revision: 1,
+    };
+
+    it("startSession: keeps pending with zero external calls, and proceeds once upon active", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      const fakeApp = createFakeApp();
+      fakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "sess-native-1",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-native-1",
+        ws_url: "wss://lk.test",
+      });
+
+      const pStart = useConversationStore.getState().startSession("free_talk");
+
+      // 等待 listener 注册发起，进入 checking_health
+      await vi.waitFor(() => {
+        expect(fakeApp.addListener).toHaveBeenCalledWith("appStateChange", expect.any(Function));
+      });
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 处于 pending 状态期间，外部 API 零调用
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.createSession).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+
+      // 原生状态变为前台 active
+      resolveGetState({ isActive: true });
+      await pStart;
+
+      // 就绪后按严格顺序推进一次
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+      expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+      expect(api.createSession).toHaveBeenCalledWith("free_talk", undefined);
+      expect(api.getSessionToken).toHaveBeenCalledWith("sess-native-1");
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connecting");
+      expect(state.sessionId).toBe("sess-native-1");
+      expect(state.token).toBe("tok-native-1");
+    });
+
+    it("resumeSession: keeps pending with zero external calls, and proceeds once upon active", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      const fakeApp = createFakeApp();
+      fakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      vi.mocked(api.getSessionDetail).mockResolvedValue({
+        id: validUuid,
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-resume-1",
+        ws_url: "wss://lk.test",
+      });
+
+      const pResume = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+      await vi.waitFor(() => {
+        expect(fakeApp.addListener).toHaveBeenCalledWith("appStateChange", expect.any(Function));
+      });
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // pending 期间零 API 调用
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(api.getSessionDetail).not.toHaveBeenCalled();
+      expect(api.checkHealthReady).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+
+      resolveGetState({ isActive: true });
+      const result = await pResume;
+
+      expect(result).toBe(true);
+      expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+      expect(api.getSessionDetail).toHaveBeenCalledWith(validUuid);
+      expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+      expect(api.getSessionToken).toHaveBeenCalledWith(validUuid);
+      expect(api.createSession).not.toHaveBeenCalled();
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connecting");
+      expect(state.sessionId).toBe(validUuid);
+      expect(state.token).toBe("tok-resume-1");
+    });
+
+    it("fails closed with lifecycleUnavailable when native initializes as inactive, allowing explicit retry", async () => {
+      const fakeApp = createFakeApp(false);
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+
+      // 允许显式重试
+      const retryApp = createFakeApp(true);
+      _setLifecycleOptionsForTesting({ platform: "ios", app: retryApp });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "retry-sess",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "retry-token",
+        ws_url: "wss://lk.test",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().sessionId).toBe("retry-sess");
+    });
+
+    it("fails closed without leaking raw error when addListener or getState rejects, allowing explicit retry", async () => {
+      const fakeApp = createFakeApp();
+      fakeApp.addListener.mockRejectedValue(
+        new Error("Sensitive internal CoreBluetooth / iOS error"),
+      );
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.error).toBe(zhCN.conversation.lifecycleUnavailable);
+      expect(state.error).not.toContain("Sensitive internal CoreBluetooth");
+
+      // 针对 resumeSession 同理
+      const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      expect(res).toBe(false);
+      expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+    });
+
+    it("fails closed when getState rejects without leaking raw error", async () => {
+      const fakeApp = createFakeApp();
+      fakeApp.getState.mockRejectedValueOnce(new Error("App.getState bridge timeout"));
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.error).toBe(zhCN.conversation.lifecycleUnavailable);
+      expect(state.error).not.toContain("bridge timeout");
+    });
+
+    it("times out after 10 seconds of pending native readiness, cleans up, and allows explicit retry", async () => {
+      vi.useFakeTimers();
+      try {
+        const fakeApp = createFakeApp();
+        fakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+        const pStart = useConversationStore.getState().startSession("free_talk");
+        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+        expect(api.getCallCapabilities).not.toHaveBeenCalled();
+
+        // 前进 9999ms，仍在等待
+        await vi.advanceTimersByTimeAsync(9999);
+        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+        expect(api.getCallCapabilities).not.toHaveBeenCalled();
+
+        // 达到 10000ms 超时
+        await vi.advanceTimersByTimeAsync(1);
+        await pStart;
+
+        expect(api.getCallCapabilities).not.toHaveBeenCalled();
+        const state = useConversationStore.getState();
+        expect(state.connectionState).toBe("idle");
+        expect(state.appView).toBe("dashboard");
+        expect(state.error).toBe(zhCN.conversation.lifecycleUnavailable);
+        expect(fakeApp.removeMock).toHaveBeenCalled();
+
+        // 显式重试能够成功
+        const retryApp = createFakeApp(true);
+        _setLifecycleOptionsForTesting({ platform: "ios", app: retryApp });
+        vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+        vi.mocked(api.createSession).mockResolvedValue({
+          id: "retry-after-10s",
+          user_id: "u1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+          transcripts: [],
+        });
+        vi.mocked(api.getSessionToken).mockResolvedValue({
+          token: "retry-10s-tok",
+          ws_url: "wss://lk.test",
+        });
+
+        const pRetry = useConversationStore.getState().startSession("free_talk");
+        await pRetry;
+
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useConversationStore.getState().sessionId).toBe("retry-after-10s");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("resumeSession times out after 10 seconds of pending native readiness and allows explicit retry", async () => {
+      vi.useFakeTimers();
+      try {
+        const fakeApp = createFakeApp();
+        fakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+        const pResume = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+        await vi.advanceTimersByTimeAsync(10000);
+        const result = await pResume;
+
+        expect(result).toBe(false);
+        expect(useConversationStore.getState().connectionState).toBe("idle");
+        expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+        expect(fakeApp.removeMock).toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("deduplicates double-click during native readiness wait", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      const fakeApp = createFakeApp();
+      fakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      const p1 = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      // 第二次点击
+      const p2 = useConversationStore.getState().startSession("free_talk");
+
+      // 共享去重槽位，不重复创建
+      expect(fakeApp.addListener).toHaveBeenCalledTimes(1);
+
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "sess-double-click",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-double-click",
+        ws_url: "wss://lk.test",
+      });
+
+      await vi.waitFor(() => {
+        expect(fakeApp.getState).toHaveBeenCalled();
+      });
+      resolveGetState({ isActive: true });
+      await Promise.all([p1, p2]);
+
+      expect(api.createSession).toHaveBeenCalledTimes(1);
+      expect(useConversationStore.getState().sessionId).toBe("sess-double-click");
+    });
+
+    it("cancels wait and releases slot when auth snapshot changes during native pending", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      const fakeApp = createFakeApp();
+      fakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      await vi.waitFor(() => {
+        expect(fakeApp.getState).toHaveBeenCalled();
+      });
+
+      // 触发同 principal 新 revision 认证事件
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      for (const listener of Array.from(authSnapshotListeners)) {
+        listener({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+        });
+      }
+
+      // 槽位立即释放
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      await vi.waitFor(() => {
+        expect(fakeApp.removeMock).toHaveBeenCalled();
+      });
+
+      // 旧就绪迟到返回，绝不发起 API 调用
+      resolveGetState({ isActive: true });
+      await promise;
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+    });
+
+    it("cancels wait when auth principal issuer changes during native pending", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      const fakeApp = createFakeApp();
+      fakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      const promise = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      await vi.waitFor(() => {
+        expect(fakeApp.getState).toHaveBeenCalled();
+      });
+
+      for (const listener of Array.from(authSnapshotListeners)) {
+        listener({
+          state: "authenticated",
+          principal: { issuer: "https://other-issuer.example.com", subject: "user-1" },
+        });
+      }
+
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      resolveGetState({ isActive: true });
+      await promise;
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+    });
+
+    it("user cancellation during wait (goHome/reset/endSession) cancels pending native tracker and allows new start", async () => {
+      let resolveFirstGetState!: (state: { isActive: boolean }) => void;
+      const fakeApp1 = createFakeApp();
+      fakeApp1.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstGetState = resolve;
+          }),
+      );
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp1 });
+
+      const p1 = useConversationStore.getState().startSession("free_talk");
+      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+      await vi.waitFor(() => {
+        expect(fakeApp1.getState).toHaveBeenCalled();
+      });
+
+      // 用户在等待期间返回主页
+      useConversationStore.getState().goHome();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      await vi.waitFor(() => {
+        expect(fakeApp1.removeMock).toHaveBeenCalled();
+      });
+
+      // 用户立即开启新会话
+      const fakeApp2 = createFakeApp(true);
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp2 });
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "sess-2-fresh",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-2-fresh",
+        ws_url: "wss://lk.test",
+      });
+
+      const p2 = useConversationStore.getState().startSession("free_talk");
+      await p2;
+
+      expect(useConversationStore.getState().sessionId).toBe("sess-2-fresh");
+
+      // 第一代迟到 resolve，绝不影响第二代
+      resolveFirstGetState({ isActive: true });
+      await p1;
+
+      expect(useConversationStore.getState().sessionId).toBe("sess-2-fresh");
+      expect(useConversationStore.getState().token).toBe("tok-2-fresh");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("stale ready / reject / timeout from previous attempt does not hurt new tracker or session", async () => {
+      vi.useFakeTimers();
+      try {
+        const fakeApp1 = createFakeApp();
+        fakeApp1.getState.mockImplementation(() => new Promise(() => {}));
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp1 });
+
+        const p1 = useConversationStore.getState().startSession("free_talk");
+        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+
+        // 用户重置取消 Attempt 1
+        useConversationStore.getState().reset();
+        expect(useConversationStore.getState().connectionState).toBe("idle");
+
+        // 用户开启 Attempt 2
+        const fakeApp2 = createFakeApp(true);
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp2 });
+        vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+        vi.mocked(api.createSession).mockResolvedValue({
+          id: "sess-attempt-2",
+          user_id: "u1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+          transcripts: [],
+        });
+        vi.mocked(api.getSessionToken).mockResolvedValue({
+          token: "tok-attempt-2",
+          ws_url: "wss://lk.test",
+        });
+
+        const p2 = useConversationStore.getState().startSession("free_talk");
+        await p2;
+        expect(useConversationStore.getState().sessionId).toBe("sess-attempt-2");
+
+        // 此时 Attempt 1 的 10 秒超时在计时器里到达
+        await vi.advanceTimersByTimeAsync(10000);
+        await p1;
+
+        // Attempt 2 依然完好，未被 Attempt 1 的超时清理
+        expect(useConversationStore.getState().sessionId).toBe("sess-attempt-2");
+        expect(useConversationStore.getState().token).toBe("tok-attempt-2");
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("cancels in-flight startup when native goes to background during createSession phase", async () => {
+      let resolveCreate!: (s: api.Session) => void;
+      const fakeApp = createFakeApp(true);
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveCreate = resolve;
+          }),
+      );
+
+      const pStart = useConversationStore.getState().startSession("free_talk");
+
+      await vi.waitFor(() => {
+        expect(api.createSession).toHaveBeenCalled();
+      });
+
+      // 原生在 createSession 在途期间退到后台
+      fakeApp.emitAppStateChange({ isActive: false });
+
+      // 槽位立即释放回 idle
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(fakeApp.removeMock).toHaveBeenCalled();
+
+      // 迟到的 createSession 返回
+      resolveCreate({
+        id: "sess-late-bg",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      await pStart;
+
+      // 绝不继续获取 Token
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().sessionId).toBeNull();
+    });
+
+    it("checks attribution and drops API calls if synchronous subscriber resets on checking_health set in native mode", async () => {
+      const fakeApp = createFakeApp(true);
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      const unsub = useConversationStore.subscribe((state) => {
+        if (state.connectionState === "checking_health") {
+          useConversationStore.getState().goHome();
+        }
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+      unsub();
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(api.createSession).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+    });
+
+    it("does not automatically replay startSession or createSession when appStateChange occurs after active", () => {
+      const fakeApp = createFakeApp(true);
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+      useConversationStore.setState({
+        sessionId: "active-call-sess",
+        token: "tok-active",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+      });
+
+      // 触发 appStateChange
+      fakeApp.emitAppStateChange({ isActive: false });
+      fakeApp.emitAppStateChange({ isActive: true });
+
+      // 绝不自动重放调用 createSession 或 getSessionToken
+      expect(api.createSession).not.toHaveBeenCalled();
+      expect(api.getSessionToken).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().sessionId).toBe("active-call-sess");
+    });
+
+    it("Web environment: unknown visibility and null online start cleanly without delay", async () => {
+      _setLifecycleOptionsForTesting({
+        platform: "web",
+        webOptions: {
+          window: {
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          },
+          document: {
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            visibilityState: "unknown",
+          },
+          navigator: {},
+        },
+      });
+
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "sess-web-unknown",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-web-unknown",
+        ws_url: "wss://lk.test",
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.createSession).toHaveBeenCalled();
+      expect(useConversationStore.getState().sessionId).toBe("sess-web-unknown");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("Web environment: explicit hidden or offline refuses to start with lifecycleUnavailable", async () => {
+      _setLifecycleOptionsForTesting({
+        platform: "web",
+        webOptions: {
+          window: {
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          },
+          document: {
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            visibilityState: "hidden",
+          },
+          navigator: { onLine: true },
+        },
+      });
+
+      await useConversationStore.getState().startSession("free_talk");
+
+      expect(api.getCallCapabilities).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+
+      const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      expect(res).toBe(false);
+    });
+
+    describe("START-01 & START-02 regressions", () => {
+      it("START-01 (startSession): safely releases to idle when authRevision changes synchronously upon checking_health set, and allows explicit retry", async () => {
+        const fakeApp = createFakeApp(true);
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+        // 订阅 store：首次 checking_health 时同步使 getAuthRevision 递增，但不派发 authSnapshot 通知
+        const unsub = useConversationStore.subscribe((state) => {
+          if (state.connectionState === "checking_health") {
+            vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+          }
+        });
+
+        await useConversationStore.getState().startSession("free_talk");
+        unsub();
+
+        // 外部 API 零调用
+        expect(api.getCallCapabilities).not.toHaveBeenCalled();
+        expect(api.createSession).not.toHaveBeenCalled();
+        // 关键断言：必须安全释放回 idle，不得永久卡死在 checking_health
+        expect(useConversationStore.getState().connectionState).toBe("idle");
+        expect(useConversationStore.getState().error).toBeNull();
+
+        // 允许后续以新 revision 显式重试并成功
+        vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+        vi.mocked(api.createSession).mockResolvedValue({
+          id: "retry-sess-01",
+          user_id: "u1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+          transcripts: [],
+        });
+        vi.mocked(api.getSessionToken).mockResolvedValue({
+          token: "retry-token-01",
+          ws_url: "wss://lk.test",
+        });
+
+        await useConversationStore.getState().startSession("free_talk");
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useConversationStore.getState().sessionId).toBe("retry-sess-01");
+      });
+
+      it("START-01 (resumeSession): safely releases to idle when authRevision changes synchronously upon checking_health set, returns false, and allows explicit retry", async () => {
+        const fakeApp = createFakeApp(true);
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+        // 订阅 store：首次 checking_health 时同步使 getAuthRevision 递增，但不派发 authSnapshot 通知
+        const unsub = useConversationStore.subscribe((state) => {
+          if (state.connectionState === "checking_health") {
+            vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+          }
+        });
+
+        const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+        unsub();
+
+        expect(res).toBe(false);
+        expect(api.getCallCapabilities).not.toHaveBeenCalled();
+        expect(api.getSessionDetail).not.toHaveBeenCalled();
+        // 关键断言：必须安全释放回 idle
+        expect(useConversationStore.getState().connectionState).toBe("idle");
+        expect(useConversationStore.getState().error).toBeNull();
+
+        // 允许以更新后的 origin 显式重试并成功
+        vi.mocked(api.getSessionDetail).mockResolvedValue({
+          id: validUuid,
+          user_id: "u1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+          transcripts: [],
+        });
+        vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+        vi.mocked(api.getSessionToken).mockResolvedValue({
+          token: "tok-resume-01",
+          ws_url: "wss://lk.test",
+        });
+
+        const retryOrigin = { ...validOrigin, revision: 2 };
+        const res2 = await useConversationStore.getState().resumeSession(validUuid, retryOrigin);
+        expect(res2).toBe(true);
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useConversationStore.getState().sessionId).toBe(validUuid);
+      });
+
+      it("START-02 (startSession): re-entrant startSession inside addListener is deduplicated, only 1 external capabilities & session call", async () => {
+        let addListenerCallCount = 0;
+        const removeMock = vi.fn().mockResolvedValue(undefined);
+
+        const fakeApp: AppStateSource = {
+          getState: vi.fn().mockResolvedValue({ isActive: true }),
+          addListener: vi.fn(() => {
+            addListenerCallCount++;
+            if (addListenerCallCount === 1) {
+              // 模拟同步重入调用 startSession
+              useConversationStore.getState().startSession("free_talk");
+            }
+            return Promise.resolve({ remove: removeMock });
+          }),
+        };
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+        vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+        vi.mocked(api.createSession).mockResolvedValue({
+          id: "sess-reentrant-start",
+          user_id: "u1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+          transcripts: [],
+        });
+        vi.mocked(api.getSessionToken).mockResolvedValue({
+          token: "tok-reentrant-start",
+          ws_url: "wss://lk.test",
+        });
+
+        await useConversationStore.getState().startSession("free_talk");
+
+        // 关键断言：尽管 addListener 触发重入，去重槽位已提前锁定，外部调用恰好发生 1 次
+        expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+        expect(api.createSession).toHaveBeenCalledTimes(1);
+        expect(useConversationStore.getState().sessionId).toBe("sess-reentrant-start");
+      });
+
+      it("START-02 (resumeSession): re-entrant resumeSession inside addListener is deduplicated, returns false for re-entrant call", async () => {
+        let addListenerCallCount = 0;
+        const removeMock = vi.fn().mockResolvedValue(undefined);
+        let reentrantResult: Promise<boolean> | null = null;
+
+        const fakeApp: AppStateSource = {
+          getState: vi.fn().mockResolvedValue({ isActive: true }),
+          addListener: vi.fn(() => {
+            addListenerCallCount++;
+            if (addListenerCallCount === 1) {
+              // 模拟同步重入调用 resumeSession
+              reentrantResult = useConversationStore
+                .getState()
+                .resumeSession(validUuid, validOrigin);
+            }
+            return Promise.resolve({ remove: removeMock });
+          }),
+        };
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+        vi.mocked(api.getSessionDetail).mockResolvedValue({
+          id: validUuid,
+          user_id: "u1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+          transcripts: [],
+        });
+        vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+        vi.mocked(api.getSessionToken).mockResolvedValue({
+          token: "tok-reentrant-resume",
+          ws_url: "wss://lk.test",
+        });
+
+        const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+
+        expect(res).toBe(true);
+        expect(reentrantResult).not.toBeNull();
+        expect(await reentrantResult).toBe(false);
+        // 关键断言：外部 API 恰好调用 1 次
+        expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+        expect(api.getSessionDetail).toHaveBeenCalledTimes(1);
+      });
+
+      it("START-02: synchronous cancellation during addListener cleans up adapter and late handle, allowing new start", async () => {
+        let resolveHandle!: (handle: { remove(): Promise<void> }) => void;
+        const removeMock = vi.fn().mockResolvedValue(undefined);
+
+        const fakeApp: AppStateSource = {
+          getState: vi.fn().mockResolvedValue({ isActive: true }),
+          addListener: vi.fn(() => {
+            // 同步取消：用户在 addListener 发生期间触发 goHome
+            useConversationStore.getState().goHome();
+            return new Promise<{ remove(): Promise<void> }>((resolve) => {
+              resolveHandle = resolve;
+            });
+          }),
+        };
+        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+
+        const pStart = useConversationStore.getState().startSession("free_talk");
+
+        // 迟到返回 handle
+        resolveHandle({ remove: removeMock });
+        await pStart;
+
+        // 关键断言：旧 setup 必须彻底释放，迟到的 handle 必须被 remove
+        await vi.waitFor(() => {
+          expect(removeMock).toHaveBeenCalled();
+        });
+        expect(api.getCallCapabilities).not.toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("idle");
+
+        // 开启新启动，验证旧 setup 不影响新 tracker
+        const freshApp = createFakeApp(true);
+        _setLifecycleOptionsForTesting({ platform: "ios", app: freshApp });
+        vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+        vi.mocked(api.createSession).mockResolvedValue({
+          id: "sess-after-cancel",
+          user_id: "u1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2025-01-01T00:00:00Z",
+          ended_at: null,
+          transcripts: [],
+        });
+        vi.mocked(api.getSessionToken).mockResolvedValue({
+          token: "tok-after-cancel",
+          ws_url: "wss://lk.test",
+        });
+
+        await useConversationStore.getState().startSession("free_talk");
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useConversationStore.getState().sessionId).toBe("sess-after-cancel");
+      });
     });
   });
 });
