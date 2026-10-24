@@ -5,7 +5,7 @@
 
 ## 维护基线
 
-- 最近本地核对日期：2026-10-21；以下 main/CI 记录保留为历史发布证据，本轮本地三端增量未推送或部署。
+- 最近本地核对日期：2026-10-24；以下 main/CI 记录保留为历史发布证据，本轮本地三端增量未推送或部署。
 - 代码基线：`main@286a3db68ba2b43e76df5df3b9f7d24444a3a796`（#92 合并后）；
   本轮进度条修复见 [#90](https://github.com/sunpcm/EchoTalk/pull/90)
 - 自动化证据：[#92 CI run 39348513442](https://github.com/sunpcm/EchoTalk/actions/runs/39348513442)；
@@ -13,6 +13,15 @@
 - 证据范围：上述 CI 已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-10-24 本地颜色过渡与设置抽屉减少动态效果增量
+
+基于 TODO.md P2“为颜色过渡和抽屉动画支持 prefers-reduced-motion”契约完成纯 CSS 媒体查询适配，零新增 JS 运行时监听或依赖。Codex 已独立验收；本轮从 PR #98 已合并的 `main@80fb8ec` 开始，仅本地提交/集成，未 push 或部署。
+
+- Codex 独立质量验证：全量 7 项门禁通过，620 项产品 Vitest、18 项构建脚本测试、114 项双浏览器（Chromium/WebKit 各 57 项，含新增 10 项 prefers-reduced-motion 专用测试）通过。
+- 另有 4 项独立双浏览器探针、2 项有效变异及专用 PostgreSQL 后端 269 项（73.72% 覆盖率）通过；既有迁移仅恢复空的专用测试库至 `c03_call_leases`，无本轮 schema 改动。
+- 覆盖 reduce 与 no-preference 偏好下 body computed transition、抽屉 slideInRight 动画消除、实时动态切换偏好、功能性 loading spinner 动画保留、外观主题切换语义以及零隐式业务写请求。
+- 契约与验收见[减少动态效果验证](./verification/cross-platform/CP-05-REDUCED-MOTION.md)。真实 OS 系统级联动与硬件屏幕阅读器仍待设备验收，CP-05 整体继续推进。
 
 ## 2026-10-21 本地认证里程碑
 

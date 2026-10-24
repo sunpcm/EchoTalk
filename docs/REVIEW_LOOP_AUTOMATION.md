@@ -209,3 +209,9 @@ CLI1.4.6 r1流出现step_update.step_type=checkpoint（DONE），终止SUCCESS�
 skill b09b925完成回答推荐本地增量，过程见[验证](./verification/cross-platform/CP-05-ANSWER-RECOMMENDATIONS.md)。r0 lint失败即停，check_scope准确显示quality覆盖未完成；r1七项全绿时才显示完整。未触发真实拒权，不能声称早停已在本轮真实CLI验证。
 
 独立评审仍发现作用域文本遗漏、StrictMode效果重放、render取消已提交timer与16px逐字竖排，集中返工关闭；这属于已有评审规则/项目几何清单的实施遗漏，不自动增加通用规则。版本漂移在模型前阻断，20项本地适配回归和help核对后受限接纳1.4.7，实际流完整无拒绝，计数不洗掉。完整账本输出应由控制器capture后只给小元数据；长任务宿主沟通与低频状态读取分别记录。原证据与问题留本地，未push或连接真实业务服务。
+
+## PR #98 后单 cp00 工作线与 A27（2026-10-24）
+
+用户要求核验 main/远端/worktree 后继续，实际均为 `80fb8ec`，仅主目录和 cp00 保留；旧 lane 已归档。评审备份本地 runner/基线后，将既有 b 角色重绑 cp00，控制器也使用同一精确 worktree；旧报告命名空间保留，旧账本不重置。通用 skill 使用本地最新版 `a93a1a8`，未因新问题修改 skill。
+
+Flash Medium 首轮正常交付，Codex 自行审源码、复跑 7 项 quality/后端测试，并做独立浏览器探针与有效变异。文档用语和评审探针 cwd 失误原始记录保存在 `.review/reports/workflow-reduced-motion-a27/issues.md`。专用库初始停止且为空，按既有授权核验身份、审查既有迁移后恢复；未触应用库。未扩模型/权限/源码外发范围，不推送或连接真实业务环境。净额度收益仍未证实。

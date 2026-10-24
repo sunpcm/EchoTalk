@@ -152,3 +152,9 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
 ## §13 检查范围与布局任务
 
 新批次按review-loop的check_scope核对检查类型、预期/实际ID和逐项状态；baseline全绿不等于quality全绿，旧摘要范围缺失时需读取绑定manifest/summary。布局任务选择使用[本地布局清单](./verification/cross-platform/UI-LOCAL-CHECKLIST.md)，真实文字范围与元素内容框分别核验。新控制器和拒权早停边界见[自动流程手册](./REVIEW_LOOP_AUTOMATION.md)的2026-10-24优化记录；不据本文自动恢复已完成账本。
+
+## §14 PR #98 后的当前拓扑（2026-10-24）
+
+本轮实时核验本地/远端 main 为 `80fb8ec`，仅保留主 checkout 与 `.review/worktrees/cp00`；旧 track-a/b/c 已归档，前文路径/分支/服务状态均为带日期的历史事实，不能直接恢复使用。A27 仅在 cp00 的 `codex/cp05-reduced-motion` 实施，主 checkout 在评审通过前保持只读。
+
+现有固定 runner 的 b 角色已由评审重绑 cp00、本轮明确分支及已审查 HEAD；`.review/reports/track-b/` 仅复用历史证据目录名称，并不代表旧 worktree 仍存在。每轮继续维护 runner/baseline/hash，禁止仅改目录名绕过预检。后端仍仅由评审运行 cp00 专用虚拟环境及隔离测试库 helper。

@@ -108,7 +108,9 @@
 - [x] 将 Vite 入口的 `<html lang="en">` 改为 `zh-CN`。
 - [ ] 将主题保存到后端 `user_settings.theme`，支持跨设备水合。
 - [ ] 统一主题按钮边框宽度，消除选中时 1px 布局抖动。
-- [ ] 为颜色过渡和抽屉动画支持 `prefers-reduced-motion`。
+- [x] 为颜色过渡和抽屉动画支持 `prefers-reduced-motion`（A27 本地独立评审通过）；
+      CSS 媒体查询支持 reduce 与 no-preference 真实浏览器 computed、抽屉动画消除与
+      loading spinner 保留，零 JS 注入与零隐式业务写。见 [验证](./docs/verification/cross-platform/CP-05-REDUCED-MOTION.md)。
 - [ ] 按主要容器补齐主题颜色过渡，避免子元素瞬间切色。
 - [ ] 移除 LiveKit 消息访问处的 SDK 类型忽略，改用类型收窄或兼容适配层。
 
