@@ -6,6 +6,23 @@ import * as api from "@/lib/api";
 import { useSettingsStore } from "@/store/settings";
 import { useConversationStore } from "@/store/conversation";
 
+vi.mock("@/lib/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth")>();
+  return {
+    ...actual,
+    getAuthSnapshot: vi.fn(() => ({
+      state: "authenticated",
+      principal: { issuer: "urn:echotalk:auth:dev", subject: "dev-user" },
+    })),
+    getAuthRevision: vi.fn(() => 1),
+    arePrincipalsEqual: vi.fn((a, b) => {
+      if (a === b) return true;
+      if (!a || !b) return false;
+      return a.issuer === b.issuer && a.subject === b.subject;
+    }),
+  };
+});
+
 vi.mock("@/lib/api", () => ({
   getUserSettings: vi.fn().mockResolvedValue({
     is_custom_mode: false,

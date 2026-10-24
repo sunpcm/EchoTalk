@@ -106,8 +106,11 @@
 
 - [ ] 清点主题 token：保留 Webpack 正在使用的 `brand-*`，处理未使用的 `scrollbar-thumb`、`header-bg`。
 - [x] 将 Vite 入口的 `<html lang="en">` 改为 `zh-CN`。
-- [ ] 将主题保存到后端 `user_settings.theme`，支持跨设备水合。
-- [ ] 统一主题按钮边框宽度，消除选中时 1px 布局抖动。
+- [x] 将主题保存到后端 `user_settings.theme`，支持跨设备水合（A28 本地独立评审通过）；
+      客户端 local-first、认证与代际绑定、单在途意图串行合并与水合竞争防护经本地回归通过；
+      不代表真实双物理设备验收，见 [主题同步验证](./docs/verification/cross-platform/CP-05-THEME-SYNC.md)。
+- [x] 统一主题按钮边框宽度，消除选中时 1px 布局抖动（A28 本地独立评审通过）；
+      主题单选按钮统一使用 2px 固定边框，窄屏、默认与 200% 字号下选择前后内容位移为 0，见 [验证](./docs/verification/cross-platform/CP-05-THEME-SYNC.md)。
 - [x] 为颜色过渡和抽屉动画支持 `prefers-reduced-motion`（A27 本地独立评审通过）；
       CSS 媒体查询支持 reduce 与 no-preference 真实浏览器 computed、抽屉动画消除与
       loading spinner 保留，零 JS 注入与零隐式业务写。见 [验证](./docs/verification/cross-platform/CP-05-REDUCED-MOTION.md)。
