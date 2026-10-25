@@ -13,7 +13,7 @@
 
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -34,6 +34,7 @@ from models.session import (
     Transcript,
 )
 from models.user import User
+from time_utils import utc_now
 
 
 def _test_database_url() -> str | None:
@@ -141,7 +142,7 @@ async def pg_env():
         with_doc_context: bool = False,
     ) -> Session:
         s_id = session_id or uuid.uuid4()
-        s_time = started_at or datetime.utcnow()
+        s_time = started_at or utc_now()
         session = Session(
             id=s_id,
             user_id=user_id,
@@ -258,7 +259,7 @@ async def test_active_sessions_filter_completed_and_cancelled(pg_env):
     """验证 GET /api/sessions/active 严格过滤 status=active，排除 completed 与 cancelled。"""
     user = await pg_env.create_test_user()
 
-    now = datetime.utcnow()
+    now = utc_now()
     # 创建三种状态的会话
     s_active = await pg_env.create_test_session(
         user.id,
@@ -296,7 +297,7 @@ async def test_active_sessions_empty_list_returns_200(pg_env):
     user = await pg_env.create_test_user()
 
     # 仅存在 completed 会话
-    now = datetime.utcnow()
+    now = utc_now()
     await pg_env.create_test_session(
         user.id,
         SessionMode.free_talk,
@@ -316,7 +317,7 @@ async def test_active_sessions_deterministic_ordering_with_same_timestamp(pg_env
     """验证按 started_at desc, id desc 确定性排序，包括时间戳完全相同时按 UUID 降序。"""
     user = await pg_env.create_test_user()
 
-    base_time = datetime(2026, 10, 21, 10, 0, 0)
+    base_time = datetime(2026, 10, 21, 10, 0, 0, tzinfo=timezone.utc)
     t_early = base_time
     t_same = base_time + timedelta(hours=1)
     t_late = base_time + timedelta(hours=2)
@@ -439,7 +440,7 @@ async def test_active_sessions_preserves_dynamic_detail_and_history_routes(pg_en
     """验证 GET /api/sessions/active 置于 GET /api/sessions/{session_id} 之前，二者互不干扰。"""
     user = await pg_env.create_test_user()
 
-    now = datetime.utcnow()
+    now = utc_now()
     s_active = await pg_env.create_test_session(
         user.id,
         SessionMode.free_talk,

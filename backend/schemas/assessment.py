@@ -1,9 +1,10 @@
 """发音评估与知识追踪的 Pydantic 响应模型。"""
 
 import uuid
-from datetime import datetime
 
 from pydantic import BaseModel
+
+from schemas.time import UtcDatetime
 
 
 class PhonemeAlignmentItem(BaseModel):
@@ -29,7 +30,7 @@ class AssessmentResponse(BaseModel):
     is_synthetic: bool
     confidence: float | None = None
     provider_response_ref: str | None = None
-    created_at: datetime
+    created_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 
@@ -48,7 +49,7 @@ class GrammarErrorResponse(BaseModel):
     model_version: str | None = None
     is_synthetic: bool
     confidence: float | None = None
-    created_at: datetime
+    created_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 
@@ -62,7 +63,7 @@ class KnowledgeStateResponse(BaseModel):
     skill_name: str
     skill_category: str
     p_mastery: float
-    updated_at: datetime
+    updated_at: UtcDatetime
 
 
 class SkillResponse(BaseModel):

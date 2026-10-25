@@ -14,6 +14,14 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地 RF-08 七列 UTC 时间语义统一实施记录（A39）
+
+基于用户裁定“按 UTC 解释旧值，API 统一显式 UTC”以及 TODO.md RF-08 时间语义子项完成本地实施。基于已由 Codex 独立静态审查并通过多时区双向 SQL 演练的 `c04_utc_timestamps` 迁移 schema，将应用层、ORM 模型层及 API 响应层时间语义全面统一为 timezone-aware UTC。
+
+- 本地实现与模型统一：ORM 模型七列（`users.created_at`、`sessions.started_at`、`sessions.ended_at`、`user_settings.updated_at`、`knowledge_states.updated_at`、`pronunciation_assessments.created_at`、`grammar_errors.created_at`）明确声明 `DateTime(timezone=True)`，完整保留原 nullability、约束与 `UserSettings.updated_at` 的 `onupdate` 行为；新增 `backend/time_utils.py` 提供纯标准库 `utc_now()`，全面替换业务写入路径中的 `datetime.utcnow()`；新增 `backend/schemas/time.py` 声明 `UtcDatetime`（基于 `AwareDatetime` 与 `AfterValidator`），严格拒绝 naive 输入并将任意时区偏移归一化为 UTC，响应 JSON 保持显式时区（`Z`），OpenAPI 保持 `date-time` 契约。
+- 质量验证覆盖：新增 `test_utc_timestamps.py` 覆盖 7 列 ORM 元数据定义、`UtcDatetime` naive 拒绝与时区归一化校验、专用测试库 PostgreSQL 真实写读 aware UTC 值与 `UserSettings` onupdate 触发；修复 `test_assessment.py`、`test_call_leases.py`、`test_session_active_discovery.py` 中遗留的 naive UTC fixture 与 `datetime.utcnow()` 弃用警告；迁移文件 `c04_utc_timestamps.py` 严格保持只读（SHA256: `3cb19d3f39c166f7e5e93587779d99240a8e2ac90cdbc1edf4c476d80425f612`）。
+- 契约与记录见 [RF-08 七列 UTC 时间语义验证](./verification/cross-platform/RF-08-UTC-TIMESTAMPS.md)。未执行生产/真实外部环境迁移，高频索引与分页待后续完成，整项保持未勾选，RF-08 持续推进。
+
 ## 2026-10-25 本地 RF-08 启动参考数据显式幂等化实施记录（A38）
 
 基于 TODO.md RF-08 启动播种子项与 MVP 重构方案完成本地实施。移除 FastAPI 应用启动期（lifespan）向数据库隐式写库播种技能的逻辑；此前已移除的 Mock 用户播种保持禁用，仅保留运行时安全配置验证；提供独立显式播种模块与 CLI 入口，实现参考数据的原子无覆盖与并发幂等播种。

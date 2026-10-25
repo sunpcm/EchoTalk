@@ -7,7 +7,6 @@
 import logging
 import re
 import uuid
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +21,7 @@ from services.pronunciation.phoneme_aligner import (
     align_phonemes,
     compute_pronunciation_score,
 )
+from time_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -341,7 +341,7 @@ async def update_knowledge(
         # 逐条观察更新
         for correct in obs_list:
             state.p_mastery = update_mastery(state.p_mastery, correct, params)
-        state.updated_at = datetime.utcnow()
+        state.updated_at = utc_now()
 
     await db.flush()
     logger.info(

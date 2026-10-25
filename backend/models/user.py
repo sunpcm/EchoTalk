@@ -8,6 +8,7 @@ from sqlalchemy import (
     ARRAY,
     Boolean,
     CheckConstraint,
+    DateTime,
     Enum,
     ForeignKey,
     Integer,
@@ -19,6 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
+from time_utils import utc_now
 
 
 class SubscriptionTier(str, enum.Enum):
@@ -68,7 +70,9 @@ class User(Base):
         default=SubscriptionTier.free,
         nullable=False,
     )
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
 
     # 关系
     profile: Mapped["UserProfile | None"] = relationship(
@@ -160,7 +164,7 @@ class UserSettings(Base):
     )
 
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
 
     # 关系

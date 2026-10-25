@@ -45,7 +45,6 @@ from services.analysis_jobs import (
     can_retry_job,
     create_analysis_job,
     retry_job,
-    utc_now,
 )
 from services.call_leases import (
     claim_call_lease,
@@ -60,6 +59,7 @@ from services.session_idempotency import (
     is_idempotency_unique_violation,
     parse_idempotency_key,
 )
+from time_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ async def create_session(
             user_id=current_user.id,
             mode=mode,
             status=SessionStatus.active,
-            started_at=datetime.utcnow(),
+            started_at=utc_now(),
             request_idempotency_key=None,
             request_fingerprint=None,
         )
@@ -155,7 +155,7 @@ async def create_session(
                 user_id=current_user.id,
                 mode=mode,
                 status=SessionStatus.active,
-                started_at=datetime.utcnow(),
+                started_at=utc_now(),
                 request_idempotency_key=parsed_key,
                 request_fingerprint=fingerprint,
             )
@@ -396,7 +396,7 @@ async def end_session(
             await db.flush()
 
         session.status = SessionStatus.completed
-        session.ended_at = datetime.utcnow()
+        session.ended_at = utc_now()
         await create_analysis_job(session.id, db)
         await db.flush()
         await db.commit()
@@ -426,7 +426,7 @@ async def end_session(
         raise HTTPException(status_code=400, detail="会话状态不支持结束操作")
 
     session.status = SessionStatus.completed
-    session.ended_at = datetime.utcnow()
+    session.ended_at = utc_now()
     await create_analysis_job(session.id, db)
     await db.flush()
     await db.refresh(session)

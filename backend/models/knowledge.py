@@ -3,11 +3,12 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
+from time_utils import utc_now
 
 # 种子数据：Phase 2 初始 10 个技能
 SEED_SKILLS = [
@@ -105,7 +106,9 @@ class KnowledgeState(Base):
         String(50), ForeignKey("skills.id"), nullable=False
     )
     p_mastery: Mapped[float] = mapped_column(Float, default=0.1)
-    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
 
     __table_args__ = (UniqueConstraint("user_id", "skill_id", name="uq_user_skill"),)
 
