@@ -27,14 +27,8 @@ _SYSTEM_LLM_KEY_FIELD: dict[str, str] = {
     "openrouter": "OPENROUTER_API_KEY",
 }
 
-
-class PluginInitError(Exception):
-    """插件初始化失败异常。用于自定义轨模式下的 fail-fast 报错。"""
-
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        self.message = message
-        super().__init__(f"[{code}] {message}")
+# 兼容导出：统一异常定义迁移至 plugin_errors.py
+from livekit_agent.plugin_errors import PluginInitError  # noqa: E402, F401
 
 
 def _validate_api_key(api_key: Any, provider_label: str) -> str:

@@ -47,15 +47,16 @@ from sqlalchemy import select  # noqa: E402
 
 from config import settings  # noqa: E402
 from database import async_session_maker  # noqa: E402
+from livekit_agent.credential_resolver import CredentialResolver  # noqa: E402
 from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
-from livekit_agent.plugin_factory import PluginFactory, PluginInitError  # noqa: E402
+from livekit_agent.plugin_errors import PluginInitError  # noqa: E402
+from livekit_agent.plugin_factory import PluginFactory  # noqa: E402
 from livekit_agent.transcript_events import derive_transcript_event_id  # noqa: E402
 from livekit_agent.transcript_sink import TranscriptSink  # noqa: E402
 from models.session import Session, SessionContext  # noqa: E402
 from models.user import UserSettings  # noqa: E402
 from services.emotion_analyzer import EmotionAnalyzer  # noqa: E402
 from services.llm_service import build_dynamic_prompt  # noqa: E402
-from utils.crypto import decrypt_api_key  # noqa: E402
 
 logger = logging.getLogger("echotalk-agent")
 
@@ -127,9 +128,9 @@ async def _fetch_session_context(session_id: str) -> SessionContext | None:
 
 def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
     """
-    根据用户自定义配置解密 Key 并通过 PluginFactory 构建插件集。
+    根据用户自定义配置通过 CredentialResolver 解析凭据并由 PluginFactory 构建插件集。
 
-    预检校验:
+    预检校验与解密由 CredentialResolver 统一处理：
     1. 三组 provider 字段（stt/llm/tts）必须已设置
     2. 三组加密 Key 字段必须存在
     3. Fernet 解密必须成功
@@ -141,73 +142,25 @@ def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
         {"stt": ..., "llm": ..., "tts": ..., "vad": ...}
 
     异常:
-        PluginInitError: 任何预检失败或 PluginFactory 校验失败
+        PluginInitError: 任何预检失败、解密失败或 PluginFactory 校验失败
     """
-    us = user_settings
-
-    # ── 预检: provider 字段 ──
-    if not us.stt_provider:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 STT provider 未配置。请在设置页面选择提供商。",
-        )
-    if not us.llm_provider:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 LLM provider 未配置。请在设置页面选择提供商。",
-        )
-    if not us.tts_provider:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 TTS provider 未配置。请在设置页面选择提供商。",
-        )
-
-    # ── 预检: 加密 Key 字段 ──
-    if not us.encrypted_stt_key:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 STT API Key 未配置。请在设置页面输入密钥。",
-        )
-    if not us.encrypted_llm_key:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 LLM API Key 未配置。请在设置页面输入密钥。",
-        )
-    if not us.encrypted_tts_key:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 TTS API Key 未配置。请在设置页面输入密钥。",
-        )
-
-    # ── 解密 ──
-    try:
-        stt_credential = decrypt_api_key(us.encrypted_stt_key, us.stt_key_version)
-        llm_credential = decrypt_api_key(us.encrypted_llm_key, us.llm_key_version)
-        tts_credential = decrypt_api_key(us.encrypted_tts_key, us.tts_key_version)
-        stt_key = stt_credential.plaintext
-        llm_key = llm_credential.plaintext
-        tts_key = tts_credential.plaintext
-    except Exception as e:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "API Key 解密失败，请重新保存密钥。",
-        ) from e
-
-    # ── 通过 PluginFactory 构建（内部会再做一轮非空校验） ──
-    model = us.llm_model or settings.DEFAULT_LLM_MODEL
+    resolved = CredentialResolver.resolve_custom(
+        user_settings,
+        default_llm_model=settings.DEFAULT_LLM_MODEL,
+    )
 
     # ── 防御: 临时清除系统 API Key 环境变量 ──
     # 防止 SDK 构造器在显式 key 参数失败时回退读取 os.environ
     saved_env = {k: os.environ.pop(k) for k in _SENSITIVE_ENV_VARS if k in os.environ}
     try:
         return {
-            "stt": PluginFactory.create_stt(us.stt_provider.value, stt_key),
+            "stt": PluginFactory.create_stt(resolved.stt_provider, resolved.stt_key),
             "llm": PluginFactory.create_llm(
-                us.llm_provider.value,
-                llm_key,
-                model,
+                resolved.llm_provider,
+                resolved.llm_key,
+                resolved.model,
             ),
-            "tts": PluginFactory.create_tts(us.tts_provider.value, tts_key),
+            "tts": PluginFactory.create_tts(resolved.tts_provider, resolved.tts_key),
             "vad": PluginFactory.create_vad(),
         }
     finally:
