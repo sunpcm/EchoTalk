@@ -71,6 +71,12 @@
       当前 API/Agent 进一步分组、Linux/Docker 实际构建及跨平台验收尚待完成，整项保持未勾选。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；
       timezone-aware UTC、必要索引和有界分页完成；空库及现有数据库副本迁移均通过。
+      本地已完成启动播种子项显式幂等化（A38）：lifespan 仅保留安全配置验证并移除隐式写库播种；
+      新增 `seed_reference_data.py` 显式播种模块与 CLI 入口，严格复用 `models.knowledge.SEED_SKILLS`（10 项），
+      使用 PostgreSQL 原生 `INSERT ... ON CONFLICT DO NOTHING` 保持已有记录不变；强制校验显式 `DATABASE_URL`，
+      禁止回退 `.env`，模块导入及 `--help` 零 DB 访问，错误路径严格脱敏；回归测试在隔离 test schema 下验证并发与幂等；
+      上线前运维需显式执行播种命令（见 [RF-08 启动参考数据显式幂等化验证](./docs/verification/cross-platform/RF-08-REFERENCE-SEED.md)）；
+      时间列 timezone-aware UTC、必要索引、有界分页及真实环境迁移待后续完成，整项保持未勾选。
 
 ### Phase 6：内部边界
 

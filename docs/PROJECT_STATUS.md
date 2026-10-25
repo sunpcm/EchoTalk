@@ -14,6 +14,14 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地 RF-08 启动参考数据显式幂等化实施记录（A38）
+
+基于 TODO.md RF-08 启动播种子项与 MVP 重构方案完成本地实施。移除 FastAPI 应用启动期（lifespan）向数据库隐式写库播种技能的逻辑；此前已移除的 Mock 用户播种保持禁用，仅保留运行时安全配置验证；提供独立显式播种模块与 CLI 入口，实现参考数据的原子无覆盖与并发幂等播种。
+
+- 本地实现与原子契约：`backend/main.py` 的 `lifespan` 仅保留 `settings.validate_runtime()`，完全移除启动期数据库会话与写入；新增 `backend/seed_reference_data.py`，复用 `models.knowledge.SEED_SKILLS`（10 项），采用 PostgreSQL 原生 `INSERT ... ON CONFLICT (id) DO NOTHING RETURNING id`，不先查后插、不使用 delete/truncate/upsert 覆盖已有记录，单事务原子提交；CLI 强制校验显式 `DATABASE_URL`，缺失时拒绝退出并禁止回退 `.env`，使用 SQLAlchemy 解析协议仅支持 PostgreSQL 并安全转换为 asyncpg，`--help` 与导入零 DB 访问，错误路径严格脱敏不泄露凭据；专有 engine 在 `finally` 严格 `dispose`。
+- 质量验证覆盖：更新 `test_lifespan_seeding.py` 验证启动期仅执行安全校验且 4 并发无 DB 访问，校验失败阻断 yield；新增 `test_reference_seeding.py` 覆盖空表 10 项初始化、重复幂等、已有自定义同 ID 内容保留且补齐缺项、至少 4 独立 session 真实并发无冲突、事务失败原子回滚、CLI 缺 URL 拒绝、--help 不连接、非法 URL 拒绝、凭据脱敏不泄露以及在受控隔离 test schema 下真实 CLI 执行与幂等重复。
+- 契约与记录见 [RF-08 启动参考数据显式幂等化验证](./verification/cross-platform/RF-08-REFERENCE-SEED.md)。时间列 timezone-aware UTC、必要索引、有界分页与真实数据库迁移待后续子项完成，整项保持未勾选，RF-08 持续推进。
+
 ## 2026-10-25 本地 RF-07 Dev 依赖分组受控实施记录（A37）
 
 基于用户裁定“先仅拆 Dev 四项，运行时保持共用（推荐）”完成本地实施。仅将 `ruff`、`pytest`、`pytest-asyncio`、`pytest-cov` 四项从 `[project].dependencies` 迁入标准 `[dependency-groups].dev`，其余 26 项依赖（含 `httpx` 及全部 LiveKit runtime）继续保留为默认运行时依赖；`uv.lock` 维持 192 包解析，`requirements.txt` 保持为单一只读 runtime-only 兼容导出镜像，开发工具从生产运行时导出彻底剥离。
