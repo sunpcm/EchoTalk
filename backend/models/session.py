@@ -10,10 +10,12 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -66,6 +68,12 @@ class Session(Base):
             "request_idempotency_key",
             name="uq_sessions_user_idempotency_key",
         ),
+        Index(
+            "ix_sessions_user_started_id",
+            "user_id",
+            text("started_at DESC"),
+            text("id DESC"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -116,6 +124,13 @@ class Transcript(Base):
     """会话转录记录表。"""
 
     __tablename__ = "transcripts"
+    __table_args__ = (
+        Index(
+            "ix_transcripts_session_timestamp",
+            "session_id",
+            "timestamp_ms",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     session_id: Mapped[uuid.UUID] = mapped_column(

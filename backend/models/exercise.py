@@ -76,6 +76,11 @@ class GrammarError(Base):
             "session_id",
             postgresql_where=text("is_synthetic = false"),
         ),
+        Index(
+            "ix_grammar_errors_session_created",
+            "session_id",
+            "created_at",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

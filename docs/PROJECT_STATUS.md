@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地 RF-08 三项必要查询索引实施记录（A40）
+
+基于 TODO.md RF-08 索引审计要求与已批准组合方案完成本地实施。为高频会话、转录及语法错误查询补齐三项必要非唯一 B-tree 索引，与既有唯一约束形成无冗余覆盖；ORM 模型元数据与下接 `c04_utc_timestamps` 的单链迁移脚本对齐，降级严格逆序 drop。
+
+- 本地实现与模型元数据：`backend/models/session.py` 中 `Session.__table_args__` 声明 `Index("ix_sessions_user_started_id", "user_id", text("started_at DESC"), text("id DESC"))`，保留原有幂等键唯一约束；`Transcript.__table_args__` 声明 `Index("ix_transcripts_session_timestamp", "session_id", "timestamp_ms")`；`backend/models/exercise.py` 中 `GrammarError.__table_args__` 声明 `Index("ix_grammar_errors_session_created", "session_id", "created_at")`，保留置信度检查约束与既有 partial 索引。
+- 索引复用与防冗余说明：`pronunciation_assessments(session_id)` 已具备模型级 `unique=True`，`knowledge_states(user_id, skill_id)` 已具备 `uq_user_skill` 复合唯一约束，均已天然具备底层唯一索引，不重复创建非唯一索引；`grammar_errors` 既有 partial 索引因现有查询未带 `is_synthetic = false` 谓词而保留并以全量复合索引补齐。不引入 active 部分索引以规避写放大。
+- 迁移脚本与独立审查契约：新建 `backend/alembic/versions/c05_query_indexes.py`，单链下接 `c04_utc_timestamps`；使用 `op.create_index` 与 `sa.text` 明确 DESC 方向；downgrade 逆序 drop 三项索引，不删其它对象不迁数据；实施方未执行/未导入新迁移；Codex 已先独立静态审查并绑定 SHA256，在专用测试库空副本及 25 万行合成副本完成 upgrade/downgrade/re-upgrade 与自然 `EXPLAIN (ANALYZE, BUFFERS)` 验证，既有结构与数据保持；后续由已核全空专用副本实际 Alembic 升级至 c05，供完整后端回归。
+- 契约与记录见 [RF-08 三项必要查询索引验证](./verification/cross-platform/RF-08-QUERY-INDEXES.md)。真实线上锁等待/大表构建耗时待验，有界分页待后续推进，整项保持未勾选，RF-08 持续推进。
+
 ## 2026-10-25 本地 RF-08 七列 UTC 时间语义统一实施记录（A39）
 
 基于用户裁定“按 UTC 解释旧值，API 统一显式 UTC”以及 TODO.md RF-08 时间语义子项完成本地实施。基于已由 Codex 独立静态审查并通过多时区双向 SQL 演练的 `c04_utc_timestamps` 迁移 schema，将应用层、ORM 模型层及 API 响应层时间语义全面统一为 timezone-aware UTC。
