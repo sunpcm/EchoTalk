@@ -38,7 +38,7 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 | Fake API测试   | `apps/vite-app`         | `pnpm test:fake-api`                                            | 真实 Node 子进程回归，使用动态端口 0 与原生 node:test                 |
 
 `packages/ui-lib` 有 Vitest 配置但当前无测试文件；其他 package 的 echo/no tests 脚本不是测试树。
-根目录 `test_api_err.ts` 是独立诊断脚本，不冒充测试 runner。新增真实 runner 时追加本表。
+根目录历史独立诊断脚本 `test_api_err.ts` 已移除，明确不属于测试树。新增真实 runner 时追加本表。
 构建脚本测试（`pnpm test:build`）与 Fake API 真实子进程回归测试（`pnpm test:fake-api`）均为 Node 原生 `node:test` 真实 runner，列入独立计数。
 当前前端 quality 门禁共 8 项：format、lint、typecheck、Vitest、build-script-test、fake-api-test、build、e2e；baseline 保留 3 项（format、lint、typecheck）。
 真实 IdP、LiveKit/Provider、iOS/macOS 设备链路是独立外部验收，不由 Fake API E2E 替代。

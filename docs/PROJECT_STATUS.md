@@ -459,3 +459,12 @@ Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK�
 - **本地实现与接口契约**：`agent.py` 中移除 `import os`（全模块证实无其他 os 使用）、移除 `_SENSITIVE_ENV_VARS` 5 项敏感变量定义；`_build_custom_plugins` 仅保留 `CredentialResolver.resolve_custom` 结果显式传入 `PluginFactory.create_stt`、`create_llm`、`create_tts` 与 `create_vad` 并返回；不引入任何替代全局 mapping 或上下文管理工具隐藏改写，生产整个构造过程零进程环境写；PluginFactory 既有 `_validate_api_key` 严格拒绝非 str、空、全空白及含 `\n`/`\r`/`\x00` 危险字符并返回 strip 净化后的 key，非法凭据严格抛出静态安全 `ERR_CUSTOM_KEY_INVALID` 失败关闭，杜绝静默降级或回退读取系统 key；三角色 provider、model、base_url 及构造顺序严格保持。
 - **质量验证覆盖**：新增 `backend/tests/test_agent_explicit_keys.py` 覆盖 5 项敏感环境变量均存在时每个 SDK constructor 调用瞬间与返回后环境严格不变、SDK 接收到净化后的 custom key 且 STT/LLM/TTS 归属不串、部分敏感环境变量缺失时保持缺失不补写、resolver/factory 异常流程环境不变且后续 role 零调用、非法 key 矩阵拒绝且零环境回退、并发与嵌套两用户自定义配置互不干扰、OpenRouter 与模型选择支持、VAD 始终 mock 零网络/下载以及全链路 Canary 日志与载荷脱敏审计；更新 `backend/tests/test_credential_resolver.py` 删除已移除常量的 import，使用 `patch.dict` 精确隔离环境（关闭 A45 P2 遗留的环境恢复风险），保持既有 20 项测试语义。
 - **契约与界限**：契约见 [RF-09 自定义插件显式凭据构造验证](./verification/cross-platform/RF-09-EXPLICIT-KEYS.md)。本轮仅完成自定义插件构造显式传参与零进程环境变量改写；Orchestrator/ProviderRegistry 拆分、sys.path/dotenv 清理及真实外部 Provider 网络联调仍待后续完成，整项保持未勾选，RF-09 持续推进。
+
+## 2026-10-26 A47 / RF-06 根元数据与一次性诊断脚本清理实施
+
+基于 TODO.md RF-06 架构减法与 MVP 重构方案完成本地实施。对根包元数据进行规范化清理，并安全清理无调用的历史一次性诊断脚本，明确 monorepo 根目录定位。
+
+- **本地实现与元数据规范**：根目录 `package.json` 更新 `name` 为 `"echotalk"`，添加准确项目 `description`（`"EchoTalk - AI-powered real-time English learning and speaking practice platform"`），显式声明 `"private": true` 杜绝意外发布，删除指向不存在文件的无效 `"main": "index.js"`；严格未修改版本号、license、packageManager、脚本命令、devDependencies 或 lock 文件；保持 Turbo、Docker、Capacitor 及子应用配置一致。
+- **一次性诊断脚本清理**：全局引用审计确认根目录 `test_api_err.ts` 仅在评审手册 §2 中提及，无任何源码、构建脚本、CI 或自动化测试引用；完成安全删除；同步更新 `docs/agent-review-loop.md` 说明该历史诊断脚本已移除且明确不属于测试树。
+- **质量验证覆盖**：全量前端 8 项门禁（格式检查、Lint、类型检查、Vitest 单元测试、构建脚本测试、Fake API 子进程回归、应用构建、Playwright 双浏览器 E2E）全部通过；根元数据与脚本清理零回归。
+- **契约与界限**：契约见 [RF-06 根元数据与一次性诊断清理验证](./verification/cross-platform/RF-06-ROOT-CLEANUP.md)。本轮仅完成根元数据与无调用一次性诊断脚本清理；Webpack 移除、ui-lib 模板精简、Plop/Changesets 评估等前端深度清理仍待后续阶段推进，整项保持未勾选，RF-06 持续推进。

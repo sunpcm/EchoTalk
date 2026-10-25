@@ -1,8 +1,8 @@
 {
-  "name": "monorepo-study-note",
+  "name": "echotalk",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "EchoTalk - AI-powered real-time English learning and speaking practice platform",
+  "private": true,
   "scripts": {
     "dev": "turbo dev",
     "dev:vite": "turbo dev --filter=vite-app",
