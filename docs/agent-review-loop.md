@@ -43,6 +43,13 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 当前前端 quality 门禁共 8 项：format、lint、typecheck、Vitest、build-script-test、fake-api-test、build、e2e；baseline 保留 3 项（format、lint、typecheck）。
 真实 IdP、LiveKit/Provider、iOS/macOS 设备链路是独立外部验收，不由 Fake API E2E 替代。
 
+### §2.1 RF-07 Python 依赖受控安装与环境验证规范
+
+1. **项目规范与解释器声明**：后端成为标准 uv 项目，`backend/pyproject.toml` 声明 `name = "echotalk-backend"`、`version = "0.1.0"`、`requires-python = ">=3.12,<3.13"`、`[tool.uv] package = false`；`backend/.python-version` 明确声明 `3.12`，统一对齐 CI 与本地解释器，禁止开发入口回退到其他 Python 版本。
+2. **唯一依赖真相与导出入口**：提交完整的 `backend/uv.lock`（192 个包），`backend/requirements.txt` 是由 `uv.lock` 通过 `uv export --frozen --no-dev --no-emit-project --no-header --no-annotate` 导出的单一只读兼容镜像产物，禁止手写双重直接依赖。CI 中通过只读导出并与仓内文件精确 `cmp` 校验一致性。
+3. **环境隔离与只读边界**：原 `backend/.venv` 保持严格只读，不得修改、删除或用于新依赖同步；RF-07 受控新环境固定位于 `cp00/.review/rf07-venv`，完全独立于 backend 目录，不进入 Docker build context。新环境的 frozen 同步安装及 269 项后端 pytest（覆盖率 73.72%）由架构评审在独立测试库执行与核验证实，实施方严禁直接读取数据库凭据或拿旧 env 日志充数。当前本地测试脚本与 runner 严格使用当前 lane 指定环境，不得擅自指向全局 Python。
+4. **CI 与 Docker 配方统一**：CI (`.github/workflows/ci.yml`) 锁定 `astral-sh/setup-uv@v3` 版本为 `0.9.18`，通过 `uv lock --check` 与 `uv sync --frozen --no-python-downloads` 实施冻结安装；Dockerfile 统一为 `python:3.12-slim` 与 uv 0.9.18 配方，隔离虚拟环境于 `/opt/venv`，`.dockerignore` 补充 `.env*`、`.review/` 及测试缓存排除规则，避免本地环境泄露至镜像上下文。
+
 ## §3 测试库与安装边界
 
 用户已授权专用容器 `echotalk-cp00-pg`（postgres:15.19-alpine），仅监听 `127.0.0.1:55432`，库 `echotalk_cp00_test`。密码仅存在本地受保护 runtime，不提供给外部 Agent。CP-00 空库迁移至 `b3f1c8e92a10`；后续仅后端 B 线使用此库，A/C 不连接数据库。
@@ -54,10 +61,7 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 `DATABASE_URL` 缺失时不启动 pytest，避免配置模块回退根 `.env` 或默认应用库。
 不得通过假地址、Mock 开关或删除集成测试把测试树制造为全绿。
 
-用户已允许各隔离 worktree 按现有锁文件安装前端依赖、按现有 requirements.txt 安装独立 Python 环境；不扩展为任意依赖升级或浏览器安装。
-获准后前端使用现有锁文件 frozen 安装，不更改 manifest/lock；Python 依照当前 CI 的 requirements.txt，
-记录解析出的包版本。requirements.txt 使用范围约束，不能把这次解析称为 uv.lock 冻结安装；
-依赖可复现性改造属于 RF-07，本轮不顺手实施。
+既有各隔离 worktree 的前端 frozen 安装授权保持不变；本次新增 Python 锁定与 frozen 安装授权仅限当前 cp00 及其 `.review/rf07-venv`，不扩展到其他 lane 或服务环境。Python 依赖可复现性改造（RF-07）已完成本地受控阶段：后端作为标准 Python 3.12 uv 项目提交完整 `uv.lock`，锁定 192 个包（含 172 项 baseline 重叠版本与 LiveKit 7 项 exact SDK 版本严格不变）；依赖安装对齐 CI 与 Docker 源码配方，通过 `uv sync --frozen` 在隔离环境安装。远端 Linux/Docker 实际镜像构建仍待后续独立验收。
 不借用主 checkout 的 node_modules/venv 冒充新 lane 的独立依赖环境。
 
 ## §4 生成产物及验证

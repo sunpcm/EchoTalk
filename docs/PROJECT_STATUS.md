@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地 RF-07 可复现 Python 依赖与受控配方实施记录（A36）
+
+基于 TODO.md RF-07“后端成为真实 uv 项目并提交完整 uv.lock；API、Agent、Dev 依赖分组；CI/Docker frozen 安装；Python 3.12 统一”完成本地实施。后端正式建立标准 Python 3.12 uv 项目体系，提交 192 个包的完整 `uv.lock`，严格保留既有 172 项 baseline 重叠版本与 LiveKit 7 项 exact SDK 版本；`requirements.txt` 作为锁导出的单一真相源，CI 与 Docker 构建配方全面对齐冻结安装规范。
+
+- 本地实现与依赖声明：在 `backend/pyproject.toml` 中补齐标准 `[project]` 元数据（`name = "echotalk-backend"`, `version = "0.1.0"`, `requires-python = ">=3.12,<3.13"`），30 项直接依赖声明为默认 `dependencies`，配置 `[tool.uv] package = false`，Ruff、coverage 与 pytest 原配置与阈值全量保留；新增 `backend/.python-version` 声明 `3.12`；提交 192 个包完整解析的 `backend/uv.lock`，无跨平台/版本漂移；`backend/requirements.txt` 通过 `uv export --frozen --no-dev --no-emit-project --no-header --no-annotate` 导出，消除了手写两套直接依赖的双源隐患。
+- CI 与 Docker 配方统一：`.github/workflows/ci.yml` 锁定 `astral-sh/setup-uv@v3` 版本为 `0.9.18`，依赖安装改为 `uv lock --check`、只读导出并与仓内 `requirements.txt` 进行 `cmp` 一致性检查，继而执行 `uv sync --frozen --no-python-downloads`；`backend/Dockerfile` 基础镜像升级至 `python:3.12-slim`，固定 uv 0.9.18 二进制，虚拟环境固定在 `/opt/venv` 并预先注入 `PATH`，先复制锁定文件执行 frozen sync 再复制源码，避免环境被源码覆盖；`backend/.dockerignore` 增强排除 `.env*`、`.review/` 及各类测试缓存。
+- 质量验证覆盖：全新隔离环境 `.review/rf07-venv` 经受控 frozen 同步与离线 `uv sync --check` 验证，sys.prefix 与 site-packages 完全隔离，旧 `backend/.venv` 严格只读且元数据指纹未变；经 Codex 独立评审在隔离测试库运行 269 项 pytest（覆盖率 73.72%）与 Ruff 格式/lint 检查全部通过；前端 8 项门禁（Vitest、构建脚本、Fake API 原生子进程、双浏览器 E2E 等）持续通过。
+- 契约与记录见 [RF-07 可复现 Python 依赖验证](./verification/cross-platform/RF-07-FROZEN-PYTHON.md)。未执行 Docker 真实镜像构建，未连接真实外部 Provider，整项保持未勾选，RF-07 持续推进。
+
 ## 2026-10-25 本地主要容器主题颜色过渡实施记录（A35）
 
 基于 TODO.md P2“按主要容器补齐主题颜色过渡，避免子元素瞬间切色”契约完成本地实施。在复用既有三主题设计 Token 及 body 250ms ease 规范的基础上，为覆盖在 body 之上的应用主要容器、卡片、设置抽屉及显式语义文本补齐平滑的主题颜色过渡，消除切换主题时子元素的瞬间切色现象。
@@ -360,3 +369,9 @@ r0直接grep拒权后早停，用户明确重新授权原范围读取，r1完成
 Codex 独立评审 APPROVED：698单测/18构建脚本/53 Fake API Node/144双浏览器与专用PostgreSQL 269（73.72%）及Ruff通过；另10项独立双浏览器覆盖普通/reduce computed、真实背景与文字插值、warm→dark→cool、390px/200%字号、完整根容器几何、精确主题PUT与零业务写。根scope缺失及reduce时长破坏两有效变异各导致1项产品测试失败，逐字节/整树恢复后完整8门禁通过。
 
 新增E2E未实际设置窄屏/200%，spinner为条件分支，均不计作该新增用例实际覆盖；前者由独立探针实测补足，后者由保留的A27专门回归验证，原报告/失败批次留存本地issues，不改skill。scope只含CSS/既有HTML属性与两处class组合，业务逻辑未改；真实设备视觉仍待验，未推送或部署。
+
+## 2026-10-25 A36 / RF-07 本地阶段独立验收
+
+Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK保持；cp00全新环境frozen安装172项及离线check通过，新env269 pytest/73.72%与Ruff通过。13控制入口护栏、CI/Docker源码不变量、导出逐字节一致及2有效变异通过；完整前端8门禁698单测/18构建脚本/53 Fake API Node/144双浏览器通过。旧环境未同步安装，所有数据库检查仅专用测试库；权限仍限cp00，不扩其他lane。
+
+原工具草案未绑定执行，缺陷和私有文件拒权记录保留；评审维护小型固定控制入口，agy完成项目/CI/Docker配方源码。API/Agent/Dev分组尚未做，192包锁含19项Linux/CUDA条件分支；未运行Docker build/远端Linux CI、未选择CPU专用源、未部署或触真实业务，RF07整项仍未完成。
