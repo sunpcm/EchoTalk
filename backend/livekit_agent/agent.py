@@ -49,6 +49,7 @@ from config import settings  # noqa: E402
 from database import async_session_maker  # noqa: E402
 from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
 from livekit_agent.plugin_factory import PluginFactory, PluginInitError  # noqa: E402
+from livekit_agent.transcript_events import derive_transcript_event_id  # noqa: E402
 from models.session import Session, SessionContext  # noqa: E402
 from models.user import UserSettings  # noqa: E402
 from services.emotion_analyzer import EmotionAnalyzer  # noqa: E402
@@ -327,14 +328,20 @@ class EchoTalkAgent(Agent):
             )
 
         # 3. 异步持久化用户转录 + 情绪状态（不阻塞 LLM 推理）
-        asyncio.ensure_future(
-            save_transcript(
-                self._session_id,
-                "user",
-                text,
-                emotion_state=emotion.to_dict(),
+        source_item_id = getattr(new_message, "id", None)
+        event_id = derive_transcript_event_id(self._session_id, "user", source_item_id)
+        if event_id is None:
+            logger.warning("用户消息缺少有效 item.id，丢弃转录持久化")
+        else:
+            asyncio.ensure_future(
+                save_transcript(
+                    self._session_id,
+                    "user",
+                    text,
+                    emotion_state=emotion.to_dict(),
+                    event_id=event_id,
+                )
             )
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +357,21 @@ def _persist_assistant_conversation_item(
     if isinstance(item, llm.ChatMessage) and item.role == "assistant":
         text = item.text_content
         if text:
-            asyncio.ensure_future(save_transcript(session_id, "assistant", text))
+            source_item_id = getattr(item, "id", None)
+            event_id = derive_transcript_event_id(
+                session_id, "assistant", source_item_id
+            )
+            if event_id is None:
+                logger.warning("AI 消息缺少有效 item.id，丢弃转录持久化")
+            else:
+                asyncio.ensure_future(
+                    save_transcript(
+                        session_id,
+                        "assistant",
+                        text,
+                        event_id=event_id,
+                    )
+                )
 
 
 async def entrypoint(ctx: JobContext):

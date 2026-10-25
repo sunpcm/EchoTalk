@@ -125,6 +125,11 @@ class Transcript(Base):
 
     __tablename__ = "transcripts"
     __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "event_id",
+            name="uq_transcripts_session_event",
+        ),
         Index(
             "ix_transcripts_session_timestamp",
             "session_id",
@@ -135,6 +140,9 @@ class Transcript(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False
+    )
+    event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
     )
     role: Mapped[TranscriptRole] = mapped_column(
         Enum(TranscriptRole, name="transcript_role_enum"), nullable=False
