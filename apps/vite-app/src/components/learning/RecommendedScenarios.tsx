@@ -34,7 +34,7 @@ function ScenarioCard({
   const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-surface-alt text-text-muted";
 
   return (
-    <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
+    <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-colors transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
         <h3 className="text-text-default leading-tight font-semibold">

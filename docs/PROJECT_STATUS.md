@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地主要容器主题颜色过渡实施记录（A35）
+
+基于 TODO.md P2“按主要容器补齐主题颜色过渡，避免子元素瞬间切色”契约完成本地实施。在复用既有三主题设计 Token 及 body 250ms ease 规范的基础上，为覆盖在 body 之上的应用主要容器、卡片、设置抽屉及显式语义文本补齐平滑的主题颜色过渡，消除切换主题时子元素的瞬间切色现象。
+
+- 本地实现与过渡作用域：在 `index.html` 的既有 `#root` 上添加 `theme-transitions` 单个 scope class（不改动首帧主题脚本、head 或 DOM 结构）；在 `styles.css` 中为 `.theme-transitions` 作用域内的核心语义类（`.bg-bg`, `.bg-surface`, `.bg-surface-alt`, `.card`, `dialog.settings-drawer`, 粘性 header, `.text-text-default`, `.text-text-muted`, `.text-text-faint`, `.border-border-default` 等）声明 `0.25s ease` 颜色过渡；不影响 Webpack 或非应用 DOM，不引入全局 `transition: all` 或布局/尺寸过渡。
+- 组合类保护与 hover 能力：针对使用 `transition-shadow` 的两处既有容器（`App.tsx` DocTalk 按钮与 `RecommendedScenarios.tsx` 卡片），组合 `transition-colors` 并在 `styles.css` 中声明复合过渡（保留 `box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1)` 与颜色 `0.25s ease`），卡片 hover 阴影过渡保留原时长与 easing。
+- 减少动态效果与双浏览器验证：完全继承 A27 的 `prefers-reduced-motion: reduce` 规则（过渡时间降为 0s，立即生效，drawer 动画为 none，功能性 spinner 保留）；新增 `e2e/theme-transitions.spec.ts` 双浏览器回归，通过 Web Animations API 真实捕获 CSSTransition 并在 125ms 中点证实插值中间态；窄屏与 200% 字号由 Codex 独立探针补验，0 溢出且主要根容器几何保持，仅发单次精确 PUT，0 pageerror。
+- 契约与记录见 [主要容器主题过渡验证](./verification/cross-platform/CP-05-THEME-TRANSITIONS.md)。未推送、未部署、无真实外部 Provider 或多设备联调，不代表三端整体完成。
+
 ## 2026-10-25 本地安全诊断一期实施记录（A34）
 
 基于 TODO.md CP-06“补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文”完成本地一期实施。新增结构化脱敏日志辅助模块 `diagnostics.ts`，统一按纯净白名单 record 记录关键异常，彻底消除此前在控制台直接输出未经脱敏外部 parsed 对象的缺陷。
@@ -345,3 +354,9 @@ Codex 独立评审 APPROVED：无歧义tuple编码隔离冒号边界碰撞，665
 Codex 独立评审 APPROVED：698单测/18构建脚本/53 Fake API Node/140双浏览器及269专用库后端（73.72%）与Ruff通过。另40独立API/真实DataChannel/日志边界探针与2独立双浏览器通过，验证完整console参数白名单、敏感canary缺失、API503后重试恢复与零新增业务写；放宽错误码白名单及恢复raw payload日志两变异分别导致1/2项产品测试失败。全部冻结源码/测试字节恢复后全门禁通过。
 
 r0直接grep拒权后早停，用户明确重新授权原范围读取，r1完成源码和8项门禁但流ERROR；原失败保留，同模型r2冷启动只补完整交付，绑定复用源码和8日志hash，3次尝试/1395.31活动秒。独立验收未省略，不改skill、权限配置或真实环境；本地console一期不隐含遥测上报要求，CP06三端真实联动仍待验。
+
+## 2026-10-25 A35 独立验收
+
+Codex 独立评审 APPROVED：698单测/18构建脚本/53 Fake API Node/144双浏览器与专用PostgreSQL 269（73.72%）及Ruff通过；另10项独立双浏览器覆盖普通/reduce computed、真实背景与文字插值、warm→dark→cool、390px/200%字号、完整根容器几何、精确主题PUT与零业务写。根scope缺失及reduce时长破坏两有效变异各导致1项产品测试失败，逐字节/整树恢复后完整8门禁通过。
+
+新增E2E未实际设置窄屏/200%，spinner为条件分支，均不计作该新增用例实际覆盖；前者由独立探针实测补足，后者由保留的A27专门回归验证，原报告/失败批次留存本地issues，不改skill。scope只含CSS/既有HTML属性与两处class组合，业务逻辑未改；真实设备视觉仍待验，未推送或部署。

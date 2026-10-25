@@ -121,7 +121,9 @@
 - [x] 为颜色过渡和抽屉动画支持 `prefers-reduced-motion`（A27 本地独立评审通过）；
       CSS 媒体查询支持 reduce 与 no-preference 真实浏览器 computed、抽屉动画消除与
       loading spinner 保留，零 JS 注入与零隐式业务写。见 [验证](./docs/verification/cross-platform/CP-05-REDUCED-MOTION.md)。
-- [ ] 按主要容器补齐主题颜色过渡，避免子元素瞬间切色。
+- [x] 按主要容器补齐主题颜色过渡，避免子元素瞬间切色（A35 本地独立评审通过）；
+      为 #root 注入 theme-transitions 作用域，补齐主要容器、卡片、设置抽屉及显式文本 250ms ease 颜色过渡，
+      保持 box-shadow 150ms 与 hover 能力，兼容 reduce 偏好与 WAAPI 插值中间态验证，见 [主要容器主题过渡验证](./docs/verification/cross-platform/CP-05-THEME-TRANSITIONS.md)。
 - [ ] 移除 LiveKit 消息访问处的 SDK 类型忽略，改用类型收窄或兼容适配层。
 
 ## 三端交付计划（Web / macOS / iOS）
