@@ -64,7 +64,7 @@ test.describe("Safe Local Diagnostics Instrumentation (CP-06)", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify([]),
+          body: JSON.stringify({ items: [], next_cursor: null }),
         });
       }
     });

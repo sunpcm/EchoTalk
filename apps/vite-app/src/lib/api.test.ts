@@ -19,6 +19,9 @@ import {
   dispatchAgent,
   listSessions,
   listActiveSessions,
+  getDailyProgress,
+  parseSessionListResponse,
+  parseDailyProgressResponse,
   getSessionDetail,
   getAnalysisStatus,
   retryAnalysis,
@@ -961,52 +964,67 @@ describe("API client", () => {
       );
     });
 
-    it("lists sessions", async () => {
-      const mockList = [
-        {
-          id: "sess-1",
-          mode: "free_talk",
-          status: "ended",
-          started_at: "2025-01-01T00:00:00Z",
-          ended_at: "2025-01-01T00:10:00Z",
-        },
-      ];
+    it("lists sessions with pagination envelope and query params", async () => {
+      const mockResponse = {
+        items: [
+          {
+            id: "38752299-15c9-4423-8920-dea740cc4801",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2025-01-01T00:00:00Z",
+            ended_at: "2025-01-01T00:10:00Z",
+          },
+        ],
+        next_cursor: "next-cursor-123",
+      };
       fetchMock().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockList),
+        json: () => Promise.resolve(mockResponse),
       } as unknown as Response);
 
-      const res = await listSessions();
-      expect(res).toEqual(mockList);
-      expect(globalThis.fetch).toHaveBeenCalledWith(`${getBaseUrl()}/sessions`, expect.anything());
+      const res = await listSessions({
+        status: "completed",
+        start: "2025-01-01T00:00:00Z",
+        end: "2025-01-01T12:00:00Z",
+        limit: 10,
+        cursor: "prev-cursor",
+      });
+      expect(res).toEqual(mockResponse);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions?status=completed&start=2025-01-01T00%3A00%3A00Z&end=2025-01-01T12%3A00%3A00Z&limit=10&cursor=prev-cursor`,
+        expect.anything(),
+      );
     });
 
     it("lists active sessions preserving backend order and passing auth token", async () => {
-      const mockActiveSessions = [
-        {
-          id: "sess-2",
-          mode: "doc_chat",
-          status: "active",
-          started_at: "2025-01-01T01:00:00Z",
-          ended_at: null,
-        },
-        {
-          id: "sess-1",
-          mode: "free_talk",
-          status: "active",
-          started_at: "2025-01-01T00:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockActiveResponse = {
+        items: [
+          {
+            id: "8f7e6d5c-4b3a-4210-9876-543210fedcba",
+            mode: "doc_chat",
+            status: "active",
+            started_at: "2025-01-01T01:00:00Z",
+            ended_at: null,
+          },
+          {
+            id: "38752299-15c9-4423-8920-dea740cc4801",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2025-01-01T00:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
       fetchMock().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockActiveSessions),
+        json: () => Promise.resolve(mockActiveResponse),
       } as unknown as Response);
 
       const res = await listActiveSessions();
-      expect(res).toEqual(mockActiveSessions);
-      expect(res[0].id).toBe("sess-2");
-      expect(res[1].id).toBe("sess-1");
+      expect(res).toEqual(mockActiveResponse);
+      expect(res.items[0].id).toBe("8f7e6d5c-4b3a-4210-9876-543210fedcba");
+      expect(res.items[1].id).toBe("38752299-15c9-4423-8920-dea740cc4801");
       expect(globalThis.fetch).toHaveBeenCalledWith(
         `${getBaseUrl()}/sessions/active`,
         expect.objectContaining({
@@ -1016,6 +1034,97 @@ describe("API client", () => {
       const options = fetchMock().mock.calls[0]?.[1];
       const headers = new Headers(options?.headers);
       expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+    });
+
+    it("gets daily progress aggregation", async () => {
+      const mockDaily = {
+        completed_sessions: 3,
+        total_turns: 18,
+      };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockDaily),
+      } as unknown as Response);
+
+      const res = await getDailyProgress("2025-01-01T00:00:00Z", "2025-01-01T23:59:59Z");
+      expect(res).toEqual(mockDaily);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions/daily-progress?start=2025-01-01T00%3A00%3A00Z&end=2025-01-01T23%3A59%3A59Z`,
+        expect.anything(),
+      );
+    });
+
+    it("parses valid and rejects invalid session list envelopes fail-closed", () => {
+      // 成功用例
+      const validEnvelope = {
+        items: [
+          {
+            id: "38752299-15c9-4423-8920-dea740cc4801",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cur-1",
+      };
+      expect(parseSessionListResponse(validEnvelope)).toEqual(validEnvelope);
+
+      // 非对象
+      expect(() => parseSessionListResponse(null)).toThrow();
+      expect(() => parseSessionListResponse([])).toThrow();
+      // items 不是数组
+      expect(() => parseSessionListResponse({ items: "not-array" })).toThrow();
+      // next_cursor 类型错误
+      expect(() => parseSessionListResponse({ items: [], next_cursor: 123 })).toThrow();
+      // item 中 id 非合法 UUID
+      expect(() =>
+        parseSessionListResponse({
+          items: [
+            {
+              id: "invalid-uuid",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25T10:00:00Z",
+            },
+          ],
+        }),
+      ).toThrow();
+      // started_at 非时区 ISO 时间戳
+      expect(() =>
+        parseSessionListResponse({
+          items: [
+            {
+              id: "38752299-15c9-4423-8920-dea740cc4801",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25 10:00:00",
+            },
+          ],
+        }),
+      ).toThrow();
+    });
+
+    it("parses valid and rejects invalid daily progress envelopes fail-closed", () => {
+      // 成功用例
+      const valid = { completed_sessions: 5, total_turns: 20 };
+      expect(parseDailyProgressResponse(valid)).toEqual(valid);
+
+      // 负数
+      expect(() =>
+        parseDailyProgressResponse({ completed_sessions: -1, total_turns: 0 }),
+      ).toThrow();
+      expect(() =>
+        parseDailyProgressResponse({ completed_sessions: 0, total_turns: -5 }),
+      ).toThrow();
+      // 浮点数
+      expect(() =>
+        parseDailyProgressResponse({ completed_sessions: 1.5, total_turns: 0 }),
+      ).toThrow();
+      // 缺少字段
+      expect(() => parseDailyProgressResponse({ completed_sessions: 1 })).toThrow();
+      // 非对象
+      expect(() => parseDailyProgressResponse("not-object")).toThrow();
     });
 
     it("gets session detail", async () => {
@@ -1543,6 +1652,87 @@ describe("API client", () => {
         expect((err as ApiError).status).toBe(503);
         return true;
       });
+    });
+  });
+
+  describe("parseSessionListResponse strict schema validation", () => {
+    const validItem = {
+      id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      mode: "free_talk",
+      status: "completed",
+      started_at: "2026-10-25T10:00:00Z",
+      ended_at: "2026-10-25T10:10:00Z",
+    };
+
+    it("accepts valid list response with null or valid next_cursor", () => {
+      const res1 = parseSessionListResponse({
+        items: [validItem],
+        next_cursor: null,
+      });
+      expect(res1.items).toHaveLength(1);
+      expect(res1.next_cursor).toBeNull();
+
+      const res2 = parseSessionListResponse({
+        items: [{ ...validItem, ended_at: null }],
+        next_cursor: "valid-cursor-token",
+      });
+      expect(res2.items[0].ended_at).toBeNull();
+      expect(res2.next_cursor).toBe("valid-cursor-token");
+    });
+
+    it("rejects empty string next_cursor", () => {
+      expect(() =>
+        parseSessionListResponse({
+          items: [validItem],
+          next_cursor: "",
+        }),
+      ).toThrow("next_cursor cannot be an empty string");
+    });
+
+    it("rejects next_cursor exceeding 1024 chars", () => {
+      expect(() =>
+        parseSessionListResponse({
+          items: [validItem],
+          next_cursor: "a".repeat(1025),
+        }),
+      ).toThrow("next_cursor length exceeds 1024");
+    });
+
+    it("rejects items exceeding maximum limit of 100", () => {
+      const items = Array.from({ length: 101 }, (_, i) => ({
+        ...validItem,
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      }));
+      expect(() =>
+        parseSessionListResponse({
+          items,
+          next_cursor: null,
+        }),
+      ).toThrow("items length exceeds maximum limit of 100");
+    });
+
+    it("rejects session item missing ended_at property", () => {
+      const itemWithoutEndedAt = {
+        id: validItem.id,
+        mode: validItem.mode,
+        status: validItem.status,
+        started_at: validItem.started_at,
+      };
+      expect(() =>
+        parseSessionListResponse({
+          items: [itemWithoutEndedAt],
+          next_cursor: null,
+        }),
+      ).toThrow("ended_at is required");
+    });
+
+    it("rejects invalid ended_at format", () => {
+      expect(() =>
+        parseSessionListResponse({
+          items: [{ ...validItem, ended_at: "not-a-timestamp" }],
+          next_cursor: null,
+        }),
+      ).toThrow("ended_at must be null or an ISO calendar timestamp with timezone");
     });
   });
 });

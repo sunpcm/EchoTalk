@@ -47,7 +47,7 @@ test.describe("Theme Tokens Audit & Confirmation Panels Visual Regression (CP-05
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([FIXTURE_SESSION_A]),
+        body: JSON.stringify({ items: [FIXTURE_SESSION_A], next_cursor: null }),
       });
     });
 

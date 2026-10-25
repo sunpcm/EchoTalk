@@ -184,6 +184,7 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 | -------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离    | 代码和自动化已落地；真实 IdP 联调仍需环境验收              |
 | 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                  | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明 |
+| 会话发现与分页 | 游标分页响应 `{ items, next_cursor }`；`daily-progress` 服务端单次聚合统计         | 已实现 keyset 稳定游标与防篡改校验，无 N+1 查询            |
 | 会话分析       | 持久化分析状态、发音评估、语法检测、BKT 知识追踪、失败/重试状态                    | 自动化覆盖核心状态机；真实发音 Provider 仍需外部验收       |
 | 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态 | 已实现                                                     |
 | 自适应课程     | 读取薄弱技能，通过 ChromaDB/Krashen i+1 生成课程推荐                               | 存在真实 API 调用链；ChromaDB 客户端按进程复用             |
@@ -409,3 +410,10 @@ Codex 独立评审 APPROVED：698单测/18构建脚本/53 Fake API Node/144双�
 Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK保持；cp00全新环境frozen安装172项及离线check通过，新env269 pytest/73.72%与Ruff通过。13控制入口护栏、CI/Docker源码不变量、导出逐字节一致及2有效变异通过；完整前端8门禁698单测/18构建脚本/53 Fake API Node/144双浏览器通过。旧环境未同步安装，所有数据库检查仅专用测试库；权限仍限cp00，不扩其他lane。
 
 原工具草案未绑定执行，缺陷和私有文件拒权记录保留；评审维护小型固定控制入口，agy完成项目/CI/Docker配方源码。API/Agent/Dev分组尚未做，192包锁含19项Linux/CUDA条件分支；未运行Docker build/远端Linux CI、未选择CPU专用源、未部署或触真实业务，RF07整项仍未完成。
+
+## 2026-10-25 A41 / RF-08 会话分页与每日聚合独立实施
+
+- **前后端契约对齐**：会话列表（`GET /api/sessions` 及 `GET /api/sessions/active`）统一升级为 `{ items: SessionListItem[], next_cursor: string | null }`；客户端严格校验 `items.length <= 100`，`next_cursor` 为非空字符串且 `<= 1024` 字节，且每个 item 必须显式包含 `ended_at`（ISO 字符串或 `null`）；新增 `GET /api/sessions/daily-progress` 聚合端点（返回 `completed_sessions` 与 `total_turns`）。
+- **稳定与校验游标**：游标基于 `(started_at, id)` keyset 稳定排序，标准库 canonical URL-safe base64 编码，严格要求 `v=1` 为整数（拒绝 bool/float），严格绑定 endpoint、当前用户、status 及时间窗上下文白名单进行绝对比对；长度限制 `<= 1024` 字节；自包含无状态校验，非 HMAC 签名凭证，不提供抗恶意改写完整性保证；数据库查询始终强制当前 `user_id` 过滤；非法格式、超长或上下文不匹配一律返回 422。
+- **性能与生命周期健壮性**：DailyProgress 消除 N+1 会话详情与正文拉取，采用单次 SQL 统计，0 条转录 completed 会话计为 1 且 total_turns 为 0；前端采用本地自然日（00:00 - 次日 00:00，DST 兼容）；午夜定时器安排与窗口变化彻底解耦，不进行 24h 硬夹值，支持 25h/23h/24h 本地自然日及 StrictMode 双挂载重建；离线与切后台挂起时同步作废在途分页请求并清空游标状态，使“加载更多”按钮即时隐藏；跨午夜时不论在线离线立即清空昨日数据，离线跨日不发网络；首屏与分页追加实施严格 ID 去重；ActiveSessions 显式点击加载更多，在途加载与结束/恢复操作互锁；more 分支覆盖换号、revision 更新、旧 finally 隔离、错误同 cursor 重试及双击去重。
+- **全量门禁结果**：前端 743 Vitest / 18 构建脚本 / 61 Fake API / 148 Playwright E2E（WebKit & Chromium）及格式与类型检查全部 0 错误通过；后端 303 项 pytest 全部通过（覆盖率 74.48% >= 59.0% 门禁），Ruff 格式与检查 0 错误。停在 Review，未提交 Git 或部署。

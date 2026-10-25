@@ -1,14 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-test.beforeEach(async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
-});
-
 test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
   test("preserves 0.25s body transition, slideInRight drawer animation, and interactive features under no-preference", async ({
     page,
   }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "no-preference" });
 
     // 1. 验证 body 的 0.25s 颜色过渡
@@ -60,6 +57,8 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
   test("suppresses decorative transitions and drawer slideInRight under reduce without altering layout or final state", async ({
     page,
   }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
 
     // 1. 验证 body transition 为 0s 或 none，无持续过渡插值
@@ -126,6 +125,8 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
   test("dynamically switches preferences before opening and while drawer remains open", async ({
     page,
   }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
     // 初始处于 reduce
     await page.emulateMedia({ reducedMotion: "reduce" });
 
@@ -202,13 +203,17 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
       resolveFetch = resolve;
     });
 
-    // 拦截 GET /user/settings，保持 loading 态以检验 spinner 真实动画
+    // 先安装 GET /user/settings hold 拦截，防止页面启动 GET 与抽屉打开 fetch 产生竞态
     await page.route("**/user/settings", async (route) => {
       if (route.request().method() === "GET") {
         await fetchHold;
       }
       await route.continue();
     });
+
+    // 确定性屏障：先进入页面并等待标题可见
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
@@ -240,6 +245,8 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
   test("zero implicit write requests on preference toggle, drawer open, and close", async ({
     page,
   }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
     let settingsPutCount = 0;
     page.on("request", (req) => {
       if (req.url().includes("/user/settings") && req.method() === "PUT") {

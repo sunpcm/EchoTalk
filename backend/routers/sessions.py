@@ -6,7 +6,7 @@ import math
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from livekit.api import (
     AccessToken,
     CreateAgentDispatchRequest,
@@ -35,8 +35,9 @@ from schemas.call_lease import (
 )
 from schemas.session import (
     AnalysisStatusResponse,
+    DailyProgressResponse,
     SessionCreate,
-    SessionListItem,
+    SessionListResponse,
     SessionResponse,
 )
 from services.analysis_jobs import (
@@ -58,6 +59,11 @@ from services.session_idempotency import (
     compute_session_fingerprint,
     is_idempotency_unique_violation,
     parse_idempotency_key,
+)
+from services.session_queries import (
+    paginate_sessions,
+    query_daily_progress,
+    validate_window,
 )
 from time_utils import utc_now
 
@@ -191,44 +197,77 @@ async def create_session(
     return session
 
 
-@router.get("/sessions", response_model=list[SessionListItem])
+@router.get("/sessions", response_model=SessionListResponse)
 async def list_sessions(
+    status: str | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    cursor: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """列出当前用户的所有会话。"""
-    stmt = (
-        select(Session)
-        .where(Session.user_id == current_user.id)
-        .order_by(Session.started_at.desc())
+    """列出当前用户的会话（支持 keyset 游标分页、状态过滤与成对时间窗口）。"""
+    start_utc, end_utc = validate_window(start, end, required=False)
+    return await paginate_sessions(
+        db,
+        user_id=current_user.id,
+        endpoint="history",
+        status=status,
+        start=start_utc,
+        end=end_utc,
+        limit=limit,
+        cursor=cursor,
     )
-    result = await db.execute(stmt)
-    sessions = result.scalars().all()
-    return sessions
 
 
-@router.get("/sessions/active", response_model=list[SessionListItem])
+@router.get("/sessions/active", response_model=SessionListResponse)
 async def list_active_sessions(
+    start: datetime | None = None,
+    end: datetime | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    cursor: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """查询当前已认证用户的活跃会话记录。
+    """查询当前已认证用户的活跃会话记录（支持 keyset 游标分页与成对时间窗口）。
 
     仅返回 status=active 的记录，按 started_at 降序、id 降序排序。
     不包含 Token、转录或文档正文，不更新状态、不签 Token、不 dispatch。
     注意：此接口仅发现数据库活动记录，不证明 LiveKit 仍连接或租约占用。
     """
-    stmt = (
-        select(Session)
-        .where(
-            Session.user_id == current_user.id,
-            Session.status == SessionStatus.active,
-        )
-        .order_by(Session.started_at.desc(), Session.id.desc())
+    start_utc, end_utc = validate_window(start, end, required=False)
+    return await paginate_sessions(
+        db,
+        user_id=current_user.id,
+        endpoint="active",
+        status="active",
+        start=start_utc,
+        end=end_utc,
+        limit=limit,
+        cursor=cursor,
     )
-    result = await db.execute(stmt)
-    sessions = result.scalars().all()
-    return sessions
+
+
+@router.get("/sessions/daily-progress", response_model=DailyProgressResponse)
+async def get_daily_progress(
+    start: datetime,
+    end: datetime,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """单次服务端聚合当前用户指定窗口内已完成会话数及全部转录条数。
+
+    必须定义在动态 /sessions/{session_id} 之前以防路由碰撞。
+    """
+    start_utc, end_utc = validate_window(start, end, required=True)
+    assert start_utc is not None and end_utc is not None
+    return await query_daily_progress(
+        db,
+        user_id=current_user.id,
+        start=start_utc,
+        end=end_utc,
+    )
 
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)

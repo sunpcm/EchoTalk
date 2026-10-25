@@ -62,6 +62,20 @@ class SessionListItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SessionListResponse(BaseModel):
+    """会话分页列表响应。"""
+
+    items: list[SessionListItem]
+    next_cursor: str | None = None
+
+
+class DailyProgressResponse(BaseModel):
+    """每日进度聚合统计响应。"""
+
+    completed_sessions: int
+    total_turns: int
+
+
 class AnalysisStatusResponse(BaseModel):
     """Public state for one session's durable analysis job."""
 

@@ -668,4 +668,281 @@ describe("Fake API 契约与真实进程回归测试", () => {
       assert.strictEqual(isPidAlive(independent.child.pid), false, "OS 进程必须已终止");
     });
   });
+
+  describe("10. 会话分页与每日聚合 Fake API 契约回归", () => {
+    it("GET /api/sessions 返回分页包封 {items, next_cursor}", async () => {
+      const res = await timedFetch(`${serverInstance.baseUrl}/api/sessions`, {
+        headers: AUTH_HEADER,
+      });
+      assert.strictEqual(res.status, 200);
+      const json = await res.json();
+      assert.ok(Array.isArray(json.items));
+      assert.ok("next_cursor" in json);
+    });
+
+    it("GET /api/sessions/active 返回活跃会话分页包封", async () => {
+      const res = await timedFetch(`${serverInstance.baseUrl}/api/sessions/active`, {
+        headers: AUTH_HEADER,
+      });
+      assert.strictEqual(res.status, 200);
+      const json = await res.json();
+      assert.ok(Array.isArray(json.items));
+      assert.ok("next_cursor" in json);
+    });
+
+    it("GET /api/sessions 校验非法 limit 参数 (0, 101, 1.5, abc) 返回 422", async () => {
+      for (const badLimit of ["0", "101", "1.5", "abc", "-10"]) {
+        const res = await timedFetch(`${serverInstance.baseUrl}/api/sessions?limit=${badLimit}`, {
+          headers: AUTH_HEADER,
+        });
+        assert.strictEqual(res.status, 422, `limit=${badLimit} 应返回 422`);
+      }
+    });
+
+    it("GET /api/sessions 校验非法 status 参数返回 422", async () => {
+      const res = await timedFetch(
+        `${serverInstance.baseUrl}/api/sessions?status=unknown_bad_status`,
+        {
+          headers: AUTH_HEADER,
+        },
+      );
+      assert.strictEqual(res.status, 422);
+    });
+
+    it("校验时间窗口规则：无时区、start >= end、>48h、单边缺失均返回 422", async () => {
+      const badWindows = [
+        "start=2026-10-25T00:00:00", // 缺少时区
+        "start=2026-10-25T10:00:00Z&end=2026-10-25T09:00:00Z", // start > end
+        "start=2026-10-20T00:00:00Z&end=2026-10-25T00:00:00Z", // 跨度 > 48h
+        "start=2026-10-25T00:00:00Z", // 只有 start
+        "end=2026-10-25T00:00:00Z", // 只有 end
+      ];
+      for (const qs of badWindows) {
+        const res1 = await timedFetch(`${serverInstance.baseUrl}/api/sessions?${qs}`, {
+          headers: AUTH_HEADER,
+        });
+        assert.strictEqual(res1.status, 422, `GET /api/sessions?${qs} 应返回 422`);
+
+        const res2 = await timedFetch(
+          `${serverInstance.baseUrl}/api/sessions/daily-progress?${qs}`,
+          {
+            headers: AUTH_HEADER,
+          },
+        );
+        assert.strictEqual(res2.status, 422, `GET /api/sessions/daily-progress?${qs} 应返回 422`);
+      }
+    });
+
+    it("校验坏游标及跨端点/跨条件复用返回 422", async () => {
+      const badCursors = [
+        "not-base64url-???",
+        Buffer.from("abc").toString("base64url"),
+        Buffer.from(JSON.stringify({ v: 1 })).toString("base64url"),
+        Buffer.from(
+          JSON.stringify({
+            v: 1,
+            u: "00000000-0000-0000-0000-000000000001",
+            ep: "active", // 跨端点：发给 history
+            st: null,
+            s: null,
+            e: null,
+            t: "2026-10-25T10:00:00Z",
+            id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          }),
+        ).toString("base64url"),
+        Buffer.from(
+          JSON.stringify({
+            v: 1,
+            u: "00000000-0000-0000-0000-999999999999", // 错用户
+            ep: "history",
+            st: null,
+            s: null,
+            e: null,
+            t: "2026-10-25T10:00:00Z",
+            id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          }),
+        ).toString("base64url"),
+        Buffer.from(
+          JSON.stringify({
+            v: 1,
+            u: "00000000-0000-0000-0000-000000000001",
+            ep: "history",
+            st: "completed", // 错筛选上下文
+            s: null,
+            e: null,
+            t: "2026-10-25T10:00:00Z",
+            id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          }),
+        ).toString("base64url"),
+        Buffer.from(
+          JSON.stringify({
+            v: 1,
+            u: "00000000-0000-0000-0000-000000000001",
+            ep: "history",
+            st: null,
+            s: null,
+            e: null,
+            t: "2026-10-25T10:00:00Z",
+            id: "------------------------------------", // 36连字符坏UUID
+          }),
+        ).toString("base64url"),
+        Buffer.from(
+          JSON.stringify({
+            v: true, // bool 版本
+            u: "00000000-0000-0000-0000-000000000001",
+            ep: "history",
+            st: null,
+            s: null,
+            e: null,
+            t: "2026-10-25T10:00:00Z",
+            id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          }),
+        ).toString("base64url"),
+      ];
+
+      for (const cursor of badCursors) {
+        const res = await timedFetch(`${serverInstance.baseUrl}/api/sessions?cursor=${cursor}`, {
+          headers: AUTH_HEADER,
+        });
+        assert.strictEqual(res.status, 422, `坏游标应返回 422: ${cursor}`);
+      }
+    });
+
+    it("等价时区 offset 时间窗口正确返回 200 并按绝对数值比对", async () => {
+      // 北京时间 (+08:00) 对应 UTC
+      const res = await timedFetch(
+        `${serverInstance.baseUrl}/api/sessions/daily-progress?start=2026-10-25T08:00:00%2B08:00&end=2026-10-25T20:00:00%2B08:00`,
+        { headers: AUTH_HEADER },
+      );
+      assert.strictEqual(res.status, 200);
+      const json = await res.json();
+      assert.strictEqual(typeof json.completed_sessions, "number");
+      assert.strictEqual(typeof json.total_turns, "number");
+    });
+
+    it("独立Fake子进程完整遍历多页且准确聚合2个零转录completed会话(等价UTC与+08:00一致)", async () => {
+      const isolatedServer = await startFakeApiServer();
+      try {
+        // 在隔离子进程中创建 3 个会话，分别记录 ID
+        const s1Res = await timedFetch(`${isolatedServer.baseUrl}/api/sessions`, {
+          method: "POST",
+          headers: AUTH_HEADER,
+          body: JSON.stringify({ mode: "free_talk" }),
+        });
+        assert.strictEqual(s1Res.status, 201);
+        const s1 = await s1Res.json();
+
+        const s2Res = await timedFetch(`${isolatedServer.baseUrl}/api/sessions`, {
+          method: "POST",
+          headers: AUTH_HEADER,
+          body: JSON.stringify({ mode: "scenario" }),
+        });
+        assert.strictEqual(s2Res.status, 201);
+        const s2 = await s2Res.json();
+
+        const s3Res = await timedFetch(`${isolatedServer.baseUrl}/api/sessions`, {
+          method: "POST",
+          headers: AUTH_HEADER,
+          body: JSON.stringify({ mode: "free_talk" }),
+        });
+        assert.strictEqual(s3Res.status, 201);
+        const s3 = await s3Res.json();
+
+        const expectedIds = new Set([s1.id, s2.id, s3.id]);
+        assert.strictEqual(expectedIds.size, 3, "创建的 3 个会话 ID 必须互不相同");
+
+        // 完整多页 keyset 游标遍历（limit=1），核对所有 ID 唯一且不遗漏
+        const collectedIds = [];
+        let currentCursor = null;
+        let pageCount = 0;
+        while (pageCount < 10) {
+          pageCount++;
+          const url = currentCursor
+            ? `${isolatedServer.baseUrl}/api/sessions?limit=1&cursor=${currentCursor}`
+            : `${isolatedServer.baseUrl}/api/sessions?limit=1`;
+          const pageRes = await timedFetch(url, { headers: AUTH_HEADER });
+          assert.strictEqual(pageRes.status, 200);
+          const pageJson = await pageRes.json();
+          assert.strictEqual(pageJson.items.length, 1);
+          collectedIds.push(pageJson.items[0].id);
+
+          if (!pageJson.next_cursor) {
+            break;
+          }
+          currentCursor = pageJson.next_cursor;
+        }
+
+        assert.strictEqual(collectedIds.length, 3, "必须完整遍历 3 页");
+        assert.strictEqual(new Set(collectedIds).size, 3, "遍历到的所有 ID 必须严格唯一");
+        for (const id of expectedIds) {
+          assert.ok(collectedIds.includes(id), `遍历结果中必须包含创建的会话 ID ${id}`);
+        }
+
+        // 结束前两个会话使其进入 completed 状态（0条转录），第三个保持 active
+        const end1Res = await timedFetch(`${isolatedServer.baseUrl}/api/sessions/${s1.id}/end`, {
+          method: "POST",
+          headers: AUTH_HEADER,
+        });
+        assert.strictEqual(end1Res.status, 200);
+
+        const end2Res = await timedFetch(`${isolatedServer.baseUrl}/api/sessions/${s2.id}/end`, {
+          method: "POST",
+          headers: AUTH_HEADER,
+        });
+        assert.strictEqual(end2Res.status, 200);
+
+        // 构造覆盖这 2 个已完成会话的时间窗口（跨度 2 小时，绝对小于 48h 限制）
+        const now = new Date();
+        const startUtc = new Date(now.getTime() - 3600_000).toISOString();
+        const endUtc = new Date(now.getTime() + 3600_000).toISOString();
+
+        // 构造等价的 +08:00 offset ISO 字符串
+        const formatOffsetIso = (isoStr, offsetHours = 8) => {
+          const date = new Date(isoStr);
+          const offsetMs = offsetHours * 3600_000;
+          const local = new Date(date.getTime() + offsetMs);
+          const y = local.getUTCFullYear();
+          const m = String(local.getUTCMonth() + 1).padStart(2, "0");
+          const d = String(local.getUTCDate()).padStart(2, "0");
+          const h = String(local.getUTCHours()).padStart(2, "0");
+          const min = String(local.getUTCMinutes()).padStart(2, "0");
+          const s = String(local.getUTCSeconds()).padStart(2, "0");
+          return `${y}-${m}-${d}T${h}:${min}:${s}+08:00`;
+        };
+
+        const startOffset = formatOffsetIso(startUtc, 8);
+        const endOffset = formatOffsetIso(endUtc, 8);
+
+        // 使用 UTC 窗口发起聚合统计查询，精确断言 completed_sessions 为 2，total_turns 为 0
+        const progressUtcRes = await timedFetch(
+          `${isolatedServer.baseUrl}/api/sessions/daily-progress?start=${encodeURIComponent(startUtc)}&end=${encodeURIComponent(endUtc)}`,
+          { headers: AUTH_HEADER },
+        );
+        assert.strictEqual(progressUtcRes.status, 200);
+        const progressUtcJson = await progressUtcRes.json();
+        assert.strictEqual(
+          progressUtcJson.completed_sessions,
+          2,
+          "独立进程聚合精确统计 2 个已完成会话",
+        );
+        assert.strictEqual(progressUtcJson.total_turns, 0, "零转录会话总轮次严格为 0");
+
+        // 使用等价 +08:00 offset 窗口发起聚合统计查询，断言得到完全一致的数值
+        const progressOffsetRes = await timedFetch(
+          `${isolatedServer.baseUrl}/api/sessions/daily-progress?start=${encodeURIComponent(startOffset)}&end=${encodeURIComponent(endOffset)}`,
+          { headers: AUTH_HEADER },
+        );
+        assert.strictEqual(progressOffsetRes.status, 200);
+        const progressOffsetJson = await progressOffsetRes.json();
+        assert.strictEqual(
+          progressOffsetJson.completed_sessions,
+          2,
+          "等价时区 offset 聚合统计结果一致",
+        );
+        assert.strictEqual(progressOffsetJson.total_turns, 0, "等价时区 offset 轮次统计结果一致");
+      } finally {
+        await terminateServer(isolatedServer.child);
+      }
+    });
+  });
 });

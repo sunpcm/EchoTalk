@@ -1,6 +1,6 @@
 # CP-02 活动会话发现：本地增量契约
 
-此增量仅消费既有 GET /api/sessions/active。响应为 SessionListItem[]，后端已按 started_at/id 降序；客户端保留顺序。数据库 active 不等于媒体在线、持有占用或可以恢复。
+此增量消费 GET /api/sessions/active 与 GET /api/sessions（游标分页包封 `{ items: SessionListItem[], next_cursor: string | null }`）。后端按 started_at/id 降序及 keyset 游标分页；客户端保留顺序并提供显式“加载更多”。数据库 active 不等于媒体在线、持有占用或可以恢复。
 
 共享 Dashboard 展示当前已认证账号活动记录：加载、空列表、成功、失败及显式重试。列表只含会话ID、开始时间及已知模式的本地化标签；未知模式用通用标签，不回显任意服务端错误/正文。说明“尚未结束的记录不代表正在通话；恢复与接管暂未开放”。失败可重试，不自动轮询、签Token、dispatch、结束、claim或请求麦克风；无恢复/接管/结束按钮。不持久化列表、Token或本地提示，不改变既有开始入口。
 

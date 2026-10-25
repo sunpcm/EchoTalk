@@ -46,8 +46,9 @@ vi.mock("@/lib/api", () => ({
     target_level: "B1",
     recommendations: [],
   }),
-  listSessions: vi.fn().mockResolvedValue([]),
-  listActiveSessions: vi.fn().mockResolvedValue([]),
+  listSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+  listActiveSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+  getDailyProgress: vi.fn().mockResolvedValue({ completed_sessions: 0, total_turns: 0 }),
 }));
 
 describe("App initialization", () => {

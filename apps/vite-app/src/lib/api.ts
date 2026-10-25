@@ -217,6 +217,18 @@ export interface SessionListItem {
   ended_at: string | null;
 }
 
+/** 会话分页列表响应 */
+export interface SessionListResponse {
+  items: SessionListItem[];
+  next_cursor: string | null;
+}
+
+/** 每日进度聚合统计响应 */
+export interface DailyProgressResponse {
+  completed_sessions: number;
+  total_turns: number;
+}
+
 export type AnalysisJobStatus = "pending" | "running" | "succeeded" | "failed";
 
 export interface AnalysisStatusResponse {
@@ -303,6 +315,10 @@ export function isValidUuid(val: unknown): val is string {
 
 export function isPositiveSafeInteger(val: unknown): val is number {
   return typeof val === "number" && Number.isSafeInteger(val) && val > 0;
+}
+
+export function isNonNegativeSafeInteger(val: unknown): val is number {
+  return typeof val === "number" && Number.isSafeInteger(val) && val >= 0;
 }
 
 const ISO_DATE_REGEX =
@@ -635,14 +651,132 @@ export async function dispatchAgent(
   });
 }
 
-/** 列出当前用户的所有会话 */
-export function listSessions(): Promise<SessionListItem[]> {
-  return request<SessionListItem[]>("/sessions");
+export interface ListSessionsParams {
+  status?: string;
+  start?: string;
+  end?: string;
+  limit?: number;
+  cursor?: string;
 }
 
-/** 列出当前已认证用户的活跃会话记录 */
-export function listActiveSessions(): Promise<SessionListItem[]> {
-  return request<SessionListItem[]>("/sessions/active");
+export interface ListActiveSessionsParams {
+  start?: string;
+  end?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+/** 校验并解析会话列表分页响应 */
+export function parseSessionListResponse(data: unknown): SessionListResponse {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    throw new Error("Invalid session list response: expected an object");
+  }
+  const obj = data as Record<string, unknown>;
+  if (!Array.isArray(obj.items)) {
+    throw new Error("Invalid session list response: items must be an array");
+  }
+  if (obj.items.length > 100) {
+    throw new Error("Invalid session list response: items length exceeds maximum limit of 100");
+  }
+  if (obj.next_cursor !== null) {
+    if (typeof obj.next_cursor !== "string") {
+      throw new Error("Invalid session list response: next_cursor must be string or null");
+    }
+    if (obj.next_cursor.length === 0) {
+      throw new Error("Invalid session list response: next_cursor cannot be an empty string");
+    }
+    if (obj.next_cursor.length > 1024) {
+      throw new Error("Invalid session list response: next_cursor length exceeds 1024");
+    }
+  }
+  for (const rawItem of obj.items) {
+    if (typeof rawItem !== "object" || rawItem === null || Array.isArray(rawItem)) {
+      throw new Error("Invalid session list item: expected an object");
+    }
+    const item = rawItem as Record<string, unknown>;
+    if (!isValidUuid(item.id)) {
+      throw new Error("Invalid session list item: id must be a valid UUID string");
+    }
+    if (typeof item.mode !== "string" || item.mode.length === 0) {
+      throw new Error("Invalid session list item: mode must be a non-empty string");
+    }
+    if (typeof item.status !== "string" || item.status.length === 0) {
+      throw new Error("Invalid session list item: status must be a non-empty string");
+    }
+    if (!isValidIsoCalendarTimestamp(item.started_at)) {
+      throw new Error(
+        "Invalid session list item: started_at must be an ISO calendar timestamp with timezone",
+      );
+    }
+    if (!("ended_at" in item)) {
+      throw new Error("Invalid session list item: ended_at is required");
+    }
+    if (item.ended_at !== null) {
+      if (!isValidIsoCalendarTimestamp(item.ended_at)) {
+        throw new Error(
+          "Invalid session list item: ended_at must be null or an ISO calendar timestamp with timezone",
+        );
+      }
+    }
+  }
+  return {
+    items: obj.items as SessionListItem[],
+    next_cursor: obj.next_cursor as string | null,
+  };
+}
+
+/** 校验并解析每日进度聚合统计响应 */
+export function parseDailyProgressResponse(data: unknown): DailyProgressResponse {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    throw new Error("Invalid daily progress response: expected an object");
+  }
+  const obj = data as Record<string, unknown>;
+  if (!isNonNegativeSafeInteger(obj.completed_sessions)) {
+    throw new Error(
+      "Invalid daily progress response: completed_sessions must be a non-negative integer",
+    );
+  }
+  if (!isNonNegativeSafeInteger(obj.total_turns)) {
+    throw new Error("Invalid daily progress response: total_turns must be a non-negative integer");
+  }
+  return {
+    completed_sessions: obj.completed_sessions,
+    total_turns: obj.total_turns,
+  };
+}
+
+/** 列出当前用户的会话（支持 keyset 游标分页、状态过滤与时间窗口） */
+export async function listSessions(params?: ListSessionsParams): Promise<SessionListResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.start) query.set("start", params.start);
+  if (params?.end) query.set("end", params.end);
+  if (params?.limit !== undefined) query.set("limit", String(params.limit));
+  if (params?.cursor) query.set("cursor", params.cursor);
+  const qStr = query.toString();
+  const raw = await request<unknown>(`/sessions${qStr ? `?${qStr}` : ""}`);
+  return parseSessionListResponse(raw);
+}
+
+/** 列出当前已认证用户的活跃会话记录（支持 keyset 游标分页与时间窗口） */
+export async function listActiveSessions(
+  params?: ListActiveSessionsParams,
+): Promise<SessionListResponse> {
+  const query = new URLSearchParams();
+  if (params?.start) query.set("start", params.start);
+  if (params?.end) query.set("end", params.end);
+  if (params?.limit !== undefined) query.set("limit", String(params.limit));
+  if (params?.cursor) query.set("cursor", params.cursor);
+  const qStr = query.toString();
+  const raw = await request<unknown>(`/sessions/active${qStr ? `?${qStr}` : ""}`);
+  return parseSessionListResponse(raw);
+}
+
+/** 获取每日练习聚合统计（单次服务端聚合指定窗口内已完成会话数及转录条数） */
+export async function getDailyProgress(start: string, end: string): Promise<DailyProgressResponse> {
+  const query = new URLSearchParams({ start, end });
+  const raw = await request<unknown>(`/sessions/daily-progress?${query.toString()}`);
+  return parseDailyProgressResponse(raw);
 }
 
 /** 获取会话详情（含转录记录） */

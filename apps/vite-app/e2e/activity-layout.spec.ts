@@ -42,7 +42,10 @@ test.describe("Activity Sessions Responsive Layout & Touch Targets", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([FIXTURE_SESSION_A, FIXTURE_SESSION_B]),
+        body: JSON.stringify({
+          items: [FIXTURE_SESSION_A, FIXTURE_SESSION_B],
+          next_cursor: null,
+        }),
       });
     });
   });
@@ -339,7 +342,10 @@ test.describe("Activity Sessions Responsive Layout & Touch Targets", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([FIXTURE_SESSION_A]),
+        body: JSON.stringify({
+          items: [FIXTURE_SESSION_A],
+          next_cursor: null,
+        }),
       });
     });
     await retryLoadBtn.click();
