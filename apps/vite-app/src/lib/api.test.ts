@@ -1371,4 +1371,178 @@ describe("API client", () => {
       expect(getAuthRevision()).toBe(currentRev);
     });
   });
+
+  describe("Safe Local Diagnostics Instrumentation (CP-06)", () => {
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    it("emits zero diagnostic logs on successful API request", async () => {
+      fetchMock().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ status: "ready" }),
+      } as unknown as Response);
+
+      const res = await checkHealthReady();
+      expect(res).toEqual({ status: "ready" });
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+    });
+
+    it("emits sanitized api_http_failed on HTTP 503 and preserves original ApiError & data", async () => {
+      const sensitiveCanaryBody = {
+        detail: "Database connection failed",
+        secret_jwt: "canary-super-secret-jwt-token",
+        internal_doc: "confidential student analysis transcript",
+      };
+
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve(sensitiveCanaryBody),
+      } as unknown as Response);
+
+      await expect(checkHealthReady()).rejects.toSatisfy((err: unknown) => {
+        expect(err).toBeInstanceOf(ApiError);
+        const apiErr = err as ApiError;
+        expect(apiErr.status).toBe(503);
+        expect(apiErr.message).toBe("Database connection failed");
+        expect(apiErr.data).toEqual(sensitiveCanaryBody);
+        return true;
+      });
+
+      // 验证控制台日志仅有前缀与纯净白名单 record
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      const [prefix, record] = consoleErrorSpy.mock.calls[0];
+      expect(prefix).toBe("[diagnostic]");
+      expect(record).toEqual({
+        schema_version: 1,
+        app_version: expect.any(String),
+        platform: expect.any(String),
+        event: "api_http_failed",
+        status: 503,
+      });
+
+      // 序列化后断言绝无敏感 canary 泄漏
+      const serialized = JSON.stringify(record);
+      expect(serialized).not.toContain("canary-super-secret-jwt-token");
+      expect(serialized).not.toContain("confidential student analysis transcript");
+      expect(serialized).not.toContain("Database connection failed");
+      expect(serialized).not.toContain("Authorization");
+      expect(serialized).not.toContain("/health/ready");
+    });
+
+    it("emits sanitized api_http_failed on 401 and preserves auth invalidation semantics", async () => {
+      const initialRev = getAuthRevision();
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () =>
+          Promise.resolve({
+            detail: "Token expired",
+            canary_leak: "secret-bearer-token-12345",
+          }),
+      } as unknown as Response);
+
+      await expect(listSessions()).rejects.toThrow(ApiError);
+
+      // 原认证失效逻辑与代际递增保持不变
+      expect(getAuthRevision()).toBeGreaterThan(initialRev);
+
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      const [prefix, record] = consoleErrorSpy.mock.calls[0];
+      expect(prefix).toBe("[diagnostic]");
+      expect(record).toEqual({
+        schema_version: 1,
+        app_version: expect.any(String),
+        platform: expect.any(String),
+        event: "api_http_failed",
+        status: 401,
+      });
+
+      const serialized = JSON.stringify(record);
+      expect(serialized).not.toContain("secret-bearer-token-12345");
+      expect(serialized).not.toContain("Token expired");
+      expect(serialized).not.toContain("/sessions");
+    });
+
+    it("rethrows exact network error on fetch reject and emits api_network_failed once", async () => {
+      const networkError = new TypeError("Failed to fetch: net::ERR_CONNECTION_REFUSED");
+      fetchMock().mockRejectedValue(networkError);
+
+      let thrownError: unknown = null;
+      try {
+        await checkHealthReady();
+      } catch (err) {
+        thrownError = err;
+      }
+
+      // 严格全等：原对象原样 rethrow
+      expect(thrownError).toBe(networkError);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      const [prefix, record] = consoleErrorSpy.mock.calls[0];
+      expect(prefix).toBe("[diagnostic]");
+      expect(record).toEqual({
+        schema_version: 1,
+        app_version: expect.any(String),
+        platform: expect.any(String),
+        event: "api_network_failed",
+      });
+
+      const serialized = JSON.stringify(record);
+      expect(serialized).not.toContain("ERR_CONNECTION_REFUSED");
+      expect(serialized).not.toContain("/health/ready");
+    });
+
+    it("does not classify auth provider error as api_network_failed", async () => {
+      setAccessTokenProvider(() => {
+        throw new Error("Local auth storage corrupted");
+      });
+
+      await expect(checkHealthReady()).rejects.toThrow("Local auth storage corrupted");
+      expect(fetchMock()).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it("preserves response.json parsing error without emitting inaccurate events", async () => {
+      const jsonParseError = new SyntaxError("Unexpected token < in JSON at position 0");
+      fetchMock().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.reject(jsonParseError),
+      } as unknown as Response);
+
+      await expect(checkHealthReady()).rejects.toBe(jsonParseError);
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not disrupt API request or response if console.error throws", async () => {
+      consoleErrorSpy.mockImplementation(() => {
+        throw new Error("Console pipe broken");
+      });
+
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({ detail: "Unavailable" }),
+      } as unknown as Response);
+
+      // 控制台 sink 失败绝不影响原有的 ApiError 抛出和处理
+      await expect(checkHealthReady()).rejects.toSatisfy((err: unknown) => {
+        expect(err).toBeInstanceOf(ApiError);
+        expect((err as ApiError).status).toBe(503);
+        return true;
+      });
+    });
+  });
 });

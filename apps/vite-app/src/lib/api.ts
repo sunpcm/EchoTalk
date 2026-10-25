@@ -6,6 +6,7 @@
 import { getApiBaseUrl } from "@/utils/env";
 import { getAccessToken, getAuthRevision, invalidateAuthSession } from "@/lib/auth";
 import { zhCN } from "@/i18n/zh-CN";
+import { logDiagnostic } from "@/lib/diagnostics";
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -46,12 +47,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
-  const res = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    logDiagnostic("api_network_failed");
+    throw error;
+  }
 
   if (!res.ok) {
+    logDiagnostic("api_http_failed", { status: res.status });
     if (res.status === 401) {
       invalidateAuthSession(reqRevision);
     }

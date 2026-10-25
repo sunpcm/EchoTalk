@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地安全诊断一期实施记录（A34）
+
+基于 TODO.md CP-06“补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文”完成本地一期实施。新增结构化脱敏日志辅助模块 `diagnostics.ts`，统一按纯净白名单 record 记录关键异常，彻底消除此前在控制台直接输出未经脱敏外部 parsed 对象的缺陷。
+
+- 本地实现与白名单脱敏契约：record 输出严格限定字段集合（`schema_version: 1`、`app_version` 取自 package.json、`platform` 取自 `detectPlatform()` 并安全回退 `"unknown"`、8 个冻结 `event` 枚举）；从零显式构造，严禁 spread 未知字段或正则脱敏；`status` 仅允许 100..599 整数且仅限 `api_http_failed`；`agent_code` 严格限制为 5 项白名单，敏感 token、恶意注入及未知非字符串一律安全映射为 `"unknown"`，绝不原样回显；控制台按 warn/log/error 分级输出；helper 本身故障局部隔离，绝不阻断业务逻辑；成功 API 请求零新增日志。
+- 接线与原语义保持：`api.ts` 接入 `api_network_failed`（仅真实 fetch reject）与 `api_http_failed`（仅 status，不输出路径/头/正文），原 401 代际失效、错误解析与 `ApiError.data` 逐字节保持；`VoiceInterface.tsx` 替换 6 处自由日志（特别消除 `agent_error` 输出 parsed 对象风险），原状态转换、音轨停止、`setAgentError` 与 UI 错误卡片渲染保持原样。
+- 质量验证覆盖：单测 `diagnostics.test.ts` 覆盖严格字段集合、平台检测与回退、所有 8 项枚举与日志级别、status 整数范围、`agent_code` 严格白名单与脱敏、序列化 canary 缺失保证及 console 异常隔离；`api.test.ts` 追加 7 项真实请求入口回归；`VoiceInterface.test.tsx` 追加 7 项真实入口回归（包含捕获 `useDataChannel` 注册真实回调并输入带敏感 canary 的 payload 验证脱敏输出与原 UI 终态）；`e2e/diagnostics.spec.ts` 双浏览器真实页面回归受控 HTTP 503 注入，验证安全 record 产生、全量控制台无敏感 canary 泄露、页面重试可恢复、0 pageerror 及零业务写。
+- 契约与记录见 [本地安全诊断一期验证](./verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)。未实现遥测上报，未连接真实外部 Provider 或多物理端联调，CP-06 整体继续推进。
+
 ## 2026-10-25 本地回答推荐作用域无歧义编码实施记录（A33）
 
 基于 TODO.md A26 P2 后续候选“将回答推荐scope键的id/text直接拼接替换为无歧义元组编码，并覆盖分隔符外部ID”完成实施。消除直接冒号拼接导致外部包含冒号的合法 ID 与文本发生碰撞的缺陷（如 `id='seg', text='What:is your hobby?'` 与 `id='seg:What', text='is your hobby?'`），将 `AnswerRecommendations.tsx` 中的 `currentScopeKey` 编码升级为无歧义二元组 `JSON.stringify([latestQuestionSegment.id ?? "", latestQuestionSegment.text.trim()])`。
@@ -330,3 +339,9 @@ Codex 独立评审 APPROVED：103份运行源码引用审计、6项独立双浏�
 ## 2026-10-25 A33 独立验收
 
 Codex 独立评审 APPROVED：无歧义tuple编码隔离冒号边界碰撞，665单测/18构建脚本/53 Fake API Node/138双浏览器及269专用库后端（73.72%）与Ruff通过；5独立时序探针含真实旧timer调用，2有效变异通过。新增测试旧timer空回调/剪贴板断言精度P2已记录，不将其计为实际覆盖；产品只改一行编码和注释。未推送、部署或连接真实外部环境。
+
+## 2026-10-25 A34 独立验收
+
+Codex 独立评审 APPROVED：698单测/18构建脚本/53 Fake API Node/140双浏览器及269专用库后端（73.72%）与Ruff通过。另40独立API/真实DataChannel/日志边界探针与2独立双浏览器通过，验证完整console参数白名单、敏感canary缺失、API503后重试恢复与零新增业务写；放宽错误码白名单及恢复raw payload日志两变异分别导致1/2项产品测试失败。全部冻结源码/测试字节恢复后全门禁通过。
+
+r0直接grep拒权后早停，用户明确重新授权原范围读取，r1完成源码和8项门禁但流ERROR；原失败保留，同模型r2冷启动只补完整交付，绑定复用源码和8日志hash，3次尝试/1395.31活动秒。独立验收未省略，不改skill、权限配置或真实环境；本地console一期不隐含遥测上报要求，CP06三端真实联动仍待验。
