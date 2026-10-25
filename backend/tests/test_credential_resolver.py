@@ -12,7 +12,7 @@ EchoTalk 自定义凭据解析器 (CredentialResolver) 测试 (RF-09)。
 6. 实际 _build_custom_plugins 联动测试：
    - 证明 3 key / model / provider 正确传参给 PluginFactory；
    - resolver 失败时 PluginFactory 零调用；
-   - factory 构造异常时原环境变量全部恢复且异常仍可 catch。
+   - factory 构造异常时原环境变量保持不变且异常仍可 catch。
 7. 基础轨 entrypoint 隔离测试：
    - 基础轨使用拒绝读取 encrypted 字段的防御对象，证实零 resolver、零 decrypt；
    - 自定义轨 entrypoint 接入真实 resolver，错误出口安全码保持不变。
@@ -38,6 +38,14 @@ from models.user import LLMProvider, STTProvider, TTSProvider
 from utils.crypto import DecryptedCredential
 
 CANARY_KEY = "CANARY_SECRET_API_KEY_xyz987654321_DO_NOT_LEAK"
+
+SYNTHETIC_SENSITIVE_ENV_VARS: list[str] = [
+    "DEEPGRAM_API_KEY",
+    "SILICONFLOW_API_KEY",
+    "OPENROUTER_API_KEY",
+    "CARTESIA_API_KEY",
+    "OPENAI_API_KEY",
+]
 
 
 class DummyUserSettings:
@@ -420,15 +428,13 @@ def test_build_custom_plugins_resolver_failure_zero_factory_calls():
 
 
 def test_build_custom_plugins_factory_exception_restores_env():
-    """验证当 PluginFactory 构造器抛错时，临时清除的环境变量在 finally 块中完整恢复。"""
-    from livekit_agent.agent import _SENSITIVE_ENV_VARS, _build_custom_plugins
+    """验证当 PluginFactory 构造器抛错时，既有环境变量保持不变且异常仍可 catch（使用 patch.dict 精确隔离）。"""
+    from livekit_agent.agent import _build_custom_plugins
 
     us = DummyUserSettings()
 
-    # 先注入测试环境变量
-    test_env = {k: f"val_{k}" for k in _SENSITIVE_ENV_VARS}
-    for k, v in test_env.items():
-        os.environ[k] = v
+    # 注入测试环境变量并通过 patch.dict 精确隔离
+    test_env = {k: f"val_{k}" for k in SYNTHETIC_SENSITIVE_ENV_VARS}
 
     fake_resolved = ResolvedCustomCredentials(
         stt_provider="deepgram",
@@ -440,7 +446,7 @@ def test_build_custom_plugins_factory_exception_restores_env():
         model="model",
     )
 
-    try:
+    with patch.dict(os.environ, test_env, clear=False):
         with (
             patch(
                 "livekit_agent.agent.CredentialResolver.resolve_custom",
@@ -455,12 +461,9 @@ def test_build_custom_plugins_factory_exception_restores_env():
                 _build_custom_plugins(us)
             assert "SDK_CREATION_FAILED" in str(exc_info.value)
 
-        # 验证环境变量全部恢复
+        # 验证环境变量未受任何破坏或篡改
         for k, v in test_env.items():
             assert os.environ.get(k) == v
-    finally:
-        for k in _SENSITIVE_ENV_VARS:
-            os.environ.pop(k, None)
 
 
 # ===========================================================================

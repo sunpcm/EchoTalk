@@ -451,3 +451,11 @@ Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK�
 - **生产接线与生命周期**：`backend/livekit_agent/agent.py` 移除内部重复的 6 项校验与 3 次解密逻辑，`_build_custom_plugins` 接入统一 `CredentialResolver`，敏感系统环境变量临时清除与 `finally` 恢复逻辑保持原语义；基础轨 `entrypoint` 零 resolver、零 decrypt、零 encrypted 字段访问；自定义轨安全捕获解析失败并向客户端推送安全的错误码及断连。
 - **质量验证覆盖**：新增 `backend/tests/test_credential_resolver.py`（20 项测试）覆盖 6 项缺失快速失败与严格顺序、解密失败 3 处位置终止、3 版本及 None legacy 透传、模型选择与 provider 提取、不可变 snapshot 与原配置无副作用、Canary 安全日志与 repr 脱敏审计、`_build_custom_plugins` 真实传参与异常环境恢复、双轨 entrypoint 隔离与安全错误码断连、模块无 SDK 依赖；更新 `test_plugin_factory.py` 补充异常类身份与捕获互通性验证（1 项测试），保留全部既有用例。
 - **契约与界限**：契约见 [RF-09 自定义凭据解析边界验证](./verification/cross-platform/RF-09-CREDENTIAL-RESOLVER.md)。本轮仅完成自定义轨凭据边界与异常解耦（RF-09 子项）；Orchestrator/ProviderRegistry 拆分、sys.path/dotenv/环境变量清理及真实 SDK 联调仍待后续完成，整项保持未勾选，RF-09 持续推进。
+
+## 2026-10-25 A46 / RF-09 自定义插件显式凭据构造与零进程环境改写实施
+
+基于 TODO.md RF-09“无敏感环境变量临时删除”与 MVP 重构方案 §RF09 规范完成本地实施。彻底移除 `backend/livekit_agent/agent.py` 中 `import os`、`_SENSITIVE_ENV_VARS` 敏感环境变量列表及 `_build_custom_plugins` 内部基于 `os.environ.pop` / `os.environ.update` 的临时修改与 finally 恢复逻辑；基于已审冻结 SDK 行为与 PluginFactory 既有 API Key 校验机制，实现显式传参直连 SDK 构造器，生产运行全流程实现零 `os.environ` 写操作。
+
+- **本地实现与接口契约**：`agent.py` 中移除 `import os`（全模块证实无其他 os 使用）、移除 `_SENSITIVE_ENV_VARS` 5 项敏感变量定义；`_build_custom_plugins` 仅保留 `CredentialResolver.resolve_custom` 结果显式传入 `PluginFactory.create_stt`、`create_llm`、`create_tts` 与 `create_vad` 并返回；不引入任何替代全局 mapping 或上下文管理工具隐藏改写，生产整个构造过程零进程环境写；PluginFactory 既有 `_validate_api_key` 严格拒绝非 str、空、全空白及含 `\n`/`\r`/`\x00` 危险字符并返回 strip 净化后的 key，非法凭据严格抛出静态安全 `ERR_CUSTOM_KEY_INVALID` 失败关闭，杜绝静默降级或回退读取系统 key；三角色 provider、model、base_url 及构造顺序严格保持。
+- **质量验证覆盖**：新增 `backend/tests/test_agent_explicit_keys.py` 覆盖 5 项敏感环境变量均存在时每个 SDK constructor 调用瞬间与返回后环境严格不变、SDK 接收到净化后的 custom key 且 STT/LLM/TTS 归属不串、部分敏感环境变量缺失时保持缺失不补写、resolver/factory 异常流程环境不变且后续 role 零调用、非法 key 矩阵拒绝且零环境回退、并发与嵌套两用户自定义配置互不干扰、OpenRouter 与模型选择支持、VAD 始终 mock 零网络/下载以及全链路 Canary 日志与载荷脱敏审计；更新 `backend/tests/test_credential_resolver.py` 删除已移除常量的 import，使用 `patch.dict` 精确隔离环境（关闭 A45 P2 遗留的环境恢复风险），保持既有 20 项测试语义。
+- **契约与界限**：契约见 [RF-09 自定义插件显式凭据构造验证](./verification/cross-platform/RF-09-EXPLICIT-KEYS.md)。本轮仅完成自定义插件构造显式传参与零进程环境变量改写；Orchestrator/ProviderRegistry 拆分、sys.path/dotenv 清理及真实外部 Provider 网络联调仍待后续完成，整项保持未勾选，RF-09 持续推进。

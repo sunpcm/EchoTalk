@@ -16,7 +16,6 @@ Phase 5 新增：双轨制路由——根据 is_custom_mode 开关决定使用�
 import asyncio
 import json
 import logging
-import os
 import sys
 import time
 import uuid
@@ -59,15 +58,6 @@ from services.emotion_analyzer import EmotionAnalyzer  # noqa: E402
 from services.llm_service import build_dynamic_prompt  # noqa: E402
 
 logger = logging.getLogger("echotalk-agent")
-
-# 自定义轨模式下需要临时清除的系统环境变量，防止 SDK 使用系统密钥作为后备
-_SENSITIVE_ENV_VARS: list[str] = [
-    "DEEPGRAM_API_KEY",
-    "SILICONFLOW_API_KEY",
-    "OPENROUTER_API_KEY",
-    "CARTESIA_API_KEY",
-    "OPENAI_API_KEY",
-]
 
 
 # ---------------------------------------------------------------------------
@@ -149,22 +139,16 @@ def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
         default_llm_model=settings.DEFAULT_LLM_MODEL,
     )
 
-    # ── 防御: 临时清除系统 API Key 环境变量 ──
-    # 防止 SDK 构造器在显式 key 参数失败时回退读取 os.environ
-    saved_env = {k: os.environ.pop(k) for k in _SENSITIVE_ENV_VARS if k in os.environ}
-    try:
-        return {
-            "stt": PluginFactory.create_stt(resolved.stt_provider, resolved.stt_key),
-            "llm": PluginFactory.create_llm(
-                resolved.llm_provider,
-                resolved.llm_key,
-                resolved.model,
-            ),
-            "tts": PluginFactory.create_tts(resolved.tts_provider, resolved.tts_key),
-            "vad": PluginFactory.create_vad(),
-        }
-    finally:
-        os.environ.update(saved_env)
+    return {
+        "stt": PluginFactory.create_stt(resolved.stt_provider, resolved.stt_key),
+        "llm": PluginFactory.create_llm(
+            resolved.llm_provider,
+            resolved.llm_key,
+            resolved.model,
+        ),
+        "tts": PluginFactory.create_tts(resolved.tts_provider, resolved.tts_key),
+        "vad": PluginFactory.create_vad(),
+    }
 
 
 async def _send_error_and_disconnect(
