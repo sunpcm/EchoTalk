@@ -379,10 +379,10 @@ def test_build_custom_plugins_success_and_factory_call_contract():
             "livekit_agent.agent.CredentialResolver.resolve_custom",
             return_value=fake_resolved,
         ) as mock_resolve,
-        patch("livekit_agent.agent.PluginFactory.create_stt") as mock_stt,
-        patch("livekit_agent.agent.PluginFactory.create_llm") as mock_llm,
-        patch("livekit_agent.agent.PluginFactory.create_tts") as mock_tts,
-        patch("livekit_agent.agent.PluginFactory.create_vad") as mock_vad,
+        patch("livekit_agent.provider_registry.PluginFactory.create_stt") as mock_stt,
+        patch("livekit_agent.provider_registry.PluginFactory.create_llm") as mock_llm,
+        patch("livekit_agent.provider_registry.PluginFactory.create_tts") as mock_tts,
+        patch("livekit_agent.provider_registry.PluginFactory.create_vad") as mock_vad,
     ):
         mock_stt.return_value = "mock_stt_instance"
         mock_llm.return_value = "mock_llm_instance"
@@ -414,9 +414,9 @@ def test_build_custom_plugins_resolver_failure_zero_factory_calls():
     us = DummyUserSettings(stt_provider=None)
 
     with (
-        patch("livekit_agent.agent.PluginFactory.create_stt") as mock_stt,
-        patch("livekit_agent.agent.PluginFactory.create_llm") as mock_llm,
-        patch("livekit_agent.agent.PluginFactory.create_tts") as mock_tts,
+        patch("livekit_agent.provider_registry.PluginFactory.create_stt") as mock_stt,
+        patch("livekit_agent.provider_registry.PluginFactory.create_llm") as mock_llm,
+        patch("livekit_agent.provider_registry.PluginFactory.create_tts") as mock_tts,
     ):
         with pytest.raises(PluginInitError) as exc_info:
             _build_custom_plugins(us)
@@ -453,7 +453,7 @@ def test_build_custom_plugins_factory_exception_restores_env():
                 return_value=fake_resolved,
             ),
             patch(
-                "livekit_agent.agent.PluginFactory.create_stt",
+                "livekit_agent.provider_registry.PluginFactory.create_stt",
                 side_effect=RuntimeError("SDK_CREATION_FAILED"),
             ),
         ):
@@ -518,7 +518,7 @@ async def test_entrypoint_baseline_track_zero_resolver_zero_encrypted_read():
                 AsyncMock(return_value=None),
             ),
             patch(
-                "livekit_agent.agent.PluginFactory.from_system_defaults",
+                "livekit_agent.provider_registry.PluginFactory.from_system_defaults",
                 return_value=mock_plugins,
             ) as mock_defaults,
             patch(

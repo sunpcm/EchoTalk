@@ -49,7 +49,7 @@ from database import async_session_maker  # noqa: E402
 from livekit_agent.credential_resolver import CredentialResolver  # noqa: E402
 from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
 from livekit_agent.plugin_errors import PluginInitError  # noqa: E402
-from livekit_agent.plugin_factory import PluginFactory  # noqa: E402
+from livekit_agent.provider_registry import ProviderRegistry  # noqa: E402
 from livekit_agent.transcript_events import derive_transcript_event_id  # noqa: E402
 from livekit_agent.transcript_sink import TranscriptSink  # noqa: E402
 from models.session import Session, SessionContext  # noqa: E402
@@ -118,7 +118,7 @@ async def _fetch_session_context(session_id: str) -> SessionContext | None:
 
 def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
     """
-    根据用户自定义配置通过 CredentialResolver 解析凭据并由 PluginFactory 构建插件集。
+    根据用户自定义配置通过 CredentialResolver 解析凭据并由 ProviderRegistry 构建插件集。
 
     预检校验与解密由 CredentialResolver 统一处理：
     1. 三组 provider 字段（stt/llm/tts）必须已设置
@@ -138,17 +138,7 @@ def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
         user_settings,
         default_llm_model=settings.DEFAULT_LLM_MODEL,
     )
-
-    return {
-        "stt": PluginFactory.create_stt(resolved.stt_provider, resolved.stt_key),
-        "llm": PluginFactory.create_llm(
-            resolved.llm_provider,
-            resolved.llm_key,
-            resolved.model,
-        ),
-        "tts": PluginFactory.create_tts(resolved.tts_provider, resolved.tts_key),
-        "vad": PluginFactory.create_vad(),
-    }
+    return ProviderRegistry.from_custom(resolved)
 
 
 async def _send_error_and_disconnect(
@@ -404,7 +394,7 @@ async def entrypoint(ctx: JobContext):
                 return
         else:
             logger.info("基础轨模式: session_id=%s", safe_session_id)
-            plugins = PluginFactory.from_system_defaults()
+            plugins = ProviderRegistry.from_system_defaults()
 
         # ── 3. 创建情绪感知 Agent ──────────────────────────────────
         initial_prompt = build_dynamic_prompt(

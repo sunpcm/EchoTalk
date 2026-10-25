@@ -468,3 +468,12 @@ Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK�
 - **一次性诊断脚本清理**：全局引用审计确认根目录 `test_api_err.ts` 仅在评审手册 §2 中提及，无任何源码、构建脚本、CI 或自动化测试引用；完成安全删除；同步更新 `docs/agent-review-loop.md` 说明该历史诊断脚本已移除且明确不属于测试树。
 - **质量验证覆盖**：全量前端 8 项门禁（格式检查、Lint、类型检查、Vitest 单元测试、构建脚本测试、Fake API 子进程回归、应用构建、Playwright 双浏览器 E2E）全部通过；根元数据与脚本清理零回归。
 - **契约与界限**：契约见 [RF-06 根元数据与一次性诊断清理验证](./verification/cross-platform/RF-06-ROOT-CLEANUP.md)。本轮仅完成根元数据与无调用一次性诊断脚本清理；Webpack 移除、ui-lib 模板精简、Plop/Changesets 评估等前端深度清理仍待后续阶段推进，整项保持未勾选，RF-06 持续推进。
+
+## 2026-10-26 A48 / RF-09 ProviderRegistry 插件集构造收口实施
+
+基于 TODO.md RF-09 与 MVP 重构方案 §RF09 规范完成本地实施。将 Agent 中的已解析凭据到插件集构造及基础轨默认插件集构造收口至独立模块 `ProviderRegistry`，严格按 STT → LLM → TTS → VAD 顺序构造并在失败时阻断后续；`agent.py` 移除直接 `PluginFactory` 依赖并完全委托 `ProviderRegistry`，保持双轨生命周期、错误码与零环境改写。
+
+- **本地实现与接口契约**：新增 `backend/livekit_agent/provider_registry.py`，提供 `ProviderRegistry.from_custom(resolved: ResolvedCustomCredentials)` 与 `ProviderRegistry.from_system_defaults()`；`from_custom` 仅接收已解密不可变快照，严格类型校验（非 `ResolvedCustomCredentials` 抛出 `TypeError`），不接触 ORM 模型、不解密、不改写环境变量、不自行兜底；严格保证 STT → LLM → TTS → VAD 构造顺序与任一角色失败立即短路；实际插件构造严格委托 `PluginFactory.create_stt`、`create_llm`、`create_tts` 与 `create_vad`；`from_system_defaults()` 委托 `PluginFactory.from_system_defaults()`，基础轨零用户加密字段读取、零解密操作、零 `CredentialResolver` 依赖；返回字典严格包含四角色实例 `{"stt", "llm", "tts", "vad"}`。
+- **生产接线与生命周期**：`backend/livekit_agent/agent.py` 移除未使用的 `PluginFactory` 导入，改由 `from livekit_agent.provider_registry import ProviderRegistry`；`_build_custom_plugins` 保留 `CredentialResolver.resolve_custom` 后直接委托 `ProviderRegistry.from_custom(resolved)`；`entrypoint` 基础轨直接调用 `ProviderRegistry.from_system_defaults()`；双轨生命周期、安全错误码映射及出口断连行为逐项保持。
+- **质量验证覆盖**：新增 `backend/tests/test_provider_registry.py`（8 项独立回归测试用例）覆盖 `ProviderRegistry` 正确角色 key/model/provider 归属（防串扰断言）、wrong-role key 与漏构造某 role 变异防御、严格构造顺序（STT → LLM → TTS → VAD）与失败短路矩阵、非 snapshot 类型严格拒绝、基础轨零凭据委托、真实 `_build_custom_plugins` 委托、`entrypoint` 双轨消费、Canary 脱敏审计与环境变量不变性；更新 `backend/tests/test_credential_resolver.py` 适配 Factory patch 路径，完整保留原有 20 项断言；全链路回归（A42 错误出口、A43 幂等、A44 Sink、A45 Resolver、A46 显式 Key）全部通过。
+- **契约与界限**：契约见 [RF-09 ProviderRegistry 插件集构造验证](./verification/cross-platform/RF-09-PROVIDER-REGISTRY.md)。本轮仅完成插件集构造收口与 `ProviderRegistry` 边界落地（RF-09 子项）；Orchestrator 拆分、`sys.path` / `dotenv` 清理及真实 SDK 联调仍待后续完成，整项保持未勾选，RF-09 持续推进。
