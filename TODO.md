@@ -63,9 +63,12 @@
       Dev 依赖分组；CI/Docker frozen 安装；Python 3.12、Node 22 与固定 pnpm 版本统一。
       本地已完成后端 Python 3.12 标准 uv 项目化（`echotalk-backend`，`.python-version` 3.12），
       生成并本地集成完整 192 包 `uv.lock`，严格保留 172 项 baseline 版本及 LiveKit 7 项 exact SDK 版本；
-      `requirements.txt` 作为锁导出单一兼容入口；CI 与 Docker 配方对齐 Python 3.12 和 uv 0.9.18 frozen 安装，
-      `.dockerignore` 排除私密文件与缓存；全新隔离环境 `.review/rf07-venv` 经受控 frozen 同步与独立 pytest 回归通过；
-      当前仍将原 30 项保持在默认依赖集合；API/Agent/Dev 分组、Linux/Docker 实际构建及跨平台验收尚待完成，整项保持未勾选。
+      A37 完成依赖分组裁定落地（先拆 Dev 四项，运行时保持共用）：26 项保留默认 runtime，`ruff`、`pytest`、`pytest-asyncio`、`pytest-cov` 迁入 `[dependency-groups].dev`；
+      `requirements.txt` 作为锁导出的单一 runtime-only 兼容入口（跨平台导出 184 条，本机安装 165 包，排除四项开发工具）；
+      CI 安装显式指定 `--group dev`，Docker 配方统一补 `--no-dev`，保持环境与生产镜像最小化；
+      全新隔离环境 `.review/rf07-a37-dev-venv` (172包) 与 `.review/rf07-a37-runtime-venv` (165包，0 dev工具) 经受控离线护栏工具核验通过；
+      旧 `backend/.venv` 及 A36 `.review/rf07-venv` 保持只读；
+      当前 API/Agent 进一步分组、Linux/Docker 实际构建及跨平台验收尚待完成，整项保持未勾选。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；
       timezone-aware UTC、必要索引和有界分页完成；空库及现有数据库副本迁移均通过。
 

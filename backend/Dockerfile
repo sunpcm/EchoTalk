@@ -16,7 +16,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 COPY pyproject.toml uv.lock .python-version ./
 
 RUN uv lock --check && \
-    uv sync --frozen --no-python-downloads
+    uv sync --frozen --no-dev --no-python-downloads
 
 COPY . .
 

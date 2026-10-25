@@ -92,7 +92,7 @@ jobs:
           uv lock --check
           uv export --frozen --no-dev --no-emit-project --no-header --no-annotate --output-file /tmp/exported-requirements.txt
           cmp requirements.txt /tmp/exported-requirements.txt
-          uv sync --frozen --no-python-downloads
+          uv sync --frozen --group dev --no-python-downloads
 
       - name: Ruff format
         working-directory: backend

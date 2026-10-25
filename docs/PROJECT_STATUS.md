@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-25 本地 RF-07 Dev 依赖分组受控实施记录（A37）
+
+基于用户裁定“先仅拆 Dev 四项，运行时保持共用（推荐）”完成本地实施。仅将 `ruff`、`pytest`、`pytest-asyncio`、`pytest-cov` 四项从 `[project].dependencies` 迁入标准 `[dependency-groups].dev`，其余 26 项依赖（含 `httpx` 及全部 LiveKit runtime）继续保留为默认运行时依赖；`uv.lock` 维持 192 包解析，`requirements.txt` 保持为单一只读 runtime-only 兼容导出镜像，开发工具从生产运行时导出彻底剥离。
+
+- 依赖声明与锁导出：`backend/pyproject.toml` 拆分为 26 项 `[project].dependencies` 与 4 项 `[dependency-groups].dev`，保留原有版本约束与声明顺序，未改变 Ruff/pytest/coverage 设置与 `package = false`；受控步骤 `rf07-lock` 生成并锁定 192 个包（lock SHA256: `fba300031805120e7445665f3893ef9bc3521c33c15428c6ff9c2d8aba14598b`），严格维持 LiveKit 7 项 exact SDK 版本与 baseline 重叠版本；`requirements.txt` 通过 `uv export --frozen --no-dev --no-emit-project --no-header --no-annotate` 导出（SHA256: `e66ec8da7e973f9cb27a599d83e8e45fa3a726b6b446f7cd6dda16bcfc461e1f`），作为包含 184 条跨平台条件依赖的 runtime 只读镜像（本机安装 165 包），不再包含 pytest/ruff。
+- CI 与 Docker 配方统一：`.github/workflows/ci.yml` 后端依赖安装步保持 `uv lock --check` 与 `cmp requirements.txt`，安装显式声明 `uv sync --frozen --group dev --no-python-downloads` 引入开发依赖；`backend/Dockerfile` 仅将原同步指令补齐 `--no-dev`（`uv sync --frozen --no-dev --no-python-downloads`），保证容器镜像不引入开发工具；保持 Python 3.12 / uv 0.9.18 配方、`/opt/venv` 虚拟环境与 COPY 顺序不变。
+- 受控环境安装核验：受控步骤 `rf07-sync` 在固定独立开发环境 `cp00/.review/rf07-a37-dev-venv` 完成冻结同步，包含 172 个包（含 4 项 dev 依赖，`has_dev_packages: true`）；受控步骤 `rf07-runtime` 在固定独立运行时环境 `cp00/.review/rf07-a37-runtime-venv` 完成冻结同步，包含 165 个包（`has_dev_packages: false`，核验证实 4 项开发工具缺失）；两环境均证实核心 SDK 版本未变；旧 `backend/.venv` 及 A36 `.review/rf07-venv` 严格保持只读且未被覆盖。
+- 质量验证覆盖：前端 8 项门禁（Format、Lint、Typecheck、Vitest 单测、Build Script 测试、Fake API 原生子进程回归、Build、双浏览器 E2E）全部通过；契约见 [RF-07 Dev 依赖分组验证](./verification/cross-platform/RF-07-DEV-GROUP.md)。未执行 Linux 真实 Docker 镜像构建，未连接真实外部 Provider，整项保持未勾选，RF-07 持续推进。
+
 ## 2026-10-25 本地 RF-07 可复现 Python 依赖与受控配方实施记录（A36）
 
 基于 TODO.md RF-07“后端成为真实 uv 项目并提交完整 uv.lock；API、Agent、Dev 依赖分组；CI/Docker frozen 安装；Python 3.12 统一”完成本地实施。后端正式建立标准 Python 3.12 uv 项目体系，提交 192 个包的完整 `uv.lock`，严格保留既有 172 项 baseline 重叠版本与 LiveKit 7 项 exact SDK 版本；`requirements.txt` 作为锁导出的单一真相源，CI 与 Docker 构建配方全面对齐冻结安装规范。
