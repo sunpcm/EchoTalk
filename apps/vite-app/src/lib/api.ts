@@ -30,6 +30,18 @@ export class ApiError extends Error {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getFirstTruthyString(record: Record<string, unknown>): string | null {
+  const values = Object.values(record);
+  if (values.length > 0 && typeof values[0] === "string" && values[0]) {
+    return values[0];
+  }
+  return null;
+}
+
 /** 通用请求封装 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const baseUrl = getBaseUrl();
@@ -66,27 +78,48 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => ({}));
 
     let message = `请求失败: ${res.status}`;
-    if (body) {
+    if (isRecord(body)) {
       if (typeof body.detail === "string") {
         // 1. 标准 FastAPI 异常 (HTTPException(detail="xxx"))
         message = body.detail;
       } else if (Array.isArray(body.detail) && body.detail.length > 0) {
         // 2. FastAPI 验证异常 (422 Unprocessable Entity - validation errors)
         const firstError = body.detail[0];
-        const errorLoc = firstError.loc ? firstError.loc.join(".") : "Unknown";
-        message = `数据验证失败 (${errorLoc}): ${firstError.msg}`;
-      } else if (body.detail && typeof body.detail === "object") {
-        // 3. 嵌套的自定义字典对象 (如 /health/ready 的 detail: { errors: {...} })
-        if (body.detail.errors && typeof body.detail.errors === "object") {
-          message = (Object.values(body.detail.errors)[0] as string) || message;
-        } else if (body.detail.message && typeof body.detail.message === "string") {
-          message = body.detail.message;
-        } else {
-          message = JSON.stringify(body.detail); // 兜底返回完整 JSON 字符串避免 [object Object]
+        if (isRecord(firstError) && typeof firstError.msg === "string") {
+          let errorLoc = "Unknown";
+          if (Array.isArray(firstError.loc)) {
+            const isAllValid = firstError.loc.every(
+              (part): part is string | number =>
+                typeof part === "string" || typeof part === "number",
+            );
+            if (isAllValid) {
+              errorLoc = firstError.loc.join(".");
+            }
+          }
+          message = `数据验证失败 (${errorLoc}): ${firstError.msg}`;
         }
-      } else if (body.errors && typeof body.errors === "object") {
+      } else if (isRecord(body.detail)) {
+        // 3. 嵌套的自定义字典对象 (如 /health/ready 的 detail: { errors: {...} })
+        if (isRecord(body.detail.errors)) {
+          const firstErr = getFirstTruthyString(body.detail.errors);
+          if (firstErr) {
+            message = firstErr;
+          }
+        } else if (typeof body.detail.message === "string" && body.detail.message) {
+          message = body.detail.message;
+        } else if (!("errors" in body.detail) && !("message" in body.detail)) {
+          try {
+            message = JSON.stringify(body.detail); // 兜底返回完整 JSON 字符串避免 [object Object]
+          } catch {
+            // 忽略序列化异常，保留原 message 兜底
+          }
+        }
+      } else if (isRecord(body.errors)) {
         // 4. 其他结构或未通过 detail 包装的字典
-        message = (Object.values(body.errors)[0] as string) || message;
+        const firstErr = getFirstTruthyString(body.errors);
+        if (firstErr) {
+          message = firstErr;
+        }
       } else if (typeof body.message === "string") {
         // 5. 兜底解析 message 字段
         message = body.message;

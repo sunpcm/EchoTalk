@@ -164,6 +164,353 @@ describe("API client", () => {
         }
       }
     });
+
+    describe("Robust error body guards (RF-11)", () => {
+      interface ErrorBodyTestCase {
+        name: string;
+        status: number;
+        body: unknown;
+        expectedMessage: string;
+        expectedData?: unknown;
+      }
+
+      const testCases: ErrorBodyTestCase[] = [
+        // 422 验证异常异常结构回归
+        {
+          name: "detail as array with null (detail: [null])",
+          status: 422,
+          body: { detail: [null] },
+          expectedMessage: "请求失败: 422",
+          expectedData: { detail: [null] },
+        },
+        {
+          name: "detail as empty array",
+          status: 422,
+          body: { detail: [] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with non-object element",
+          status: 422,
+          body: { detail: [123] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with invalid string loc (loc: string)",
+          status: 422,
+          body: { detail: [{ loc: "invalid_loc_string", msg: "field error" }] },
+          expectedMessage: "数据验证失败 (Unknown): field error",
+        },
+        {
+          name: "detail with invalid object loc (loc: {})",
+          status: 422,
+          body: { detail: [{ loc: {}, msg: "field error" }] },
+          expectedMessage: "数据验证失败 (Unknown): field error",
+        },
+        {
+          name: "detail with invalid loc element (loc: [null])",
+          status: 422,
+          body: { detail: [{ loc: [null], msg: "field error" }] },
+          expectedMessage: "数据验证失败 (Unknown): field error",
+        },
+        {
+          name: "detail with omitted loc (missing loc key)",
+          status: 422,
+          body: { detail: [{ msg: "missing loc field" }] },
+          expectedMessage: "数据验证失败 (Unknown): missing loc field",
+        },
+        {
+          name: "detail with numeric loc index",
+          status: 422,
+          body: { detail: [{ loc: ["items", 0, "name"], msg: "must be string" }] },
+          expectedMessage: "数据验证失败 (items.0.name): must be string",
+        },
+        {
+          name: "detail with non-string msg (msg: null)",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: null }] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with non-string msg (msg: number)",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: 400 }] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with non-string msg (msg: object)",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: { nested: true } }] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with missing msg",
+          status: 422,
+          body: { detail: [{ loc: ["body"] }] },
+          expectedMessage: "请求失败: 422",
+        },
+        // r1 回归：已知有效空字符串/空loc数组分支保持
+        {
+          name: "detail validation error with empty string msg",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: "" }] },
+          expectedMessage: "数据验证失败 (body): ",
+          expectedData: { detail: [{ loc: ["body"], msg: "" }] },
+        },
+        {
+          name: "detail validation error with empty loc array",
+          status: 422,
+          body: { detail: [{ loc: [], msg: "root error" }] },
+          expectedMessage: "数据验证失败 (): root error",
+          expectedData: { detail: [{ loc: [], msg: "root error" }] },
+        },
+        {
+          name: "empty detail string takes precedence over fallback message",
+          status: 400,
+          body: { detail: "", message: "fallback" },
+          expectedMessage: "",
+          expectedData: { detail: "", message: "fallback" },
+        },
+        // 异常 errors 字段
+        {
+          name: "errors as primitive string",
+          status: 400,
+          body: { errors: "not_a_record" },
+          expectedMessage: "请求失败: 400",
+        },
+        {
+          name: "errors with non-string first value (number)",
+          status: 400,
+          body: { errors: { code: 12345 } },
+          expectedMessage: "请求失败: 400",
+        },
+        {
+          name: "errors with non-string first value (object)",
+          status: 400,
+          body: { errors: { code: { nested: true } } },
+          expectedMessage: "请求失败: 400",
+        },
+        {
+          name: "errors with valid string first value",
+          status: 400,
+          body: { errors: { field: "参数错误" } },
+          expectedMessage: "参数错误",
+        },
+        {
+          name: "errors with empty string first value falls back to default",
+          status: 400,
+          body: { errors: { field: "" } },
+          expectedMessage: "请求失败: 400",
+        },
+        // detail 对象嵌套错误
+        {
+          name: "detail.errors is null",
+          status: 503,
+          body: { detail: { errors: null } },
+          expectedMessage: "请求失败: 503",
+        },
+        {
+          name: "detail.errors with empty string falls back to default",
+          status: 503,
+          body: { detail: { errors: { config: "" } } },
+          expectedMessage: "请求失败: 503",
+        },
+        {
+          name: "detail.errors with non-string value",
+          status: 503,
+          body: { detail: { errors: { db: 999 } } },
+          expectedMessage: "请求失败: 503",
+        },
+        {
+          name: "detail.errors with valid string",
+          status: 503,
+          body: { detail: { errors: { redis: "连接失败" } } },
+          expectedMessage: "连接失败",
+        },
+        {
+          name: "detail.message is non-string (number)",
+          status: 500,
+          body: { detail: { message: 123 } },
+          expectedMessage: "请求失败: 500",
+        },
+        {
+          name: "detail.message is valid string",
+          status: 500,
+          body: { detail: { message: "数据库连接超时" } },
+          expectedMessage: "数据库连接超时",
+        },
+        {
+          name: "detail.message is empty string (truthy fallback to default)",
+          status: 500,
+          body: { detail: { message: "" } },
+          expectedMessage: "请求失败: 500",
+        },
+        // 顶层 message 字段
+        {
+          name: "top-level message is non-string (object)",
+          status: 500,
+          body: { message: { text: "err" } },
+          expectedMessage: "请求失败: 500",
+        },
+        {
+          name: "top-level message is valid string",
+          status: 500,
+          body: { message: "服务器内部异常" },
+          expectedMessage: "服务器内部异常",
+        },
+        {
+          name: "empty top-level message yields empty message",
+          status: 500,
+          body: { message: "" },
+          expectedMessage: "",
+          expectedData: { message: "" },
+        },
+        // 顶层原始非 Record body
+        {
+          name: "body is null",
+          status: 500,
+          body: null,
+          expectedMessage: "请求失败: 500",
+          expectedData: null,
+        },
+        {
+          name: "body is number",
+          status: 500,
+          body: 12345,
+          expectedMessage: "请求失败: 500",
+          expectedData: 12345,
+        },
+        {
+          name: "body is array of primitives",
+          status: 500,
+          body: [1, 2, 3],
+          expectedMessage: "请求失败: 500",
+          expectedData: [1, 2, 3],
+        },
+        {
+          name: "body is boolean",
+          status: 500,
+          body: false,
+          expectedMessage: "请求失败: 500",
+          expectedData: false,
+        },
+      ];
+
+      it.each(testCases)(
+        "table-driven error parsing: $name",
+        async ({ status, body, expectedMessage, expectedData }) => {
+          fetchMock().mockResolvedValue({
+            ok: false,
+            status,
+            json: () => Promise.resolve(body),
+          } as unknown as Response);
+
+          try {
+            await checkHealthReady();
+            expect.fail("Should have thrown ApiError");
+          } catch (e: unknown) {
+            expect(e).toBeInstanceOf(ApiError);
+            if (e instanceof ApiError) {
+              expect(e.status).toBe(status);
+              expect(e.message).toBe(expectedMessage);
+              if (expectedData !== undefined) {
+                expect(e.data).toEqual(expectedData);
+              }
+            }
+          }
+          expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        },
+      );
+
+      it("handles non-JSON response when res.json rejects", async () => {
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 502,
+          json: () => Promise.reject(new Error("Unexpected token < in JSON at position 0")),
+        } as unknown as Response);
+
+        try {
+          await checkHealthReady();
+          expect.fail("Should have thrown ApiError");
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ApiError);
+          if (e instanceof ApiError) {
+            expect(e.status).toBe(502);
+            expect(e.message).toBe("请求失败: 502");
+            expect(e.data).toEqual({});
+          }
+        }
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("invalidates auth session on 401 even with abnormal body and preserves ApiError", async () => {
+        const initialRev = getAuthRevision();
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ detail: [null] }),
+        } as unknown as Response);
+
+        try {
+          await checkHealthReady();
+          expect.fail("Should have thrown ApiError");
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ApiError);
+          if (e instanceof ApiError) {
+            expect(e.status).toBe(401);
+            expect(e.message).toBe("请求失败: 401");
+            expect(e.data).toEqual({ detail: [null] });
+          }
+        }
+        expect(getAuthRevision()).toBeGreaterThan(initialRev);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("protects new auth session from late 401 response (revision guard)", async () => {
+        let resolveFetch!: (res: Response) => void;
+        const fetchPromise = new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        });
+
+        const initialRev = getAuthRevision();
+        fetchMock().mockImplementation(async () => {
+          // 在 fetch 已经在途期间，发生外部重新认证使代际递增
+          invalidateAuthSession();
+          return fetchPromise;
+        });
+
+        const requestPromise = checkHealthReady();
+        // 等待微任务使 fetch 被调用，此时 session 已被 invalidateAuthSession 递增
+        await Promise.resolve();
+
+        const updatedRev = getAuthRevision();
+        expect(updatedRev).toBeGreaterThan(initialRev);
+
+        // 迟到的 401 响应返回
+        resolveFetch({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ detail: "Session expired" }),
+        } as unknown as Response);
+
+        await expect(requestPromise).rejects.toThrow(ApiError);
+
+        // 确认迟到的 401 没有再次使更新的 session 失效
+        expect(getAuthRevision()).toBe(updatedRev);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("never replays write requests on error and calls fetch exactly once", async () => {
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 422,
+          json: () => Promise.resolve({ detail: [{ loc: "string", msg: "Invalid" }] }),
+        } as unknown as Response);
+
+        await expect(createSession("chat")).rejects.toThrow(ApiError);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   describe("Call capabilities API", () => {

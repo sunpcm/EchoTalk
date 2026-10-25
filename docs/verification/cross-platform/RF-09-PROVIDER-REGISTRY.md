@@ -12,7 +12,7 @@
 2. **零 ORM / 零解密 / 零环境改写**：`ProviderRegistry` 仅接收已解密的不可变快照 `ResolvedCustomCredentials`。不接触 ORM 对象（非 snapshot 输入抛出 `TypeError`），不自行解密，不改写进程环境变量，不自行兜底配置。实际插件实例创建严格委托 `PluginFactory.create_*` 与 `PluginFactory.from_system_defaults()`。
 3. **严格构造顺序与失败短路**：自定义轨插件构造严格遵循 `STT → LLM → TTS → VAD` 顺序。若前序角色构造抛出异常（如 `PluginInitError`），后续角色构造严格零调用并立即短路向上抛出。
 4. **参数归属防串扰与完整四键契约**：STT、LLM、TTS 各角色 API Key 及模型严格按角色归属，互不串扰。返回值严格为四键字典 `{"stt": ..., "llm": ..., "tts": ..., "vad": ...}`。
-5. **Agent 委托与基础轨隔离**：`agent.py` 移除直接 `PluginFactory` 导入；`_build_custom_plugins` 在 `CredentialResolver.resolve_custom` 之后完全委托 `ProviderRegistry.from_custom`；基础轨 `entrypoint` 直接调用 `ProviderRegistry.from_system_defaults()`，基础轨零用户凭据、零解密、零 `CredentialResolver` 依赖。
+5. **Agent 委托与基础轨隔离**：`agent.py` 移除直接 `PluginFactory` 导入；`_build_custom_plugins` 在 `CredentialResolver.resolve_custom` 之后完全委托 `ProviderRegistry.from_custom`；基础轨 `entrypoint` 直接调用 `ProviderRegistry.from_system_defaults()`，模块有运行时 snapshot 依赖，基础轨零用户凭据、零解密、零 resolver 调用。
 6. **变异抵御能力**：针对 wrong-role key（错误传递角色 Key）与漏构造某角色（漏调某角色构造器或返回缺失 key），测试必须可确定性检测并使其失败。
 
 ## 2. 本地实现与变更
@@ -37,7 +37,7 @@
 
 ### 2.4 新增回归测试 (`backend/tests/test_provider_registry.py`)
 
-新增 8 个独立回归测试用例，覆盖：
+真实新增 14 个测试函数 / 19 个独立测试用例（原有文档简写为 8 项），覆盖：
 
 1. **角色归属与防串扰**：验证 `stt_key`、`llm_key`、`tts_key`、`model` 准确传入对应构造器，显式断言其他角色的 key 绝未传入。
 2. **变异防御**：针对 wrong-role key 与漏构造某 role 进行精准断言。
@@ -50,5 +50,7 @@
 ## 3. 边界与未验界限
 
 - 本轮仅完成自定义与基础轨插件集构造收口至 `ProviderRegistry`（RF-09 子项），未勾选 RF-09 整体。
+- Registry 模块存在运行时 snapshot 类依赖（import 用于 isinstance 校验），基础轨实现零 resolver 调用与零解密。
+- Canary 新测试只验证快照 repr 脱敏且 env 新测试仅验证调用前后，构造过程中的实时环境变量不变性与日志脱敏由原 A46 回归测试承担。
 - `AgentJobOrchestrator` 拆分、`sys.path` / `dotenv` 重构、真实 SDK 大版本升级仍待后续完成。
 - 所有测试均基于纯 Mock 环境（无真实网络、无第三方 API 请求、无模型下载）。
