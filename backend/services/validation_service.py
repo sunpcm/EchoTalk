@@ -7,6 +7,8 @@ from typing import Literal
 
 import aiohttp
 
+from provider_catalog import LLM_PROVIDER_CATALOG
+
 logger = logging.getLogger("echotalk.validation_service")
 
 ValidationCode = Literal[
@@ -81,24 +83,14 @@ class ProviderValidationService:
     async def validate_llm_key(
         cls, provider: str, api_key: str
     ) -> ProviderValidationResult:
-        endpoints = {
-            "siliconflow": (
-                "https://api.siliconflow.cn/v1/user/info",
-                {"Authorization": f"Bearer {api_key}"},
-            ),
-            "openrouter": (
-                "https://openrouter.ai/api/v1/auth/key",
-                {"Authorization": f"Bearer {api_key}"},
-            ),
-        }
-        endpoint = endpoints.get(provider)
-        if endpoint is None:
+        meta = LLM_PROVIDER_CATALOG.get(provider)
+        if meta is None:
             return ProviderValidationResult(False, "unsupported_provider")
         return await cls._validate(
             provider,
             api_key,
-            url=endpoint[0],
-            headers=endpoint[1],
+            url=meta.validation_url,
+            headers={"Authorization": f"Bearer {api_key}"},
         )
 
     @classmethod

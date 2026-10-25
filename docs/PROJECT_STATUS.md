@@ -486,3 +486,11 @@ Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK�
 - **生命周期与安全边界**：401 会话失效逻辑保留在响应体解析前执行，严格绑定请求发起时的 `reqRevision`，迟到的 401 响应安全短路不影响更新的会话；错误处理全流程不重放任何写请求，请求单次发出；安全诊断日志严格遵循脱敏白名单，不记录任何响应体正文或凭据。
 - **质量验证覆盖**：在 `apps/vite-app/src/lib/api.test.ts` 新增表驱动回归用例，通过真实公共 API 调用覆盖 422 异常/有效 detail、非法/缺省 loc、非 string msg、异常 errors、嵌套 detail 结构、顶层 message、原始非对象 body 等 34 种场景；覆盖非 JSON 响应拒绝、401 异常错误体下的 session 失效与 ApiError 保留、迟到 401 保护机制及写请求 fetch 仅调用一次断言；原有 4 项测试及全部既有断言完整保留。
 - **契约与界限**：契约见 [RF-11 异常 HTTP 错误体健壮解析验证](./verification/cross-platform/RF-11-ERROR-BODY-GUARDS.md)。本轮仅完成 Transport 层异常错误体健壮解析（RF-11 子项）；OpenAPI 客户端/类型生成、会话状态模型收敛与组件重构仍待后续完成，整项保持未勾选，RF-11 持续推进。
+
+## 2026-10-26 A50 / RF-10 LLM 静态元数据单一来源实施
+
+基于 TODO.md RF-10 与 MVP 重构方案 §RF10 规范完成本地实施。收敛消除 `plugin_factory.py`、`llm_service.py` 与 `validation_service.py` 三处重复的 LLM Provider 静态配置，提取纯标准库不可变目录 `provider_catalog.py`；同时落实 A49 遗留 P2 合法空嵌套 message 对象的 JSON 字符串回退保护。
+
+- **本地实现与接口契约**：新增 `backend/provider_catalog.py`，定义不可变条目 `LLMProviderMetadata`（`frozen=True`）与 `MappingProxyType` 导出的不可变字典 `LLM_PROVIDER_CATALOG`；严格保持 SiliconFlow 与 OpenRouter 两家 Provider 及其顺序与现有常量值；纯标准库实现，零第三方依赖，不存储 key 值，不读取 `os.environ`，不导入 SDK/config/crypto/DB，无网络或文件 I/O；`livekit_agent/plugin_factory.py` 的 `LLM_PROVIDER_BASE_URL`、`SUPPORTED_LLM_PROVIDERS` 与 `_SYSTEM_LLM_KEY_FIELD` 统一从 Catalog 派生，保留原导出变量名、类型及顺序；`services/llm_service.py` 的 `PROVIDER_CONFIG` 从 Catalog 派生，保留原字典结构与键名；`services/validation_service.py` 的 `validate_llm_key` 端点表改为由 Catalog 提供，保持 Bearer Authorization Header、超时、错误分类以及未知 Provider 与空 key 的快速失败短路机制；前端 `api.ts` 恢复对合法空嵌套 message（`{detail: {message: ""}}` 及包含额外非错误字段）的 `JSON.stringify` 兜底回退，同步更新测试 oracle 与 RF11 验证文档。
+- **质量验证覆盖**：新增 `backend/tests/test_provider_catalog.py`，覆盖 Catalog 结构与常量精确值、映射与条目双重不可变性、三处消费者元数据接线一致性、未知 Provider 与缺失 key 的零网络调用保护，并在最小无凭据干净子进程环境中验证纯标准库独立安全导入与零多余模块加载；`test_plugin_factory.py`、`test_llm_service.py` 与 `test_validation_service.py` 分别追加单一来源接线断言并完整保留既有用例；前端 8 项门禁（Vitest、构建脚本测试、Fake API 子进程测试、双浏览器 E2E 等）全数通过。
+- **契约与界限**：契约见 [RF-10 LLM 静态元数据单一来源验证](./verification/cross-platform/RF-10-LLM-CATALOG.md)。本轮仅完成 LLM 静态元数据单一来源收敛（RF-10 子项）与 A49 遗留 P2 回退修复；STT/TTS 静态元数据收敛、多 Provider 并行拨测与总超时控制、设置服务重构仍待后续完成，整项保持未勾选，RF-10 持续推进。

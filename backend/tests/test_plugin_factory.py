@@ -160,3 +160,21 @@ def test_plugin_init_error_class_identity_and_catch_compatibility():
     with pytest.raises(AgentError) as caught_agent:
         raise err
     assert caught_agent.value is err
+
+
+def test_llm_metadata_derived_from_catalog():
+    """验证 PluginFactory 中的 LLM 元数据完整派生自 provider_catalog。"""
+    from livekit_agent.plugin_factory import (
+        _SYSTEM_LLM_KEY_FIELD,
+        LLM_PROVIDER_BASE_URL,
+        SUPPORTED_LLM_PROVIDERS,
+    )
+    from provider_catalog import LLM_PROVIDER_CATALOG
+
+    assert LLM_PROVIDER_BASE_URL == {
+        k: v.base_url for k, v in LLM_PROVIDER_CATALOG.items()
+    }
+    assert SUPPORTED_LLM_PROVIDERS == set(LLM_PROVIDER_CATALOG.keys())
+    assert _SYSTEM_LLM_KEY_FIELD == {
+        k: v.api_key_field for k, v in LLM_PROVIDER_CATALOG.items()
+    }

@@ -7,13 +7,13 @@ from livekit.plugins import cartesia, deepgram, silero
 from livekit.plugins import openai as lk_openai
 
 from config import settings
+from provider_catalog import LLM_PROVIDER_CATALOG
 
 logger = logging.getLogger("echotalk-agent")
 
-# LLM provider → base_url 映射（自包含，不依赖 llm_service.py）
+# LLM provider → base_url 映射（派生自不可变 catalog，保持导出变量名、类型与顺序）
 LLM_PROVIDER_BASE_URL: dict[str, str] = {
-    "siliconflow": "https://api.siliconflow.cn/v1",
-    "openrouter": "https://openrouter.ai/api/v1",
+    k: v.base_url for k, v in LLM_PROVIDER_CATALOG.items()
 }
 
 # 支持的 provider 集合（用于预检校验）
@@ -21,10 +21,9 @@ SUPPORTED_STT_PROVIDERS: set[str] = {"deepgram"}
 SUPPORTED_LLM_PROVIDERS: set[str] = set(LLM_PROVIDER_BASE_URL.keys())
 SUPPORTED_TTS_PROVIDERS: set[str] = {"cartesia"}
 
-# 系统 LLM provider 名 → settings 字段名的映射（仅基础轨使用）
+# 系统 LLM provider 名 → settings 字段名的映射（派生自不可变 catalog，仅基础轨使用）
 _SYSTEM_LLM_KEY_FIELD: dict[str, str] = {
-    "siliconflow": "SILICONFLOW_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
+    k: v.api_key_field for k, v in LLM_PROVIDER_CATALOG.items()
 }
 
 # 兼容导出：统一异常定义迁移至 plugin_errors.py

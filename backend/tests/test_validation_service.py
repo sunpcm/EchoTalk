@@ -129,3 +129,21 @@ async def test_validate_all_preserves_boolean_compatibility():
             "tts-key",
         )
     assert result is True
+
+
+@pytest.mark.asyncio
+async def test_validate_llm_key_derived_from_catalog():
+    """验证 validate_llm_key 调用的 URL 与 Bearer Header 严格匹配 catalog 定义。"""
+    from provider_catalog import LLM_PROVIDER_CATALOG
+
+    for provider, meta in LLM_PROVIDER_CATALOG.items():
+        with mock_aiohttp_get(status=200) as request:
+            res = await ProviderValidationService.validate_llm_key(
+                provider, "catalog-secret"
+            )
+            assert res.ok is True
+            assert res.code == "verified"
+            request.assert_called_once_with(
+                meta.validation_url,
+                headers={"Authorization": "Bearer catalog-secret"},
+            )

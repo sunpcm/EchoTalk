@@ -107,7 +107,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
           }
         } else if (typeof body.detail.message === "string" && body.detail.message) {
           message = body.detail.message;
-        } else if (!("errors" in body.detail) && !("message" in body.detail)) {
+        } else if (
+          !("errors" in body.detail) &&
+          (!("message" in body.detail) || body.detail.message === "")
+        ) {
           try {
             message = JSON.stringify(body.detail); // 兜底返回完整 JSON 字符串避免 [object Object]
           } catch {

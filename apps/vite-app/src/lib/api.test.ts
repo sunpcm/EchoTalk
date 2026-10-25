@@ -340,10 +340,16 @@ describe("API client", () => {
           expectedMessage: "数据库连接超时",
         },
         {
-          name: "detail.message is empty string (truthy fallback to default)",
+          name: "detail.message is empty string (falls back to JSON stringify)",
           status: 500,
           body: { detail: { message: "" } },
-          expectedMessage: "请求失败: 500",
+          expectedMessage: '{"message":""}',
+        },
+        {
+          name: "detail.message is empty string with other fields preserves full object in JSON fallback",
+          status: 500,
+          body: { detail: { message: "", code: "ERR_CUSTOM", retryable: false } },
+          expectedMessage: '{"message":"","code":"ERR_CUSTOM","retryable":false}',
         },
         // 顶层 message 字段
         {
