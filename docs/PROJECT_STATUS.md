@@ -184,7 +184,6 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 | -------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离    | 代码和自动化已落地；真实 IdP 联调仍需环境验收              |
 | 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                  | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明 |
-| 会话发现与分页 | 游标分页响应 `{ items, next_cursor }`；`daily-progress` 服务端单次聚合统计         | 已实现 keyset 稳定游标与防篡改校验，无 N+1 查询            |
 | 会话分析       | 持久化分析状态、发音评估、语法检测、BKT 知识追踪、失败/重试状态                    | 自动化覆盖核心状态机；真实发音 Provider 仍需外部验收       |
 | 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态 | 已实现                                                     |
 | 自适应课程     | 读取薄弱技能，通过 ChromaDB/Krashen i+1 生成课程推荐                               | 存在真实 API 调用链；ChromaDB 客户端按进程复用             |
@@ -417,3 +416,11 @@ Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK�
 - **稳定与校验游标**：游标基于 `(started_at, id)` keyset 稳定排序，标准库 canonical URL-safe base64 编码，严格要求 `v=1` 为整数（拒绝 bool/float），严格绑定 endpoint、当前用户、status 及时间窗上下文白名单进行绝对比对；长度限制 `<= 1024` 字节；自包含无状态校验，非 HMAC 签名凭证，不提供抗恶意改写完整性保证；数据库查询始终强制当前 `user_id` 过滤；非法格式、超长或上下文不匹配一律返回 422。
 - **性能与生命周期健壮性**：DailyProgress 消除 N+1 会话详情与正文拉取，采用单次 SQL 统计，0 条转录 completed 会话计为 1 且 total_turns 为 0；前端采用本地自然日（00:00 - 次日 00:00，DST 兼容）；午夜定时器安排与窗口变化彻底解耦，不进行 24h 硬夹值，支持 25h/23h/24h 本地自然日及 StrictMode 双挂载重建；离线与切后台挂起时同步作废在途分页请求并清空游标状态，使“加载更多”按钮即时隐藏；跨午夜时不论在线离线立即清空昨日数据，离线跨日不发网络；首屏与分页追加实施严格 ID 去重；ActiveSessions 显式点击加载更多，在途加载与结束/恢复操作互锁；more 分支覆盖换号、revision 更新、旧 finally 隔离、错误同 cursor 重试及双击去重。
 - **全量门禁结果**：前端 743 Vitest / 18 构建脚本 / 61 Fake API / 148 Playwright E2E（WebKit & Chromium）及格式与类型检查全部 0 错误通过；后端 303 项 pytest 全部通过（覆盖率 74.48% >= 59.0% 门禁），Ruff 格式与检查 0 错误。停在 Review，未提交 Git 或部署。
+
+## 2026-10-25 A42 / RF-09 Agent 安全错误映射与出口边界实施
+
+基于 TODO.md RF-09 与 MVP 重构方案 RF03（秘密不入日志与响应）及 RF09（AgentErrorMapper）规范完成本地实施。建立单一安全错误映射边界 `AgentErrorMapper`，固化既有 9 项错误码全集及静态安全本地化文本映射，阻断异常正文、URL、密钥向客户端回显及日志泄露；守护最终 DataChannel 发送入口，清理 SDK 私有属性读取与 raw identity 输出。
+
+- **本地实现与安全边界**：新增 `backend/livekit_agent/error_mapper.py`，完整保留 9 项既有错误码白名单（`ERR_CUSTOM_KEY_INVALID`、`ERR_UNSUPPORTED_STT_PROVIDER`、`ERR_UNSUPPORTED_LLM_PROVIDER`、`ERR_UNSUPPORTED_TTS_PROVIDER`、`ERR_SYSTEM_CONFIG`、`ERR_SESSION_NOT_FOUND`、`ERR_CUSTOM_RUNTIME_AUTH`、`ERR_CUSTOM_RUNTIME`、`ERR_SYSTEM_RUNTIME`），未知或恶意 code/message 安全兜底已有常量，不回显 raw 文本片段；`classify_runtime_error` 严格保留 typed `APIStatusError` 401/403 与 legacy 文本线索的 custom runtime 认证分类，且两分支严格互斥（typed 429/500 正文含 401/403 不误判 AUTH，不可恢复映射为 `ERR_CUSTOM_RUNTIME`，可恢复与基础轨交 SDK 默认处理，零额外断连与通知）；提供严格字段净化（UUID session_id、100..599 HTTP 状态码、布尔与白名单类型过滤）；异常 `__str__` 抛错安全兜底；`agent.py` 发送入口接入安全 mapper，普通 publish 异常日志脱敏（无 exc_info）且仍执行 disconnect，disconnect 失败与取消异常正常向上传播；删除入口日志对 `ctx._info.url` 私有字段读取与原始 `participant.identity` 输出。
+- **质量验证覆盖**：新增 `test_agent_errors.py` 覆盖纯 mapper 映射、typed 互斥与恶意降级、运行时错误矩阵、字段净化与 `__str__` 容错；使用 synthetic canary 注入异常消息/repr、URL/Authorization、PluginInitError 与 publish 异常，挂载 `ExplodingPrivateInfo` 证实零私有 `_info.url` 访问；断言应用自有全部日志记录（包括 args/extra/exc_info/stack_info）及 publish payload 绝对不含 canary，wire 格式 `{type: "agent_error", code, message}`、reliable=True、topic="agent_error" 逐项保持；确定性 task 等待消除任意 sleep；保持 `test_livekit_agent.py` 原 4 项转录测试语义。
+- **契约与界限**：契约见 [RF-09 Agent 安全错误映射验证](./verification/cross-platform/RF-09-SAFE-AGENT-ERRORS.md)。脱敏与零泄漏结论仅限于本地测试覆盖的应用自有路径，LiveKit SDK 自身内部日志行为本轮未宣称覆盖；Orchestrator/CredentialResolver/Registry/TranscriptSink 拆分、sys.path/dotenv/环境变量清理及真实 SDK/外部 Provider 联调仍待后续完成，整项保持未勾选，RF-09 持续推进。

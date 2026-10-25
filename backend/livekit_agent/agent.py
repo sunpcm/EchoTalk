@@ -35,7 +35,6 @@ load_dotenv(_backend_dir.parent / ".env", override=False)
 from livekit.agents import (  # noqa: E402
     Agent,
     AgentSession,
-    APIStatusError,
     AutoSubscribe,
     ConversationItemAddedEvent,
     ErrorEvent,
@@ -48,6 +47,7 @@ from sqlalchemy import select  # noqa: E402
 
 from config import settings  # noqa: E402
 from database import async_session_maker  # noqa: E402
+from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
 from livekit_agent.plugin_factory import PluginFactory, PluginInitError  # noqa: E402
 from models.session import Session, SessionContext  # noqa: E402
 from models.user import UserSettings  # noqa: E402
@@ -92,7 +92,8 @@ async def _fetch_user_settings(session_id: str) -> UserSettings | None:
         result = await db.execute(stmt)
         user_id = result.scalar_one_or_none()
         if user_id is None:
-            logger.warning("Session '%s' 在数据库中不存在", session_id)
+            safe_sid = AgentErrorMapper.sanitize_session_id(session_id)
+            logger.warning("Session 在数据库中不存在: session=%s", safe_sid)
             return None
 
         # user_id → UserSettings
@@ -113,8 +114,8 @@ async def _fetch_session_context(session_id: str) -> SessionContext | None:
     """
     try:
         sid = uuid.UUID(session_id)
-    except ValueError:
-        logger.warning("无效的 session_id 格式: '%s'", session_id)
+    except (ValueError, TypeError, AttributeError):
+        logger.warning("无效的 session_id 格式")
         return None
 
     async with async_session_maker() as db:
@@ -215,7 +216,8 @@ def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
 async def _send_error_and_disconnect(
     ctx: JobContext,
     code: str,
-    message: str,
+    message: str | None = None,
+    fallback_code: str = "ERR_SYSTEM_RUNTIME",
 ) -> None:
     """
     通过 DataChannel 向客户端发送错误 JSON，然后断开房间连接。
@@ -229,10 +231,18 @@ async def _send_error_and_disconnect(
     参数:
         ctx: LiveKit JobContext（已连接到房间）
         code: 机器可读错误码，如 "ERR_CUSTOM_KEY_INVALID"
-        message: 中文人类可读描述
+        message: 传入描述（将通过 AgentErrorMapper 强制转换为安全静态描述）
+        fallback_code: code 不在白名单时的兜底错误码
     """
+    safe_code, safe_message = AgentErrorMapper.map_error(
+        code, message, fallback_code=fallback_code
+    )
+    safe_session_id = AgentErrorMapper.sanitize_session_id(
+        getattr(getattr(ctx, "room", None), "name", None)
+    )
+
     payload = json.dumps(
-        {"type": "agent_error", "code": code, "message": message},
+        {"type": "agent_error", "code": safe_code, "message": safe_message},
         ensure_ascii=False,
     )
     try:
@@ -241,12 +251,12 @@ async def _send_error_and_disconnect(
             reliable=True,
             topic="agent_error",
         )
-        logger.info("已发送错误消息到客户端: code=%s", code)
+        logger.info("已发送错误消息到客户端: code=%s", safe_code)
     except Exception:
-        logger.warning("发送错误消息到客户端失败", exc_info=True)
+        logger.warning("发送错误消息到客户端失败")
 
     await ctx.room.disconnect()
-    logger.info("已断开房间连接: session=%s, code=%s", ctx.room.name, code)
+    logger.info("已断开房间连接: session=%s, code=%s", safe_session_id, safe_code)
 
 
 # ---------------------------------------------------------------------------
@@ -345,17 +355,16 @@ def _persist_assistant_conversation_item(
 
 async def entrypoint(ctx: JobContext):
     """LiveKit Agent 入口：等待参与者 -> 查询双轨配置 -> 构建插件 -> 启动语音管线。"""
-    logger.info(
-        "Agent 收到任务，房间: %s，连接地址: %s",
-        ctx.room.name,
-        ctx._info.url,
+    safe_session_id = AgentErrorMapper.sanitize_session_id(
+        getattr(getattr(ctx, "room", None), "name", None)
     )
+    logger.info("Agent 收到任务，房间: %s", safe_session_id)
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    logger.info("Agent 已连接到房间: %s", ctx.room.name)
+    logger.info("Agent 已连接到房间: %s", safe_session_id)
 
-    participant = await ctx.wait_for_participant()
-    logger.info("参与者加入: %s", participant.identity)
+    await ctx.wait_for_participant()
+    logger.info("参与者已加入房间: session=%s", safe_session_id)
 
     # 房间名即为 session_id（Token 端点使用 str(session.id) 作为房间名）
     session_id = ctx.room.name
@@ -363,24 +372,22 @@ async def entrypoint(ctx: JobContext):
     # ── 1. 查询双轨制配置 ──────────────────────────────────────
     try:
         user_settings = await _fetch_user_settings(session_id)
-    except Exception as e:
-        logger.error(
-            "查询用户配置失败: session_id=%s, error=%s", session_id, e, exc_info=True
-        )
+    except Exception:
+        logger.error("查询用户配置失败: session_id=%s", safe_session_id)
         await _send_error_and_disconnect(
             ctx,
             "ERR_SESSION_NOT_FOUND",
-            "会话配置查询失败，请重新登录后再试。",
+            fallback_code="ERR_SESSION_NOT_FOUND",
         )
         return
 
     # ── 1a. 安全校验: 必须查到用户配置 ────────────────────────
     if user_settings is None:
-        logger.error("未找到 session_id=%s 的用户配置！拒绝服务。", session_id)
+        logger.error("未找到用户配置: session_id=%s", safe_session_id)
         await _send_error_and_disconnect(
             ctx,
             "ERR_SESSION_NOT_FOUND",
-            "无法找到您的会话配置，请重新登录后再试。",
+            fallback_code="ERR_SESSION_NOT_FOUND",
         )
         return
 
@@ -393,15 +400,23 @@ async def entrypoint(ctx: JobContext):
 
     # ── 2. 根据模式构建插件 ────────────────────────────────────
     if is_custom:
-        logger.info("自定义轨模式: session_id=%s", session_id)
+        logger.info("自定义轨模式: session_id=%s", safe_session_id)
         try:
             plugins = _build_custom_plugins(user_settings)
         except PluginInitError as e:
-            logger.error("自定义轨插件初始化失败: [%s] %s", e.code, e.message)
-            await _send_error_and_disconnect(ctx, e.code, e.message)
+            safe_code, _ = AgentErrorMapper.map_error(
+                e.code,
+                fallback_code="ERR_CUSTOM_KEY_INVALID",
+            )
+            logger.error("自定义轨插件初始化失败: code=%s", safe_code)
+            await _send_error_and_disconnect(
+                ctx,
+                safe_code,
+                fallback_code="ERR_CUSTOM_KEY_INVALID",
+            )
             return
     else:
-        logger.info("基础轨模式: session_id=%s", session_id)
+        logger.info("基础轨模式: session_id=%s", safe_session_id)
         plugins = PluginFactory.from_system_defaults()
 
     # ── 3. 创建情绪感知 Agent ──────────────────────────────────
@@ -441,76 +456,60 @@ async def entrypoint(ctx: JobContext):
         inner_error = event.error
         actual_exception = getattr(inner_error, "error", inner_error)
 
+        err_type = AgentErrorMapper.sanitize_error_type(
+            getattr(inner_error, "type", None)
+        )
+        recoverable = AgentErrorMapper.sanitize_bool(
+            getattr(inner_error, "recoverable", None)
+        )
+        status_code = AgentErrorMapper.extract_status_code(actual_exception)
+
         logger.error(
-            "运行时错误: type=%s, recoverable=%s, error=%s",
-            getattr(inner_error, "type", "unknown"),
-            getattr(inner_error, "recoverable", "N/A"),
-            actual_exception,
-            exc_info=(
-                actual_exception if isinstance(actual_exception, Exception) else None
-            ),
+            "运行时错误: session=%s, type=%s, recoverable=%s, status=%s",
+            safe_session_id,
+            err_type,
+            recoverable if recoverable is not None else "unknown",
+            status_code if status_code is not None else "none",
         )
 
-        if not is_custom:
-            return  # 基础轨交由 SDK 默认处理
-
-        # 检查是否为认证/授权错误 (HTTP 4xx)
-        is_auth_error = False
-        if isinstance(actual_exception, APIStatusError):
-            is_auth_error = actual_exception.status_code in (401, 403)
-        elif isinstance(actual_exception, Exception):
-            err_str = str(actual_exception).lower()
-            is_auth_error = (
-                "401" in err_str or "403" in err_str or "unauthorized" in err_str
-            )
-
-        if is_auth_error:
+        classification = AgentErrorMapper.classify_runtime_error(
+            inner_error=inner_error,
+            actual_exception=actual_exception,
+            is_custom=is_custom,
+        )
+        if classification is not None:
+            code, _ = classification
             logger.error(
-                "自定义轨运行时认证失败: session_id=%s, error=%s",
-                session_id,
-                actual_exception,
+                "自定义轨运行时处理异常并通知断连: session=%s, code=%s",
+                safe_session_id,
+                code,
             )
             asyncio.ensure_future(
                 _send_error_and_disconnect(
                     ctx,
-                    "ERR_CUSTOM_RUNTIME_AUTH",
-                    "您的自定义 API Key 认证失败（HTTP 401/403），请检查密钥是否有效。",
+                    code,
+                    fallback_code="ERR_CUSTOM_RUNTIME",
                 )
             )
-        else:
-            recoverable = getattr(inner_error, "recoverable", True)
-            if not recoverable:
-                logger.error(
-                    "自定义轨不可恢复运行时错误: session_id=%s, error=%s",
-                    session_id,
-                    actual_exception,
-                )
-                asyncio.ensure_future(
-                    _send_error_and_disconnect(
-                        ctx,
-                        "ERR_CUSTOM_RUNTIME",
-                        f"自定义 API 服务请求失败: {actual_exception}",
-                    )
-                )
 
     # ── 5. 启动语音管线 ───────────────────────────────────────
     try:
         await agent_session.start(agent, room=ctx.room)
-    except Exception as e:
+    except Exception:
+        fallback_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
         logger.error(
-            "语音管线启动失败: session_id=%s, error=%s",
-            session_id,
-            e,
-            exc_info=True,
+            "语音管线启动失败: session=%s, is_custom=%s",
+            safe_session_id,
+            is_custom,
         )
-        error_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
-        error_msg = (
-            f"语音管线启动失败: {e}" if is_custom else "语音管线启动失败，请稍后重试。"
+        await _send_error_and_disconnect(
+            ctx,
+            fallback_code,
+            fallback_code=fallback_code,
         )
-        await _send_error_and_disconnect(ctx, error_code, error_msg)
         return
 
-    logger.info("语音管线已启动，session_id=%s, custom=%s", session_id, is_custom)
+    logger.info("语音管线已启动，session_id=%s, custom=%s", safe_session_id, is_custom)
 
 
 if __name__ == "__main__":
