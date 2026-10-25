@@ -50,11 +50,11 @@ from database import async_session_maker  # noqa: E402
 from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
 from livekit_agent.plugin_factory import PluginFactory, PluginInitError  # noqa: E402
 from livekit_agent.transcript_events import derive_transcript_event_id  # noqa: E402
+from livekit_agent.transcript_sink import TranscriptSink  # noqa: E402
 from models.session import Session, SessionContext  # noqa: E402
 from models.user import UserSettings  # noqa: E402
 from services.emotion_analyzer import EmotionAnalyzer  # noqa: E402
 from services.llm_service import build_dynamic_prompt  # noqa: E402
-from services.transcript_service import save_transcript  # noqa: E402
 from utils.crypto import decrypt_api_key  # noqa: E402
 
 logger = logging.getLogger("echotalk-agent")
@@ -280,6 +280,8 @@ class EchoTalkAgent(Agent):
         session_id: str,
         custom_prompt: str | None = None,
         document_content: str | None = None,
+        *,
+        sink: TranscriptSink | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -288,6 +290,7 @@ class EchoTalkAgent(Agent):
         self._document_content = document_content
         self._emotion_analyzer = EmotionAnalyzer()
         self._current_mode = "normal"  # "normal" | "encouragement"
+        self._sink = sink
 
     async def on_user_turn_completed(
         self,
@@ -332,16 +335,15 @@ class EchoTalkAgent(Agent):
         event_id = derive_transcript_event_id(self._session_id, "user", source_item_id)
         if event_id is None:
             logger.warning("用户消息缺少有效 item.id，丢弃转录持久化")
-        else:
-            asyncio.ensure_future(
-                save_transcript(
-                    self._session_id,
-                    "user",
-                    text,
-                    emotion_state=emotion.to_dict(),
-                    event_id=event_id,
-                )
+        elif self._sink is not None:
+            self._sink.submit(
+                "user",
+                text,
+                event_id=event_id,
+                emotion_state=emotion.to_dict(),
             )
+        else:
+            logger.warning("未注入 TranscriptSink，丢弃转录持久化")
 
 
 # ---------------------------------------------------------------------------
@@ -350,8 +352,11 @@ class EchoTalkAgent(Agent):
 
 
 def _persist_assistant_conversation_item(
-    event: ConversationItemAddedEvent, session_id: str
-) -> None:
+    event: ConversationItemAddedEvent,
+    session_id: str,
+    *,
+    sink: TranscriptSink | None = None,
+) -> bool:
     """Persist assistant text from a LiveKit conversation event, if present."""
     item = event.item
     if isinstance(item, llm.ChatMessage) and item.role == "assistant":
@@ -363,15 +368,16 @@ def _persist_assistant_conversation_item(
             )
             if event_id is None:
                 logger.warning("AI 消息缺少有效 item.id，丢弃转录持久化")
-            else:
-                asyncio.ensure_future(
-                    save_transcript(
-                        session_id,
-                        "assistant",
-                        text,
-                        event_id=event_id,
-                    )
+                return False
+            if sink is not None:
+                return sink.submit(
+                    "assistant",
+                    text,
+                    event_id=event_id,
                 )
+            logger.warning("未注入 TranscriptSink，丢弃转录持久化")
+            return False
+    return False
 
 
 async def entrypoint(ctx: JobContext):
@@ -389,148 +395,178 @@ async def entrypoint(ctx: JobContext):
 
     # 房间名即为 session_id（Token 端点使用 str(session.id) 作为房间名）
     session_id = ctx.room.name
+    is_custom = False
 
-    # ── 1. 查询双轨制配置 ──────────────────────────────────────
-    try:
-        user_settings = await _fetch_user_settings(session_id)
-    except Exception:
-        logger.error("查询用户配置失败: session_id=%s", safe_session_id)
-        await _send_error_and_disconnect(
-            ctx,
-            "ERR_SESSION_NOT_FOUND",
-            fallback_code="ERR_SESSION_NOT_FOUND",
-        )
-        return
-
-    # ── 1a. 安全校验: 必须查到用户配置 ────────────────────────
-    if user_settings is None:
-        logger.error("未找到用户配置: session_id=%s", safe_session_id)
-        await _send_error_and_disconnect(
-            ctx,
-            "ERR_SESSION_NOT_FOUND",
-            fallback_code="ERR_SESSION_NOT_FOUND",
-        )
-        return
-
-    is_custom = user_settings.is_custom_mode
-
-    # ── 1b. 查询文档上下文 ────────────────────────────────────
-    session_context = await _fetch_session_context(session_id)
-    custom_prompt = session_context.custom_prompt if session_context else None
-    document_content = session_context.document_content if session_context else None
-
-    # ── 2. 根据模式构建插件 ────────────────────────────────────
-    if is_custom:
-        logger.info("自定义轨模式: session_id=%s", safe_session_id)
-        try:
-            plugins = _build_custom_plugins(user_settings)
-        except PluginInitError as e:
-            safe_code, _ = AgentErrorMapper.map_error(
-                e.code,
-                fallback_code="ERR_CUSTOM_KEY_INVALID",
-            )
-            logger.error("自定义轨插件初始化失败: code=%s", safe_code)
-            await _send_error_and_disconnect(
-                ctx,
-                safe_code,
-                fallback_code="ERR_CUSTOM_KEY_INVALID",
-            )
-            return
-    else:
-        logger.info("基础轨模式: session_id=%s", safe_session_id)
-        plugins = PluginFactory.from_system_defaults()
-
-    # ── 3. 创建情绪感知 Agent ──────────────────────────────────
-    initial_prompt = build_dynamic_prompt(
-        anxiety_level=0.0,
-        custom_prompt=custom_prompt,
-        document_content=document_content,
-    )
-
-    agent = EchoTalkAgent(
-        session_id=session_id,
-        custom_prompt=custom_prompt,
-        document_content=document_content,
-        instructions=initial_prompt,
-        **plugins,
-    )
-
-    # ── 4. 创建会话并注册事件钩子 ─────────────────────────────
-    agent_session = AgentSession()
-
-    @agent_session.on("conversation_item_added")
-    def on_conversation_item(event: ConversationItemAddedEvent):
-        """
-        AI 回复的转录回写。
-
-        用户发言的转录已在 on_user_turn_completed 中处理（附带 emotion_state），
-        此处仅负责 assistant 消息的持久化。
-        """
-        _persist_assistant_conversation_item(event, session_id)
-
-    @agent_session.on("error")
-    def on_agent_error(event: ErrorEvent):
-        """
-        捕获运行时错误（如 HTTP 401 认证失败）。
-        仅在自定义轨模式下通知客户端并断连。
-        """
-        inner_error = event.error
-        actual_exception = getattr(inner_error, "error", inner_error)
-
-        err_type = AgentErrorMapper.sanitize_error_type(
-            getattr(inner_error, "type", None)
-        )
-        recoverable = AgentErrorMapper.sanitize_bool(
-            getattr(inner_error, "recoverable", None)
-        )
-        status_code = AgentErrorMapper.extract_status_code(actual_exception)
-
-        logger.error(
-            "运行时错误: session=%s, type=%s, recoverable=%s, status=%s",
-            safe_session_id,
-            err_type,
-            recoverable if recoverable is not None else "unknown",
-            status_code if status_code is not None else "none",
-        )
-
-        classification = AgentErrorMapper.classify_runtime_error(
-            inner_error=inner_error,
-            actual_exception=actual_exception,
-            is_custom=is_custom,
-        )
-        if classification is not None:
-            code, _ = classification
-            logger.error(
-                "自定义轨运行时处理异常并通知断连: session=%s, code=%s",
-                safe_session_id,
-                code,
-            )
-            asyncio.ensure_future(
-                _send_error_and_disconnect(
-                    ctx,
-                    code,
-                    fallback_code="ERR_CUSTOM_RUNTIME",
-                )
-            )
-
-    # ── 5. 启动语音管线 ───────────────────────────────────────
-    try:
-        await agent_session.start(agent, room=ctx.room)
-    except Exception:
+    async def _on_sink_failure(reason: str | None = None) -> None:
         fallback_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
         logger.error(
-            "语音管线启动失败: session=%s, is_custom=%s",
+            "转录Sink故障，终止会话: session=%s, code=%s",
             safe_session_id,
-            is_custom,
+            fallback_code,
         )
         await _send_error_and_disconnect(
             ctx,
             fallback_code,
             fallback_code=fallback_code,
         )
-        return
 
-    logger.info("语音管线已启动，session_id=%s, custom=%s", safe_session_id, is_custom)
+    sink = TranscriptSink(
+        session_id=session_id,
+        on_failure=_on_sink_failure,
+    )
+    started = False
+    try:
+        if hasattr(ctx, "add_shutdown_callback"):
+            ctx.add_shutdown_callback(sink.close)
+
+        # ── 1. 查询双轨制配置 ──────────────────────────────────────
+        try:
+            user_settings = await _fetch_user_settings(session_id)
+        except Exception:
+            logger.error("查询用户配置失败: session_id=%s", safe_session_id)
+            await _send_error_and_disconnect(
+                ctx,
+                "ERR_SESSION_NOT_FOUND",
+                fallback_code="ERR_SESSION_NOT_FOUND",
+            )
+            return
+
+        # ── 1a. 安全校验: 必须查到用户配置 ────────────────────────
+        if user_settings is None:
+            logger.error("未找到用户配置: session_id=%s", safe_session_id)
+            await _send_error_and_disconnect(
+                ctx,
+                "ERR_SESSION_NOT_FOUND",
+                fallback_code="ERR_SESSION_NOT_FOUND",
+            )
+            return
+
+        is_custom = user_settings.is_custom_mode
+
+        # ── 1b. 查询文档上下文 ────────────────────────────────────
+        session_context = await _fetch_session_context(session_id)
+        custom_prompt = session_context.custom_prompt if session_context else None
+        document_content = session_context.document_content if session_context else None
+
+        # ── 2. 根据模式构建插件 ────────────────────────────────────
+        if is_custom:
+            logger.info("自定义轨模式: session_id=%s", safe_session_id)
+            try:
+                plugins = _build_custom_plugins(user_settings)
+            except PluginInitError as e:
+                safe_code, _ = AgentErrorMapper.map_error(
+                    e.code,
+                    fallback_code="ERR_CUSTOM_KEY_INVALID",
+                )
+                logger.error("自定义轨插件初始化失败: code=%s", safe_code)
+                await _send_error_and_disconnect(
+                    ctx,
+                    safe_code,
+                    fallback_code="ERR_CUSTOM_KEY_INVALID",
+                )
+                return
+        else:
+            logger.info("基础轨模式: session_id=%s", safe_session_id)
+            plugins = PluginFactory.from_system_defaults()
+
+        # ── 3. 创建情绪感知 Agent ──────────────────────────────────
+        initial_prompt = build_dynamic_prompt(
+            anxiety_level=0.0,
+            custom_prompt=custom_prompt,
+            document_content=document_content,
+        )
+
+        agent = EchoTalkAgent(
+            session_id=session_id,
+            custom_prompt=custom_prompt,
+            document_content=document_content,
+            instructions=initial_prompt,
+            sink=sink,
+            **plugins,
+        )
+
+        # ── 4. 创建会话并注册事件钩子 ─────────────────────────────
+        agent_session = AgentSession()
+
+        @agent_session.on("conversation_item_added")
+        def on_conversation_item(event: ConversationItemAddedEvent):
+            """
+            AI 回复的转录回写。
+
+            用户发言的转录已在 on_user_turn_completed 中处理（附带 emotion_state），
+            此处仅负责 assistant 消息的持久化。
+            """
+            _persist_assistant_conversation_item(event, session_id, sink=sink)
+
+        @agent_session.on("error")
+        def on_agent_error(event: ErrorEvent):
+            """
+            捕获运行时错误（如 HTTP 401 认证失败）。
+            仅在自定义轨模式下通知客户端并断连。
+            """
+            inner_error = event.error
+            actual_exception = getattr(inner_error, "error", inner_error)
+
+            err_type = AgentErrorMapper.sanitize_error_type(
+                getattr(inner_error, "type", None)
+            )
+            recoverable = AgentErrorMapper.sanitize_bool(
+                getattr(inner_error, "recoverable", None)
+            )
+            status_code = AgentErrorMapper.extract_status_code(actual_exception)
+
+            logger.error(
+                "运行时错误: session=%s, type=%s, recoverable=%s, status=%s",
+                safe_session_id,
+                err_type,
+                recoverable if recoverable is not None else "unknown",
+                status_code if status_code is not None else "none",
+            )
+
+            classification = AgentErrorMapper.classify_runtime_error(
+                inner_error=inner_error,
+                actual_exception=actual_exception,
+                is_custom=is_custom,
+            )
+            if classification is not None:
+                code, _ = classification
+                logger.error(
+                    "自定义轨运行时处理异常并通知断连: session=%s, code=%s",
+                    safe_session_id,
+                    code,
+                )
+                asyncio.ensure_future(
+                    _send_error_and_disconnect(
+                        ctx,
+                        code,
+                        fallback_code="ERR_CUSTOM_RUNTIME",
+                    )
+                )
+
+        # ── 5. 启动语音管线 ───────────────────────────────────────
+        try:
+            await agent_session.start(agent, room=ctx.room)
+            started = True
+        except Exception:
+            fallback_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
+            logger.error(
+                "语音管线启动失败: session=%s, is_custom=%s",
+                safe_session_id,
+                is_custom,
+            )
+            await _send_error_and_disconnect(
+                ctx,
+                fallback_code,
+                fallback_code=fallback_code,
+            )
+            return
+
+        logger.info(
+            "语音管线已启动，session_id=%s, custom=%s", safe_session_id, is_custom
+        )
+    finally:
+        if not started:
+            await sink.close()
 
 
 if __name__ == "__main__":

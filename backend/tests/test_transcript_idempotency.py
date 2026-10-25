@@ -15,6 +15,7 @@
 import asyncio
 import os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -189,14 +190,16 @@ async def test_transcript_concurrent_barrier_idempotent(pg_env):
     barrier = asyncio.Barrier(num_workers)
     backend_pids: list[int] = []
 
-    async def worker():
-        # 每个 worker 先通过独立连接取得真实的 pg_backend_pid()
+    # 包装 session_factory，使实际 service 使用的 session 取得 PID 并持有到 Barrier 再写
+    @asynccontextmanager
+    async def barrier_session_maker():
         async with pg_env.session_factory() as sess:
             pid = (await sess.execute(select(func.pg_backend_pid()))).scalar_one()
             backend_pids.append(pid)
+            await barrier.wait()
+            yield sess
 
-        # 4 个真实连接准备就绪后到达屏障同步触发并发写入
-        await barrier.wait()
+    async def worker():
         return await save_transcript(
             session_id=str(session_id),
             role="assistant",
@@ -206,8 +209,11 @@ async def test_transcript_concurrent_barrier_idempotent(pg_env):
             event_id=event_id,
         )
 
-    tasks = [asyncio.create_task(worker()) for _ in range(num_workers)]
-    results = await asyncio.gather(*tasks)
+    with patch(
+        "services.transcript_service.async_session_maker", barrier_session_maker
+    ):
+        tasks = [asyncio.create_task(worker()) for _ in range(num_workers)]
+        results = await asyncio.gather(*tasks)
 
     # 断言 4 个 worker 来自 4 个完全互斥的真实 PostgreSQL 后端连接
     assert len(backend_pids) == num_workers

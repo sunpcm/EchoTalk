@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from livekit.agents import llm
@@ -38,7 +38,7 @@ class _TaskCapturer:
 
 @pytest.mark.asyncio
 async def test_assistant_conversation_item_persists_transcript():
-    """验证 assistant 消息携带有效 id 时，稳定派生 event_id 并调用 save_transcript（确定性 await）。"""
+    """验证 assistant 消息携带有效 id 时，稳定派生 event_id 并通过 Sink submit（确定性接线）。"""
     session_id = str(uuid.uuid4())
     item_id = "item_assistant_001"
     event = ConversationItemAddedEvent(
@@ -47,18 +47,13 @@ async def test_assistant_conversation_item_persists_transcript():
     expected_event_id = derive_transcript_event_id(session_id, "assistant", item_id)
     assert expected_event_id is not None
 
-    with _TaskCapturer() as capturer:
-        with patch(
-            "livekit_agent.agent.save_transcript", new_callable=AsyncMock
-        ) as save:
-            _persist_assistant_conversation_item(event, session_id)
-            await capturer.wait_all()
-            save.assert_awaited_once_with(
-                session_id,
-                "assistant",
-                "Hello student!",
-                event_id=expected_event_id,
-            )
+    mock_sink = MagicMock()
+    _persist_assistant_conversation_item(event, session_id, sink=mock_sink)
+    mock_sink.submit.assert_called_once_with(
+        "assistant",
+        "Hello student!",
+        event_id=expected_event_id,
+    )
 
 
 @pytest.mark.asyncio
@@ -71,19 +66,15 @@ async def test_assistant_conversation_item_persists_transcript():
     ],
 )
 async def test_assistant_conversation_item_missing_id_is_ignored(bad_item_id):
-    """验证 assistant 消息缺失或空 item_id 时，安全拒绝且不调用 save_transcript。"""
+    """验证 assistant 消息缺失或空 item_id 时，安全拒绝且不调用 Sink submit。"""
     session_id = str(uuid.uuid4())
     msg = llm.ChatMessage(role="assistant", content=["Hello student!"])
     msg.id = bad_item_id  # 模拟缺失或空 id
     event = ConversationItemAddedEvent(item=msg)
 
-    with _TaskCapturer() as capturer:
-        with patch(
-            "livekit_agent.agent.save_transcript", new_callable=AsyncMock
-        ) as save:
-            _persist_assistant_conversation_item(event, session_id)
-            await capturer.wait_all()
-            save.assert_not_awaited()
+    mock_sink = MagicMock()
+    _persist_assistant_conversation_item(event, session_id, sink=mock_sink)
+    mock_sink.submit.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -99,57 +90,48 @@ async def test_non_assistant_text_is_ignored(item):
     """验证非 assistant 角色或空文本被正确忽略。"""
     session_id = str(uuid.uuid4())
     event = ConversationItemAddedEvent(item=item)
-    with _TaskCapturer() as capturer:
-        with patch(
-            "livekit_agent.agent.save_transcript", new_callable=AsyncMock
-        ) as save:
-            _persist_assistant_conversation_item(event, session_id)
-            await capturer.wait_all()
-            save.assert_not_awaited()
+    mock_sink = MagicMock()
+    _persist_assistant_conversation_item(event, session_id, sink=mock_sink)
+    mock_sink.submit.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_user_turn_completed_persists_transcript_with_event_id():
-    """验证用户发言完成后，从 new_message.id 稳定派生 event_id 并确定性 await 持久化任务。"""
+    """验证用户发言完成后，从 new_message.id 稳定派生 event_id 并调用 Sink submit。"""
     session_id = str(uuid.uuid4())
     item_id = "item_user_say_hello"
-    agent = EchoTalkAgent(session_id=session_id, instructions="test instructions")
+    mock_sink = MagicMock()
+    agent = EchoTalkAgent(
+        session_id=session_id, instructions="test instructions", sink=mock_sink
+    )
     msg = llm.ChatMessage(role="user", content=["I am fine, thank you!"], id=item_id)
     expected_event_id = derive_transcript_event_id(session_id, "user", item_id)
     assert expected_event_id is not None
 
     turn_ctx = MagicMock()
-    with _TaskCapturer() as capturer:
-        with patch(
-            "livekit_agent.agent.save_transcript", new_callable=AsyncMock
-        ) as save:
-            await agent.on_user_turn_completed(turn_ctx, msg)
-            await capturer.wait_all()
-            assert save.await_count == 1
-            args, kwargs = save.await_args
-            assert args[0] == session_id
-            assert args[1] == "user"
-            assert args[2] == "I am fine, thank you!"
-            assert kwargs.get("event_id") == expected_event_id
-            assert kwargs.get("emotion_state") is not None
+    await agent.on_user_turn_completed(turn_ctx, msg)
+    assert mock_sink.submit.call_count == 1
+    args, kwargs = mock_sink.submit.call_args
+    assert args[0] == "user"
+    assert args[1] == "I am fine, thank you!"
+    assert kwargs.get("event_id") == expected_event_id
+    assert kwargs.get("emotion_state") is not None
 
 
 @pytest.mark.asyncio
 async def test_user_turn_completed_missing_id_is_ignored():
-    """验证用户发言消息缺失有效 id 时，不发起 save_transcript 调用。"""
+    """验证用户发言消息缺失有效 id 时，不发起 Sink submit 调用。"""
     session_id = str(uuid.uuid4())
-    agent = EchoTalkAgent(session_id=session_id, instructions="test instructions")
+    mock_sink = MagicMock()
+    agent = EchoTalkAgent(
+        session_id=session_id, instructions="test instructions", sink=mock_sink
+    )
     msg = llm.ChatMessage(role="user", content=["I am fine, thank you!"])
     msg.id = None  # 缺失有效 id
 
     turn_ctx = MagicMock()
-    with _TaskCapturer() as capturer:
-        with patch(
-            "livekit_agent.agent.save_transcript", new_callable=AsyncMock
-        ) as save:
-            await agent.on_user_turn_completed(turn_ctx, msg)
-            await capturer.wait_all()
-            save.assert_not_awaited()
+    await agent.on_user_turn_completed(turn_ctx, msg)
+    mock_sink.submit.assert_not_called()
 
 
 def test_transcript_event_id_properties():

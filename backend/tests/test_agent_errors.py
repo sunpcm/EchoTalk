@@ -320,6 +320,9 @@ class ExplodingPrivateInfo:
         raise AssertionError("Violation: ctx._info.url private property was accessed!")
 
 
+_ACTIVE_MOCK_CONTEXTS: list[MagicMock] = []
+
+
 def create_mock_context(room_name: str = "12345678-1234-5678-1234-567812345678"):
     """构建完全 Mock 的 JobContext，挂载禁读私有 _info 探针。"""
     ctx = MagicMock(spec=JobContext)
@@ -333,7 +336,32 @@ def create_mock_context(room_name: str = "12345678-1234-5678-1234-567812345678")
     participant = MagicMock()
     participant.identity = f"identity-{CANARY}"
     ctx.wait_for_participant = AsyncMock(return_value=participant)
+    ctx.shutdown_callbacks = []
+
+    def _add_shutdown(cb):
+        ctx.shutdown_callbacks.append(cb)
+
+    ctx.add_shutdown_callback = MagicMock(side_effect=_add_shutdown)
+    _ACTIVE_MOCK_CONTEXTS.append(ctx)
     return ctx
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_mock_contexts():
+    """清理测试中在 mock context 上注册的 shutdown_callbacks（如 Sink.close）。"""
+    _ACTIVE_MOCK_CONTEXTS.clear()
+    try:
+        yield
+    finally:
+        for ctx in list(_ACTIVE_MOCK_CONTEXTS):
+            for cb in list(getattr(ctx, "shutdown_callbacks", [])):
+                try:
+                    res = cb()
+                    if asyncio.iscoroutine(res):
+                        await res
+                except Exception:
+                    pass
+        _ACTIVE_MOCK_CONTEXTS.clear()
 
 
 @pytest.mark.asyncio
