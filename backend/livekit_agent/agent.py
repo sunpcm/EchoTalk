@@ -13,7 +13,6 @@ Phase 5 新增：双轨制路由——根据 is_custom_mode 开关决定使用�
     cd backend && python livekit_agent/agent.py dev
 """
 
-import asyncio
 import json
 import logging
 import sys
@@ -34,9 +33,7 @@ load_dotenv(_backend_dir.parent / ".env", override=False)
 from livekit.agents import (  # noqa: E402
     Agent,
     AgentSession,
-    AutoSubscribe,
     ConversationItemAddedEvent,
-    ErrorEvent,
     JobContext,
     WorkerOptions,
     cli,
@@ -48,6 +45,7 @@ from config import settings  # noqa: E402
 from database import async_session_maker  # noqa: E402
 from livekit_agent.credential_resolver import CredentialResolver  # noqa: E402
 from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
+from livekit_agent.job_orchestrator import AgentJobOrchestrator  # noqa: E402
 from livekit_agent.plugin_errors import PluginInitError  # noqa: E402
 from livekit_agent.provider_registry import ProviderRegistry  # noqa: E402
 from livekit_agent.transcript_events import derive_transcript_event_id  # noqa: E402
@@ -308,43 +306,17 @@ def _persist_assistant_conversation_item(
 
 
 async def entrypoint(ctx: JobContext):
-    """LiveKit Agent 入口：等待参与者 -> 查询双轨配置 -> 构建插件 -> 启动语音管线。"""
-    safe_session_id = AgentErrorMapper.sanitize_session_id(
-        getattr(getattr(ctx, "room", None), "name", None)
-    )
-    logger.info("Agent 收到任务，房间: %s", safe_session_id)
+    """
+    LiveKit Agent 入口 (RF-09)。
 
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    logger.info("Agent 已连接到房间: %s", safe_session_id)
+    将连接、参与者等待、TranscriptSink 生命周期及 AgentSession 事件接线
+    委托给 AgentJobOrchestrator；entrypoint 保留 DB 配置查询、双轨路由与 Agent 创建。
+    """
 
-    await ctx.wait_for_participant()
-    logger.info("参与者已加入房间: session=%s", safe_session_id)
-
-    # 房间名即为 session_id（Token 端点使用 str(session.id) 作为房间名）
-    session_id = ctx.room.name
-    is_custom = False
-
-    async def _on_sink_failure(reason: str | None = None) -> None:
-        fallback_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
-        logger.error(
-            "转录Sink故障，终止会话: session=%s, code=%s",
-            safe_session_id,
-            fallback_code,
-        )
-        await _send_error_and_disconnect(
-            ctx,
-            fallback_code,
-            fallback_code=fallback_code,
-        )
-
-    sink = TranscriptSink(
-        session_id=session_id,
-        on_failure=_on_sink_failure,
-    )
-    started = False
-    try:
-        if hasattr(ctx, "add_shutdown_callback"):
-            ctx.add_shutdown_callback(sink.close)
+    async def _setup_agent(
+        session_id: str, sink: TranscriptSink
+    ) -> tuple[EchoTalkAgent, bool] | None:
+        safe_session_id = orchestrator.safe_session_id
 
         # ── 1. 查询双轨制配置 ──────────────────────────────────────
         try:
@@ -356,7 +328,7 @@ async def entrypoint(ctx: JobContext):
                 "ERR_SESSION_NOT_FOUND",
                 fallback_code="ERR_SESSION_NOT_FOUND",
             )
-            return
+            return None
 
         # ── 1a. 安全校验: 必须查到用户配置 ────────────────────────
         if user_settings is None:
@@ -366,9 +338,10 @@ async def entrypoint(ctx: JobContext):
                 "ERR_SESSION_NOT_FOUND",
                 fallback_code="ERR_SESSION_NOT_FOUND",
             )
-            return
+            return None
 
         is_custom = user_settings.is_custom_mode
+        orchestrator.set_custom_mode(is_custom)
 
         # ── 1b. 查询文档上下文 ────────────────────────────────────
         session_context = await _fetch_session_context(session_id)
@@ -391,7 +364,7 @@ async def entrypoint(ctx: JobContext):
                     safe_code,
                     fallback_code="ERR_CUSTOM_KEY_INVALID",
                 )
-                return
+                return None
         else:
             logger.info("基础轨模式: session_id=%s", safe_session_id)
             plugins = ProviderRegistry.from_system_defaults()
@@ -411,89 +384,16 @@ async def entrypoint(ctx: JobContext):
             sink=sink,
             **plugins,
         )
+        return agent, is_custom
 
-        # ── 4. 创建会话并注册事件钩子 ─────────────────────────────
-        agent_session = AgentSession()
-
-        @agent_session.on("conversation_item_added")
-        def on_conversation_item(event: ConversationItemAddedEvent):
-            """
-            AI 回复的转录回写。
-
-            用户发言的转录已在 on_user_turn_completed 中处理（附带 emotion_state），
-            此处仅负责 assistant 消息的持久化。
-            """
-            _persist_assistant_conversation_item(event, session_id, sink=sink)
-
-        @agent_session.on("error")
-        def on_agent_error(event: ErrorEvent):
-            """
-            捕获运行时错误（如 HTTP 401 认证失败）。
-            仅在自定义轨模式下通知客户端并断连。
-            """
-            inner_error = event.error
-            actual_exception = getattr(inner_error, "error", inner_error)
-
-            err_type = AgentErrorMapper.sanitize_error_type(
-                getattr(inner_error, "type", None)
-            )
-            recoverable = AgentErrorMapper.sanitize_bool(
-                getattr(inner_error, "recoverable", None)
-            )
-            status_code = AgentErrorMapper.extract_status_code(actual_exception)
-
-            logger.error(
-                "运行时错误: session=%s, type=%s, recoverable=%s, status=%s",
-                safe_session_id,
-                err_type,
-                recoverable if recoverable is not None else "unknown",
-                status_code if status_code is not None else "none",
-            )
-
-            classification = AgentErrorMapper.classify_runtime_error(
-                inner_error=inner_error,
-                actual_exception=actual_exception,
-                is_custom=is_custom,
-            )
-            if classification is not None:
-                code, _ = classification
-                logger.error(
-                    "自定义轨运行时处理异常并通知断连: session=%s, code=%s",
-                    safe_session_id,
-                    code,
-                )
-                asyncio.ensure_future(
-                    _send_error_and_disconnect(
-                        ctx,
-                        code,
-                        fallback_code="ERR_CUSTOM_RUNTIME",
-                    )
-                )
-
-        # ── 5. 启动语音管线 ───────────────────────────────────────
-        try:
-            await agent_session.start(agent, room=ctx.room)
-            started = True
-        except Exception:
-            fallback_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
-            logger.error(
-                "语音管线启动失败: session=%s, is_custom=%s",
-                safe_session_id,
-                is_custom,
-            )
-            await _send_error_and_disconnect(
-                ctx,
-                fallback_code,
-                fallback_code=fallback_code,
-            )
-            return
-
-        logger.info(
-            "语音管线已启动，session_id=%s, custom=%s", safe_session_id, is_custom
-        )
-    finally:
-        if not started:
-            await sink.close()
+    orchestrator = AgentJobOrchestrator(
+        ctx,
+        session_factory=AgentSession,
+        sink_factory=TranscriptSink,
+        send_error_fn=_send_error_and_disconnect,
+        persist_assistant_fn=_persist_assistant_conversation_item,
+    )
+    await orchestrator.run(_setup_agent)
 
 
 if __name__ == "__main__":
