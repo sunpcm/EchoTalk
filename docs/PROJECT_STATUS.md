@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-26 本地 RF-10 STT/TTS 静态元数据单一来源实施记录（A53）
+
+基于 TODO.md RF-10“能力、模型、凭据、验证、超时、重试与错误映射统一”及 A53 契约完成本地实施。在 A50 的纯标准库不可变 `provider_catalog.py` 中补齐现有 Deepgram 与 Cartesia 静态元数据，使 `plugin_factory` 支持集合与 `validation_service` 语音校验从同一来源派生，消除分散配置并保持不可变性与凭据防污染隔离。
+
+- 本地实现与元数据定义：在 `backend/provider_catalog.py` 中新增不可变元数据结构 `STTProviderMetadata` 与 `TTSProviderMetadata`（`frozen=True`），分别注册 Deepgram（`validation_url="https://api.deepgram.com/v1/projects"`, `auth_header_name="Authorization"`, `auth_header_prefix="Token "`）与 Cartesia（`validation_url="https://api.cartesia.ai/voices"`, `auth_header_name="X-API-Key"`, `auth_header_prefix=""`, `static_headers=MappingProxyType({"Cartesia-Version": "2024-06-10"})`）；以 `MappingProxyType` 导出不可变映射 `STT_PROVIDER_CATALOG` 与 `TTS_PROVIDER_CATALOG` 及只读查询函数；提供无副作用的 `build_validation_headers(api_key)`，每次生成独立 Header 字典，Catalog 内部零凭据驻留且跨请求防污染。
+- 消费者接入与行为保持：`backend/livekit_agent/plugin_factory.py` 的 `SUPPORTED_STT_PROVIDERS` 与 `SUPPORTED_TTS_PROVIDERS` 统一派生自不可变 catalog，严格保留 `set[str]` 导出类型与原始值；`backend/services/validation_service.py` 的 `validate_stt_key` 与 `validate_tts_key` 统一通过 catalog 获取目标 URL 与独立 Headers；未知 provider 优先返回 `unsupported_provider`，空 key 保持 `missing_key` 短路且零网络请求；保留 8 秒超时、错误分类与脱敏日志；保留 LLM 全部既有导出与逻辑不变。
+- 质量与回归测试：`test_provider_catalog.py` 验证 STT/TTS catalog 内容精确性、Mapping/Entry/Header 描述不可变性、`build_validation_headers` 跨调用凭据隔离与防篡改、消费者严格接线、未知/空 key 零网络及纯净子进程隔离导入；`test_plugin_factory.py` 补充 STT/TTS 支持集合派生断言；`test_validation_service.py` 验证拨测 URL/Headers 与 catalog 完全对齐且无凭据交叉污染。
+- 契约与记录见 [RF-10 STT/TTS 静态元数据单一来源验证](./verification/cross-platform/RF-10-SPEECH-CATALOG.md)。多 Provider 并行验证、超时机制与设置服务重构仍待完成，整项保持未勾选，RF-10 持续推进。
+
 ## 2026-10-25 本地 RF-08 三项必要查询索引实施记录（A40）
 
 基于 TODO.md RF-08 索引审计要求与已批准组合方案完成本地实施。为高频会话、转录及语法错误查询补齐三项必要非唯一 B-tree 索引，与既有唯一约束形成无冗余覆盖；ORM 模型元数据与下接 `c04_utc_timestamps` 的单链迁移脚本对齐，降级严格逆序 drop。

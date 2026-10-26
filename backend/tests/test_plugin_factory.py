@@ -178,3 +178,23 @@ def test_llm_metadata_derived_from_catalog():
     assert _SYSTEM_LLM_KEY_FIELD == {
         k: v.api_key_field for k, v in LLM_PROVIDER_CATALOG.items()
     }
+
+
+def test_speech_metadata_derived_from_catalog():
+    """验证 PluginFactory 中的 STT/TTS 支持集合完整派生自 provider_catalog。"""
+    from livekit_agent.plugin_factory import (
+        SUPPORTED_STT_PROVIDERS,
+        SUPPORTED_TTS_PROVIDERS,
+    )
+    from provider_catalog import (
+        STT_PROVIDER_CATALOG,
+        TTS_PROVIDER_CATALOG,
+    )
+
+    assert isinstance(SUPPORTED_STT_PROVIDERS, set)
+    assert SUPPORTED_STT_PROVIDERS == set(STT_PROVIDER_CATALOG.keys())
+    assert SUPPORTED_STT_PROVIDERS == {"deepgram"}
+
+    assert isinstance(SUPPORTED_TTS_PROVIDERS, set)
+    assert SUPPORTED_TTS_PROVIDERS == set(TTS_PROVIDER_CATALOG.keys())
+    assert SUPPORTED_TTS_PROVIDERS == {"cartesia"}

@@ -7,7 +7,11 @@ from typing import Literal
 
 import aiohttp
 
-from provider_catalog import LLM_PROVIDER_CATALOG
+from provider_catalog import (
+    LLM_PROVIDER_CATALOG,
+    STT_PROVIDER_CATALOG,
+    TTS_PROVIDER_CATALOG,
+)
 
 logger = logging.getLogger("echotalk.validation_service")
 
@@ -70,13 +74,14 @@ class ProviderValidationService:
     async def validate_stt_key(
         cls, provider: str, api_key: str
     ) -> ProviderValidationResult:
-        if provider != "deepgram":
+        meta = STT_PROVIDER_CATALOG.get(provider)
+        if meta is None:
             return ProviderValidationResult(False, "unsupported_provider")
         return await cls._validate(
             provider,
             api_key,
-            url="https://api.deepgram.com/v1/projects",
-            headers={"Authorization": f"Token {api_key}"},
+            url=meta.validation_url,
+            headers=meta.build_validation_headers(api_key),
         )
 
     @classmethod
@@ -97,13 +102,14 @@ class ProviderValidationService:
     async def validate_tts_key(
         cls, provider: str, api_key: str
     ) -> ProviderValidationResult:
-        if provider != "cartesia":
+        meta = TTS_PROVIDER_CATALOG.get(provider)
+        if meta is None:
             return ProviderValidationResult(False, "unsupported_provider")
         return await cls._validate(
             provider,
             api_key,
-            url="https://api.cartesia.ai/voices",
-            headers={"X-API-Key": api_key, "Cartesia-Version": "2024-06-10"},
+            url=meta.validation_url,
+            headers=meta.build_validation_headers(api_key),
         )
 
     @classmethod

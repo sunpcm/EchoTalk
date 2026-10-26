@@ -147,3 +147,50 @@ async def test_validate_llm_key_derived_from_catalog():
                 meta.validation_url,
                 headers={"Authorization": "Bearer catalog-secret"},
             )
+
+
+@pytest.mark.asyncio
+async def test_validate_speech_keys_derived_from_catalog():
+    """验证 validate_stt_key/validate_tts_key 调用的 URL 与 Headers 严格匹配 catalog 定义且防跨请求污染。"""
+    from provider_catalog import STT_PROVIDER_CATALOG, TTS_PROVIDER_CATALOG
+
+    # STT Deepgram 匹配 catalog 定义
+    for provider, meta in STT_PROVIDER_CATALOG.items():
+        with mock_aiohttp_get(status=200) as request:
+            res = await ProviderValidationService.validate_stt_key(
+                provider, "stt-catalog-secret"
+            )
+            assert res.ok is True
+            assert res.code == "verified"
+            expected_headers = meta.build_validation_headers("stt-catalog-secret")
+            request.assert_called_once_with(
+                meta.validation_url,
+                headers=expected_headers,
+            )
+
+    # TTS Cartesia 匹配 catalog 定义
+    for provider, meta in TTS_PROVIDER_CATALOG.items():
+        with mock_aiohttp_get(status=200) as request:
+            res = await ProviderValidationService.validate_tts_key(
+                provider, "tts-catalog-secret"
+            )
+            assert res.ok is True
+            assert res.code == "verified"
+            expected_headers = meta.build_validation_headers("tts-catalog-secret")
+            request.assert_called_once_with(
+                meta.validation_url,
+                headers=expected_headers,
+            )
+
+    # 验证两次不同 key 的校验调用生成的 headers 独立，不发生凭据残留或交叉污染
+    with mock_aiohttp_get(status=200) as req1:
+        await ProviderValidationService.validate_tts_key("cartesia", "key-alpha")
+        h1 = req1.call_args.kwargs["headers"]
+
+    with mock_aiohttp_get(status=200) as req2:
+        await ProviderValidationService.validate_tts_key("cartesia", "key-beta")
+        h2 = req2.call_args.kwargs["headers"]
+
+    assert h1["X-API-Key"] == "key-alpha"
+    assert h2["X-API-Key"] == "key-beta"
+    assert h1 is not h2
