@@ -29,13 +29,16 @@ describe("RecommendedScenarios Accessibility", () => {
 
   it("renders scenario card enter buttons with contextual aria-label", async () => {
     vi.mocked(api.getRecommendedCurriculum).mockResolvedValue({
-      user_id: "test-user",
+      weakest_skill: "grammar",
+      weakest_skill_mastery: 0.4,
+      target_level: "B2",
       recommendations: [
         {
           scenario_name: "Business Meeting",
           difficulty_cefr: "B2",
+          category: "business",
           focus_skills: ["Speaking"],
-          reason: "Practice skills",
+          system_prompt_template: "Business prompt",
         },
       ],
     });
@@ -53,13 +56,16 @@ describe("RecommendedScenarios Accessibility", () => {
 
   it("sets aria-busy and hides spinner icon when checking service health", async () => {
     vi.mocked(api.getRecommendedCurriculum).mockResolvedValue({
-      user_id: "test-user",
+      weakest_skill: "grammar",
+      weakest_skill_mastery: 0.4,
+      target_level: "B2",
       recommendations: [
         {
           scenario_name: "Business Meeting",
           difficulty_cefr: "B2",
+          category: "business",
           focus_skills: ["Speaking"],
-          reason: "Practice skills",
+          system_prompt_template: "Business prompt",
         },
       ],
     });
