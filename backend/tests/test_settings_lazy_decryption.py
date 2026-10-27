@@ -350,7 +350,11 @@ async def test_provider_change_fails_if_required_old_key_cannot_be_decrypted(
 async def test_validation_failure_ordering_and_shape_preserved(
     mock_db_with_settings,
 ):
-    """多 role 变更且失败时，严格保持 STT -> LLM -> TTS 顺序与 422 validation_failures 响应形状。"""
+    """多 role 变更且失败时，调度按 STT -> LLM -> TTS 顺序组织，422 providers 响应严格保持 STT -> LLM -> TTS。
+
+    注：A55 引入有界并行验证后，底层网络等待并行执行，不再要求串行完成；
+    此处验证其按确定顺序调度启动，且无论完成快慢，响应字典的键顺序与 422 结构稳定保持。
+    """
     from services.validation_service import ProviderValidationResult
 
     mock_db, _, _ = mock_db_with_settings(

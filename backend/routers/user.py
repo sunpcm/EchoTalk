@@ -121,7 +121,11 @@ async def _validate_provider_keys(
     ) or (body.tts_key is not None)
 
     stt_valid = getattr(row, "stt_is_valid", False) if not stt_changed else False
-    validation_failures: dict[str, str] = {}
+    llm_valid = getattr(row, "llm_is_valid", False) if not llm_changed else False
+    tts_valid = getattr(row, "tts_is_valid", False) if not tts_changed else False
+
+    to_validate: list[tuple[str, str, str]] = []
+
     if stt_changed:
         stt_p = body.stt_provider or stt_p_old
         stt_k = (
@@ -130,14 +134,8 @@ async def _validate_provider_keys(
             else _decrypt_and_rotate(row, "stt")
         )
         if stt_p and stt_k:
-            stt_result = _as_validation_result(
-                await ProviderValidationService.validate_stt_key(stt_p, stt_k)
-            )
-            stt_valid = stt_result.ok
-            if not stt_result.ok:
-                validation_failures["stt"] = stt_result.code
+            to_validate.append(("stt", stt_p, stt_k))
 
-    llm_valid = getattr(row, "llm_is_valid", False) if not llm_changed else False
     if llm_changed:
         llm_p = body.llm_provider or llm_p_old
         llm_k = (
@@ -146,14 +144,8 @@ async def _validate_provider_keys(
             else _decrypt_and_rotate(row, "llm")
         )
         if llm_p and llm_k:
-            llm_result = _as_validation_result(
-                await ProviderValidationService.validate_llm_key(llm_p, llm_k)
-            )
-            llm_valid = llm_result.ok
-            if not llm_result.ok:
-                validation_failures["llm"] = llm_result.code
+            to_validate.append(("llm", llm_p, llm_k))
 
-    tts_valid = getattr(row, "tts_is_valid", False) if not tts_changed else False
     if tts_changed:
         tts_p = body.tts_provider or tts_p_old
         tts_k = (
@@ -162,12 +154,23 @@ async def _validate_provider_keys(
             else _decrypt_and_rotate(row, "tts")
         )
         if tts_p and tts_k:
-            tts_result = _as_validation_result(
-                await ProviderValidationService.validate_tts_key(tts_p, tts_k)
-            )
-            tts_valid = tts_result.ok
-            if not tts_result.ok:
-                validation_failures["tts"] = tts_result.code
+            to_validate.append(("tts", tts_p, tts_k))
+
+    validation_failures: dict[str, str] = {}
+    if to_validate:
+        results = await ProviderValidationService.validate_parallel(to_validate)
+        for role in ("stt", "llm", "tts"):
+            if role in results:
+                res = _as_validation_result(results[role])
+                if res.ok:
+                    if role == "stt":
+                        stt_valid = True
+                    elif role == "llm":
+                        llm_valid = True
+                    elif role == "tts":
+                        tts_valid = True
+                else:
+                    validation_failures[role] = res.code
 
     if validation_failures:
         raise HTTPException(

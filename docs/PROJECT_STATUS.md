@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-27 本地 RF-10 多 Provider 有界并行验证实施记录（A55）
+
+基于 TODO.md RF-10“多个独立 Provider 需要验证时可以并行执行，但必须限制总超时”及 A55 冻结契约完成本地实施。在严格保留 A54 凭据惰性解密边界与公开 API 响应契约的基础上，将多路独立 Provider 凭据拨测由串行等待升级为统一总预算下的有界并发执行。
+
+- 本地实现与有界并发契约：在 `backend/services/validation_service.py` 中新增类常量 `TOTAL_TIMEOUT_SECONDS = 10.0`（保留单请求 `REQUEST_TIMEOUT_SECONDS = 8.0`）与可复用入口 `ProviderValidationService.validate_parallel`；输入按 STT → LLM → TTS 确定顺序接收需拨测的 `(role, provider, key)`，基于标准库 `asyncio` 并发调度并在整批总预算内等待；总预算到期时保留已完成 role 的真实 `ProviderValidationResult`，未完成 role 统一标记为 `ProviderValidationResult(False, "timeout")`，并对所有 pending 任务执行 cancel 与 await 收束，杜绝后台遗留任务；底层出现未捕获编程异常时，先完整收束所有其他任务并消费已完成任务异常，再原样重抛；`validate_all` 改为复用 `validate_parallel` 并保持 `bool` 返回兼容。
+- 路由接线与惰性解密保持：`backend/routers/user.py` 的 `_validate_provider_keys` 仅将 A54 判定为 changed 且同时具有 provider 与 key 的 role 加入拨测批次；未变化 role 保持零旧密文读取、零解密、零轮换、零拨测并复用既有 `is_valid`；变化但缺 provider/key 的 role 保持 invalid 且不创建空拨测；多 role 并发完成后，`detail.providers` 仍严格按 STT → LLM → TTS 顺序构造，不受实际完成先后影响。
+- 质量与回归测试：新建 `backend/tests/test_settings_parallel_validation.py`（覆盖三 role Barrier 并发进入、逆序完成下 422 failures 保持 STT→LLM→TTS 顺序、总预算超时保留已完成结果并取消/等待 pending 任务、单 role 与零 role 无额外任务）；扩展 `backend/tests/test_validation_service.py`（覆盖空输入、稳定顺序、总超时与 pending 清理、意外异常清理后重抛、`validate_all` 并行复用与布尔兼容）；同步更新 `backend/tests/test_settings_lazy_decryption.py` 顺序说明注释，完整保留 7 项惰性解密边界断言。
+- 契约与记录见 [RF-10 多 Provider 有界并行验证](./verification/cross-platform/RF-10-BOUNDED-PARALLEL-VALIDATION.md)。真实外部 Provider 拨测与前端展示元数据统一仍待完成，整项保持未勾选，RF-10 持续推进。
+
 ## 2026-10-26 本地 RF-10 用户设置凭据惰性解密实施记录（A54）
 
 基于 TODO.md RF-10“非敏感设置不解密旧凭据”要求完成本地实施。修复用户设置更新路径（`PUT /api/user/settings`）无条件解密 STT/LLM/TTS 三路旧凭据的缺陷，确立严格的惰性解密契约：仅在某 role 实际变更且需要沿用既有密钥时才解密该 role，保证主题、模型偏好等非敏感设置更新不受历史旧密文解密失败或损坏的影响。

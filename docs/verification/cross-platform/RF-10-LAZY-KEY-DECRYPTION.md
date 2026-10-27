@@ -50,3 +50,8 @@
 - 本轮仅完成用户设置凭据惰性解密与非敏感更新解耦（RF-10 子项），未勾选 RF-10 整体。
 - 多 Provider 并行拨测与总超时控制仍待后续实现。
 - 未连接真实外部 Provider 网络，不进行真实网络请求。
+
+## 4. A55 演进说明（有界并行验证）
+
+- A55（`codex/rf10-bounded-parallel-validation`）已将 `_validate_provider_keys` 中多个 changed role 的拨测升级为通过 `ProviderValidationService.validate_parallel` 有界并发执行（统一总预算 `TOTAL_TIMEOUT_SECONDS = 10.0` 秒）。
+- 本文第 1.5 节与第 2.2 节第 7 项中的“STT → LLM → TTS 顺序”自 A55 起明确为**确定的调度启动顺序与 422 `detail.providers` 响应字段顺序**，底层网络等待改为并行执行，不再要求串行完成；A54 的 7 类惰性解密边界保持不变。详见 [RF-10 多 Provider 有界并行验证](./RF-10-BOUNDED-PARALLEL-VALIDATION.md)。

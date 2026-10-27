@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -194,3 +195,220 @@ async def test_validate_speech_keys_derived_from_catalog():
     assert h1["X-API-Key"] == "key-alpha"
     assert h2["X-API-Key"] == "key-beta"
     assert h1 is not h2
+
+
+@pytest.mark.asyncio
+async def test_validate_parallel_empty_input():
+    """空输入返回空字典，零 task 创建。"""
+    results = await ProviderValidationService.validate_parallel([])
+    assert results == {}
+
+
+@pytest.mark.asyncio
+async def test_validate_parallel_stable_order():
+    """输出字典严格按输入的 role 顺序组织，不受底层完成先后影响。"""
+    from services.validation_service import ProviderValidationResult
+
+    tts_done = asyncio.Event()
+    llm_done = asyncio.Event()
+    completion_order: list[str] = []
+
+    # TTS 最先完成，LLM 次之，STT 最后完成，全部通过事件同步无 sleep
+    async def fake_stt(provider, key):
+        await llm_done.wait()
+        completion_order.append("stt")
+        return ProviderValidationResult(True, "verified")
+
+    async def fake_llm(provider, key):
+        await tts_done.wait()
+        completion_order.append("llm")
+        llm_done.set()
+        return ProviderValidationResult(True, "verified")
+
+    async def fake_tts(provider, key):
+        completion_order.append("tts")
+        tts_done.set()
+        return ProviderValidationResult(True, "verified")
+
+    with (
+        patch.object(
+            ProviderValidationService, "validate_stt_key", side_effect=fake_stt
+        ),
+        patch.object(
+            ProviderValidationService, "validate_llm_key", side_effect=fake_llm
+        ),
+        patch.object(
+            ProviderValidationService, "validate_tts_key", side_effect=fake_tts
+        ),
+    ):
+        items = [
+            ("stt", "deepgram", "k1"),
+            ("llm", "siliconflow", "k2"),
+            ("tts", "cartesia", "k3"),
+        ]
+        results = await ProviderValidationService.validate_parallel(items)
+
+    assert completion_order == ["tts", "llm", "stt"]
+    assert list(results.keys()) == ["stt", "llm", "tts"]
+    assert all(r.ok for r in results.values())
+
+
+@pytest.mark.asyncio
+async def test_validate_parallel_total_timeout_and_pending_cleanup():
+    """总超时时已完成的保留结果，pending 的标记为 timeout 并被 cancel 与 await 清理。"""
+    from services.validation_service import ProviderValidationResult
+
+    stt_done = ProviderValidationResult(True, "verified")
+    tts_cancelled = False
+    never_event = asyncio.Event()
+
+    async def fake_stt(provider, key):
+        return stt_done
+
+    async def fake_tts(provider, key):
+        nonlocal tts_cancelled
+        try:
+            await never_event.wait()
+            return ProviderValidationResult(True, "verified")
+        except asyncio.CancelledError:
+            tts_cancelled = True
+            raise
+
+    with (
+        patch.object(
+            ProviderValidationService, "validate_stt_key", side_effect=fake_stt
+        ),
+        patch.object(
+            ProviderValidationService, "validate_tts_key", side_effect=fake_tts
+        ),
+    ):
+        items = [
+            ("stt", "deepgram", "k1"),
+            ("tts", "cartesia", "k2"),
+        ]
+        results = await ProviderValidationService.validate_parallel(
+            items, total_timeout=0.03
+        )
+
+    assert results["stt"] == stt_done
+    assert results["tts"].ok is False
+    assert results["tts"].code == "timeout"
+    assert tts_cancelled is True
+
+
+@pytest.mark.asyncio
+async def test_validate_parallel_unexpected_exception_cleanup_and_reraise():
+    """未被捕获的底层异常先收束 pending 任务，随后原样抛出，不吞掉异常。"""
+    tts_cancelled = False
+    never_event = asyncio.Event()
+
+    async def fake_stt(provider, key):
+        raise TypeError("Unexpected programming error in STT")
+
+    async def fake_tts(provider, key):
+        nonlocal tts_cancelled
+        try:
+            await never_event.wait()
+        except asyncio.CancelledError:
+            tts_cancelled = True
+            raise
+
+    with (
+        patch.object(
+            ProviderValidationService, "validate_stt_key", side_effect=fake_stt
+        ),
+        patch.object(
+            ProviderValidationService, "validate_tts_key", side_effect=fake_tts
+        ),
+    ):
+        items = [
+            ("stt", "deepgram", "k1"),
+            ("tts", "cartesia", "k2"),
+        ]
+        with pytest.raises(TypeError, match="Unexpected programming error in STT"):
+            await ProviderValidationService.validate_parallel(items, total_timeout=1.0)
+
+    assert tts_cancelled is True
+
+
+@pytest.mark.asyncio
+async def test_validate_all_parallel_boolean_compatibility():
+    """validate_all 保持 bool 兼容，复用 validate_parallel 并实际并发执行三路拨测。"""
+    from services.validation_service import ProviderValidationResult
+
+    barrier = asyncio.Barrier(3)
+
+    async def fake_ok(provider, key):
+        await barrier.wait()
+        return ProviderValidationResult(True, "verified")
+
+    with (
+        patch.object(
+            ProviderValidationService, "validate_stt_key", side_effect=fake_ok
+        ),
+        patch.object(
+            ProviderValidationService, "validate_llm_key", side_effect=fake_ok
+        ),
+        patch.object(
+            ProviderValidationService, "validate_tts_key", side_effect=fake_ok
+        ),
+    ):
+        res = await ProviderValidationService.validate_all(
+            "deepgram", "k1", "siliconflow", "k2", "cartesia", "k3"
+        )
+        assert res is True
+
+    # 全部成功返回 True（验证委托给 validate_parallel 的精确参数）
+    with patch.object(
+        ProviderValidationService,
+        "validate_parallel",
+        new_callable=AsyncMock,
+        return_value={
+            "stt": ProviderValidationResult(True, "verified"),
+            "llm": ProviderValidationResult(True, "verified"),
+            "tts": ProviderValidationResult(True, "verified"),
+        },
+    ) as mock_parallel:
+        res = await ProviderValidationService.validate_all(
+            "deepgram", "k1", "siliconflow", "k2", "cartesia", "k3"
+        )
+        assert res is True
+        mock_parallel.assert_called_once_with(
+            [
+                ("stt", "deepgram", "k1"),
+                ("llm", "siliconflow", "k2"),
+                ("tts", "cartesia", "k3"),
+            ]
+        )
+
+    # 任一失败返回 False
+    with patch.object(
+        ProviderValidationService,
+        "validate_parallel",
+        new_callable=AsyncMock,
+        return_value={
+            "stt": ProviderValidationResult(True, "verified"),
+            "llm": ProviderValidationResult(False, "auth_error"),
+            "tts": ProviderValidationResult(True, "verified"),
+        },
+    ):
+        res = await ProviderValidationService.validate_all(
+            "deepgram", "k1", "siliconflow", "k2", "cartesia", "k3"
+        )
+        assert res is False
+
+    # 超时返回 False
+    with patch.object(
+        ProviderValidationService,
+        "validate_parallel",
+        new_callable=AsyncMock,
+        return_value={
+            "stt": ProviderValidationResult(True, "verified"),
+            "llm": ProviderValidationResult(True, "verified"),
+            "tts": ProviderValidationResult(False, "timeout"),
+        },
+    ):
+        res = await ProviderValidationService.validate_all(
+            "deepgram", "k1", "siliconflow", "k2", "cartesia", "k3"
+        )
+        assert res is False
