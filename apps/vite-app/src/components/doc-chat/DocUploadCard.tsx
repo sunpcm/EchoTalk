@@ -33,6 +33,7 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
 
   const charCount = value.length;
   const isOverLimit = charCount > MAX_CHARS;
+  const isNearLimit = charCount >= 45_000 && !isOverLimit;
 
   const invalidateCurrentRead = () => {
     readTokenRef.current += 1;
@@ -266,6 +267,7 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
       {/* Editable textarea */}
       <textarea
         id="doc-upload-textarea"
+        aria-describedby="doc-upload-char-count"
         value={value}
         onChange={handleTextareaChange}
         placeholder="或在此直接粘贴文档内容..."
@@ -273,13 +275,27 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
         className={`w-full resize-y rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none ${
           isOverLimit
             ? "border-danger focus:ring-danger-border"
-            : "border-border-default focus:ring-accent-soft-bg"
+            : isNearLimit
+              ? "border-warning focus:ring-warning"
+              : "border-border-default focus:ring-accent-soft-bg"
         }`}
       />
 
       {/* Character count */}
-      <div className="flex items-center justify-end text-xs">
-        <span className={isOverLimit ? "text-danger font-medium" : "text-text-faint"}>
+      <div
+        id="doc-upload-char-count"
+        aria-live="polite"
+        className="flex items-center justify-end text-xs"
+      >
+        <span
+          className={
+            isOverLimit
+              ? "text-danger font-medium"
+              : isNearLimit
+                ? "text-warning font-medium"
+                : "text-text-faint"
+          }
+        >
           {charCount.toLocaleString()} / {t.charMax} {t.charCount}
         </span>
       </div>

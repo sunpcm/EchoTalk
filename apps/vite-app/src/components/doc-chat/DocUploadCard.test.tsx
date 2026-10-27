@@ -20,6 +20,11 @@ describe("DocUploadCard", () => {
 
     const textarea = screen.getByRole("textbox");
     expect(textarea).toHaveAttribute("id", "doc-upload-textarea");
+    expect(textarea).toHaveAttribute("aria-describedby", "doc-upload-char-count");
+
+    const charCounter = screen.getByText(/11 \/ 50,000 字符/i).parentElement;
+    expect(charCounter).toHaveAttribute("id", "doc-upload-char-count");
+    expect(charCounter).toHaveAttribute("aria-live", "polite");
 
     const uploadBtn = screen.getByRole("button", { name: /点击选择 .txt 或 .md 文件/i });
     expect(uploadBtn).toHaveAttribute("tabindex", "0");
