@@ -594,6 +594,77 @@ async def test_sink_reentrant_close_from_on_failure():
 
 
 @pytest.mark.asyncio
+async def test_sink_is_failure_notification_task_query_and_immutability():
+    """验证 is_failure_notification_task 公共行为查询矩阵与状态不变性。"""
+    session_id1 = str(uuid.uuid4())
+    session_id2 = str(uuid.uuid4())
+
+    notify_entered = asyncio.Event()
+    release_notify = asyncio.Event()
+    query_results: dict[str, bool] = {}
+
+    async def blocking_on_failure(reason):
+        current = asyncio.current_task()
+        query_results["sink1_current_in_cb"] = sink1.is_failure_notification_task()
+        query_results["sink1_explicit_task"] = sink1.is_failure_notification_task(
+            current
+        )
+        query_results["sink2_cross_query_current"] = (
+            sink2.is_failure_notification_task()
+        )
+        query_results["sink2_cross_query_explicit"] = (
+            sink2.is_failure_notification_task(current)
+        )
+        notify_entered.set()
+        await release_notify.wait()
+
+    sink1 = TranscriptSink(
+        session_id=session_id1,
+        writer=AsyncMock(side_effect=RuntimeError("sink1 failed")),
+        on_failure=blocking_on_failure,
+        max_attempts=1,
+        drain_timeout=1.0,
+    )
+    sink2 = TranscriptSink(
+        session_id=session_id2,
+        max_attempts=1,
+        drain_timeout=1.0,
+    )
+
+    # 1. 故障发生前（无通知任务）：普通调用均返回 False
+    snap_before = sink1.snapshot()
+    assert sink1.is_failure_notification_task() is False
+    assert sink1.is_failure_notification_task(asyncio.current_task()) is False
+    assert sink2.is_failure_notification_task() is False
+    # 状态不变
+    assert sink1.snapshot() == snap_before
+
+    # 2. 触发 Sink 1 故障通知
+    sink1.submit("user", "trigger failure", event_id=uuid.uuid4())
+    await notify_entered.wait()
+
+    # 外部任务查询 sink1 与 sink2：均返回 False
+    assert sink1.is_failure_notification_task() is False
+    assert sink1.is_failure_notification_task(asyncio.current_task()) is False
+    assert sink2.is_failure_notification_task() is False
+
+    # 验证回调内部的查询结果
+    assert query_results["sink1_current_in_cb"] is True
+    assert query_results["sink1_explicit_task"] is True
+    assert query_results["sink2_cross_query_current"] is False
+    assert query_results["sink2_cross_query_explicit"] is False
+
+    # 释放通知任务并关闭
+    release_notify.set()
+    assert await sink1.close() is False
+    assert await sink2.close() is True
+
+    # 3. 关闭完成后外部普通调用仍为 False
+    assert sink1.is_failure_notification_task() is False
+    assert sink2.is_failure_notification_task() is False
+
+
+@pytest.mark.asyncio
 async def test_sink_close_drains_hanging_notify_task_within_budget():
     """验证外部调用 close() 时若通知任务挂起，能在总预算内超时取消并收束通知任务，不遗留 pending 任务。"""
     session_id = str(uuid.uuid4())

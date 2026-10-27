@@ -106,6 +106,25 @@ class TranscriptSink:
     def closed(self) -> bool:
         return self._closed
 
+    def is_failure_notification_task(
+        self, task: asyncio.Task[Any] | None = None
+    ) -> bool:
+        """查询指定任务（默认当前运行中任务）是否为本 Sink 的故障通知任务。
+
+        返回布尔值，不暴露内部 Task 对象，不改变 Sink 内部状态。
+        """
+        if self._notify_task is None:
+            return False
+        if task is not None:
+            return task is self._notify_task
+        try:
+            current = asyncio.current_task()
+        except RuntimeError:
+            return False
+        if current is None:
+            return False
+        return current is self._notify_task
+
     def _ensure_worker(self) -> None:
         """确保单一自有 worker 任务处于运行状态。"""
         if self._closed or not self._accepting:
@@ -455,10 +474,7 @@ class TranscriptSink:
 
         # 重入检测：若调用者是故障通知任务自身，不能等待整体 _close_task（后者第二阶段在等待该通知任务结束），
         # 否则形成自死锁。通知任务只需等待 worker 排空即可得到确定的布尔结果返回。
-        if (
-            self._notify_task is not None
-            and asyncio.current_task() is self._notify_task
-        ):
+        if self.is_failure_notification_task():
             loop = asyncio.get_running_loop()
             deadline = loop.time() + self._drain_timeout
             await self._drain_worker(deadline)

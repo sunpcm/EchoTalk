@@ -273,8 +273,12 @@ class AgentJobOrchestrator:
         if self.sink is None:
             return True
 
-        notify_task = getattr(self.sink, "_notify_task", None)
-        if notify_task is not None and asyncio.current_task() is notify_task:
+        is_reentrant_sink_notify = False
+        check_reentrant = getattr(self.sink, "is_failure_notification_task", None)
+        if callable(check_reentrant):
+            is_reentrant_sink_notify = bool(check_reentrant())
+
+        if is_reentrant_sink_notify:
             return await self.sink.close()
 
         if self._sink_close_task is None:

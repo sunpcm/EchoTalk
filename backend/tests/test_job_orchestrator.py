@@ -373,3 +373,47 @@ async def test_orchestrator_runtime_error_wiring():
     assert call_payload["code"] == "ERR_CUSTOM_RUNTIME"
     assert ctx.room.disconnect.await_count == 1
     assert orchestrator.sink.closed is True
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_close_sink_uses_is_failure_notification_task_boundary():
+    """验证 Orchestrator._close_sink 使用公共 is_failure_notification_task 边界，零私有属性访问。"""
+    ctx = _create_mock_job_context()
+    orchestrator = AgentJobOrchestrator(ctx)
+
+    class MockBoundarySink:
+        def __init__(self):
+            self.query_count = 0
+            self.close_count = 0
+            self.reentrant_mode = False
+
+        def is_failure_notification_task(self):
+            self.query_count += 1
+            return self.reentrant_mode
+
+        async def close(self):
+            self.close_count += 1
+            return True
+
+        def __getattr__(self, name: str):
+            if name == "_notify_task":
+                raise AssertionError("Orchestrator 不得访问私有属性 _notify_task")
+            raise AttributeError(name)
+
+    mock_sink = MockBoundarySink()
+    orchestrator.sink = mock_sink
+
+    # 1. 非重入模式：query 返回 False，正常走 _sink_close_task 且返回 True
+    mock_sink.reentrant_mode = False
+    res1 = await orchestrator._close_sink()
+    assert res1 is True
+    assert mock_sink.query_count == 1
+    assert mock_sink.close_count == 1
+
+    # 2. 重入模式：query 返回 True，直接 await sink.close() 且不通过 _sink_close_task
+    orchestrator._sink_close_task = None
+    mock_sink.reentrant_mode = True
+    res2 = await orchestrator._close_sink()
+    assert res2 is True
+    assert mock_sink.query_count == 2
+    assert mock_sink.close_count == 2
