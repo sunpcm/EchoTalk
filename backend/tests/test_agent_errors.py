@@ -681,21 +681,9 @@ async def test_entrypoint_runtime_error_handler_matrix_custom_mode(
     err_event.error.type = "runtime"
     err_event.error.recoverable = recoverable
 
-    # 确定性捕获 ensure_future 创建的任务
-    created_tasks = []
-    orig_ensure_future = asyncio.ensure_future
-
-    def capturing_ensure_future(coro_or_future, *args, **kwargs):
-        task = orig_ensure_future(coro_or_future, *args, **kwargs)
-        created_tasks.append(task)
-        return task
-
-    with patch("asyncio.ensure_future", side_effect=capturing_ensure_future):
-        error_handler(err_event)
-
-    # 显式 await 确定性屏障
-    if created_tasks:
-        await asyncio.gather(*created_tasks)
+    error_handler(err_event)
+    assert len(ctx.shutdown_callbacks) == 1
+    assert await ctx.shutdown_callbacks[0]() is True
 
     if expect_disconnect:
         assert ctx.room.local_participant.publish_data.await_count == 1
@@ -752,19 +740,9 @@ async def test_entrypoint_runtime_error_handler_system_mode_zero_action(
     err_event.error.type = "runtime"
     err_event.error.recoverable = False
 
-    created_tasks = []
-    orig_ensure_future = asyncio.ensure_future
-
-    def capturing_ensure_future(coro_or_future, *args, **kwargs):
-        task = orig_ensure_future(coro_or_future, *args, **kwargs)
-        created_tasks.append(task)
-        return task
-
-    with patch("asyncio.ensure_future", side_effect=capturing_ensure_future):
-        error_handler(err_event)
-
-    if created_tasks:
-        await asyncio.gather(*created_tasks)
+    error_handler(err_event)
+    assert len(ctx.shutdown_callbacks) == 1
+    assert await ctx.shutdown_callbacks[0]() is True
 
     assert ctx.room.local_participant.publish_data.await_count == 0
     assert ctx.room.disconnect.await_count == 0

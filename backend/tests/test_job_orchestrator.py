@@ -80,12 +80,12 @@ async def test_orchestrator_successful_lifecycle():
     ctx.connect.assert_awaited_once_with(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     ctx.wait_for_participant.assert_awaited_once()
 
-    # 2. 验证单个 Sink 与单个 shutdown callback
+    # 2. 验证单个 Sink 与单个组合 shutdown callback
     assert orchestrator.sink is not None
     assert orchestrator.sink.accepting is True
     assert orchestrator.started is True
     assert len(ctx.shutdown_callbacks) == 1
-    assert ctx.shutdown_callbacks[0] == orchestrator.sink.close
+    assert ctx.shutdown_callbacks[0] == orchestrator.close
 
     # 3. 验证 session 启动
     mock_session.start.assert_awaited_once_with(mock_agent, room=ctx.room)
@@ -94,6 +94,7 @@ async def test_orchestrator_successful_lifecycle():
     closed_ok = await ctx.shutdown_callbacks[0]()
     assert closed_ok is True
     assert orchestrator.sink.closed is True
+    assert orchestrator.closed is True
 
 
 @pytest.mark.asyncio
@@ -359,19 +360,11 @@ async def test_orchestrator_runtime_error_wiring():
     error_event.error.type = "runtime"
     error_event.error.recoverable = False
 
-    created_tasks = []
-    orig_ensure_future = asyncio.ensure_future
+    captured_handlers["error"](error_event)
+    assert len(orchestrator._error_tasks) == 1
 
-    def capturing_ensure_future(coro, *args, **kwargs):
-        task = orig_ensure_future(coro, *args, **kwargs)
-        created_tasks.append(task)
-        return task
-
-    with patch("asyncio.ensure_future", side_effect=capturing_ensure_future):
-        captured_handlers["error"](error_event)
-
-    if created_tasks:
-        await asyncio.gather(*created_tasks)
+    assert await ctx.shutdown_callbacks[0]() is True
+    assert len(orchestrator._error_tasks) == 0
 
     assert ctx.room.local_participant.publish_data.await_count == 1
     call_payload = json.loads(
@@ -379,4 +372,4 @@ async def test_orchestrator_runtime_error_wiring():
     )
     assert call_payload["code"] == "ERR_CUSTOM_RUNTIME"
     assert ctx.room.disconnect.await_count == 1
-    await orchestrator.sink.close()
+    assert orchestrator.sink.closed is True

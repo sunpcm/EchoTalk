@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-27 本地 RF-09 运行时错误通知任务所有权与关闭收束实施记录（A57）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-09“追踪后台任务，在进程退出前排空或安全取消”及 `TODO.md` RF-09 要求完成本地实施。修复 `backend/livekit_agent/job_orchestrator.py` 的 `on_agent_error` 中未被所有者追踪的 `asyncio.ensure_future`，建立实例级运行时错误通知任务追踪、异常安全检索与 Job 关闭合作式排空机制，保持错误分类、A56 共享发送出口与 `TranscriptSink` 实现不变。
+
+- 本地实现与任务所有权契约：`AgentJobOrchestrator` 实例独立维护自有运行时错误通知任务集合（`_error_tasks` / 只读属性 `error_tasks`）与关闭状态（`closing` / `closed`）；活动阶段每次符合既有 `AgentErrorMapper.classify_runtime_error` 的事件创建受追踪 `asyncio.Task`，基础轨与可恢复事件保持不派发；挂载完成回调 `_on_error_task_done` 自动移除任务并安全检索异常，失败仅记录静态安全日志 `"运行时错误通知任务执行失败: session=%s"`（使用清洗后的 `safe_session_id`），绝不记录异常正文、密钥、未清洗房间名或 traceback；`CancelledError` 安全检索，消除 `"Task exception was never retrieved"` 告警。
+- 组合关闭、合作式排空与重入防自锁：正常 `run` 成功返回后保持在途通知与健康 `TranscriptSink` 存活直至 Job shutdown；以单一组合回调 `orchestrator.close` 替代原 `self.sink.close` 注册，保持单个 shutdown callback 与原 `sink.close()` 的 `bool` 返回值语义；`close()` 开始时同步标记 `closing = True` 并阻断迟到 `error` 回调创建新通知；对既有自有通知任务提供命名类常量 `ERROR_TASK_DRAIN_TIMEOUT_SECONDS = 2.0` 秒合作式排空预算（支持测试 patch），到期对剩余任务执行 `cancel()` 并 `await` 收束；随后关闭 `TranscriptSink` 且保持其 8.0 秒排空预算与异常传播语义不变；当通知内 `ctx.room.disconnect()` 触发 shutdown callback 重入时，自动排除当前任务自身（`asyncio.current_task()`）及重入集合，杜绝自等待死锁与自取消；重复与并发 `close()` 调用幂等安全；`setup` 失败、`start` 失败或 `run` 取消以及 `close` 自身被取消时均完整收束自有通知任务并关闭 `Sink`。
+- 质量与回归测试：新建 `backend/tests/test_error_task_lifecycle.py`（10 项异步测试），全部通过真实注册保存的 `error` 回调触发，结合 `asyncio.Event` 与短预算 patch 覆盖活动阶段追踪与完成移除、异常静态安全检索与 Canary 防护、`CancelledError` 安全检索、`run` 成功返回不误关健康 `Sink`、2.0s 预算内合作式排空与超时取消且保留 `Sink` 8.0s 预算、shutdown 期间与之后迟到回调零通知、`setup`/`start` 失败与取消清理、双 Job 隔离、`disconnect` 触发 shutdown 重入无自锁、并发/重复 `close` 幂等及 `close` 取消清理与 `Sink` 异常传播；同步适配 `test_job_orchestrator.py` 与 `test_agent_errors.py`。
+- 契约与记录见 [RF-09 运行时错误通知任务生命周期验证](./verification/cross-platform/RF-09-ERROR-TASK-LIFECYCLE.md)。`sys.path`/dotenv 清理与真实 LiveKit 环境验收仍待后续完成，RF-09 整项保持未勾选。
+
 ## 2026-10-27 本地 RF-09 安全错误发送与断连出口收敛实施记录（A56）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-09 单一 `ErrorMapper` 边界及 `TODO.md` RF-09 要求完成本地实施。收敛 `backend/livekit_agent/agent.py` 中 `_send_error_and_disconnect` 与 `backend/livekit_agent/job_orchestrator.py` 中 `_default_send_error` 重复的安全 payload 构造、DataChannel 发布与房间断连实现，保持全部既有可观察行为与测试注入边界不变。
