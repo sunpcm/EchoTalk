@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-26 本地 RF-10 用户设置凭据惰性解密实施记录（A54）
+
+基于 TODO.md RF-10“非敏感设置不解密旧凭据”要求完成本地实施。修复用户设置更新路径（`PUT /api/user/settings`）无条件解密 STT/LLM/TTS 三路旧凭据的缺陷，确立严格的惰性解密契约：仅在某 role 实际变更且需要沿用既有密钥时才解密该 role，保证主题、模型偏好等非敏感设置更新不受历史旧密文解密失败或损坏的影响。
+
+- 本地实现与惰性解密契约：在 `backend/routers/user.py` 的 `_validate_provider_keys` 中，先基于请求体与旧设置比对确定各 role（`stt_changed`, `llm_changed`, `tts_changed`）是否变更；同 provider 原值重复提交或未提供 provider/key 的 role 判定为未变化；未变化 role 绝不读取、不解密、不轮换其旧密文，且不触发 Provider 拨测，完整复用既有有效性状态；变化 role 且显式传入新 key 时直接使用新 key 拨测，绝不解密本 role 旧密文；仅在 role 变更且未显式给 key（需沿用已有密钥）时才针对该 role 调用 `_decrypt_and_rotate` 一次，保留既有轮换写入与解密异常行为。
+- 原语义与响应契约保持：严格保持 STT → LLM → TTS 的校验顺序、422 `provider_key_validation_failed` 响应体结构、`_apply_settings_update` 加密与汇总逻辑不变；GET 接口行为、模式权限、密码清洗与超时设置严格保持。
+- 质量与回归测试：新增 `backend/tests/test_settings_lazy_decryption.py` 覆盖非敏感字段（theme/llm_model）在密文损坏下成功更新、空请求零解密零拨测、同 provider 重复提交无解密无拨测、单 role 新 key 不解密旧密文、单 role 换 provider 沿用旧 key 仅解密该 role、解密失败异常不被吞掉、多 role 校验顺序 STT→LLM→TTS 与 422 结构保持；全量既有测试 `test_user.py` 全部保持通过。
+- 契约与记录见 [RF-10 用户设置凭据惰性解密验证](./verification/cross-platform/RF-10-LAZY-KEY-DECRYPTION.md)。多 Provider 并行验证、超时机制与真实 Provider 拨测未验，整项保持未勾选，RF-10 持续推进。
+
 ## 2026-10-26 本地 RF-10 STT/TTS 静态元数据单一来源实施记录（A53）
 
 基于 TODO.md RF-10“能力、模型、凭据、验证、超时、重试与错误映射统一”及 A53 契约完成本地实施。在 A50 的纯标准库不可变 `provider_catalog.py` 中补齐现有 Deepgram 与 Cartesia 静态元数据，使 `plugin_factory` 支持集合与 `validation_service` 语音校验从同一来源派生，消除分散配置并保持不可变性与凭据防污染隔离。
