@@ -421,12 +421,14 @@ async def test_send_error_and_disconnect_propagates_disconnect_failure(
 
 @pytest.mark.asyncio
 async def test_send_error_and_disconnect_cancelled_error_propagation(agent_log_guard):
-    """测试 _send_error_and_disconnect：CancelledError 正常传播，不被吞噬。"""
+    """测试 _send_error_and_disconnect：CancelledError 正常传播，不被吞噬且不调用断连。"""
     ctx = create_mock_context()
     ctx.room.local_participant.publish_data.side_effect = asyncio.CancelledError()
 
     with pytest.raises(asyncio.CancelledError):
         await _send_error_and_disconnect(ctx, code="ERR_SYSTEM_RUNTIME")
+
+    assert ctx.room.disconnect.await_count == 0
 
 
 @pytest.mark.asyncio

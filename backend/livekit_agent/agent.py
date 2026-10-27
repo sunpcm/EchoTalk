@@ -13,7 +13,6 @@ Phase 5 新增：双轨制路由——根据 is_custom_mode 开关决定使用�
     cd backend && python livekit_agent/agent.py dev
 """
 
-import json
 import logging
 import sys
 import time
@@ -44,6 +43,7 @@ from sqlalchemy import select  # noqa: E402
 from config import settings  # noqa: E402
 from database import async_session_maker  # noqa: E402
 from livekit_agent.credential_resolver import CredentialResolver  # noqa: E402
+from livekit_agent.error_delivery import send_error_and_disconnect  # noqa: E402
 from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
 from livekit_agent.job_orchestrator import AgentJobOrchestrator  # noqa: E402
 from livekit_agent.plugin_errors import PluginInitError  # noqa: E402
@@ -148,41 +148,14 @@ async def _send_error_and_disconnect(
     """
     通过 DataChannel 向客户端发送错误 JSON，然后断开房间连接。
 
-    错误载荷格式:
-        {"type": "agent_error", "code": "<CODE>", "message": "<描述>"}
-
-    发送使用 reliable=True（TCP 语义保证送达）和 topic="agent_error"
-    （前端可按 topic 过滤订阅）。
-
-    参数:
-        ctx: LiveKit JobContext（已连接到房间）
-        code: 机器可读错误码，如 "ERR_CUSTOM_KEY_INVALID"
-        message: 传入描述（将通过 AgentErrorMapper 强制转换为安全静态描述）
-        fallback_code: code 不在白名单时的兜底错误码
+    兼容包装函数，实际实现委托给 livekit_agent.error_delivery.send_error_and_disconnect。
     """
-    safe_code, safe_message = AgentErrorMapper.map_error(
-        code, message, fallback_code=fallback_code
+    await send_error_and_disconnect(
+        ctx,
+        code,
+        message,
+        fallback_code=fallback_code,
     )
-    safe_session_id = AgentErrorMapper.sanitize_session_id(
-        getattr(getattr(ctx, "room", None), "name", None)
-    )
-
-    payload = json.dumps(
-        {"type": "agent_error", "code": safe_code, "message": safe_message},
-        ensure_ascii=False,
-    )
-    try:
-        await ctx.room.local_participant.publish_data(
-            payload=payload,
-            reliable=True,
-            topic="agent_error",
-        )
-        logger.info("已发送错误消息到客户端: code=%s", safe_code)
-    except Exception:
-        logger.warning("发送错误消息到客户端失败")
-
-    await ctx.room.disconnect()
-    logger.info("已断开房间连接: session=%s, code=%s", safe_session_id, safe_code)
 
 
 # ---------------------------------------------------------------------------

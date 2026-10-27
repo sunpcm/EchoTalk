@@ -14,6 +14,15 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-27 本地 RF-09 安全错误发送与断连出口收敛实施记录（A56）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-09 单一 `ErrorMapper` 边界及 `TODO.md` RF-09 要求完成本地实施。收敛 `backend/livekit_agent/agent.py` 中 `_send_error_and_disconnect` 与 `backend/livekit_agent/job_orchestrator.py` 中 `_default_send_error` 重复的安全 payload 构造、DataChannel 发布与房间断连实现，保持全部既有可观察行为与测试注入边界不变。
+
+- 本地实现与单一出口边界：新建 `backend/livekit_agent/error_delivery.py`，提供共享异步函数 `send_error_and_disconnect(ctx, code, message=None, fallback_code="ERR_SYSTEM_RUNTIME")`；模块仅依赖 Python 标准库（`json`、`logging`、`typing`）与既有 `AgentErrorMapper`，零配置/数据库/凭据读取，零反向导入 `agent` 或 `job_orchestrator`，导入期零网络或服务副作用；保留 `agent._send_error_and_disconnect` 与 `job_orchestrator._default_send_error` 原函数名、参数顺序、默认值及各自模块属性的 patch 兼容性，包装体仅委托调用 `send_error_and_disconnect`。
+- 安全契约与异常传播保持：继续使用同一 `echotalk-agent` logger、原有安全日志文本、`{"type": "agent_error", "code": safe_code, "message": safe_message}`（`ensure_ascii=False`）、`reliable=True` 与 `topic="agent_error"`；先经 `AgentErrorMapper.map_error` 映射白名单错误码与静态文案并经 `sanitize_session_id` 清洗房间名；普通 `publish_data` 异常仅记录静态警告 `"发送错误消息到客户端失败"` 后继续执行 `ctx.room.disconnect()`；`disconnect()` 异常原样向上传播；`publish_data` 阶段 `asyncio.CancelledError` 原样传播且不擅自增加 `disconnect()` 调用；保留 `entrypoint` 与 `AgentJobOrchestrator` 全部回调注入路径、调用次数及初始化/运行时错误分类。
+- 质量与回归测试：新建 `backend/tests/test_error_delivery.py`，对共享函数及两个真实包装函数执行直接端到端验证（不以 mock 共享函数代替真实逻辑验证），覆盖 AST 纯净导入边界、函数签名一致性、9 项白名单错误码与非转义中文 JSON payload、自定义轨/基础轨/非法 fallback 降级、恶意 `code`/`message`/`session_id` Canary 脱敏、普通 publish 失败仍断连、disconnect 失败原样传播、publish 阶段 `CancelledError` 传播且不断连、双包装委托一致性与模块级 patch 兼容；同步补充 `backend/tests/test_agent_errors.py` 中 `CancelledError` 不触发断连断言，既有 `test_agent_errors.py` 与 `test_job_orchestrator.py` 全部保持通过。
+- 契约与记录见 [RF-09 安全错误发送出口收敛验证](./verification/cross-platform/RF-09-SHARED-ERROR-DELIVERY.md)。`sys.path`/dotenv 清理与真实 LiveKit 环境验收仍待后续完成，RF-09 整项保持未勾选。
+
 ## 2026-10-27 本地 RF-10 多 Provider 有界并行验证实施记录（A55）
 
 基于 TODO.md RF-10“多个独立 Provider 需要验证时可以并行执行，但必须限制总超时”及 A55 冻结契约完成本地实施。在严格保留 A54 凭据惰性解密边界与公开 API 响应契约的基础上，将多路独立 Provider 凭据拨测由串行等待升级为统一总预算下的有界并发执行。

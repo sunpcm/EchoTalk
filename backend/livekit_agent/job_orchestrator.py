@@ -7,7 +7,6 @@ AgentSession 事件接线及启动与异常清理。
 """
 
 import asyncio
-import json
 import logging
 from typing import Any, Awaitable, Callable
 
@@ -20,6 +19,7 @@ from livekit.agents import (
     JobContext,
 )
 
+from livekit_agent.error_delivery import send_error_and_disconnect
 from livekit_agent.error_mapper import AgentErrorMapper
 from livekit_agent.transcript_sink import TranscriptSink
 
@@ -32,30 +32,13 @@ async def _default_send_error(
     message: str | None = None,
     fallback_code: str = "ERR_SYSTEM_RUNTIME",
 ) -> None:
-    """默认安全错误通知与断连函数。"""
-    safe_code, safe_message = AgentErrorMapper.map_error(
-        code, message, fallback_code=fallback_code
+    """默认安全错误通知与断连函数，委托给共享出口 send_error_and_disconnect。"""
+    await send_error_and_disconnect(
+        ctx,
+        code,
+        message,
+        fallback_code=fallback_code,
     )
-    safe_session_id = AgentErrorMapper.sanitize_session_id(
-        getattr(getattr(ctx, "room", None), "name", None)
-    )
-
-    payload = json.dumps(
-        {"type": "agent_error", "code": safe_code, "message": safe_message},
-        ensure_ascii=False,
-    )
-    try:
-        await ctx.room.local_participant.publish_data(
-            payload=payload,
-            reliable=True,
-            topic="agent_error",
-        )
-        logger.info("已发送错误消息到客户端: code=%s", safe_code)
-    except Exception:
-        logger.warning("发送错误消息到客户端失败")
-
-    await ctx.room.disconnect()
-    logger.info("已断开房间连接: session=%s, code=%s", safe_session_id, safe_code)
 
 
 class AgentJobOrchestrator:
