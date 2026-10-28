@@ -22,7 +22,7 @@ import gc
 import json
 import logging
 import uuid
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable, Iterable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,6 +33,168 @@ from livekit_agent.job_orchestrator import AgentJobOrchestrator
 from livekit_agent.transcript_sink import TranscriptSink
 
 CANARY = "SECRET_CANARY_RF09_A57_TOKEN_889900_NEVER_LEAK"
+TEST_ERROR_LIFECYCLE_BUDGET_SECONDS: float = 2.0
+
+_OBSERVED_TASKS: set[asyncio.Task[Any]] = set()
+
+
+def _register_observed_task(task: asyncio.Task[Any]) -> None:
+    _OBSERVED_TASKS.add(task)
+
+    def _on_done(t: asyncio.Task[Any]) -> None:
+        _OBSERVED_TASKS.discard(t)
+
+    task.add_done_callback(_on_done)
+
+
+async def _wait_bounded(
+    awaitable: Awaitable[Any],
+    timeout: float = TEST_ERROR_LIFECYCLE_BUDGET_SECONDS,
+    name: str = "operation",
+) -> Any:
+    """在命名短测试预算内等待可等待对象完成，超时抛出包含操作名称的 TimeoutError。
+
+    采用独立的外部完成观察预算（显式持有 Task 并通过 asyncio.wait 观察），
+    到期不在观察函数中无限等待取消，由 finally 接管清理，杜绝因底层延迟取消导致测试卡死。
+    所有新建观察 Task 均自动登记与回收。
+    """
+    if isinstance(awaitable, asyncio.Task):
+        task = awaitable
+    else:
+        task = asyncio.create_task(awaitable)
+        _register_observed_task(task)
+
+    done, pending = await asyncio.wait({task}, timeout=timeout)
+    if pending:
+        raise TimeoutError(f"测试等待超过预算 ({timeout}s): {name}")
+
+    return task.result()
+
+
+async def _poll_bounded(
+    predicate: Callable[[], bool],
+    timeout: float = TEST_ERROR_LIFECYCLE_BUDGET_SECONDS,
+    name: str = "condition",
+    interval: float = 0.01,
+) -> None:
+    """在命名短测试预算内轮询断言条件，避免 while sleep(0) 无限循环。"""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not predicate():
+        if loop.time() >= deadline:
+            raise TimeoutError(f"测试条件轮询超过预算 ({timeout}s): {name}")
+        await asyncio.sleep(interval)
+
+
+async def _cancel_and_wait_tasks(
+    tasks: Iterable[asyncio.Task[Any] | None],
+    timeout: float = 1.0,
+    name: str = "tasks",
+) -> None:
+    """取消并有界等待任务集合，显式判定 pending 并安全检索所有（含已完成）任务异常。"""
+    all_tasks = [t for t in tasks if t is not None]
+    if not all_tasks:
+        return
+
+    # 1. 检索已经 done 的任务异常，不漏掉早已失败的任务
+    for t in all_tasks:
+        if t.done():
+            if not t.cancelled():
+                try:
+                    t.exception()
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    # 2. 对未完成的任务统一发起 cancel 并等待
+    active = [t for t in all_tasks if not t.done()]
+    if not active:
+        return
+
+    for t in active:
+        t.cancel()
+
+    done, pending = await asyncio.wait(active, timeout=timeout)
+    for t in done:
+        if not t.cancelled():
+            try:
+                t.exception()
+            except (asyncio.CancelledError, Exception):
+                pass
+
+    if pending:
+        pending_names = [getattr(t, "get_name", lambda: repr(t))() for t in pending]
+        raise TimeoutError(f"测试清理超时，仍有未收束任务 ({name}): {pending_names}")
+
+
+def _collect_sink_tasks(sink: TranscriptSink | None) -> list[asyncio.Task[Any]]:
+    if sink is None:
+        return []
+    tasks: list[asyncio.Task[Any]] = []
+    for attr in ("_notify_task", "_worker_task", "_close_task"):
+        t = getattr(sink, attr, None)
+        if isinstance(t, asyncio.Task):
+            tasks.append(t)
+    return tasks
+
+
+def _collect_orch_tasks(orch: AgentJobOrchestrator | None) -> list[asyncio.Task[Any]]:
+    if orch is None:
+        return []
+    tasks: list[asyncio.Task[Any]] = list(orch.error_tasks)
+    sink_close_task = getattr(orch, "_sink_close_task", None)
+    if isinstance(sink_close_task, asyncio.Task):
+        tasks.append(sink_close_task)
+    return tasks
+
+
+async def _cleanup_sink(
+    sink: TranscriptSink | None,
+    timeout: float = 1.0,
+) -> None:
+    """测试本地收束 Sink 任务：取消并等待其内部 worker/notify/close 任务，显式判定 pending。
+
+    仅执行强制清场，严禁人为篡改 _closed=True / _accepting=False 伪造关闭成功终态。
+    """
+    if sink is None:
+        return
+    sink_tasks = _collect_sink_tasks(sink)
+    await _cancel_and_wait_tasks(sink_tasks, timeout=timeout, name="sink_tasks")
+
+
+async def _cleanup_test_resources(
+    tasks: Iterable[asyncio.Task[Any] | None] | None = None,
+    orch: AgentJobOrchestrator | None = None,
+    sinks: Iterable[TranscriptSink | None] | None = None,
+    timeout: float = 1.0,
+    name: str = "test_resources",
+) -> None:
+    """一次性收集测试装置拥有的所有任务，协调解开依赖并收束，保证前步失败也继续清理其余资源。"""
+    all_sinks = list(sinks or [])
+    if orch is not None and orch.sink is not None and orch.sink not in all_sinks:
+        all_sinks.append(orch.sink)
+
+    all_tasks: set[asyncio.Task[Any]] = set()
+    if tasks:
+        for t in tasks:
+            if isinstance(t, asyncio.Task):
+                all_tasks.add(t)
+    for t in _collect_orch_tasks(orch):
+        all_tasks.add(t)
+    for s in all_sinks:
+        for t in _collect_sink_tasks(s):
+            all_tasks.add(t)
+
+    for t in list(_OBSERVED_TASKS):
+        if not t.done():
+            all_tasks.add(t)
+
+    # 1. 协调取消：同时对所有 active 任务调用 cancel()，先解开内外依赖关系（如 shield 互等）
+    for t in all_tasks:
+        if not t.done():
+            t.cancel()
+
+    # 2. 统一有界等待所有任务收束与异常检索
+    await _cancel_and_wait_tasks(all_tasks, timeout=timeout, name=name)
 
 
 class AssertNoCanaryLogHandler(logging.Handler):
@@ -147,57 +309,67 @@ async def test_active_error_tasks_tracked_and_removed_on_normal_completion():
     assert "error" in handlers
     error_cb = handlers["error"]
 
-    # 1. 可恢复错误不派发任务
-    error_cb(_make_error_event(Exception("temp warning"), recoverable=True))
-    assert len(orch._error_tasks) == 0
-    assert len(calls) == 0
+    try:
+        # 1. 可恢复错误不派发任务
+        error_cb(_make_error_event(Exception("temp warning"), recoverable=True))
+        assert len(orch._error_tasks) == 0
+        assert len(calls) == 0
 
-    # 2. 连续两次不可恢复错误（401 与普通不可恢复）各派发一个独立任务，不合并
-    error_cb(
-        _make_error_event(
-            APIStatusError(message="unauthorized", status_code=401),
-            recoverable=False,
+        # 2. 连续两次不可恢复错误（401 与普通不可恢复）各派发一个独立任务，不合并
+        error_cb(
+            _make_error_event(
+                APIStatusError(message="unauthorized", status_code=401),
+                recoverable=False,
+            )
         )
-    )
-    error_cb(_make_error_event(RuntimeError("fatal pipeline"), recoverable=False))
+        error_cb(_make_error_event(RuntimeError("fatal pipeline"), recoverable=False))
 
-    await entered1.wait()
-    await entered2.wait()
-    assert len(orch._error_tasks) == 2
-    assert len(orch.error_tasks) == 2
-    assert calls == [
-        (ctx, "ERR_CUSTOM_RUNTIME_AUTH", "ERR_CUSTOM_RUNTIME"),
-        (ctx, "ERR_CUSTOM_RUNTIME", "ERR_CUSTOM_RUNTIME"),
-    ]
+        await _wait_bounded(entered1.wait(), name="entered1")
+        await _wait_bounded(entered2.wait(), name="entered2")
+        assert len(orch._error_tasks) == 2
+        assert len(orch.error_tasks) == 2
+        assert calls == [
+            (ctx, "ERR_CUSTOM_RUNTIME_AUTH", "ERR_CUSTOM_RUNTIME"),
+            (ctx, "ERR_CUSTOM_RUNTIME", "ERR_CUSTOM_RUNTIME"),
+        ]
 
-    # 3. 释放第一个任务，验证完成回调在活动阶段立即移除该任务
-    gate1.set()
-    while len(orch._error_tasks) != 1:
-        await asyncio.sleep(0)
-    assert len(orch._error_tasks) == 1
-
-    # 4. 释放第二个任务，验证集合清空且 Sink 仍保持健康开启
-    gate2.set()
-    while len(orch._error_tasks) != 0:
-        await asyncio.sleep(0)
-    assert len(orch._error_tasks) == 0
-    assert orch.sink is not None
-    assert orch.sink.closed is False
-    assert orch.sink.accepting is True
-
-    # 5. 切换为基础轨时，不可恢复错误也不派发
-    orch.set_custom_mode(False)
-    error_cb(
-        _make_error_event(
-            APIStatusError(message="sys 401", status_code=401),
-            recoverable=False,
+        # 3. 释放第一个任务，验证完成回调在活动阶段立即移除该任务（有界轮询，避免 sleep(0) 无限循环）
+        gate1.set()
+        await _poll_bounded(
+            lambda: len(orch._error_tasks) == 1,
+            name="wait_error_task_removed_1",
         )
-    )
-    assert len(orch._error_tasks) == 0
-    assert len(calls) == 2
+        assert len(orch._error_tasks) == 1
 
-    assert await ctx.shutdown_callbacks[0]() is True
-    assert orch.sink.closed is True
+        # 4. 释放第二个任务，验证集合清空且 Sink 仍保持健康开启
+        gate2.set()
+        await _poll_bounded(
+            lambda: len(orch._error_tasks) == 0,
+            name="wait_error_task_removed_2",
+        )
+        assert len(orch._error_tasks) == 0
+        assert orch.sink is not None
+        assert orch.sink.closed is False
+        assert orch.sink.accepting is True
+
+        # 5. 切换为基础轨时，不可恢复错误也不派发
+        orch.set_custom_mode(False)
+        error_cb(
+            _make_error_event(
+                APIStatusError(message="sys 401", status_code=401),
+                recoverable=False,
+            )
+        )
+        assert len(orch._error_tasks) == 0
+        assert len(calls) == 2
+
+        assert await _wait_bounded(ctx.shutdown_callbacks[0](), name="shutdown") is True
+        assert orch.sink.closed is True
+    finally:
+        gate1.set()
+        gate2.set()
+        if orch is not None:
+            await _cleanup_test_resources(orch=orch, timeout=1.0)
 
 
 @pytest.mark.asyncio
@@ -261,6 +433,8 @@ async def test_error_task_exception_retrieved_with_static_safe_log_and_no_canary
         assert orch.sink.closed is True
     finally:
         loop.set_exception_handler(old_exc_handler)
+        if orch is not None:
+            await _cleanup_test_resources(orch=orch, timeout=1.0)
         logger.removeHandler(log_guard)
         logger.setLevel(old_level)
 
@@ -304,7 +478,10 @@ async def test_error_task_cancelled_error_retrieved_safely():
         assert unhandled == []
         assert await ctx.shutdown_callbacks[0]() is True
     finally:
+        hang.set()
         loop.set_exception_handler(old_exc_handler)
+        if orch is not None:
+            await _cleanup_test_resources(orch=orch, timeout=1.0)
 
 
 @pytest.mark.asyncio
@@ -489,40 +666,59 @@ async def test_shutdown_timeout_cancels_and_awaits_pending_error_tasks_preservin
         send_error_fn=_hung_send_error,
     )
 
-    with patch.object(AgentJobOrchestrator, "ERROR_TASK_DRAIN_TIMEOUT_SECONDS", 0.02):
-        await orch.run(lambda sid, sink: asyncio.sleep(0, result=(MagicMock(), True)))
+    close_task: asyncio.Task[bool] | None = None
+    try:
+        with patch.object(
+            AgentJobOrchestrator, "ERROR_TASK_DRAIN_TIMEOUT_SECONDS", 0.02
+        ):
+            await _wait_bounded(
+                orch.run(
+                    lambda sid, sink: asyncio.sleep(0, result=(MagicMock(), True))
+                ),
+                name="orch_run_budget",
+            )
 
-        # 提交一条需要等待排空的转录
-        assert orch.sink is not None
-        assert (
-            orch.sink.submit("user", "important transcript", event_id=uuid.uuid4())
-            is True
-        )
-        await writer_entered.wait()
+            # 提交一条需要等待排空的转录
+            assert orch.sink is not None
+            assert (
+                orch.sink.submit("user", "important transcript", event_id=uuid.uuid4())
+                is True
+            )
+            await _wait_bounded(writer_entered.wait(), name="writer_entered")
 
-        # 触发挂起的错误通知任务
-        handlers["error"](_make_error_event(RuntimeError("hang"), recoverable=False))
-        await error_entered.wait()
-        assert len(orch._error_tasks) == 1
-        hung_task = next(iter(orch._error_tasks))
+            # 触发挂起的错误通知任务
+            handlers["error"](
+                _make_error_event(RuntimeError("hang"), recoverable=False)
+            )
+            await _wait_bounded(error_entered.wait(), name="error_entered")
+            assert len(orch._error_tasks) == 1
+            hung_task = next(iter(orch._error_tasks))
 
-        # 启动组合关闭：0.02s 后错误通知任务必须被取消并完成清理，随后继续等待 Sink 排空
-        close_task = asyncio.create_task(ctx.shutdown_callbacks[0]())
-        await error_cancelled_cleanup.wait()
-        while not hung_task.done() or len(orch._error_tasks) > 0:
-            await asyncio.sleep(0)
+            # 启动组合关闭：0.02s 后错误通知任务必须被取消并完成清理，随后继续等待 Sink 排空
+            close_task = asyncio.create_task(ctx.shutdown_callbacks[0]())
+            await _wait_bounded(
+                error_cancelled_cleanup.wait(), name="error_cancelled_cleanup"
+            )
+            await _poll_bounded(
+                lambda: hung_task.done() and len(orch._error_tasks) == 0,
+                name="wait_hung_task_and_error_tasks_done",
+            )
 
-        assert hung_task.done() is True
-        assert hung_task.cancelled() is True
-        assert len(orch._error_tasks) == 0
-        # Sink 此时仍在等待 writer_release（未因 0.02s 错误通知预算被提前掐断）
-        assert not close_task.done()
-        assert orch.sink.closed is False
+            assert hung_task.done() is True
+            assert hung_task.cancelled() is True
+            assert len(orch._error_tasks) == 0
+            # Sink 此时仍在等待 writer_release（未因 0.02s 错误通知预算被提前掐断）
+            assert not close_task.done()
+            assert orch.sink.closed is False
 
+            writer_release.set()
+            assert await _wait_bounded(close_task, name="close_task") is True
+            assert orch.sink.closed is True
+            assert orch.sink.snapshot().succeeded == 1
+    finally:
         writer_release.set()
-        assert await close_task is True
-        assert orch.sink.closed is True
-        assert orch.sink.snapshot().succeeded == 1
+        never_set.set()
+        await _cleanup_test_resources(tasks=[close_task], orch=orch, timeout=1.0)
 
 
 @pytest.mark.asyncio
@@ -777,33 +973,44 @@ async def test_disconnect_reentrant_shutdown_no_deadlock_or_self_cancel():
     orig_sink_close = orch.sink.close
     orch.sink.close = AsyncMock(side_effect=orig_sink_close)
 
-    # 通过真实保存的 error 回调触发通知
-    handlers["error"](
-        _make_error_event(
-            APIStatusError(message="401 auth", status_code=401),
-            recoverable=False,
+    external_close_task: asyncio.Task[bool] | None = None
+    notify_task: asyncio.Task[Any] | None = None
+    try:
+        # 通过真实保存的 error 回调触发通知
+        handlers["error"](
+            _make_error_event(
+                APIStatusError(message="401 auth", status_code=401),
+                recoverable=False,
+            )
         )
-    )
-    await disconnect_entered.wait()
-    assert len(orch._error_tasks) == 1
-    notify_task = next(iter(orch._error_tasks))
+        await _wait_bounded(disconnect_entered.wait(), name="disconnect_entered")
+        assert len(orch._error_tasks) == 1
+        notify_task = next(iter(orch._error_tasks))
 
-    # 外部同时发起 close，随后放行 disconnect 内的重入 close
-    external_close_task = asyncio.create_task(ctx.shutdown_callbacks[0]())
-    await asyncio.sleep(0)
-    allow_reentrant_close.set()
+        # 外部同时发起 close，随后放行 disconnect 内的重入 close
+        external_close_task = asyncio.create_task(ctx.shutdown_callbacks[0]())
+        await asyncio.sleep(0)
+        allow_reentrant_close.set()
 
-    external_res = await external_close_task
-    await asyncio.wait({notify_task})
+        external_res = await _wait_bounded(
+            external_close_task, name="external_close_task"
+        )
+        await _wait_bounded(asyncio.wait({notify_task}), name="wait_notify_task")
 
-    assert external_res is True
-    assert reentrant_results == [True]
-    assert notify_task.done() is True
-    assert notify_task.cancelled() is False
-    assert notify_task.exception() is None
-    assert len(orch._error_tasks) == 0
-    assert orch.sink.close.await_count == 1
-    assert orch.sink.closed is True
+        assert external_res is True
+        assert reentrant_results == [True]
+        assert notify_task.done() is True
+        assert notify_task.cancelled() is False
+        assert notify_task.exception() is None
+        assert len(orch._error_tasks) == 0
+        assert orch.sink.close.await_count == 1
+        assert orch.sink.closed is True
+    finally:
+        allow_reentrant_close.set()
+        disconnect_entered.set()
+        await _cleanup_test_resources(
+            tasks=[external_close_task, notify_task], orch=orch, timeout=1.0
+        )
 
 
 @pytest.mark.asyncio

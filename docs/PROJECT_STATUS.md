@@ -14,11 +14,23 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-28 本地 RF-09 重入回归测试有界失败与资源清理实施记录（A59）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` 与 `TODO.md` RF-09 要求完成本地实施。针对上一轮变异测试将重入查询置 False 导致 Event/回调等待互等直至 900 秒硬超时的门禁隐患，为重入与关闭测试建立独立外部完成观察预算与协调资源清理机制，修正显式 None 语义，补充确定性负向测试与故障路径验证。
+
+- 独立外部完成观察预算与等待收拢：在 `test_sink_reentry_boundary.py`、`test_error_task_lifecycle.py` 与 `test_transcript_sink.py` 中引入命名测试预算常量（`TEST_REENTRY_BUDGET_SECONDS = 2.0` / `TEST_ERROR_LIFECYCLE_BUDGET_SECONDS = 2.0` / `TEST_SINK_BUDGET_SECONDS = 2.0`），抽取本地纯标准库异步等待 helper `_wait_bounded` 与轮询 helper `_poll_bounded`，针对性覆盖 Event 永不到达、关闭互等与 `while ...: await asyncio.sleep(0)` 无限循环场景；`_wait_bounded` 改为显式持有 Task 并通过 `asyncio.wait(timeout)` 观察，到期不在观察函数中无限等待取消完成（规避底层 shield 延迟响应取消导致测试卡死无法进入 finally），由 finally 接管，所有新建观察 Task 自动登记与回收。
+- 协调 Try...Finally 资源清理与任务收束：在核心重入与关闭测试中建立严格的异常清理契约：测试无论因断言失败还是超时抛出 `TimeoutError`，`finally` 块均释放自建 gate（`allow_reentrant_close`、`disconnect_entered`、`gate1`、`gate2` 等）；通过 `_cleanup_test_resources` 一次性收集测试装置拥有的外部 Task、Orchestrator 共享 `_sink_close_task` 与错误任务以及 Sink worker/notify/close 任务，统一发起取消解开 shield 依赖并收束，检索所有（含早已完成）任务异常，对最终 pending 明确报错并给出任务名称；多资源清理保证前项失败不跳过后续资源。
+- 严格区分正常关闭与强制清场：移除测试 helper 中直接写 `sink._closed=True` / `sink._accepting=False` 伪造关闭终态的做法；正常关闭由测试正常调用产品 `close()` 并验证其返回值、快照与任务状态；强制清场仅在异常/负向分支取消并等待自有任务，严禁伪造产品终态属性。
+- 通知 Task 身份保持与显式 None 语义统一：澄清并修正文档与注释中对 `is_failure_notification_task(task=None)` 的误述，确立 `task=None` 与无参调用语义严格对齐，均指代当前任务（在通知任务内部返回 `True`，在外部任务返回 `False`）；重入测试直接在通知原 Task 中直接 await `sink.close()`，消除包装任务导致的身份漂移，并增加断言证明通知回调 Task 身份及重入非取消回退。
+- 确定性负向测试与故障路径验证：新增 `test_negative_reentry_bounded_timeout_when_notification_event_never_arrives`（使用真实故障通知回调挂起装置证明通知未到达在短预算内可判定超时并收束任务）与 `test_negative_reentry_deadlock_detected_when_reentry_query_returns_false`（使用本地替身模拟重入查询返回 False 造成关闭互等，在短预算内捕获死锁并在 finally 完整收束所有任务）；新增 `test_sink_close_delayed_cancellation_response_external_budget_expires_first`（验证底层延迟响应取消时外部完成观察预算先到期抛错且随后在 finally 释放门控并清场）与 `test_cleanup_continues_and_cleans_remaining_resources_when_one_step_fails`（验证清理步骤中某个步骤失败时仍继续收束其余自有资源）；使重入回归在变异场景下确定性失败退出 (exit 1) 而非挂起 900 秒（单个观察预算为 0.05s~2.0s，整套变异回归在约 22 秒内产生 4 项预期失败并退出）。
+- 质量与回归测试：后端测试由 511 项增加至 515 项全量通过（覆盖率 82.22%），Ruff 格式与 Lint 检查全部通过。
+- 契约与记录见 [RF-09 重入回归测试有界失败与资源清理验证](./verification/cross-platform/RF-09-BOUNDED-REENTRY-TESTS.md)。`sys.path`/dotenv 清理与真实 LiveKit 环境验收仍待后续完成，RF-09 整项保持未勾选。
+
 ## 2026-10-27 本地 RF-09 公共 Sink 通知重入边界实施记录（A58）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-09 明确边界与 `TODO.md` RF-09 要求完成本地实施。建立 `TranscriptSink` 小型公共行为查询，重构 `AgentJobOrchestrator._close_sink` 关闭逻辑消除对 `sink._notify_task` 私有字段的耦合，保持各组件关闭预算、算法及状态记账不变，并闭环 A57 两项文字 P2。
 
-- 本地实现与公共查询边界：在 `backend/livekit_agent/transcript_sink.py` 中新增公共行为查询方法 `is_failure_notification_task(task: asyncio.Task[Any] | None = None) -> bool`，仅返回当前或指定任务是否为本 Sink 的故障通知任务；返回值严格为 `bool`，不暴露内部 Task 对象；查询为只读纯行为，零写入、零副作用，不改变 Sink 任何状态或记账快照；在无运行事件循环或传入无效任务时安全返回 `False`；Sink 自身 `close()` 重入检测改为使用该公共查询。
+- 本地实现与公共查询边界：在 `backend/livekit_agent/transcript_sink.py` 中新增公共行为查询方法 `is_failure_notification_task(task: asyncio.Task[Any] | None = None) -> bool`，仅返回当前或指定任务是否为本 Sink 的故障通知任务（`task=None` 与无参调用一致均指当前任务）；返回值严格为 `bool`，不暴露内部 Task 对象；查询为只读纯行为，零写入、零副作用，不改变 Sink 任何状态或记账快照；在无运行事件循环或外部普通任务调用时安全返回 `False`；Sink 自身 `close()` 重入检测改为使用该公共查询。
 - 编排器解耦与零私有字段访问：在 `backend/livekit_agent/job_orchestrator.py` 的 `_close_sink()` 中，使用 `getattr(self.sink, "is_failure_notification_task", None)` 公共查询识别 Sink 故障通知重入，彻底消除对 `self.sink._notify_task` 的跨组件私有访问；识别到重入时直接 `await self.sink.close()` 避免死锁；对普通调用继续通过 `_sink_close_task` 共享关闭，保持 `TranscriptSink` 8.0 秒排空预算、异常传播语义及原布尔返回值不变；Orchestrator 自有 2.0 秒通知排空预算保持独立。
 - 故障通知重入端到端闭环：通过真实 `TranscriptSink` 写入失败触发重试耗尽与 `on_failure`，经由真实 `AgentJobOrchestrator._on_sink_failure` 调用 `_send_error_fn` 并执行 `ctx.room.disconnect()`，进而触发注册的单一组合 shutdown callback（`orchestrator.close`），完成“Sink故障通知 → disconnect → Orchestrator.close → Sink.close”重入全链路闭环，证实无自锁、无自取消、任务全收束且并发外部 close 安全共享。
 - A57 文字 P2 修复：修正 `PROJECT_STATUS.md` 中 A57 实际新增测试数为 12（此前误写为 10）；核验真实 `backend/tests/test_error_task_lifecycle.py` 文件（每项测试恰有一个 `@pytest.mark.asyncio`，无重复装饰器）。
