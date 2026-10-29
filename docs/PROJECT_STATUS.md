@@ -14,6 +14,16 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-29 本地 RF-10 用户设置业务服务边界实施记录（A60）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-10“统一 Provider Registry 和设置服务”与 `TODO.md` RF-10 要求完成本地实施。将 `backend/routers/user.py` 中的设置响应构建、权限判断、按变更凭据验证与更新/加密业务逻辑抽入独立纯净服务 `backend/services/user_settings_service.py`，HTTP 路由仅保留认证依赖、当前用户限定数据库事务边界与薄兼容委托。
+
+- 本地实现与服务边界：新建 `backend/services/user_settings_service.py`，提供 `get_key_status`、`decrypt_and_rotate`、`as_validation_result`、`build_user_settings_response`、`validate_custom_mode_permission`、`validate_provider_keys` 与 `apply_settings_update` 独立业务纯函数及无状态命名空间类 `UserSettingsService`；模块零反向导入 `routers/user`、`main` 或 HTTP 应用实例，保持最小公开面；禁止泛化框架与单例驻留用户凭据；无模块导入期默认值绑定与全局可变状态。
+- 路由薄委托与依赖注入契约：`backend/routers/user.py` 的 `GET /api/user/settings` 与 `PUT /api/user/settings` 直接消费 `UserSettingsService`；保留原 7 项 helper 函数签名与薄委托；在调用时从路由命名空间动态传入 `decrypt_api_key`、`encrypt_api_key` 与 `ProviderValidationService`，保证已有测试对 `routers.user` 模块属性的 patch 100% 兼容生效。
+- A54 与 A55 业务契约完全保持：未变化 role 保持零旧密文读取、零解密、零轮换、零拨测并复用原有有效性；显式新 key 仅拨测新 key 绝不解密旧密文；仅变更且沿用旧 key 时按需解密对应 role，并在 `needs_rotation` 时重加密写入；严格保持 STT → LLM → TTS 校验与 422 失败字典字段顺序；`has_key` 严格基于 `is not None` 判断；响应结构绝不返回明文、密文或版本号；free 用户禁止关闭 custom mode (403)。
+- 质量与回归测试：新增 `backend/tests/test_user_settings_service.py`（14 项测试），覆盖状态三态映射矩阵、布尔测试替身转换、空记录默认值与指定 tier、响应字段脱敏与默认主题回退、free 用户 custom mode 权限阻断、空密文零解密、旧 key 沿用与按需旋转、无变更零拨测零解密、显式新 key 仅测新 key、422 detail.providers 顺序保持、字段写入与三路全 true 判定、路由 7 项薄委托与 patch 兼容性，以及通过 Spy 证实生产 HTTP GET/PUT 入口直接消费 `UserSettingsService`；全量后端测试由 515 项增加至 529 项全量通过（覆盖率 82.49%，`user_settings_service.py` 覆盖率 98%），Ruff 格式与 Lint 检查全部通过。
+- 契约与记录见 [RF-10 用户设置业务服务边界验证](./verification/cross-platform/RF-10-SETTINGS-SERVICE.md)。真实外部 Provider 拨测与前端元数据展示统一仍待后续完成，RF-10 整项保持未勾选。
+
 ## 2026-10-28 本地 RF-09 重入回归测试有界失败与资源清理实施记录（A59）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` 与 `TODO.md` RF-09 要求完成本地实施。针对上一轮变异测试将重入查询置 False 导致 Event/回调等待互等直至 900 秒硬超时的门禁隐患，为重入与关闭测试建立独立外部完成观察预算与协调资源清理机制，修正显式 None 语义，补充确定性负向测试与故障路径验证。
