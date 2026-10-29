@@ -36,9 +36,14 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
           </div>
         ) : null}
         <p className="text-text-muted text-sm">{t.scoreLabel}</p>
-        <p className={`text-4xl font-bold ${scoreColor}`}>
+        <p
+          className={`text-4xl font-bold ${scoreColor}`}
+          aria-label={`${t.scoreLabel}: ${Math.round(assessment.overall_score)} / 100`}
+        >
           {Math.round(assessment.overall_score)}
-          <span className="text-text-faint text-lg">/100</span>
+          <span className="text-text-faint text-lg" aria-hidden="true">
+            /100
+          </span>
         </p>
       </div>
 
@@ -60,9 +65,15 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
                 <span className="bg-surface-alt text-text-muted mr-2 inline-block rounded px-2 py-0.5 text-xs font-medium">
                   {err.skill_tag}
                 </span>
-                <span className="text-danger text-sm line-through">{err.original}</span>
+                <del className="text-danger text-sm">
+                  <span className="sr-only">Original: </span>
+                  {err.original}
+                </del>
                 {err.corrected && (
-                  <span className="text-success ml-2 text-sm">{err.corrected}</span>
+                  <ins className="text-success ml-2 text-sm no-underline">
+                    <span className="sr-only">Correction: </span>
+                    {err.corrected}
+                  </ins>
                 )}
               </li>
             ))}

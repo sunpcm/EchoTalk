@@ -14,3 +14,8 @@
 
 **Learning:** Custom progress bar components (such as daily conversation turn counters and skill mastery levels) rendered as styled `<div>` elements are completely invisible to screen readers without `role="progressbar"` and standard ARIA progress attributes.
 **Action:** Always wrap visual progress indicators in `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`, and `aria-label`.
+
+## 2025-03-03 - Semantic HTML Elements (<del> and <ins>) for Error Diff Accessibility
+
+**Learning:** Relying solely on CSS `line-through` and color styling to show original error text and corrected text fails to convey deletion/correction context to screen readers, which do not announce text decorations by default.
+**Action:** Use semantic `<del>` and `<ins>` elements with visually hidden screen reader descriptions (`<span className="sr-only">Original: </span>` and `<span className="sr-only">Correction: </span>`) for text diffs and corrections.
