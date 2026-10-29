@@ -5,12 +5,19 @@ import type { AssessmentResponse, GrammarErrorResponse } from "@/lib/api";
 
 describe("PronunciationFeedback", () => {
   const mockAssessment: AssessmentResponse = {
+    id: "assess-1",
     session_id: "test-session",
     overall_score: 85,
     is_synthetic: false,
     phoneme_alignment: [
       { position: 0, phoneme: "AE", type: "correct", expected: "AE", actual: "AE" },
     ],
+    source: "azure",
+    provider: "azure",
+    model_version: "1.0",
+    confidence: 0.95,
+    provider_response_ref: null,
+    created_at: new Date().toISOString(),
   };
 
   const mockGrammarErrors: GrammarErrorResponse[] = [
@@ -20,6 +27,13 @@ describe("PronunciationFeedback", () => {
       original: "he go to school",
       corrected: "he goes to school",
       skill_tag: "subject-verb-agreement",
+      error_type: "grammar",
+      source: "spacy",
+      provider: "spacy",
+      model_version: "1.0",
+      is_synthetic: false,
+      confidence: 0.9,
+      created_at: new Date().toISOString(),
     },
   ];
 
