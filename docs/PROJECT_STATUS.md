@@ -14,6 +14,22 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-29 本地 RF-11 设置保存载荷行为抽取实施记录（A61）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“按行为拆分 SettingsDrawer”与 `TODO.md` RF-11 要求完成本地实施。将 `SettingsDrawer.handleSave` 内构建 `UserSettingsUpdate` 载荷的纯计算抽为小型独立纯函数模块 `settingsPayload.ts`，由真实组件消费，新增直接单测及真实保存回归，并修复两项维护 P2。
+
+- 本地实现与模块边界：新建 `apps/vite-app/src/components/settings/settingsPayload.ts`，提供 `buildSettingsUpdate(input: SettingsPayloadInput): UserSettingsUpdate`；模块仅导入类型（`import type { UserSettingsUpdate }`），零 React/DOM/store/持久化依赖，零网络副作用，零全局可变状态与明文密钥保存；入参采用纯标量快照接口，绝不修改输入对象，每次调用返回全新独立对象。
+- 逐项行为等价契约保持：
+  - 始终携带 `is_custom_mode` 布尔值。
+  - `isCustomMode: false` 时，返回且仅返回 `{ is_custom_mode: false }`，绝不携带 provider/model/key 字段。
+  - `isCustomMode: true` 时，按原有确定性字段顺序设置 `stt_provider`、`llm_provider`、`tts_provider`；`llmModel.trim()` 非空才设置 `llm_model`；各 role 的 key 仅在 `trim()` 后非空才携带，全空白或空字符串表示省略不更新，不引入清空语义；严禁带入 `theme`、`has_key`、`status` 等额外字段。
+- 组件真实消费与交互保持：`SettingsDrawer.tsx` 引入并直接在 `handleSave` 消费 `buildSettingsUpdate`；单次保存只调用一次 `updateSettings`；原 `saving` 状态管理、错误/成功提示与 toast 定时器、加载/后端同步清空密钥草稿、订阅权限判定及原生 dialog 模态焦点/键盘/动画/样式行为 100% 保持不变。
+- P2 维护修正落地：
+  - 修复 `backend/tests/test_user_settings_service.py` 中 `test_production_router_consumes_service_directly` 用例在退出时执行 `app.dependency_overrides = {}` 清空全局依赖字典的问题，改为基于 `try...finally` 精确保存与恢复 `get_db` 原有覆盖（原不存在则仅 `pop` 自身键），避免污染其他 fixture 的认证依赖。
+  - 修正 `docs/verification/cross-platform/RF-10-SETTINGS-SERVICE.md` §2.2 首行测试数量笔误（13 项修为实际 14 项）。
+- 质量与回归测试：新增 `settingsPayload.test.ts` 覆盖 on/off、单/多 key 分别与混合、全空白/前后空白截断、空/非空 model、冻结入参不变性、多调用独立对象及无额外字段测试；在 `SettingsDrawer.test.tsx` 中增加真实保存消费回归（离线 store 替身，验证消费 `buildSettingsUpdate` 且传给 `updateSettings` 的完整 payload，在 `finally` 完整恢复覆盖）。
+- 契约与记录见 [RF-11 设置保存载荷行为抽取验证](./verification/cross-platform/RF-11-SETTINGS-PAYLOAD.md)。前端 API 类型生成与会话状态模型重构仍待完成，RF-11 整项保持未勾选。
+
 ## 2026-10-29 本地 RF-10 用户设置业务服务边界实施记录（A60）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-10“统一 Provider Registry 和设置服务”与 `TODO.md` RF-10 要求完成本地实施。将 `backend/routers/user.py` 中的设置响应构建、权限判断、按变更凭据验证与更新/加密业务逻辑抽入独立纯净服务 `backend/services/user_settings_service.py`，HTTP 路由仅保留认证依赖、当前用户限定数据库事务边界与薄兼容委托。

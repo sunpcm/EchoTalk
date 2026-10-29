@@ -63,7 +63,7 @@
 
 ### 2.2 自动化回归测试
 
-- `backend/tests/test_user_settings_service.py`（新增 13 项单元与委托测试）：
+- `backend/tests/test_user_settings_service.py`（新增 14 项单元与委托测试）：
   1. `test_get_key_status_mapping`：验证三态映射矩阵。
   2. `test_as_validation_result_behavior`：验证分类结果与布尔替身转换。
   3. `test_build_user_settings_response_none_row`：验证空记录默认值与指定 tier。

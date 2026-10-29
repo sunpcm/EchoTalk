@@ -448,49 +448,55 @@ async def test_production_router_consumes_service_directly():
         return settings_result
 
     mock_db.execute.side_effect = _exec_side_effect
+    had_get_db = get_db in app.dependency_overrides
+    original_get_db = app.dependency_overrides.get(get_db)
     app.dependency_overrides[get_db] = lambda: mock_db
 
-    # 1) GET /api/user/settings 证实消费 UserSettingsService.build_user_settings_response
-    with patch.object(
-        UserSettingsService,
-        "build_user_settings_response",
-        wraps=UserSettingsService.build_user_settings_response,
-    ) as spy_build:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.get("/api/user/settings")
-        assert resp.status_code == 200
-        spy_build.assert_called_once()
+    try:
+        # 1) GET /api/user/settings 证实消费 UserSettingsService.build_user_settings_response
+        with patch.object(
+            UserSettingsService,
+            "build_user_settings_response",
+            wraps=UserSettingsService.build_user_settings_response,
+        ) as spy_build:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get("/api/user/settings")
+            assert resp.status_code == 200
+            spy_build.assert_called_once()
 
-    # 2) PUT /api/user/settings 证实消费 UserSettingsService 核心方法
-    with (
-        patch.object(
-            UserSettingsService,
-            "validate_custom_mode_permission",
-            wraps=UserSettingsService.validate_custom_mode_permission,
-        ) as spy_perm,
-        patch.object(
-            UserSettingsService,
-            "validate_provider_keys",
-            wraps=UserSettingsService.validate_provider_keys,
-        ) as spy_val,
-        patch.object(
-            UserSettingsService,
-            "apply_settings_update",
-            wraps=UserSettingsService.apply_settings_update,
-        ) as spy_apply,
-    ):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.put(
-                "/api/user/settings",
-                json={"theme": "dark"},
-            )
-        assert resp.status_code == 200
-        spy_perm.assert_called_once()
-        spy_val.assert_called_once()
-        spy_apply.assert_called_once()
-
-    app.dependency_overrides = {}
+        # 2) PUT /api/user/settings 证实消费 UserSettingsService 核心方法
+        with (
+            patch.object(
+                UserSettingsService,
+                "validate_custom_mode_permission",
+                wraps=UserSettingsService.validate_custom_mode_permission,
+            ) as spy_perm,
+            patch.object(
+                UserSettingsService,
+                "validate_provider_keys",
+                wraps=UserSettingsService.validate_provider_keys,
+            ) as spy_val,
+            patch.object(
+                UserSettingsService,
+                "apply_settings_update",
+                wraps=UserSettingsService.apply_settings_update,
+            ) as spy_apply,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.put(
+                    "/api/user/settings",
+                    json={"theme": "dark"},
+                )
+            assert resp.status_code == 200
+            spy_perm.assert_called_once()
+            spy_val.assert_called_once()
+            spy_apply.assert_called_once()
+    finally:
+        if had_get_db:
+            app.dependency_overrides[get_db] = original_get_db
+        else:
+            app.dependency_overrides.pop(get_db, None)

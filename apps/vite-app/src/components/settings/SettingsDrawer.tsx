@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSettingsStore, type ThemeName } from "@/store/settings";
 import { zhCN } from "@/i18n/zh-CN";
-import type { UserSettingsUpdate } from "@/lib/api";
+import { buildSettingsUpdate } from "./settingsPayload";
 import { beginLogout, getAuthMode } from "@/lib/auth";
 
 const t = zhCN.settings;
@@ -231,21 +231,16 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   };
 
   const handleSave = useCallback(async () => {
-    const data: UserSettingsUpdate = { is_custom_mode: isCustomMode };
-
-    if (isCustomMode) {
-      data.stt_provider = sttProvider as "deepgram";
-      data.llm_provider = llmProvider as "siliconflow" | "openrouter";
-      data.tts_provider = ttsProvider as "cartesia";
-
-      if (llmModel.trim()) {
-        data.llm_model = llmModel.trim();
-      }
-      // 仅在用户输入了新 Key 时才发送（空字符串 = 不更新）
-      if (sttKey.trim()) data.stt_key = sttKey.trim();
-      if (llmKey.trim()) data.llm_key = llmKey.trim();
-      if (ttsKey.trim()) data.tts_key = ttsKey.trim();
-    }
+    const data = buildSettingsUpdate({
+      isCustomMode,
+      sttProvider,
+      llmProvider,
+      llmModel,
+      ttsProvider,
+      sttKey,
+      llmKey,
+      ttsKey,
+    });
 
     // 清除上一次的toast
     setToastError(null);
