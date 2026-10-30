@@ -16,12 +16,16 @@ describe("RecommendedScenarios", () => {
 
   it("renders scenario enter buttons with descriptive aria-label containing scenario title", async () => {
     vi.mocked(api.getRecommendedCurriculum).mockResolvedValueOnce({
+      weakest_skill: "past_tense",
+      weakest_skill_mastery: 0.4,
+      target_level: "B2",
       recommendations: [
         {
           scenario_name: "job_interview",
           difficulty_cefr: "B2",
+          category: "career",
           focus_skills: ["past_tense"],
-          reason: "Practice past tense",
+          system_prompt_template: "Job interview prompt",
         },
       ],
     });
@@ -45,12 +49,16 @@ describe("RecommendedScenarios", () => {
   it("sets aria-busy and checking aria-label on enter button when checking health", async () => {
     useConversationStore.setState({ connectionState: "checking_health" });
     vi.mocked(api.getRecommendedCurriculum).mockResolvedValueOnce({
+      weakest_skill: "ordering",
+      weakest_skill_mastery: 0.5,
+      target_level: "A2",
       recommendations: [
         {
           scenario_name: "daily_cafe",
           difficulty_cefr: "A2",
+          category: "life",
           focus_skills: ["ordering"],
-          reason: "Order coffee",
+          system_prompt_template: "Daily cafe prompt",
         },
       ],
     });
