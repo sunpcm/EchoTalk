@@ -41,6 +41,7 @@ function ScenarioCard({
           {formatTitle(scenario.scenario_name)}
         </h3>
         <span
+          aria-label={`难度等级: ${scenario.difficulty_cefr}`}
           className={`ml-2 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cefrColor}`}
         >
           {scenario.difficulty_cefr}
@@ -66,11 +67,18 @@ function ScenarioCard({
       <button
         onClick={() => onEnter(scenario)}
         disabled={isChecking}
-        className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
+        aria-busy={isChecking}
+        aria-label={
+          isChecking
+            ? `检测服务中：${formatTitle(scenario.scenario_name)}`
+            : `${t.enterPractice}：${formatTitle(scenario.scenario_name)}`
+        }
+        className="btn-primary focus-visible:ring-accent flex w-full items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isChecking ? (
           <>
             <svg
+              aria-hidden="true"
               className="text-accent-contrast mr-2 h-4 w-4 animate-spin"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
