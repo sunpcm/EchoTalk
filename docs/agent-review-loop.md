@@ -179,3 +179,9 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
 - 后端新增离线导出回归：`cd backend && ../.review/rf07-a37-dev-venv/bin/python -m pytest tests/test_openapi_export.py`；CI `test-backend` 另在 full pytest 前执行 schema `--check`。
 - 两层职责：backend job 验证实际 FastAPI schema 未漂移；frontend job 验证 schema 到 TypeScript 字节未漂移并运行生成器测试，不安装 Python 全栈。
 - 更新流程：修改 HTTP schema 后，由受控主 Agent 先执行 Python 导出，再审阅 JSON diff，执行 Node 生成，最后运行 `check:api-types`、typecheck、生成器测试和完整测试树。任一失败都保留旧已审产物，不把部分写入当成功。
+- A67 当前已验状态（2026-11-01）：本地独立 Review APPROVED，定格于单提交
+  `1321bbe43ac540cacb75ea3845ac381076a7c637`，main 精确 fast-forward。完整前端
+  quality10 通过（Vitest 907 项/32 files、Node 构建测试 18 项、Fake API 61 项、类型生成器
+  8 项、Chromium+WebKit E2E 148 项）；专用 PostgreSQL 全 pytest 为 540 passed/3 warnings、
+  79.41%，子进程 coverage 未合并、59% 门禁保持；两项 stale 变异被 killed 并完整还原源码。
+  未 push/部署，远端 CI、真实 IdP/Provider/LiveKit 与设备仍未验证。

@@ -1,9 +1,9 @@
 # RF-11 OpenAPI 类型生成验证
 
-> 状态：真实 FastAPI schema、TypeScript types、生成工具和后端验证已完成；精确 peer override
-> 已通过原生 lock 重生成与冻结安装。完整前端曾在 r2 编译断言的 `no-empty-object-type` lint
-> 非零停止，r3 修复尚待主 Agent 复验；完整前端、变异、main 复验和独立 Review 未完成。
-> 日期：2026-11-01。本文不把尚未复验的 r3 或未运行项记为通过。
+> 状态：本地独立 Review APPROVED。真实 FastAPI schema、TypeScript types、生成工具、前后端
+> 完整门禁、两项 stale 变异和 main fast-forward 已完成；定格于单提交
+> `1321bbe43ac540cacb75ea3845ac381076a7c637`。
+> 日期：2026-11-01。未 push/部署，远端 CI、真实 IdP/Provider、LiveKit 与设备边界仍未验证。
 
 ## 目标与非目标
 
@@ -60,7 +60,8 @@ backend Ruff 格式/lint 与专用测试库全量 pytest 540 passed/3 warnings�
 
 受控事实：Node 22 与 pnpm 10.26.0 下已完成冻结安装，`openapi-typescript@7.13.0` 已从真实
 schema 生成 `api.generated.ts`；types `--check`、Node 生成器 8 项和 TypeScript typecheck 均
-通过。六类 DTO 对真实生成模块的类型适配已通过 typecheck，完整前端测试树仍需完成。
+通过。六类 DTO 对真实生成模块的类型适配已通过 typecheck。完整前端 quality10 通过，包含
+Vitest 907 项/32 files、Node 构建测试 18 项、Fake API 61 项和 Chromium+WebKit E2E 148 项。
 
 ## 依赖图与精确 peer 接线
 
@@ -118,8 +119,8 @@ pnpm install --frozen-lockfile
   已通过；该 job 将在 CI 验证真实 app 与 tracked schema 未漂移。
 - `test-frontend`：既有 frozen pnpm install 后运行 `check:api-types` 与 `test:api-types`，随后
   保持 format/lint/typecheck/Vitest/build/Fake API/E2E。该 job 验证 schema 到 generated types
-  未漂移，且不安装 Python 全栈。本地 types check、Node runner 8 项和 typecheck 已通过，
-  完整 10 门禁尚未完成。
+  未漂移，且不安装 Python 全栈。本地 types check、Node runner 8 项、typecheck 和完整 10 门禁
+  均已通过。
 - 两层都成功后，schema→types 链路才完整；单独一层通过不能代表另一层可复现。
 - 远端 CI 尚未运行，不能宣称 A67 已被远端流水线覆盖。
 
@@ -136,7 +137,7 @@ cd /Users/sunpcm/code/EchoTalk/.review/worktrees/cp00/backend
 ../.review/rf07-a37-dev-venv/bin/python -m pytest tests/test_openapi_export.py
 ```
 
-完整前端只能由主 Agent 在本轮实施停写后复验。固定 10 门禁为：
+完整前端已由主 Agent 在实施停写后复验。固定 10 门禁为：
 
 ```bash
 cd /Users/sunpcm/code/EchoTalk/.review/worktrees/cp00
@@ -152,14 +153,14 @@ pnpm exec turbo run build --force
 pnpm --filter vite-app test:e2e
 ```
 
-r3 把编译期必需字段判断从空对象类型改为 `Pick<T, K>` 与
-`Required<Pick<T, K>>` 的赋值关系，保留 13 个断言且没有新增 runtime 常量。该源码修复本身
-尚未验证。固定 10 门禁通过后，仍需完成变异、main 复验和独立 Review。
+quality10 全部通过后，主 Agent 以两项 schema/types stale 变异确认真实断言均被 killed，并完整
+还原源码；随后验证六 DTO 精确键、双向兼容以及 `api.ts` 去类型 JS 字节等同基线。A67 以本地
+单提交 `1321bbe43ac540cacb75ea3845ac381076a7c637` 完成独立 Review，main 精确 fast-forward。
+专用 PostgreSQL 全 pytest 为 540 passed/3 warnings、79.41%；子进程 coverage 未合并，59%
+门禁保持。
 
 ## 未验证边界
 
-- 完整前端 10 门禁目前没有全绿证据；此前在 r2 lint error 处停止，r3 修复尚待复验。
-- 变异、main 复验和独立 Review 尚未完成。
 - 远端 Linux CI 尚未运行，不能由本地结果推断 A67 已被远端 CI 覆盖。
-- 未验证真实外部依赖、移动端或生产部署。
+- 未 push/部署；未验证真实 IdP、Provider、LiveKit、移动端设备或生产发布链路。
 - 导出隔离是导入期网络失败关闭与最小环境边界，不等于操作系统级密封沙箱。

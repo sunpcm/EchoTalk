@@ -1,7 +1,8 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { VoiceInterface } from "./VoiceInterface";
+import { VoiceInterface, stopRoomLocalTracks } from "./VoiceInterface";
+import * as roomAudio from "./roomAudio";
 import { useConversationStore } from "@/store/conversation";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import * as api from "@/lib/api";
@@ -328,6 +329,10 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("preserves the stopRoomLocalTracks export from the pure roomAudio boundary", () => {
+    expect(stopRoomLocalTracks).toBe(roomAudio.stopRoomLocalTracks);
   });
 
   it("actively stops owned local tracks synchronously when user ends session even if disconnect never completes", async () => {

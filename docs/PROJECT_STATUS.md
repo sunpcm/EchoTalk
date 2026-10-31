@@ -6,21 +6,49 @@
 ## 维护基线
 
 - 最近本地核对日期：2026-11-01。
-- 代码基线：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
-  （`feat: integrate locally reviewed cross-platform milestones (A45-A63)`，squash 合并）。
+- 本地代码基线：`main@1321bbe43ac540cacb75ea3845ac381076a7c637`
+  （A67 本地独立 Review 通过的单一提交，`main` 精确 fast-forward；尚未 push）。
+- 最近远端集成基线：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
+  （`feat: integrate locally reviewed cross-platform milestones (A45-A63)`，PR #108 squash
+  合并）。
 - 远端状态：`main` 为受保护分支（必需状态检查 `test-frontend` / `test-backend`、线性历史、对话已解决，
   admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
   [PR #108](https://github.com/sunpcm/EchoTalk/pull/108) 已 squash 合并，`test-frontend`、`test-backend`
   与 `CI` 三项均通过。后续轮次沿用同一路径：分支 + PR，不直推 main。
 - 自动化证据：PR #108 的 CI run 41217340177 是最近一次远端 CI 记录；
   更早的 #92（`286a3db`）CI run 39348513442 保留为历史发布证据。
-  A45–A63 的本地增量另由本地固定门禁逐轮验证，详见各轮评审报告与
+  A45–A67 的本地增量另由本地固定门禁逐轮验证，详见各轮评审报告与
   `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
-## 2026-11-01 本地 RF-11 OpenAPI 类型生成源码实现记录（A67）
+## 2026-11-01 本地 RF-11 VoiceInterface 行为拆分实施记录（A68-B）
+
+基于 RF-11“按行为拆分 VoiceInterface”完成源码边界拆分，保持既有已验收行为、DOM、文案、
+资源所有权和公共导出；SettingsDrawer 留待下一轮，RF-11 整项继续未完成。
+
+- **入口与依赖方向**：`VoiceInterface` 收缩为内部 phase 选择与 Room key/props；`RoomSession`
+  承担 LiveKit 资源与生命周期；`ActiveConversation` 承担活动 UI；`EndedConversation` 承担
+  终态分析；`ConversationStatusViews` 保留各 phase 的原 DOM/classes/testid/store action；
+  `roomAudio` 是无 React/LiveKit/store 依赖的同步停轨纯工具。依赖只从入口流向叶子，没有
+  反向导入 `VoiceInterface` 或模块环。LiveKit 包与样式副作用仍在公共入口按原顺序求值。
+- **资源与认证所有权**：Room 继续绑定进入时的 issuer+subject principal 与 revision；保留
+  原生 pending/ready/10 秒 timeout、Web 初始与 subscribe-before-snapshot、hidden/offline
+  同步停轨再失败、`RoomContextSync` render/layout 绑定与稳定 cleanup、LiveKit callbacks，以及
+  dispatch 单次去重、同步 reentry 后复验、迟到成功/失败隔离。
+- **活动与终态行为**：`ActiveConversation` 保留 LiveKit hooks、agent_error DataChannel、
+  显式结束同步停轨、健康重渲染不误停和 Connected→active；`EndedConversation` 保留无 ID 本地
+  取消、Agent 错误、分析轮询/失败/重试/主页与 assessment reset，不自动重连或重发旧任务。
+- **兼容与测试策略**：公共 `VoiceInterface` 导出保持；`stopRoomLocalTracks` 移至
+  `roomAudio.ts` 并从原入口兼容再导出。完整 `VoiceInterface.test.tsx` 继续走真实生产入口，
+  ROOM/DSP/CON/DIA 矩阵不改为叶子镜像测试，仅补一项纯工具导出身份兼容断言。
+- **当前边界**：本轮实施节点按受控执行分工停写，未运行 format、baseline、quality10、
+  backend pytest 或变异；这些检查与独立 Review 待主 Agent 代跑。真实 IdP、Provider、
+  LiveKit、设备、远端 CI、部署和发布未验证。契约见
+  [RF-11 VoiceInterface 行为拆分验证](./verification/cross-platform/RF-11-VOICE-COMPONENTS.md)。
+
+## 2026-11-01 本地 RF-11 OpenAPI 类型生成已完成记录（A67）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11 与既有跨端、认证、分页和租约契约，
 建立“真实 FastAPI schema → tracked OpenAPI JSON → generated TypeScript → 生产 API 类型”的
@@ -57,13 +85,16 @@
   单 fetch 和 HTTP 行为未改。
 - **CI 与记录**：frontend job 增加 types 漂移检查与生成器 Node runner，backend job 在既有
   frozen uv 安装后增加真实 schema `--check` 及 full pytest 中的离线导出回归；原 8 项前端
-  门禁不减少。接口与待执行命令见
+  门禁不减少。接口与当前事实见
   [RF-11 OpenAPI 类型生成验证](./verification/cross-platform/RF-11-OPENAPI-TYPES.md)。
-- **当前边界**：完整前端 10 门禁曾在 r2 编译断言的 `@typescript-eslint/no-empty-object-type`
-  处于 lint 非零停止，后续门禁未形成完整证据。r3 已将该断言改成
-  `Pick<T, K>` 与 `Required<Pick<T, K>>` 的赋值关系判断，并保留全部 13 个编译断言；该修复
-  尚待主 Agent 复验。完整前端、变异、main 复验和独立 Review 仍未完成，远端 CI 尚未覆盖
-  A67，因此不能宣称 RF-11 完成。
+- **完成验证**：完整前端 quality10 通过，包含 Vitest 907 项/32 files、Node 构建测试 18
+  项、Fake API 61 项、类型生成器 8 项、Chromium+WebKit E2E 148 项；两项 schema/types stale
+  变异均被真实断言 killed 并完整还原源码。六 DTO 精确键、双向兼容及 `api.ts` 去类型 JS 字节
+  等同基线通过。专用 PostgreSQL 全 pytest 为 540 passed/3 warnings、79.41%；子进程 coverage
+  未合并，59% 门禁保持。
+- **当前边界**：A67 以本地单提交 `1321bbe43ac540cacb75ea3845ac381076a7c637` 完成独立
+  Review，main 精确 fast-forward。未 push/部署，远端 CI、真实 IdP/Provider/LiveKit/设备仍未
+  验证；RF-11 仍因组件拆分等工作保持未勾选。
 
 ## 2026-11-01 本地 RF-11 公共 API 取消入口实施记录（A66）
 
