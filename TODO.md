@@ -67,8 +67,16 @@
       重新导出 `requirements.txt`：删除 amqp/billiard/celery/click-didyoumean/
       click-plugins/click-repl/kombu/prompt-toolkit/redis/tzdata/tzlocal/vine/wcwidth
       13 包，存活包版本逐值相同，LiveKit 7 个 exact SDK 保持。指定 dev/runtime 环境冻结同步
-      为 159/152 包（原 172/165）。完整测试、Review、集成与其余门禁仍待主 Agent 代跑；Chroma
-      业务语料迁移、重型 ML 依赖替换、镜像/CI 体积和冷启动对比仍未完成，故整项保持未勾选。
+      为 159/152 包（原 172/165）；A71 已由独立 Review APPROVED 并以 `dd0fbc0` 完成本地精确
+      集成与全绿复验。
+      A72 r0 已把 10 条种子迁入版本化 JSON，完成严格目录校验、CEFR/技能/priority 确定性检索、
+      Compose/Chroma 引用清理、五个无消费者重依赖的声明删除，以及离线校验工具和真实课程路由
+      回归。主 Agent 已用 uv 0.9.18 离线原生生成 lock/export 并完成 frozen sync：lock
+      179→107、删除 72 条跨平台记录，本机 dev/runtime 安装包 159→106、152→99；全部存活
+      package 记录逐值相同，7 个 LiveKit exact SDK 保持。完整后端首次运行 565 passed/1 failed，
+      失败已定位为测试期望漏掉 restaurant 的次级 tag；A72 r1 已修正该 expected，并把空白包裹
+      等级 `' B2 '` 收窄回原规则的 B1 回退。最终全测试/Review/集成仍待重验；镜像/CI 体积与
+      部署冷启动对比仍未完成，故整项保持未勾选。
 - [ ] **RF-06 清理前端模板**：引用审计后删除无调用者的 Webpack、UI 模板、Changesets、
       Plop 和一次性脚本；根包元数据、workspace、Turbo、Docker 和 Capacitor 保持一致。
       本地已完成根包项目语义与一次性诊断脚本清理（A47）：根目录 `package.json` 规范声明 `name: "echotalk"`、准确 `description`、显式声明 `private: true` 并删除无目标的无效 `main: "index.js"`；引用审计确认根目录 `test_api_err.ts` 仅在手册中有说明且无任何自动化测试或工程调用，完成安全删除并同步更新评审手册；保留 Webpack/ui-lib/Plop/Changesets 等工具与模板链条；见 [RF-06 根元数据与一次性诊断清理验证](./docs/verification/cross-platform/RF-06-ROOT-CLEANUP.md)；前端模板深度精简仍待后续推进，整项保持未勾选。

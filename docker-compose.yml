@@ -17,19 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  echotalk-chroma:
-    image: chromadb/chroma:1.5.9
-    restart: unless-stopped
-    volumes:
-      - chroma-data:/data
-    networks:
-      - echotalk-net
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8000'"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   # ── 后端服务 ────────────────────────────────────────────────
   echotalk-api:
     build: ./backend
@@ -40,15 +27,11 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
-      CHROMA_HOST: echotalk-chroma
-      CHROMA_PORT: 8000
     dns:
       - 8.8.8.8
       - 223.5.5.5
     depends_on:
       echotalk-postgres:
-        condition: service_healthy
-      echotalk-chroma:
         condition: service_healthy
     networks:
       - echotalk-net
@@ -62,8 +45,6 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
-      CHROMA_HOST: echotalk-chroma
-      CHROMA_PORT: 8000
     dns:
       - 8.8.8.8
       - 223.5.5.5
@@ -118,4 +99,3 @@ networks:
 
 volumes:
   postgres-data:
-  chroma-data:

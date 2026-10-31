@@ -4,6 +4,10 @@
 > 状态：源码、仓内文档与依赖产物已完成；完整测试、Review 和集成待主 Agent 继续执行。
 > 日期：2026-11-01。
 
+> 后续状态：A72 已继续完成课程语料离线迁移与 Chroma 引用清理。本文件第 1-5 节保留 A71
+> 当时事实；当前结论见
+> [RF-05 版本化离线课程推荐验证](./RF-05-OFFLINE-CURRICULUM.md)。
+
 ## 1. 真实调用审计
 
 对全部已跟踪生产、脚本和 Compose 引用做了定向审计，结论如下：
@@ -71,3 +75,18 @@ Review APPROVED。
 
 RF05 整项保持未勾选。Chroma 业务语料迁移、重型 ML 依赖替换、镜像/CI 体积、冷启动比较、
 当前远端树 CI 和真实外部链路仍未完成或未验证。
+
+## 6. A72 当前结论
+
+- 10 条教学种子已迁入 `backend/data/teaching_materials.json`；检索不再依赖 Chroma、embedding、
+  网络、环境变量或数据库。
+- `echotalk-chroma`、Chroma 环境变量/健康依赖/volume 以及旧 seed 写入链路已从代码和
+  `docker-compose.yml` 删除；未操作现有容器、服务、卷或持久化数据。
+- `chromadb`、`sentence-transformers`、`librosa`、`soundfile`、`scikit-learn` 已从
+  `backend/pyproject.toml` 删除直接声明。
+- 主 Agent 已用 uv 0.9.18 离线原生重生成 lock/export 并完成受控环境 frozen sync：lock
+  179→107、删除 72 条跨平台记录；本机 dev/runtime 安装包 159→106、152→99，各删除 53 包；
+  全部存活 package 完整记录逐值相同，7 个 LiveKit exact SDK 保持。
+- 完整后端首次运行 565 passed/1 failed，唯一失败是测试 expected 漏掉 restaurant 次级 tag；
+  r1 已修正该 expected，并收窄空白包裹等级的错误放宽。最终全测试、Compose 静态校验、Review、
+  集成、镜像/CI 体积和冷启动比较仍待执行。RF05 整项继续保持未勾选。

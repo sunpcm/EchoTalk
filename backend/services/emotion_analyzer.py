@@ -5,7 +5,7 @@
 纯 CPU 计算，单次调用 <0.1ms，适合在 LiveKit Agent 事件循环中直接执行。
 
 Phase 3 本地轻量化方案——仅文本分析。
-Pro/Premium 音频特征分析（librosa F0/能量）预留为后续扩展。
+Pro/Premium 音频特征分析作为独立产品能力另行评估。
 """
 
 import re

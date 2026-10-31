@@ -42,7 +42,7 @@
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
-## 2026-11-01 本地 RF-05 Redis/Celery 减法待 Review（A71）
+## 2026-11-01 本地 RF-05 Redis/Celery 减法（A71 当时状态）
 
 基于 RF-05，对全部已跟踪生产、脚本与 Compose 引用做了定向审计。分析业务实际由
 `routers/sessions.py → services/analysis_jobs.py → workers/analysis_worker.py` 的
@@ -66,6 +66,45 @@ PostgreSQL Job 链路承载；课程推荐由 `routers/curriculum.py → service
 - **剩余边界**：Chroma 业务语料迁移、重型 ML 依赖替换、镜像/CI 体积与冷启动比较、周报产品
   功能仍未完成，RF05 整项保持未勾选。调用审计与精确文件清单见
   [RF-05 Redis/Celery 减法验证](./verification/cross-platform/RF-05-DEAD-INFRA.md)。
+
+## 2026-11-01 本地 RF-05 离线课程目录实施（A72 r0/r1）
+
+A71 已核销为独立 Review APPROVED、单提交 `dd0fbc0`、main 精确 fast-forward 并完成 main
+复验：frontend10、917 Vitest、148 E2E、540 backend（79.59%）、OpenAPI schema 与 Ruff
+全绿；lock/dev/runtime 为 179/159/152，删除的 13 个 Celery/Redis 孤儿包在存活记录与 7 个
+LiveKit exact SDK 版本中保持既定结果。这些 A71 事实与 A37/A65/A66 等历史范围分开记录。
+
+A72 r0 将原有 10 条教学种子逐值迁入 `backend/data/teaching_materials.json`，把
+`services/rag_service.retrieve_materials()` 改为无网络、无环境变量、无数据库和无 embedding
+模型的确定性检索。目录加载严格校验 id、CEFR、数值、必填字段、priority、标签类型及
+primary-skill 归属；缓存为冻结对象，调用返回的列表和标签可变副本不会污染后续请求。
+Krashen target 至 target+1 范围、非法等级回退 B1、大小写兼容及既有调用形状保持不变。
+
+- **路由**：`routers/curriculum.py` 的鉴权、当前用户/BKT 弱项、等级推导和响应模型未改；
+  只更新说明与检索阶段注释。
+- **Compose**：删除 `echotalk-chroma`、API/Agent 的 `CHROMA_HOST`/`CHROMA_PORT`、Chroma
+  健康依赖和 `chroma-data` 声明；其他服务、地址、端口、环境与卷未改。
+- **依赖声明**：从 `backend/pyproject.toml` 删除 `chromadb`、`sentence-transformers`、
+  `librosa`、`soundfile`、`scikit-learn` 五个直接声明。主 Agent 已用 uv 0.9.18 离线原生
+  重生成 lock/export 并完成 dev/runtime frozen sync：lock 179→107，删除 72 条跨平台记录；
+  本机两环境各删除 53 个安装包，dev 159→106、runtime 152→99。全部存活 package 完整记录
+  逐值相同，7 个 LiveKit exact SDK 保持。实施方未手写或重算锁/环境。
+- **离线工具**：`python -m scripts.seed_corpus` 从 `backend` 或模块装配下的任意 cwd 校验
+  catalog 并输出确定性摘要，不再写 Chroma、下载模型或注入 `sys.path`。
+- **测试**：新增真实目录 10 项对账、坏数据失败、缓存隔离、CEFR/top_k 边界、确定性排序、
+  离线子进程测试，以及专用 PostgreSQL schema 中的默认弱项、技能相关性、用户隔离和 401
+  路由回归；旧 Chroma client/cache 测试已删除。
+- **当前门禁**：formatter、frontend10 与 Ruff 已通过；完整后端首次运行 565 passed/1 failed。
+  唯一失败是测试 expected 漏掉 `mat_restaurant_b1` 的 `article_usage` 次级标签命中，生产
+  rank 本身符合 r0 规则。A72 r1 已修正真实排序 expected，并将 `' B2 '` 收回未知等级的 B1
+  回退；全部测试、schema、Compose 静态校验、Review 与集成仍需最终重验。
+- **同口径本机观察**：runtime 环境 1,390,752→326,916 KiB；requirements
+  82,071→52,074 bytes；三次新进程仅导入 RAG 模块为
+  2.658671542/0.269479250/0.260155625 秒→0.003195792/0.001239125/0.001205500 秒，
+  中位数 0.269479250→0.001239125 秒。数据受 OS 缓存影响，不代表物理冷读、完整应用启动、
+  Docker 镜像、CI 安装或部署指标。
+- **产品边界**：HTTP 响应契约、身份隔离、分析、Provider 与语音功能未改。镜像/CI 体积和
+  部署冷启动尚无迁移前后实测，RF05 整项保持未勾选；周报仍未实现。
 
 ## 2026-11-01 本地 RF-11 SettingsDrawer 行为拆分独立验收（A69）
 
@@ -551,7 +590,7 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 | 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                  | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明 |
 | 会话分析       | 持久化分析状态、发音评估、语法检测、BKT 知识追踪、失败/重试状态                    | 自动化覆盖核心状态机；真实发音 Provider 仍需外部验收       |
 | 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态 | 已实现                                                     |
-| 自适应课程     | 读取薄弱技能，通过 ChromaDB/Krashen i+1 生成课程推荐                               | 存在真实 API 调用链；ChromaDB 客户端按进程复用             |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务   |
 | BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast | 已实现；密钥轮换和 Provider 连通性需按环境验收             |
 | DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                | 已实现 Web 流程；移动端文件选择仍在 TODO                   |
 | 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、关键组件键盘与可访问性支持        | 已实现；完整无障碍审计仍未完成                             |

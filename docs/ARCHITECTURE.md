@@ -29,8 +29,8 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 └──────┬─────────┬───────────┘           └──────────────┬──────────────┘
        │         │                                      │
        ▼         ▼                                      ▼
- PostgreSQL    ChromaDB                           外部 AI Provider
- 事实数据       教学语料向量检索                  Deepgram/LLM/Cartesia
+ PostgreSQL    版本化教学语料                    外部 AI Provider
+ 事实数据       离线确定性课程检索                Deepgram/LLM/Cartesia
 
  PostgreSQL ◀──── Analysis Worker（Job 原子领取、有限重试、超时恢复与幂等）
 ```
@@ -49,7 +49,7 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 | 鉴权              | 仅 Mock                | 所有 Bearer Token 当前都映射到同一个固定用户，不能用于多用户或公网生产              |
 | BYOK              | 已实现但受鉴权边界限制 | Key 用 Fernet 加密入库；密钥由 `JWT_SECRET_KEY` 派生                                |
 | 评估 / BKT        | 已实现                 | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态                  |
-| RAG               | 已实现                 | 课程推荐读取 ChromaDB；语料需单独播种                                               |
+| 课程检索          | 已实现                 | 推荐读取版本化 JSON，按 CEFR、技能、priority 与 id 确定性排序                       |
 | 周报              | 未实现                 | 多维学习报告仍是独立产品功能，当前没有任务骨架或业务入口                            |
 
 ## 3. 运行时与职责
@@ -75,7 +75,7 @@ FastAPI 保持模块化单体边界，路由只做鉴权、输入输出和流程
 | 会话     | `/api/sessions...`                 | 会话生命周期、LiveKit Token、Agent dispatch |
 | 对话     | `/api/conversation/chat`           | 非实时文本对话                              |
 | 评估     | `/api/assessments...`              | 发音、语法、BKT 状态查询                    |
-| 课程     | `/api/curriculum/next`             | 最弱技能 + ChromaDB 检索推荐                |
+| 课程     | `/api/curriculum/next`             | 最弱技能 + 离线目录确定性推荐               |
 | 用户设置 | `/api/user/settings`               | 双轨模式、Provider 与加密 Key 的读写/拨测   |
 
 `database.get_db()` 在请求成功后提交、异常时回滚。业务服务复用同一个 `AsyncSession`，因此单请求内的关系数据库写入仍处于同一事务边界。
@@ -115,7 +115,7 @@ users
 ```
 
 - PostgreSQL 是用户、会话、设置、转录与学习状态的事实源。
-- ChromaDB 只保存可重建的教学语料向量，不拥有用户事务数据。
+- `backend/data/teaching_materials.json` 是受 Git 管理的教学语料事实源，不拥有用户事务数据。
 - Schema 通过 Alembic 管理；应用启动不会自动执行迁移。
 
 ## 5. 关键业务链路
@@ -162,13 +162,14 @@ POST /sessions/{id}/end
 | 服务                       | 数量/命令          | 持久化或依赖                      |
 | -------------------------- | ------------------ | --------------------------------- |
 | `echotalk-web`             | Nginx 1 个         | 静态文件；反代 API 与 LiveKit WSS |
-| `echotalk-api`             | Uvicorn 4 workers  | PostgreSQL、ChromaDB              |
+| `echotalk-api`             | Uvicorn 4 workers  | PostgreSQL                        |
 | `echotalk-agent`           | LiveKit Agent 1 个 | PostgreSQL、外部 Provider         |
 | `echotalk-analysis-worker` | Python 1 个        | PostgreSQL Job                    |
 | PostgreSQL 15              | 1 个               | named volume                      |
-| ChromaDB `latest`          | 1 个               | named volume                      |
 
-部署前必须单独执行 `alembic upgrade head` 与语料播种。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
+部署前必须单独执行 `alembic upgrade head`；课程语料由镜像内的版本化 JSON 提供，可用
+`python -m scripts.seed_corpus` 校验。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、
+资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
 
 ## 7. 已确认的架构风险
 
@@ -189,7 +190,7 @@ POST /sessions/{id}/end
 
 ### P2：维护与交付
 
-1. ChromaDB 使用 `latest`，升级不可复现；应固定版本并验证数据兼容性。
+1. 教学语料目录变更仍需人工维护版本化数据与优先级；当前没有管理工作台或自动质量评测。
 2. CI 的 Node 版本是 22，而前端 Docker builder 是 Node 20；应统一到同一受支持版本。
 3. CI 没有验证 Alembic 从空库升级、Docker 镜像构建或 iOS 构建。
 4. 前端 API、状态与页面仍耦合在单一 SPA；在引入更多页面前再评估 Router，不需要现在为“未来可能”抽共享核心。
@@ -199,7 +200,7 @@ POST /sessions/{id}/end
 1. **先封安全边界**：真实认证、稳定的加密主密钥策略、HTTPS/WSS、生产配置 fail-fast。
 2. **再补交付可靠性**：一次性迁移 Job、幂等播种、API/Agent/Provider 健康与结构化日志。
 3. **补齐分析任务可观测性**：PostgreSQL Job、幂等、有限重试与补偿入口已完成；继续补队列积压、
-   延迟和失败率告警，再做 Chroma 业务语料迁移与镜像/冷启动对比。
+   延迟和失败率告警，并记录课程目录改造后的镜像/冷启动对比。
 4. **完成 iOS 真机闭环**：在真实认证与网络边界上验证，不把模拟器启动等同于可发布。
 5. **按需求扩展 Android/Desktop**：先做平台 Spike，再决定是否维护原生工程；不要提前创建空壳或抽取 `shared-core`。
 
