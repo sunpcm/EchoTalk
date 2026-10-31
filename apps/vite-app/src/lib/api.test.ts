@@ -43,6 +43,13 @@ import {
 } from "./auth";
 import * as apiErrorMessageModule from "./apiErrorMessage";
 import * as apiRequestHeadersModule from "./apiRequestHeaders";
+import * as apiRequestTimeoutModule from "./apiRequestTimeout";
+import {
+  ApiRequestAbortedError,
+  ApiRequestTimeoutError,
+  DEFAULT_API_REQUEST_TIMEOUT_MS,
+  UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
+} from "./apiRequestTimeout";
 import { zhCN } from "@/i18n/zh-CN";
 
 describe("API client", () => {
@@ -995,6 +1002,116 @@ describe("API client", () => {
         const dispatchWithoutHeaders = new Headers(dispatchWithoutOptions?.headers);
         expect(dispatchWithoutHeaders.has("X-Call-Device-Id")).toBe(false);
         expect(dispatchWithoutHeaders.has("X-Call-Generation")).toBe(false);
+      });
+    });
+
+    describe("Request timeout and cancellation", () => {
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("consumes the timeout module and classifies internal timeout exactly once", async () => {
+        vi.useFakeTimers();
+        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const originalCreateHandle = apiRequestTimeoutModule.createApiRequestAbortHandle;
+        let combinedSignal: AbortSignal | undefined;
+        const createHandleSpy = vi
+          .spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle")
+          .mockImplementation((externalSignal, options) => {
+            const handle = originalCreateHandle(externalSignal, options);
+            combinedSignal = handle.signal;
+            return handle;
+          });
+        fetchMock().mockImplementation(
+          (_url, init) =>
+            new Promise<Response>((_resolve, reject) => {
+              const signal = init?.signal;
+              expect(signal).toBeInstanceOf(AbortSignal);
+              if (!signal) throw new Error("Expected the request abort signal");
+              signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+            }),
+        );
+
+        const requestPromise = checkHealthReady();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        const fetchOptions = fetchMock().mock.calls[0]?.[1];
+        expect(fetchOptions?.signal).toBeInstanceOf(AbortSignal);
+        expect(fetchOptions?.signal).toBe(combinedSignal);
+        expect(createHandleSpy).toHaveBeenCalledWith(undefined, undefined);
+
+        vi.advanceTimersByTime(DEFAULT_API_REQUEST_TIMEOUT_MS);
+
+        await expect(requestPromise).rejects.toSatisfy((error: unknown) => {
+          expect(error).toBeInstanceOf(ApiRequestTimeoutError);
+          expect(error).not.toBeInstanceOf(ApiError);
+          expect(error).toMatchObject({ kind: "timeout" });
+          return true;
+        });
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy.mock.calls[0]?.[1]).toMatchObject({
+          event: "api_request_timeout",
+        });
+      });
+
+      it("classifies caller cancellation as a distinct error exactly once", async () => {
+        const combinedController = new AbortController();
+        const disposeSpy = vi.fn();
+        let currentFailure: ApiRequestAbortedError | null = null;
+        vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle").mockReturnValue({
+          signal: combinedController.signal,
+          getFailure: () => currentFailure,
+          dispose: disposeSpy,
+        });
+        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        fetchMock().mockImplementation(
+          (_url, init) =>
+            new Promise<Response>((_resolve, reject) => {
+              const signal = init?.signal;
+              if (!signal) throw new Error("Expected the request abort signal");
+              signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+            }),
+        );
+
+        const requestPromise = checkHealthReady();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        expect(fetchMock().mock.calls[0]?.[1]?.signal).toBe(combinedController.signal);
+
+        const cancellation = new ApiRequestAbortedError();
+        currentFailure = cancellation;
+        combinedController.abort(cancellation);
+
+        await expect(requestPromise).rejects.toBe(cancellation);
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        expect(disposeSpy).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy.mock.calls[0]?.[1]).toMatchObject({
+          event: "api_request_aborted",
+        });
+      });
+
+      it("uses a longer explicit timeout budget for user settings updates", async () => {
+        const createHandleSpy = vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle");
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({ is_custom_mode: false }),
+        } as unknown as Response);
+
+        await updateUserSettings({ theme: "warm" });
+
+        expect(createHandleSpy).toHaveBeenCalledWith(undefined, {
+          timeoutMs: UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
+        });
+        expect(UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS).toBeGreaterThan(
+          DEFAULT_API_REQUEST_TIMEOUT_MS,
+        );
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
       });
     });
 

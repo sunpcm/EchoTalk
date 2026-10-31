@@ -16,6 +16,8 @@ export const DIAGNOSTIC_PREFIX = "[diagnostic]";
 
 export const ALLOWED_DIAGNOSTIC_EVENTS = [
   "api_network_failed",
+  "api_request_timeout",
+  "api_request_aborted",
   "api_http_failed",
   "lifecycle_audio_interrupted",
   "native_lifecycle_ready_timeout",

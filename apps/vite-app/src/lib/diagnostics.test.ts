@@ -86,7 +86,7 @@ describe("Diagnostics Helper (CP-06)", () => {
   });
 
   describe("Event Validation & Level Mapping", () => {
-    it("handles all 8 frozen events and dispatches to appropriate console levels", () => {
+    it("handles all 10 frozen events and dispatches to appropriate console levels", () => {
       for (const ev of ALLOWED_DIAGNOSTIC_EVENTS) {
         warnSpy.mockClear();
         errorSpy.mockClear();
