@@ -14,7 +14,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from livekit_agent.plugin_errors import PluginInitError
-from utils.crypto import decrypt_api_key
+
+
+def decrypt_api_key(ciphertext: str, key_version: str | None) -> Any:
+    """按需加载凭据加密模块，保持模块导入无真实配置依赖。"""
+    from utils.crypto import decrypt_api_key as _decrypt_api_key
+
+    return _decrypt_api_key(ciphertext, key_version)
 
 
 @dataclass(frozen=True)

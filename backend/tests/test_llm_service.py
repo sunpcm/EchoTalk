@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from openai import APIError, AsyncOpenAI
 
+from services.agent_prompt import SYSTEM_PROMPT as AGENT_SYSTEM_PROMPT
+from services.agent_prompt import build_dynamic_prompt as build_agent_dynamic_prompt
 from services.llm_service import _get_client, build_dynamic_prompt, chat_completion
 
 
@@ -238,3 +240,11 @@ def test_provider_config_derived_from_catalog():
         }
         for k, v in LLM_PROVIDER_CATALOG.items()
     }
+
+
+def test_agent_prompt_exports_are_compatibility_reexports():
+    """Agent 专用 Prompt 模块是唯一实现，llm_service 仅兼容重导出。"""
+    from services import llm_service
+
+    assert build_dynamic_prompt is build_agent_dynamic_prompt
+    assert llm_service.SYSTEM_PROMPT is AGENT_SYSTEM_PROMPT

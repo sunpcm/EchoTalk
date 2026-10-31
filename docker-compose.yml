@@ -38,7 +38,7 @@ services:
 
   echotalk-agent:
     build: ./backend
-    command: python livekit_agent/agent.py start
+    command: python -m livekit_agent start
     restart: unless-stopped
     env_file:
       - path: .env

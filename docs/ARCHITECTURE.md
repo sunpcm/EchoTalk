@@ -88,7 +88,12 @@ Agent 是独立进程，不通过 FastAPI 依赖注入访问数据库。它以�
 4. 把用户与 Assistant 转录写回 PostgreSQL；
 5. 自定义轨失败时通过 `agent_error` DataChannel fail-fast，不静默回退到系统密钥。
 
-Agent 与 API 共享数据库模型和配置，这是有意的代码复用，但也意味着两者必须使用相同版本的迁移和 `JWT_SECRET_KEY`。
+Agent 与 API 共享数据库模型、迁移和版本化凭据 keyring，这是有意的代码复用；API 认证独立配置。
+
+Agent 的普通业务模块导入不读取 dotenv、不加载应用配置或数据库 engine。官方启动入口是
+`cd backend && python -m livekit_agent dev|start`：`livekit_agent.bootstrap` 先加载仓库根
+`.env`（`override=False`），再验证配置并启动 LiveKit SDK CLI。直接执行
+`python livekit_agent/agent.py` 依赖隐式 `sys.path` 注入，已不再支持。
 
 ### 3.4 PostgreSQL Analysis Worker
 

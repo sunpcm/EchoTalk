@@ -167,8 +167,12 @@ uv pip install -r requirements.txt
 # 4. 数据库迁移
 alembic upgrade head
 
-# 5. 启动服务（种子数据自动注入）
+# 5. 启动 API 服务
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# 6. 另开终端启动 LiveKit Agent（提供 dev 或 start）
+python -m livekit_agent dev
+# 直接执行 python livekit_agent/agent.py 不再受支持，导入与启动副作用已分离
 ```
 
 健康检查：
@@ -356,7 +360,8 @@ EchoTalk/
 │   ├── data/                          # 版本化教学语料
 │   │   └── teaching_materials.json    # 10 条课程材料
 │   ├── services/                      # 业务逻辑
-│   │   ├── llm_service.py             # LLM 调用 + 动态 Prompt 构建
+│   │   ├── agent_prompt.py            # Agent 动态 Prompt 纯函数
+│   │   ├── llm_service.py             # LLM 调用 + Prompt 兼容重导出
 │   │   ├── emotion_analyzer.py        # 情绪分析规则引擎
 │   │   ├── material_catalog.py        # 离线目录校验与只读缓存
 │   │   ├── rag_service.py             # 确定性课程检索 + Krashen i+1
@@ -366,7 +371,9 @@ EchoTalk/
 │   ├── utils/                         # 工具模块
 │   │   └── crypto.py                  # Fernet API Key 加解密
 │   ├── livekit_agent/                 # LiveKit 语音 Agent
-│   │   ├── agent.py                   # 双轨路由入口
+│   │   ├── __main__.py                # python -m livekit_agent 模块入口
+│   │   ├── bootstrap.py               # dotenv、配置校验与 SDK CLI 显式启动
+│   │   ├── agent.py                   # 双轨业务路由（导入无启动副作用）
 │   │   └── plugin_factory.py          # PluginFactory 插件工厂
 │   ├── workers/                       # PostgreSQL 持久化分析任务
 │   │   └── analysis_worker.py         # 原子领取、重试与超时恢复

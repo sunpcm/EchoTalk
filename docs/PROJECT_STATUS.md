@@ -6,19 +6,17 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A72 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A74 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@5291207fcaf27025d0b7fae5782d439efc7f6654`（A73）。A73 以单提交精确
-  fast-forward 本地 main，正常 hook 后批准文件 hash 一致。main 最终复验为完整 frontend10、
-  917 Vitest、18 build-script、61 Fake API、8 类型生成器、148 E2E、566 backend、
-  80.10% coverage，OpenAPI schema 与 Ruff 通过。A73 lane 还独立验证了 root 强制 test
-  只运行 Vite 的 917 项真实用例，该检查不在 main 复验范围内。lock/dev/runtime 为
-  107/106/99，全部存活 package 的 version/integrity、解析依赖边与 importer 保持，7 个
-  LiveKit exact SDK 也保持。RF-05 整项仍待 Docker 镜像、CI 与部署冷启动对照。
+  `main@b43a0d807f6b3619c96d87abf4164b87ffd9b1f9`（A74）。A74 已独立 Review APPROVED，
+  以单提交完成本地精确 fast-forward 与 main 完整复验：frontend10、917 Vitest、18
+  build-script、61 Fake API、8 类型生成器、148 E2E、566 backend、80.10% coverage、
+  OpenAPI schema 与 Ruff 通过。真实 Docker 镜像仍未验证；RF-05 与 RF-07 剩余 Docker/CI/
+  部署冷启动边界继续保留。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 9 个提交。该比较只读
+  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 10 个提交。该比较只读
   本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
@@ -28,7 +26,7 @@
   18 build-script、61 Fake API、Chromium 74 + WebKit 74；backend 空库迁移至
   `c06_transcript_events` 后 529 passed、82.49%；`test-frontend`、`test-backend` 与聚合
   `CI` 三 job 均 success。该运行不包含 A67 新增的 OpenAPI schema/TypeScript 类型生成
-  两层门禁，也不覆盖 A65–A72 未推送树。
+  两层门禁，也不覆盖 A65–A74 未推送树。
 - 较早的远端集成记录保留为历史：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
   （PR #108 squash 合并、`feat: integrate locally reviewed cross-platform milestones
 (A45-A63)`）。
@@ -36,7 +34,7 @@
   admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
   PR #108 与 PR #109 均已 squash 合并；后续轮次沿用同一路径：分支 + PR，不直推 main。
 - 自动化证据：#92（`286a3db`）CI run 39348513442 与 PR #108 的 run 41217340177 保留为
-  历史发布记录；A45–A72 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
+  历史发布记录；A45–A74 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
   与 `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
@@ -68,7 +66,7 @@ SHA-256 完全一致。
   RF-06 继续未勾选；边界见
   [RF-06 前端模板清理验证](./verification/cross-platform/RF-06-FRONTEND-TEMPLATE-CLEANUP.md)。
 
-## 2026-11-01 Web Docker Node/pnpm 与上下文边界（A74 r0）
+## 2026-11-01 Web Docker Node/pnpm 与上下文边界（A74）
 
 Web Compose 的 build context 是仓库根。`apps/vite-app/Dockerfile` 已将 builder 从 Node 20
 统一到 `node:22-alpine`，移除未固定的 `npm install -g pnpm`，改为让镜像内 Corepack 从根
@@ -84,10 +82,33 @@ Web Compose 的 build context 是仓库根。`apps/vite-app/Dockerfile` 已将 b
   env 内容来证明排除。所有宽泛源码目录放行之后，规则会再次排除任意层级的本地 dotenv、
   元数据和缓存，最后仅精确恢复两份公开 Vite mode 文件；后端独立
   `backend/.dockerignore` 与构建上下文未改。
-- 本轮只做静态配方修正，未拉取或构建镜像。Node 22 镜像中的 Corepack 版本及对 pnpm 10.26.0
-  的签名校验链仍未实测，Docker 实际 COPY/上下文行为、远端 CI 和角色分组验收也待独立执行；
-  RF-07 整项保持未勾选。静态契约见
+- A74 已由独立 Review APPROVED，定格为单提交
+  `b43a0d807f6b3619c96d87abf4164b87ffd9b1f9`，并精确 fast-forward 本地 main；main 完整
+  frontend10、917 Vitest、148 E2E、566 backend、80.10% coverage、OpenAPI schema 与 Ruff
+  复验通过。真实 Docker 镜像未验证，Node 22 镜像中的 Corepack 签名链、Docker 实际
+  COPY/上下文行为、远端 CI 和角色分组仍未实测；RF-07 整项保持未勾选。静态契约见
   [RF-07 Web Docker 配方验证](./verification/cross-platform/RF-07-WEB-DOCKER-RECIPE.md)。
+
+## 2026-11-01 本地 RF-09 显式 Agent 启动（A75 b/r0）
+
+Agent 业务模块与显式启动边界已分离。普通导入全套 `livekit_agent` 模块将使用真实已锁定
+LiveKit SDK，并保持 `sys.path`、进程环境不变；导入期不读取 dotenv、不加载应用 config/
+database、不创建 engine 或外部客户端。官方入口改为
+`cd backend && python -m livekit_agent dev|start`，Compose 使用同一模块入口。
+
+- `bootstrap.main()` 严格先加载仓库根 `.env`（`override=False`），再加载并校验真实配置，
+  最后导入 SDK 与业务 CLI；配置校验失败不会创建或启动 `WorkerOptions`/CLI。
+  `WorkerOptions(entrypoint_fnc=entrypoint, num_idle_processes=1)` 保持原值。
+- `CredentialResolver` 的解密、系统插件配置、默认转录 writer 与 Agent 数据库会话均在
+  实际调用点窄延迟加载；BYOK 显式凭据路径不读取系统 Provider Key，也不修改进程环境。
+  Prompt 纯函数迁至 `services.agent_prompt`，`services.llm_service` 保留兼容重导出。
+- 新增回归覆盖真实新进程全模块导入、root dotenv 访问/网络阻断、环境与 `sys.path` 不变、
+  模块入口导入不启动、dotenv 进程值优先、配置失败不启动，以及无 writer 注入时真实
+  PostgreSQL service 路径。接口、ORM、认证、凭据算法、锁、CI、镜像与 HTTP schema 未改。
+- b/r0 仅完成本地实施停写；formatter、完整前端/后端/Ruff/schema、独立导入与启动探针、
+  有效变异和 Review 尚待主 Agent 代跑。真实 LiveKit/Provider 连接、真实 start/dev、联网
+  CLI、Docker 镜像和部署未验，因此不把本地模块回归冒认线上启动，RF-09 整项及 RF-12
+  前置仍不完成。
 
 ## 2026-11-01 本地 RF-05 Redis/Celery 减法（A71 当时状态）
 
