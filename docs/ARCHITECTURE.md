@@ -4,11 +4,19 @@
 >
 > 本文保留 `main@1f9a1b0` 的历史审计，不代表当前实现。其 Mock 鉴权、密钥耦合等结论已由后续认证与凭据改造更新；不得据此判断当前发布状态。当前事实见 [PROJECT_STATUS.md](./PROJECT_STATUS.md)、[TODO.md](../TODO.md) 与 [三端门禁](./CROSS_PLATFORM_ARCHITECTURE.md)，以下为原审计内容。
 >
-> **当前边界补充（2026-11-01，A76 b/r0）**：`VoiceInterface` 已拆为 Room 资源/调度层与
+> **当前边界补充（2026-11-01，A76）**：`VoiceInterface` 已拆为 Room 资源/调度层与
 > 对话 UI 层；`agent_error` 只由实际 Room 的 `sessionId/sessionGen` 和当前认证
 > principal/revision 收取，runtime payload 在进入 store 前严格收窄。旧 callback、身份变化、
 > 卸载与终态迟到消息不得写入新会话。详细边界见
 > [CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
+>
+> **同 principal 认证刷新补充（2026-11-01，A77 b/r2）**：Room 首次绑定的 principal 与
+> 物理 lifecycle adapter 保持稳定；每次已验证的同 principal 认证通知都建立新的业务监听
+> 归属，旧 SDK/lifecycle/business callback 永久失效。刷新不替换 Room、不停止健康轨或
+> 重发 dispatch。Web 订阅后 hidden/offline 立即失败；native pending 的占位 hidden 只表示
+> 未就绪，必须等 `whenReady` 后重新读取 snapshot 与能力，并按原 10 秒 deadline 结算。
+> 超时、可信 inactive 或能力失效均安全关闭，旧 timer callback 不能清空新句柄。详细边界见
+> [CP-06 Room 同 principal 认证刷新验证](./verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)。
 
 ## 1. 架构结论
 

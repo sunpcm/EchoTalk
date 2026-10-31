@@ -273,18 +273,24 @@ let mockCurrentSnapshot = {
 const mockLifecycleDispose = vi.fn();
 
 function createHealthyWebLifecycleAdapter(): platform.WebLifecycleAdapter {
+  const ownedListeners = new Set<(event: any) => void>();
   return {
     capabilities: { webEvents: true, nativeAppState: false },
     getSnapshot: () => ({ ...mockCurrentSnapshot }),
     subscribe: (listener: (event: any) => void) => {
+      ownedListeners.add(listener);
       mockWebLifecycleListeners.add(listener);
       return () => {
+        ownedListeners.delete(listener);
         mockWebLifecycleListeners.delete(listener);
       };
     },
     dispose: vi.fn(() => {
       mockLifecycleDispose();
-      mockWebLifecycleListeners.clear();
+      for (const listener of ownedListeners) {
+        mockWebLifecycleListeners.delete(listener);
+      }
+      ownedListeners.clear();
     }),
   };
 }
@@ -1680,26 +1686,34 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 初次渲染与订阅生效会各自创建 adapter，计数必须跨 adapter 实例共享：
       // 第一次 snapshot 读取返回 visible，订阅后的第二次读取返回 hidden。
-      vi.mocked(platform.createWebLifecycleAdapter).mockImplementation(() => ({
-        capabilities: { webEvents: true, nativeAppState: false },
-        getSnapshot: () => {
-          snapshotReadCount += 1;
-          if (snapshotReadCount === 1) {
-            return { visibility: "visible", online: true };
-          }
-          return { visibility: "hidden", online: true };
-        },
-        subscribe: (listener: (event: any) => void) => {
-          mockWebLifecycleListeners.add(listener);
-          return () => {
-            mockWebLifecycleListeners.delete(listener);
-          };
-        },
-        dispose: vi.fn(() => {
-          mockLifecycleDispose();
-          mockWebLifecycleListeners.clear();
-        }),
-      }));
+      vi.mocked(platform.createWebLifecycleAdapter).mockImplementation(() => {
+        const ownedListeners = new Set<(event: any) => void>();
+        return {
+          capabilities: { webEvents: true, nativeAppState: false },
+          getSnapshot: () => {
+            snapshotReadCount += 1;
+            if (snapshotReadCount === 1) {
+              return { visibility: "visible", online: true };
+            }
+            return { visibility: "hidden", online: true };
+          },
+          subscribe: (listener: (event: any) => void) => {
+            ownedListeners.add(listener);
+            mockWebLifecycleListeners.add(listener);
+            return () => {
+              ownedListeners.delete(listener);
+              mockWebLifecycleListeners.delete(listener);
+            };
+          },
+          dispose: vi.fn(() => {
+            mockLifecycleDispose();
+            for (const listener of ownedListeners) {
+              mockWebLifecycleListeners.delete(listener);
+            }
+            ownedListeners.clear();
+          }),
+        };
+      });
 
       useConversationStore.setState({
         sessionGen: 1,
@@ -1750,6 +1764,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       // 2. 处于连接等待中
       expect(screen.getByText(zhCN.conversation.connecting)).toBeInTheDocument();
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).not.toBeNull();
+      expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
       // 3. 零 dispatchAgent
       expect(api.dispatchAgent).not.toHaveBeenCalled();
 
@@ -2736,6 +2753,628 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           vi.useRealTimers();
         }
       });
+    });
+  });
+
+  describe("A77 same-principal Room auth ownership refresh", () => {
+    const principal = {
+      issuer: "https://auth.example.com",
+      subject: "user-1",
+    };
+    const refreshedSnapshot = {
+      state: "authenticated" as const,
+      principal,
+    };
+
+    function stageAuthRefresh(revision: number) {
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue(refreshedSnapshot);
+      vi.mocked(auth.getAuthRevision).mockReturnValue(revision);
+    }
+
+    function notifyAuthRefresh(revision: number) {
+      stageAuthRefresh(revision);
+      act(() => {
+        for (const listener of capturedAuthSnapshotListeners) {
+          listener(refreshedSnapshot);
+        }
+      });
+    }
+
+    it.each(["onError", "onDisconnected"] as const)(
+      "rejects old %s after refresh and lets the new callback fail closed",
+      async (callbackName) => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-sdk",
+          token: "auth-refresh-sdk-token",
+          wsUrl: "wss://lk.test",
+          connectionState: "active",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const oldCallbacks = capturedRoomCallbacks.get(instanceId)!;
+        const oldCallback =
+          callbackName === "onError" ? oldCallbacks.onError : oldCallbacks.onDisconnected;
+
+        notifyAuthRefresh(2);
+        await waitFor(() => {
+          expect(capturedRoomCallbacks.get(instanceId)?.[callbackName]).not.toBe(oldCallback);
+        });
+
+        expect(screen.getByTestId("livekit-room").getAttribute("data-instance-id")).toBe(
+          instanceId,
+        );
+        expect(mockTrackStop).not.toHaveBeenCalled();
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+
+        act(() => {
+          oldCallback?.(new Error("old revision"));
+        });
+        expect(useConversationStore.getState().connectionState).toBe("active");
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        const currentCallbacks = capturedRoomCallbacks.get(instanceId)!;
+        const currentCallback =
+          callbackName === "onError" ? currentCallbacks.onError : currentCallbacks.onDisconnected;
+        act(() => {
+          currentCallback?.(new Error("current revision"));
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(mockTrackStop).toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      {
+        label: "suspend",
+        event: {
+          type: "suspend",
+          snapshot: { visibility: "hidden" as const, online: true },
+        },
+      },
+      {
+        label: "offline",
+        event: {
+          type: "connectivity",
+          snapshot: { visibility: "visible" as const, online: false },
+        },
+      },
+    ])(
+      "keeps an old Web $label listener inert and rotates to the refreshed listener",
+      async ({ event }) => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-suspend",
+          token: "auth-refresh-suspend-token",
+          wsUrl: "wss://lk.test",
+          connectionState: "active",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const [oldLifecycleListener] = Array.from(mockWebLifecycleListeners);
+        expect(oldLifecycleListener).toBeDefined();
+
+        stageAuthRefresh(2);
+        act(() => {
+          oldLifecycleListener(event);
+        });
+        expect(mockTrackStop).not.toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("active");
+
+        notifyAuthRefresh(2);
+        let currentLifecycleListener!: (event: any) => void;
+        await waitFor(() => {
+          const lifecycleListeners = Array.from(mockWebLifecycleListeners);
+          expect(lifecycleListeners).toHaveLength(1);
+          expect(lifecycleListeners[0]).not.toBe(oldLifecycleListener);
+          currentLifecycleListener = lifecycleListeners[0];
+          expect(screen.getByTestId("livekit-room").getAttribute("data-instance-id")).toBe(
+            instanceId,
+          );
+        });
+
+        expect(mockLifecycleDispose).not.toHaveBeenCalled();
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        act(() => {
+          oldLifecycleListener(event);
+        });
+        expect(mockTrackStop).not.toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("active");
+
+        act(() => {
+          currentLifecycleListener(event);
+        });
+
+        expect(mockTrackStop).toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+      },
+    );
+
+    it("keeps the rotated native business listener able to stop current tracks", async () => {
+      currentFakeApp = createFakeApp(true);
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native-listener",
+        token: "{{SECRET_u2n5r8fk}}",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      });
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const oldDisconnected = capturedRoomCallbacks.get(instanceId)?.onDisconnected;
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(capturedRoomCallbacks.get(instanceId)?.onDisconnected).not.toBe(oldDisconnected);
+      });
+      expect(screen.getByTestId("livekit-room").getAttribute("data-instance-id")).toBe(instanceId);
+      expect(mockLifecycleDispose).not.toHaveBeenCalled();
+
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: false });
+      });
+
+      expect(mockTrackStop).toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+    });
+
+    it("keeps a saved onConnected inert after refresh while the current callback dispatches", async () => {
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-connected",
+        token: "tok-auth-refresh-connected",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const oldCallbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(capturedRoomCallbacks.get(instanceId)?.onConnected).not.toBe(
+          oldCallbacks.onConnected,
+        );
+      });
+
+      act(() => {
+        oldCallbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+
+      await act(async () => {
+        capturedRoomCallbacks.get(instanceId)!.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+      expect(api.dispatchAgent).toHaveBeenCalledWith("sess-auth-refresh-connected");
+    });
+
+    it("keeps session/gen dispatch deduplication and drops its stale in-flight result after refresh", async () => {
+      let rejectDispatch!: (err: Error) => void;
+      vi.mocked(api.dispatchAgent).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectDispatch = reject;
+          }),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-dispatch",
+        token: "auth-refresh-dispatch-token",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const oldCallbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      act(() => {
+        oldCallbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(capturedRoomCallbacks.get(instanceId)?.onConnected).not.toBe(
+          oldCallbacks.onConnected,
+        );
+      });
+
+      act(() => {
+        capturedRoomCallbacks.get(instanceId)!.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        rejectDispatch(new Error("stale refresh result"));
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(useConversationStore.getState().token).toBe("auth-refresh-dispatch-token");
+      expect(screen.queryByTestId("dispatch-failed-view")).not.toBeInTheDocument();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+    });
+
+    it("waits for the same-principal notification before mounting a native ready Room", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native",
+        token: "auth-refresh-native-token",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue(refreshedSnapshot);
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      await act(async () => {
+        resolveGetState({ isActive: true });
+      });
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      act(() => {
+        for (const listener of capturedAuthSnapshotListeners) {
+          listener(refreshedSnapshot);
+        }
+      });
+      await waitFor(() => {
+        expect(screen.getAllByTestId("livekit-room")).toHaveLength(1);
+      });
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+    });
+
+    it("defers a notification-gap inactive ready result until the refreshed receipt fails safely", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(false);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native-inactive",
+        token: "{{SECRET_zzf3t7rc}}",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      stageAuthRefresh(2);
+      await act(async () => {
+        resolveGetState({ isActive: false });
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(api.endSession).not.toHaveBeenCalled();
+    });
+
+    it("re-reads the current snapshot before a notification-gap active ready result mounts audio", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native-background",
+        token: "{{SECRET_76w7xbbo}}",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      stageAuthRefresh(2);
+      await act(async () => {
+        resolveGetState({ isActive: true });
+      });
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: false });
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+    });
+
+    it("keeps the original native 10s budget across same-principal refreshes", () => {
+      vi.useFakeTimers();
+      try {
+        currentFakeApp = createFakeApp(true);
+        currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-budget",
+          token: "auth-refresh-budget-token",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        act(() => {
+          vi.advanceTimersByTime(9000);
+        });
+        notifyAuthRefresh(2);
+        act(() => {
+          vi.advanceTimersByTime(999);
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+
+        notifyAuthRefresh(3);
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
+
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not let a stale native timer callback clear the refreshed timer handle", () => {
+      vi.useFakeTimers();
+      const pendingToken = ["tok", "auth", "refresh", "stale", "timer"].join("-");
+      const fakeSetTimeout = globalThis.setTimeout;
+      const originalSetTimeout = fakeSetTimeout.bind(globalThis);
+      const queuedCallbacks = new Map<
+        ReturnType<typeof setTimeout>,
+        { callback: () => void; delay: number }
+      >();
+      const timerCountBeforeRender = vi.getTimerCount();
+      const captureSetTimeout = ((handler: TimerHandler, timeout?: number, ...args: any[]) => {
+        const handle = originalSetTimeout(handler, timeout, ...args);
+        if ((timeout === 10000 || timeout === 1000) && typeof handler === "function") {
+          queuedCallbacks.set(handle, {
+            callback: () => {
+              if (typeof handler === "function") {
+                handler(...args);
+              }
+            },
+            delay: timeout,
+          });
+        }
+        return handle;
+      }) as typeof setTimeout;
+
+      try {
+        // Directly wrap the fake function instead of registering another spy restore. The outer
+        // restoreAllMocks() must not be able to reinstall a fake clock after useRealTimers().
+        globalThis.setTimeout = captureSetTimeout;
+        currentFakeApp = createFakeApp(true);
+        currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-stale-timer",
+          token: pendingToken,
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        const { unmount } = render(<VoiceInterface />);
+        expect(queuedCallbacks.size).toBe(1);
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+
+        act(() => {
+          vi.advanceTimersByTime(9000);
+        });
+        notifyAuthRefresh(2);
+        expect(queuedCallbacks.size).toBe(2);
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+        const [, staleTimer] = Array.from(queuedCallbacks.entries())[0];
+        const [, currentTimer] = Array.from(queuedCallbacks.entries())[1];
+        expect(Array.from(queuedCallbacks.values()).map(({ delay }) => delay)).toEqual([
+          10000, 1000,
+        ]);
+
+        act(() => {
+          staleTimer.callback();
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useConversationStore.getState().token).toBe(pendingToken);
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+
+        act(() => {
+          vi.advanceTimersByTime(999);
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+
+        unmount();
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender);
+
+        // Clearing the current handle must make even a saved callback inert after unmount.
+        act(() => {
+          staleTimer.callback();
+          currentTimer.callback();
+        });
+        const retiredState = useConversationStore.getState();
+        expect(retiredState.sessionGen).toBe(1);
+        expect(retiredState.sessionId).toBe("sess-auth-refresh-stale-timer");
+        expect(retiredState.connectionState).toBe("connecting");
+        expect(retiredState.token).toBe(pendingToken);
+        expect(retiredState.wsUrl).toBe("wss://lk.test");
+        expect(retiredState.appView).toBe("session");
+        expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+        expect(api.endSession).not.toHaveBeenCalled();
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        act(() => {
+          vi.advanceTimersByTime(10001);
+        });
+        const advancedState = useConversationStore.getState();
+        expect(advancedState.connectionState).toBe("connecting");
+        expect(advancedState.token).toBe(pendingToken);
+        expect(advancedState.sessionId).toBe("sess-auth-refresh-stale-timer");
+        expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+        expect(api.endSession).not.toHaveBeenCalled();
+        expect(mockTrackStop).not.toHaveBeenCalled();
+      } finally {
+        // Restore the fake function first, then let Vitest atomically install the real clock.
+        globalThis.setTimeout = fakeSetTimeout;
+        vi.useRealTimers();
+      }
+    });
+
+    it("reconciles an elapsed native deadline after a notification gap without another 10s window", () => {
+      vi.useFakeTimers();
+      try {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        currentFakeApp = createFakeApp(true);
+        currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-expired-gap",
+          token: "{{SECRET_bq2elzxa}}",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        act(() => {
+          vi.advanceTimersByTime(9999);
+        });
+        stageAuthRefresh(2);
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+
+        notifyAuthRefresh(2);
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+
+        const timeoutDiagnostics = vi
+          .mocked(console.warn)
+          .mock.calls.filter(
+            (call) =>
+              call[0] === "[diagnostic]" &&
+              (call[1] as { event?: string } | undefined)?.event ===
+                "native_lifecycle_ready_timeout",
+          );
+        expect(timeoutDiagnostics).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

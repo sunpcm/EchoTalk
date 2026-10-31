@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   BarVisualizer,
   useConnectionState,
@@ -11,12 +11,7 @@ import { ConnectionState } from "livekit-client";
 import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
 import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
-import {
-  arePrincipalsEqual,
-  getAuthRevision,
-  getAuthSnapshot,
-  subscribeAuthSnapshot,
-} from "@/lib/auth";
+import { arePrincipalsEqual, getAuthRevision, getAuthSnapshot } from "@/lib/auth";
 import type { AuthPrincipal } from "@/lib/auth";
 import { logDiagnostic } from "@/lib/diagnostics";
 import { useConversationStore } from "@/store/conversation";
@@ -30,7 +25,7 @@ interface ActiveConversationProps {
   sessionId: string;
   sessionGen: number;
   boundPrincipal: AuthPrincipal | null;
-  boundRevision: number;
+  authorizedRevision: number | null;
 }
 
 /** 对话中视图：LiveKit hooks、数据通道错误与显式结束。 */
@@ -38,7 +33,7 @@ export function ActiveConversation({
   sessionId,
   sessionGen,
   boundPrincipal,
-  boundRevision,
+  authorizedRevision,
 }: ActiveConversationProps) {
   const connectionState = useConnectionState();
   const voiceAssistant = useVoiceAssistant();
@@ -46,9 +41,6 @@ export function ActiveConversation({
   const { setActive, endSession, setAgentError } = useConversationStore();
   const endError = useConversationStore((state) => state.error);
   const isMountedRef = useRef(true);
-  const [authorizedRevision, setAuthorizedRevision] = useState<number | null>(() =>
-    boundPrincipal ? boundRevision : null,
-  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -56,33 +48,6 @@ export function ActiveConversation({
       isMountedRef.current = false;
     };
   }, []);
-
-  // A same-principal auth event advances the revision for all newly captured callbacks.
-  // The old callback still fails immediately because it closes over the prior revision.
-  useEffect(() => {
-    let isActive = true;
-    const adoptSnapshot = (snapshot: ReturnType<typeof getAuthSnapshot>): void => {
-      if (!isActive) return;
-      if (
-        snapshot.state === "authenticated" &&
-        snapshot.principal &&
-        boundPrincipal &&
-        arePrincipalsEqual(snapshot.principal, boundPrincipal)
-      ) {
-        setAuthorizedRevision(getAuthRevision());
-        return;
-      }
-      setAuthorizedRevision(null);
-    };
-
-    // Subscribe before reading so a same-principal event cannot fall into a gap.
-    const unsubscribe = subscribeAuthSnapshot(adoptSnapshot);
-    adoptSnapshot(getAuthSnapshot());
-    return () => {
-      isActive = false;
-      unsubscribe();
-    };
-  }, [boundPrincipal]);
 
   // 同步停止当前 Room 拥有的本地音轨，不等待网络 disconnect 延迟
   const handleEnd = useCallback(() => {
@@ -133,13 +98,13 @@ export function ActiveConversation({
         snap.state !== "authenticated" ||
         !snap.principal ||
         !arePrincipalsEqual(snap.principal, boundPrincipal) ||
-        getAuthRevision() !== boundRevision
+        getAuthRevision() !== authorizedRevision
       ) {
         return;
       }
       setActive(sessionId, sessionGen);
     }
-  }, [connectionState, setActive, sessionId, sessionGen, boundPrincipal, boundRevision]);
+  }, [connectionState, setActive, sessionId, sessionGen, boundPrincipal, authorizedRevision]);
 
   if (connectionState !== ConnectionState.Connected) {
     return <ConnectingView />;

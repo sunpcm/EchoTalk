@@ -23,3 +23,27 @@ Room消费统一createLifecycleAdapter。异步native监听仅在effect中建立
 ## 5. 验收边界
 
 完整七项format/lint/typecheck/product test/build-script test/build/Chromium+WebKit E2E；检查串行，冻结交付后独立review及集成复验。仅本地Mock测试；不新增安装、不Xcode/设备操作/真实服务、不push/部署。
+
+## 6. 同 principal 新监听与有界 pending
+
+同一 Room/sessionId/sessionGen 和精确 principal 范围内，已验证的同 principal 认证通知
+到达后建立新 callback ownership；通知到达前的旧 revision SDK callback 仍无效。物理
+native adapter 与 Room 可以保持稳定，但每次认证交付必须安装新的业务订阅并将旧业务函数
+永久失效，不能通过动态读取当前 revision 让旧 callback 重新取得权限。刷新不得停止健康
+音轨或重发 dispatch，也不得取消 native 观察、重置原 10 秒预算或让旧 ready 结果清理新
+归属。
+
+原生首次注册与快照仍遵循 §2—§4 的 subscribe-before-read、pending 零音频挂载和
+whenReady 后复核。若 ready 在认证通知空窗内完成，只保留 ready 事实，通知前零 store、
+音频与网络副作用；通知交付后重新读取当前 snapshot 与 native 能力，健康时仅挂载一个
+Room，inactive/hidden/offline、能力未就绪或原 deadline 已过时安全失败。空窗耗尽原 timer
+时旧 timer 不改写新归属，通知后立即按原 deadline 对账并失败关闭，不续 10 秒、不永久
+connecting。初始化/注册失败、身份变化、结束、取消或卸载仍最终清理本实例资源，恢复前台
+不得自动重连、采音或 dispatch。
+
+native 注册与初次 `getState` pending 时 adapter 返回的 hidden 是保守未就绪占位，不是
+可信后台事实。subscribe-before-snapshot 仍执行，但只有 `nativeAppState` 能力可信或
+`whenReady` 完成后，hidden/offline 才能触发失败；Web 的订阅后快照检查继续立即失败。
+每个 pending timer callback 只拥有自己安装的 handle，旧 revision callback 被主动调用
+不得清空新 timer；旧已 dispose 的 ready/late callback 也不得作用新配置。原 10 秒预算、
+认证通知空窗对账和刷新后当前 native 业务监听的同步停轨必须保持。

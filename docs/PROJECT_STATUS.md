@@ -6,18 +6,21 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A75 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A76 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@1e871c2dbf1b202112a544e6507c9ad00bf43bff`（A75）。A75 已独立 Review APPROVED，
-  以单提交完成本地精确 fast-forward 与 main 完整复验：frontend10、917 Vitest、18
-  build-script、61 Fake API、8 类型生成器、148 E2E、576 backend、80.09% coverage、
-  OpenAPI schema 与 Ruff 通过。真实 Agent worker、LiveKit/Provider 外部连接、Docker 镜像、
-  远端 CI 与部署仍未验证；RF-09、RF-12 剩余边界继续保留。
+  `main@f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a`（A76）。A76 已独立 Review
+  APPROVED，以单提交完成本地精确 fast-forward 与 main 完整复验：frontend10、954 Vitest、
+  18 build-script、61 Fake API、8 类型生成器、148 E2E、576 backend、80.09% coverage、
+  OpenAPI schema 与 Ruff 通过。lane 另有 5 项独立消费探针及 3 项 killed/byte-restored
+  auth/session/code 变异，main 未冒认重复这些私有检查。真实 IdP、LiveKit/Provider、
+  设备、Docker 镜像、远端 CI 与部署仍未验证。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 11 个提交。该比较只读
-  本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
+  `c704925bc9150d153fc951c2727e7472dad00d78`；文内具名已验代码基线
+  `main@f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a`（A76）相对它领先 12 个提交。
+  该计数只对应这个具名基线，不是提交后必变的实时 lane HEAD 事实；比较也只读本地 Git
+  引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
   [41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)，精确 head
@@ -34,7 +37,7 @@
   admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
   PR #108 与 PR #109 均已 squash 合并；后续轮次沿用同一路径：分支 + PR，不直推 main。
 - 自动化证据：#92（`286a3db`）CI run 39348513442 与 PR #108 的 run 41217340177 保留为
-  历史发布记录；A45–A75 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
+  历史发布记录；A45–A76 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
   与 `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
@@ -112,7 +115,7 @@ database、不创建 engine 或外部客户端。官方入口改为
   start/dev、联网 CLI、Agent worker、Docker 镜像和部署未验，因此不把本地模块回归冒认线上
   启动，RF-09 整项及 RF-12 前置仍不完成。
 
-## 2026-11-01 CP-06 Agent 错误消息归属与载荷边界（A76 b/r0）
+## 2026-11-01 CP-06 Agent 错误消息归属与载荷边界（A76）
 
 `agent_error` DataChannel 现在由实际 Room 的 `sessionId/sessionGen` 和认证
 principal/revision 共同拥有。旧 Room callback、卸载后的迟到 callback、终态 replay、身份
@@ -126,12 +129,63 @@ startup tracker 清理之前静默拒绝。同一 principal 的正常认证事�
 - store 的 `setAgentError` 要求原子 ownership 门禁，在实际提交时复核 `sessionId`、
   `sessionGen`、`appView` 和 Room 可收取 phase。同步订阅者若在通知内切换到新会话，
   旧错误不得随后终止或清理新会话。
-- r0 已写入真实组件/store 回归，覆盖旧/新代际、principal/revision 空窗、同 principal
-  revision 恢复、多种非法 payload、卸载、终态迟到、无关重渲染、StrictMode 和同步重入。
-  formatter、frontend10、backend/Ruff/schema、独立探针、有效变异与 Review 尚待主 Agent
-  代跑；真实 LiveKit DataChannel、真实 IdP、Provider 与设备未验。
+- 真实组件/store 回归覆盖旧/新代际、principal/revision 空窗、同 principal revision
+  恢复、多种非法 payload、卸载、终态迟到、无关重渲染、StrictMode 和同步重入。A76 已
+  Review APPROVED，定格为本地单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 并精确
+  fast-forward 本地 main；main 完整门禁为 954 Vitest、18 build-script、61 Fake API、
+  8 类型生成器、148 E2E、576 backend、80.09% coverage、OpenAPI schema 与 Ruff。
+- lane 的 5 项独立消费探针与 3 项 killed/byte-restored auth/session/code 变异保留为本轮
+  私有证据，main 未冒认重复。A76 两轮 fixture 失败历史继续保留在冻结实施记录和评审证据
+  中，本轮不回写冻结报告。真实 LiveKit DataChannel、真实 IdP、Provider 与设备未验。
 - 契约与边界见
   [CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
+
+## 2026-11-01 CP-06 Room 同 principal 认证刷新与 native pending 对账（A77 b/r4）
+
+同 principal 的认证通知现在由单一 Room ownership 边界推进新回调 revision。物理
+lifecycle adapter 与 Room 可保持稳定，但每次通知交付都会建立新的业务监听归属；旧
+`onConnected`、`onError`、`onDisconnected`、Web/native lifecycle 与在途 dispatch
+函数按自身 revision 永久失效，通知前主动保存的旧业务函数不会因新 revision 已交付而复活。
+该刷新不停止健康音轨，也不重发 `sessionId/sessionGen` 已去重的 dispatch。
+
+- 媒体资源与回调归属分开：当前 SDK 错误/断连及后台/离线仍同步停本 Room 轨并进入
+  `connection_failed`；身份、代际、结束、取消、卸载后的旧事件继续零副作用。
+- native pending 保留同一原始 deadline。ready 在认证通知空窗中完成时只记录内部事实，
+  通知前零挂载、零网络与零 store 副作用；通知后重新读取当前 snapshot/能力，健康时只挂
+  一个 Room，inactive 或 deadline 已过时安全清 Token。空窗触发的旧 timer 不写新归属，
+  通知后立即按原 deadline 对账，不续 10 秒。
+- r1 产品 Vitest 为 940 passed/25 failed/965 total，25 项均属 native pending 被订阅后
+  占位 hidden 提前关闭；独立消费为 4 passed/4 failed，且未执行 r1 整套 E2E/backend/schema。
+  r1 只执行官方返修 native 预检；baseline3 是初次 r0 派发前历史实测，没有新的 r1 三项
+  baseline 回执，r0 全绿不冒认为 r1 通过。
+- r2 修正平台区分：Web 保留订阅后快照立即失败，native pending 占位 hidden 不触发关闭，
+  等 `whenReady` 后按当前 snapshot/能力与原 deadline 结算。native timer callback 绑定自身
+  handle，旧 callback 主动调用不能清空新 timer；刷新后的当前 native 业务监听仍可停轨。
+- r2 的独立 9 项时序回归与 A76 compat 5 项在 formatter 前通过；随后 format/lint/typecheck
+  通过，完整 Vitest 为 958 passed/9 failed/967 total。9 项失败均是 stale timer 测试让
+  全局时钟残留 fake `setTimeout` 后，后续 A76 Agent error ownership 的 5 秒异步等待超时；
+  stale timer 单项本身通过，不是 Agent error 产品回归。后续完整 E2E/build/backend/schema
+  未执行。
+- r3 仅修正该 timer fixture：移除会由外层 `restoreAllMocks()` 二次恢复的全局 spy，直接
+  包装 fake `setTimeout`，并在局部 finally 中先恢复 fake 函数、再切回真实时钟。旧 callback
+  主动调用、新 handle 所有权和超时关闭断言保留，产品逻辑不变。
+- r3 停写后完整门禁通过：frontend10 的 967 Vitest/33 files、18 build-script、61 Fake API、
+  8 type generator、148 双浏览器 E2E，backend 576 与 80.09% coverage，OpenAPI schema 和
+  Ruff 均通过；独立 9 项时序、A76 compat 5 项与真实时钟恢复通过。
+- auth revision、原 10 秒 deadline、ready snapshot 三个有效产品变异分别产生 11/6/4 项真实
+  断言失败并精确还原。第四项 timer-handle 变异未杀死 967 产品测试，但独立实际 timer 队列
+  确认旧 callback 会清掉新 handle 登记，卸载后残留本 Room timer；这是回归覆盖缺口，不是
+  当前产品逻辑坏。
+- r4 只补该回归：每个 pending callback 现在先进入真实 fake timer 队列后再被保存；认证轮换
+  前推进 9 秒、轮换后的新 timer 剩余延迟必须仍为 1 秒；主动执行旧 callback 必须保持
+  state 与队列所有权，立即卸载后队列必须回到基线，迟到 callback 与推进时钟不得写 store、
+  发网络请求或产生音轨副作用。删除生产 handle guard 会使新回归出现真实失败，产品逻辑不变。
+- r1–r4 回归保留旧/新 SDK 与 Web/native 业务监听、旧已保存函数永久失效、健康 ready
+  单次挂载、ready 后转 inactive、空窗 expired/inactive、dispatch 去重、旧在途结果、
+  独立 adapter 清理、CON-04、StrictMode 与 A76 DataChannel 保护。r4 的完整门禁、第四项
+  变异复验、Review 与集成仍须由主 Agent 在停写后代跑；真实设备音频事件未验证。
+- 边界见
+  [CP-06 Room 同 principal 认证刷新验证](./verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)。
 
 ## 2026-11-01 本地 RF-05 Redis/Celery 减法（A71 当时状态）
 

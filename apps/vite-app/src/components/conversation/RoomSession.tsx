@@ -1,20 +1,21 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from "@livekit/components-react";
 import { dispatchAgent } from "@/lib/api";
-import {
-  arePrincipalsEqual,
-  getAuthRevision,
-  getAuthSnapshot,
-  subscribeAuthSnapshot,
-} from "@/lib/auth";
-import type { AuthPrincipal } from "@/lib/auth";
+import { arePrincipalsEqual, getAuthSnapshot, subscribeAuthSnapshot } from "@/lib/auth";
 import { logDiagnostic } from "@/lib/diagnostics";
-import { createLifecycleAdapter, detectPlatform, getLiveKitWsUrl } from "@/platform";
+import {
+  createLifecycleAdapter,
+  detectPlatform,
+  getLiveKitWsUrl,
+  type LifecycleAdapter,
+  type WebLifecycleEvent,
+} from "@/platform";
 import { useConversationStore } from "@/store/conversation";
 import { hasRoomConnection } from "@/store/conversationState";
 import { ActiveConversation } from "./ActiveConversation";
 import { ConnectingView, RoomUnavailableView } from "./ConversationStatusViews";
 import { stopRoomLocalTracks, type TrackHolderRoom } from "./roomAudio";
+import { useRoomAuthOwnership } from "./useRoomAuthOwnership";
 
 interface RoomSessionProps {
   sessionId: string;
@@ -23,25 +24,27 @@ interface RoomSessionProps {
   wsUrl: string;
 }
 
+interface LifecycleSubscription {
+  readonly revision: number;
+  active: boolean;
+  unsubscribe: () => void;
+}
+
 /** 绑定单个 sessionGen/sessionId 的 LiveKit 资源、生命周期与调度所有权。 */
 export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) {
   const isMountedRef = useRef(true);
   const roomRef = useRef<TrackHolderRoom | null>(null);
   const dispatchedKeyRef = useRef<string | null>(null);
+  const lifecycleAdapterRef = useRef<LifecycleAdapter | null>(null);
+  const lifecycleSubscriptionRef = useRef<LifecycleSubscription | null>(null);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDeadlineRef = useRef<number | null>(null);
+  const nativeReadyCompletedRef = useRef(false);
+  const nativeSettledRef = useRef(false);
 
-  // 绑定进入该会话时的认证快照与 revision，防重渲染修改身份
-  const boundPrincipalRef = useRef<AuthPrincipal | null>(null);
-  const boundRevisionRef = useRef<number>(0);
-  const isInitializedAuth = useRef(false);
-
-  if (!isInitializedAuth.current) {
-    isInitializedAuth.current = true;
-    boundPrincipalRef.current = getAuthSnapshot().principal;
-    boundRevisionRef.current = getAuthRevision();
-  }
-
-  const boundPrincipal = boundPrincipalRef.current;
-  const boundRevision = boundRevisionRef.current;
+  const { boundPrincipal, authorizedRevision, isCurrentRevision } = useRoomAuthOwnership();
+  const latestAuthorizedRevisionRef = useRef(authorizedRevision);
+  latestAuthorizedRevisionRef.current = authorizedRevision;
 
   // iOS 原生 App 容器使用异步 native 门禁，Web / Tauri 无需额外等待
   const isNative = detectPlatform() === "ios";
@@ -56,164 +59,240 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
     initialSnap !== null &&
     (initialSnap.visibility === "hidden" || initialSnap.online === false);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    let isActive = true;
+  const clearPendingTimer = useCallback((): void => {
+    if (pendingTimerRef.current !== null) {
+      clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+  }, []);
 
-    const adapter = createLifecycleAdapter();
-    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // 原生 inactive、Web hidden/suspend、offline 必须同步停轨后再失败关闭
-    const handleLifecycleEvent = (event: {
-      type: string;
-      snapshot: { visibility: string; online: boolean | null };
-    }) => {
-      if (!isActive) return;
-
-      if (
-        event.type === "suspend" ||
-        event.snapshot.visibility === "hidden" ||
-        event.snapshot.online === false
-      ) {
-        const current = useConversationStore.getState();
-        if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
-          return;
-        }
-        if (!hasRoomConnection(current)) {
-          return;
-        }
-        const currentAuth = getAuthSnapshot();
-        const currentRev = getAuthRevision();
-        if (
-          currentAuth.state !== "authenticated" ||
-          !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
-          currentRev !== boundRevision
-        ) {
-          return;
-        }
-
-        logDiagnostic("lifecycle_audio_interrupted");
-        stopRoomLocalTracks(roomRef.current);
-        current.failConnection(sessionId, sessionGen);
+  const failOwnedConnection = useCallback(
+    (revision: number | null, diagnostic?: string): boolean => {
+      if (!isMountedRef.current || revision === null || !isCurrentRevision(revision)) {
+        return false;
       }
-    };
 
-    // subscribe-before-snapshot：消除就绪到 Room 挂载/roomRef 绑定/订阅的空窗
-    const unsubscribe = adapter.subscribe(handleLifecycleEvent);
-
-    // ROOM-01: 监听认证快照，认证 revision 或 principal 变化立即作废计时器
-    const unsubAuth = subscribeAuthSnapshot((snap) => {
-      if (!isActive) return;
+      const current = useConversationStore.getState();
       if (
-        snap.state !== "authenticated" ||
-        !snap.principal ||
-        !arePrincipalsEqual(snap.principal, boundPrincipal) ||
-        getAuthRevision() !== boundRevision
+        current.sessionGen !== sessionGen ||
+        current.sessionId !== sessionId ||
+        !hasRoomConnection(current)
       ) {
-        if (pendingTimer) {
-          clearTimeout(pendingTimer);
-          pendingTimer = null;
-        }
+        return false;
       }
-    });
 
-    if (isNative) {
-      // 原生 pending 最多 10 秒后 failConnection、清 token 及资源
-      pendingTimer = setTimeout(() => {
-        if (!isActive) return;
-        const current = useConversationStore.getState();
-        if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
-          return;
-        }
-        if (!hasRoomConnection(current)) {
-          return;
-        }
+      if (diagnostic) {
+        logDiagnostic(diagnostic);
+      }
+      stopRoomLocalTracks(roomRef.current);
+      current.failConnection(sessionId, sessionGen);
+      return true;
+    },
+    [isCurrentRevision, sessionId, sessionGen],
+  );
 
-        const currentAuth = getAuthSnapshot();
-        const currentRev = getAuthRevision();
-        if (
-          currentAuth.state !== "authenticated" ||
-          !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
-          currentRev !== boundRevision
-        ) {
-          return;
-        }
+  const reconcileNativePendingRef = useRef<(revision: number | null) => void>(() => {});
+  const reconcileNativePending = useCallback(
+    (revision: number | null): void => {
+      if (
+        !isNative ||
+        !isMountedRef.current ||
+        revision === null ||
+        nativeSettledRef.current ||
+        !isCurrentRevision(revision)
+      ) {
+        return;
+      }
 
-        logDiagnostic("native_lifecycle_ready_timeout");
-        stopRoomLocalTracks(roomRef.current);
-        current.failConnection(sessionId, sessionGen);
-      }, 10000);
+      const current = useConversationStore.getState();
+      if (
+        current.sessionGen !== sessionGen ||
+        current.sessionId !== sessionId ||
+        !hasRoomConnection(current)
+      ) {
+        return;
+      }
 
-      adapter.whenReady().then(() => {
-        if (pendingTimer) {
-          clearTimeout(pendingTimer);
-          pendingTimer = null;
-        }
-        if (!isActive) return;
+      const deadline = pendingDeadlineRef.current;
+      if (deadline === null) {
+        return;
+      }
 
-        // 原生 whenReady 后重新核验 snapshot/auth/gen/token/state 才能挂载
-        const current = useConversationStore.getState();
-        if (
-          current.sessionGen !== sessionGen ||
-          current.sessionId !== sessionId ||
-          !hasRoomConnection(current)
-        ) {
-          return;
-        }
+      clearPendingTimer();
+      if (Date.now() >= deadline) {
+        pendingDeadlineRef.current = null;
+        nativeSettledRef.current = true;
+        failOwnedConnection(revision, "native_lifecycle_ready_timeout");
+        return;
+      }
 
-        const currentAuth = getAuthSnapshot();
-        const currentRev = getAuthRevision();
-        if (
-          currentAuth.state !== "authenticated" ||
-          !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
-          currentRev !== boundRevision
-        ) {
+      if (nativeReadyCompletedRef.current) {
+        const adapter = lifecycleAdapterRef.current;
+        if (!adapter) {
           return;
         }
 
         const snap = adapter.getSnapshot();
+        pendingDeadlineRef.current = null;
+        nativeSettledRef.current = true;
         if (
           !adapter.capabilities.nativeAppState ||
           snap.visibility === "hidden" ||
           snap.online === false
         ) {
-          stopRoomLocalTracks(roomRef.current);
-          current.failConnection(sessionId, sessionGen);
+          failOwnedConnection(revision);
           return;
         }
 
         setIsNativeReady(true);
-      });
-    } else {
-      // Web / Tauri: 订阅后立即读取当前快照 (CON-04)
-      const snap = adapter.getSnapshot();
-      if (snap.visibility === "hidden" || snap.online === false) {
-        handleLifecycleEvent({
-          type: snap.visibility === "hidden" ? "suspend" : "connectivity",
-          snapshot: snap,
-        });
+        return;
       }
+
+      const timer = setTimeout(
+        () => {
+          // A stale callback may still be queued or invoked after rotation. It only owns the
+          // pending handle it installed, so it cannot clear a newer revision's timer.
+          if (pendingTimerRef.current !== timer) {
+            return;
+          }
+          pendingTimerRef.current = null;
+          reconcileNativePendingRef.current(revision);
+        },
+        Math.max(0, deadline - Date.now()),
+      );
+      pendingTimerRef.current = timer;
+    },
+    [clearPendingTimer, failOwnedConnection, isCurrentRevision, isNative, sessionId, sessionGen],
+  );
+  reconcileNativePendingRef.current = reconcileNativePending;
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    let isActive = true;
+
+    const adapter = createLifecycleAdapter();
+    lifecycleAdapterRef.current = adapter;
+    nativeReadyCompletedRef.current = false;
+    pendingDeadlineRef.current = isNative ? Date.now() + 10000 : null;
+    nativeSettledRef.current = !isNative;
+
+    // ROOM-01: principal 失效立即作废计时器；同 principal revision 更新保留原始 10s 预算
+    const unsubAuth = subscribeAuthSnapshot((snap) => {
+      if (!isActive) return;
+      if (
+        snap.state !== "authenticated" ||
+        !snap.principal ||
+        !boundPrincipal ||
+        !arePrincipalsEqual(snap.principal, boundPrincipal)
+      ) {
+        clearPendingTimer();
+        pendingDeadlineRef.current = null;
+        nativeSettledRef.current = true;
+      }
+    });
+
+    if (isNative) {
+      adapter.whenReady().then(() => {
+        if (!isActive) return;
+        nativeReadyCompletedRef.current = true;
+        reconcileNativePendingRef.current(latestAuthorizedRevisionRef.current);
+      });
     }
 
     return () => {
       isActive = false;
       isMountedRef.current = false;
-      if (pendingTimer) {
-        clearTimeout(pendingTimer);
-        pendingTimer = null;
+      clearPendingTimer();
+      pendingDeadlineRef.current = null;
+      nativeSettledRef.current = true;
+      const subscription = lifecycleSubscriptionRef.current;
+      if (subscription) {
+        subscription.active = false;
+        subscription.unsubscribe();
+        lifecycleSubscriptionRef.current = null;
       }
       unsubAuth();
-      unsubscribe();
       adapter.dispose();
+      if (lifecycleAdapterRef.current === adapter) {
+        lifecycleAdapterRef.current = null;
+      }
       stopRoomLocalTracks(roomRef.current);
     };
-  }, [sessionId, sessionGen, isNative, boundPrincipal, boundRevision]);
+  }, [sessionId, sessionGen, isNative, boundPrincipal, clearPendingTimer]);
+
+  useEffect(() => {
+    if (isNative) {
+      reconcileNativePending(authorizedRevision);
+    }
+  }, [authorizedRevision, isNative, reconcileNativePending]);
+
+  // Each delivered auth receipt owns a fresh business listener. The physical adapter stays
+  // stable, while any saved prior listener remains permanently invalid.
+  useEffect(() => {
+    const adapter = lifecycleAdapterRef.current;
+    const previous = lifecycleSubscriptionRef.current;
+    if (!adapter || authorizedRevision === null) {
+      if (previous) {
+        previous.active = false;
+        previous.unsubscribe();
+        lifecycleSubscriptionRef.current = null;
+      }
+      return;
+    }
+
+    const revision = authorizedRevision;
+    const subscription: LifecycleSubscription = {
+      revision,
+      active: true,
+      unsubscribe: () => {},
+    };
+    const handleLifecycleEvent = (event: WebLifecycleEvent): void => {
+      if (!subscription.active || !isMountedRef.current || !isCurrentRevision(revision)) {
+        return;
+      }
+      if (
+        event.type === "suspend" ||
+        event.snapshot.visibility === "hidden" ||
+        event.snapshot.online === false
+      ) {
+        failOwnedConnection(revision, "lifecycle_audio_interrupted");
+      }
+    };
+
+    // Subscribe-before-snapshot also applies after every auth receipt rotation.
+    subscription.unsubscribe = adapter.subscribe(handleLifecycleEvent);
+    lifecycleSubscriptionRef.current = subscription;
+    if (previous) {
+      previous.active = false;
+      previous.unsubscribe();
+    }
+
+    const snap = adapter.getSnapshot();
+    // The native adapter intentionally exposes hidden while registration/getState is pending.
+    // That is an unready gate rather than a trusted background fact; whenReady reconciliation
+    // settles it. Web snapshots and already-ready native snapshots remain fail-closed.
+    const canEvaluateSnapshot = !isNative || adapter.capabilities.nativeAppState;
+    if (canEvaluateSnapshot && (snap.visibility === "hidden" || snap.online === false)) {
+      handleLifecycleEvent({
+        type: snap.visibility === "hidden" ? "suspend" : "connectivity",
+        snapshot: snap,
+      });
+    }
+
+    return () => {
+      subscription.active = false;
+    };
+  }, [authorizedRevision, failOwnedConnection, isCurrentRevision, isNative]);
 
   if (isInitialBlocked) {
-    return <InitialBlockedHandler sessionId={sessionId} sessionGen={sessionGen} />;
+    return (
+      <InitialBlockedHandler
+        sessionId={sessionId}
+        sessionGen={sessionGen}
+        authorizedRevision={authorizedRevision}
+        isCurrentRevision={isCurrentRevision}
+      />
+    );
   }
 
   if (isNative && !isNativeReady) {
@@ -234,6 +313,11 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
       audio={true}
       video={false}
       onConnected={() => {
+        const callbackRevision = authorizedRevision;
+        if (callbackRevision === null || !isCurrentRevision(callbackRevision)) {
+          return;
+        }
+
         const current = useConversationStore.getState();
         if (
           current.sessionGen !== sessionGen ||
@@ -252,18 +336,9 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
           return;
         }
 
-        // DSP-01: 在同步 store 通知前捕获请求来源精确认证快照与 revision
-        const authSnap = getAuthSnapshot();
-        if (
-          authSnap.state !== "authenticated" ||
-          !authSnap.principal ||
-          !arePrincipalsEqual(authSnap.principal, boundPrincipal) ||
-          getAuthRevision() !== boundRevision
-        ) {
-          return;
-        }
+        // DSP-01: 在同步 store 通知前捕获请求来源 principal 与 revision
         const reqPrincipal = boundPrincipal;
-        const reqRevision = boundRevision;
+        const reqRevision = callbackRevision;
 
         dispatchedKeyRef.current = dispatchKey;
         if (!current.markDispatched(sessionId, sessionGen)) {
@@ -285,12 +360,10 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
         }
 
         const afterSetAuth = getAuthSnapshot();
-        const afterSetRev = getAuthRevision();
         if (
-          afterSetAuth.state !== "authenticated" ||
           !afterSetAuth.principal ||
           !arePrincipalsEqual(afterSetAuth.principal, reqPrincipal) ||
-          afterSetRev !== reqRevision
+          !isCurrentRevision(reqRevision)
         ) {
           return;
         }
@@ -308,12 +381,10 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
             }
 
             const latestAuth = getAuthSnapshot();
-            const latestRev = getAuthRevision();
             if (
-              latestAuth.state !== "authenticated" ||
               !latestAuth.principal ||
               !arePrincipalsEqual(latestAuth.principal, reqPrincipal) ||
-              latestRev !== reqRevision
+              !isCurrentRevision(reqRevision)
             ) {
               return;
             }
@@ -342,12 +413,10 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
             }
 
             const latestAuth = getAuthSnapshot();
-            const latestRev = getAuthRevision();
             if (
-              latestAuth.state !== "authenticated" ||
               !latestAuth.principal ||
               !arePrincipalsEqual(latestAuth.principal, reqPrincipal) ||
-              latestRev !== reqRevision
+              !isCurrentRevision(reqRevision)
             ) {
               return;
             }
@@ -358,22 +427,16 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
           });
       }}
       onError={() => {
+        const callbackRevision = authorizedRevision;
+        if (callbackRevision === null || !isCurrentRevision(callbackRevision)) {
+          return;
+        }
         if (!isMountedRef.current) return;
         const current = useConversationStore.getState();
         if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
           return;
         }
         if (!hasRoomConnection(current)) {
-          return;
-        }
-        const currentAuth = getAuthSnapshot();
-        const currentRev = getAuthRevision();
-        if (
-          currentAuth.state !== "authenticated" ||
-          !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
-          currentRev !== boundRevision
-        ) {
           return;
         }
 
@@ -382,22 +445,16 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
         current.failConnection(sessionId, sessionGen);
       }}
       onDisconnected={() => {
+        const callbackRevision = authorizedRevision;
+        if (callbackRevision === null || !isCurrentRevision(callbackRevision)) {
+          return;
+        }
         if (!isMountedRef.current) return;
         const current = useConversationStore.getState();
         if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
           return;
         }
         if (!hasRoomConnection(current)) {
-          return;
-        }
-        const currentAuth = getAuthSnapshot();
-        const currentRev = getAuthRevision();
-        if (
-          currentAuth.state !== "authenticated" ||
-          !currentAuth.principal ||
-          !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
-          currentRev !== boundRevision
-        ) {
           return;
         }
 
@@ -413,7 +470,7 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
         sessionId={sessionId}
         sessionGen={sessionGen}
         boundPrincipal={boundPrincipal}
-        boundRevision={boundRevision}
+        authorizedRevision={authorizedRevision}
       />
       <RoomAudioRenderer />
     </LiveKitRoom>
@@ -459,15 +516,21 @@ function RoomContextSync({
 function InitialBlockedHandler({
   sessionId,
   sessionGen,
+  authorizedRevision,
+  isCurrentRevision,
 }: {
   sessionId: string;
   sessionGen: number;
+  authorizedRevision: number | null;
+  isCurrentRevision: (revision: number | null) => boolean;
 }) {
   const failConnection = useConversationStore((state) => state.failConnection);
 
   useEffect(() => {
-    failConnection(sessionId, sessionGen);
-  }, [failConnection, sessionId, sessionGen]);
+    if (isCurrentRevision(authorizedRevision)) {
+      failConnection(sessionId, sessionGen);
+    }
+  }, [authorizedRevision, failConnection, isCurrentRevision, sessionGen, sessionId]);
 
   return <ConnectingView />;
 }
