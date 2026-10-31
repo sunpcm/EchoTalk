@@ -477,6 +477,33 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(useConversationStore.getState().connectionState).toBe("active");
   });
 
+  it("renders the idle fallback and mounts a room for credentials-ready connecting", () => {
+    useConversationStore.setState({
+      connectionState: "idle",
+      appView: "session",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+      error: "idle safeguard",
+    });
+    const { rerender } = render(<VoiceInterface />);
+
+    expect(screen.getByText("idle safeguard")).toBeInTheDocument();
+    expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+    useConversationStore.setState({
+      connectionState: "connecting",
+      appView: "session",
+      sessionId: "sess-ready",
+      token: "tok-ready",
+      wsUrl: "wss://lk.test",
+      error: null,
+    });
+    rerender(<VoiceInterface />);
+
+    expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+  });
+
   it("renders end_failed view on rejection with stopped audio and allows retry for the same session", async () => {
     useConversationStore.setState({
       connectionState: "end_failed",

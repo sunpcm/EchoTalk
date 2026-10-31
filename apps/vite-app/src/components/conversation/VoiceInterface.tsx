@@ -39,6 +39,7 @@ import { zhCN } from "@/i18n/zh-CN";
 import { getLiveKitWsUrl, createLifecycleAdapter, detectPlatform } from "@/platform";
 import { logDiagnostic } from "@/lib/diagnostics";
 import type { AuthPrincipal } from "@/lib/auth";
+import { hasRoomConnection } from "@/store/conversationState";
 
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
@@ -69,13 +70,14 @@ export function stopRoomLocalTracks(
 
 type TrackHolderRoom = Parameters<typeof stopRoomLocalTracks>[0];
 
-/** 主入口：根据 connectionState 渲染不同视图 */
+/** 主入口：根据内部会话状态模型渲染不同视图 */
 export function VoiceInterface() {
-  const { connectionState, sessionId, token, wsUrl, error, goHome, sessionGen } =
-    useConversationStore();
+  const store = useConversationStore();
+  const sessionState = store._sessionState;
+  const { error, goHome, sessionGen } = store;
 
   // idle 状态不应在 session 视图出现，作为安全回退
-  if (connectionState === "idle") {
+  if (sessionState.phase === "idle") {
     return (
       <div className="flex flex-col items-center gap-6 py-12">
         {error && (
@@ -91,42 +93,41 @@ export function VoiceInterface() {
     );
   }
 
-  if (connectionState === "checking_health" || (connectionState === "connecting" && !token)) {
+  if (
+    sessionState.phase === "checking_health" ||
+    sessionState.phase === "creating_session" ||
+    sessionState.phase === "fetching_token"
+  ) {
     return <ConnectingView />;
   }
 
-  if (connectionState === "ending") {
+  if (sessionState.phase === "ending") {
     return <EndingView />;
   }
 
-  if (connectionState === "end_failed") {
+  if (sessionState.phase === "end_failed") {
     return <EndFailedView />;
   }
 
-  if (connectionState === "ended") {
+  if (sessionState.phase === "ended") {
     return <EndedView />;
   }
 
-  if (connectionState === "dispatch_failed") {
+  if (sessionState.phase === "dispatch_failed") {
     return <DispatchFailedView />;
   }
 
-  if (connectionState === "connection_failed") {
+  if (sessionState.phase === "connection_failed") {
     return <ConnectionFailedView />;
-  }
-
-  // 严格安全门禁：除 connecting/active 且 token 存在外，绝不挂载 LiveKitRoom
-  if ((connectionState !== "connecting" && connectionState !== "active") || !token || !sessionId) {
-    return <ConnectingView />;
   }
 
   return (
     <RoomSession
-      key={`lk-session-${sessionGen}-${sessionId}`}
-      sessionId={sessionId}
+      key={`lk-session-${sessionGen}-${sessionState.sessionId}`}
+      sessionId={sessionState.sessionId}
       sessionGen={sessionGen}
-      token={token}
-      wsUrl={wsUrl}
+      token={sessionState.token}
+      wsUrl={sessionState.wsUrl}
     />
   );
 }
@@ -135,7 +136,7 @@ interface RoomSessionProps {
   sessionId: string;
   sessionGen: number;
   token: string;
-  wsUrl: string | null;
+  wsUrl: string;
 }
 
 function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) {
@@ -197,10 +198,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
         if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
           return;
         }
-        if (
-          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !current.token
-        ) {
+        if (!hasRoomConnection(current)) {
           return;
         }
         const currentAuth = getAuthSnapshot();
@@ -248,10 +246,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
         if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
           return;
         }
-        if (
-          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !current.token
-        ) {
+        if (!hasRoomConnection(current)) {
           return;
         }
         // ROOM-01: 所有 timer 副作用前核验原 principal(issuer+subject)/revision/auth 状态；旧回调静默
@@ -284,8 +279,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
         if (
           current.sessionGen !== sessionGen ||
           current.sessionId !== sessionId ||
-          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !current.token
+          !hasRoomConnection(current)
         ) {
           return;
         }
@@ -372,8 +366,8 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
   return (
     <LiveKitRoom
       key={`lk-room-${sessionGen}-${sessionId}`}
-      serverUrl={effectiveWsUrl ?? undefined}
-      token={token ?? undefined}
+      serverUrl={effectiveWsUrl}
+      token={token}
       connect={true}
       audio={true}
       video={false}
@@ -383,9 +377,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
         if (
           current.sessionGen !== sessionGen ||
           current.sessionId !== sessionId ||
-          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !sessionId ||
-          !current.token
+          !hasRoomConnection(current)
         ) {
           return;
         }
@@ -432,9 +424,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
         if (
           afterSetState.sessionGen !== sessionGen ||
           afterSetState.sessionId !== sessionId ||
-          (afterSetState.connectionState !== "connecting" &&
-            afterSetState.connectionState !== "active") ||
-          !afterSetState.token
+          !hasRoomConnection(afterSetState)
         ) {
           return;
         }
@@ -463,7 +453,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
             }
 
             // 门禁核对：连接状态仍为 connecting 或 active
-            if (latest.connectionState !== "connecting" && latest.connectionState !== "active") {
+            if (!hasRoomConnection(latest)) {
               return;
             }
 
@@ -506,7 +496,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
             }
 
             // 门禁核对：连接状态仍为 connecting 或 active
-            if (latest.connectionState !== "connecting" && latest.connectionState !== "active") {
+            if (!hasRoomConnection(latest)) {
               return;
             }
 
@@ -535,10 +525,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
         if (current.sessionGen !== sessionGen || current.sessionId !== sessionId) {
           return;
         }
-        if (
-          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !current.token
-        ) {
+        if (!hasRoomConnection(current)) {
           return;
         }
         const currentAuth = getAuthSnapshot();
@@ -564,10 +551,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
           return;
         }
         // 只要客户端状态仍 connecting/active 且有 Token（无论断开原因）
-        if (
-          (current.connectionState !== "connecting" && current.connectionState !== "active") ||
-          !current.token
-        ) {
+        if (!hasRoomConnection(current)) {
           return;
         }
         const currentAuth = getAuthSnapshot();

@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth";
 import { createLifecycleAdapter, type LifecycleAdapter, type WebLifecycleEvent } from "@/platform";
 import { useConversationStore } from "@/store/conversation";
+import { isStartingConversationSession } from "@/store/conversationState";
 import { zhCN } from "@/i18n/zh-CN";
 
 const t = zhCN.activeSessions;
@@ -65,10 +66,7 @@ export function ActiveSessions() {
   } | null>(null);
 
   const resumeSession = useConversationStore((s) => s.resumeSession);
-  const connectionState = useConversationStore((s) => s.connectionState);
-  const token = useConversationStore((s) => s.token);
-  const isStarting =
-    connectionState === "checking_health" || (connectionState === "connecting" && !token);
+  const isStarting = useConversationStore((s) => isStartingConversationSession(s));
 
   // 结束活动记录操作状态
   const [confirmingSessionId, setConfirmingSessionId] = useState<string | null>(null);
@@ -122,9 +120,7 @@ export function ActiveSessions() {
   const fetchActiveSessions = useCallback(() => {
     // 结束在途或启动/恢复在途暂停列表刷新且不排队
     const currentConvState = useConversationStore.getState();
-    const isStartingNow =
-      currentConvState.connectionState === "checking_health" ||
-      (currentConvState.connectionState === "connecting" && !currentConvState.token);
+    const isStartingNow = isStartingConversationSession(currentConvState);
 
     if (endInFlightRef.current || resumeInFlightRef.current || isStartingNow) {
       return;
@@ -240,9 +236,7 @@ export function ActiveSessions() {
 
   const handleLoadMore = () => {
     const currentConvState = useConversationStore.getState();
-    const isStartingNow =
-      currentConvState.connectionState === "checking_health" ||
-      (currentConvState.connectionState === "connecting" && !currentConvState.token);
+    const isStartingNow = isStartingConversationSession(currentConvState);
 
     if (
       endInFlightRef.current ||

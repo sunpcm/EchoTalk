@@ -20,6 +20,37 @@
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-11-01 本地 RF-11 会话状态判别联合与 Reducer 实施记录（A65）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“将会话状态改为判别联合或 Reducer”
+完成会话状态子项。新增纯模块 `apps/vite-app/src/store/conversationState.ts`，内部以明确
+phase 表达健康检查、创建会话、获取令牌、凭据就绪、active、ending、失败与终态；生产 store
+真实消费该模型的构造、守卫、Reducer 与投影，未增加未接线的并行状态。
+
+- 单一真值与兼容面：Zustand 内部 `_sessionState` 为判别联合真值，九个外部
+  `connectionState` 字符串及 nullable `sessionId/token/wsUrl` 在同一个原子 set 中投影；
+  空闲态 token/wsUrl 仍为 null，全部既有 action、`appView/error/sessionGen/agentError/
+selectedScenario/dispatched*` 与公开 `setState` 测试入口保持兼容。公开扁平夹具经同一层
+  归一化，完整非空 sessionId/token/wsUrl 才能进入 credentials-ready 或 active。
+- 启动语义纠偏：旧 `connecting + null token` 是 `startSession` 的刻意过渡态，内部进一步拆为
+  `creating_session` 与 `fetching_token`；认证/生命周期“启动中”判定只覆盖
+  `checking_health/creating_session/fetching_token`，有凭据的 connecting 不属于启动中。
+  `resumeSession` 仍在校验、详情、健康检查与 token 全部成功后一次发布完整凭据。
+- 状态机保持：`setActive` 仅允许 credentials-ready 转 active；dispatch/connection 失败只从
+  connecting/active 生效并清凭据；ending、end_failed、ended 保留原 sessionId，包括无会话时
+  直接 ended；reset/goHome 清内部模型与扁平投影；markDispatched 去重、全部 sessionGen 增量、
+  写后复核、auth revision/principal 与迟到响应隔离保持。
+- 消费面与 UI：`VoiceInterface` 通过模型类型收窄决定 idle/startup/终态/room-ready 分支，
+  仅 `credentials_ready/active` 可挂载 LiveKitRoom，Room key/props、DOM、文案与释放行为不变；
+  `ActiveSessions` 启动判定复用同一纯守卫。
+- 验证范围与边界：新增纯模型矩阵、非法凭据与类型负向、真实 create/token 前后 phase、
+  public setState 原子归一化、无效激活、reset/goHome、ending/end_failed/ended 身份以及 UI
+  房间挂载回退回归。本实施节点按评审流程停写，固定质量门禁、Vite Vitest、Playwright、
+  backend pytest 与变异检查待主 Agent 在受控权限下复验，未在本节点宣称通过。
+- 契约与记录见 [RF-11 会话状态模型验证](./verification/cross-platform/RF-11-STATE-MODEL.md)。
+  OpenAPI 类型生成与 `VoiceInterface`/`SettingsDrawer` 大组件按行为拆分仍未完成，RF-11
+  整项保持未勾选。
+
 ## 2026-11-01 本地 RF-11 Transport 请求超时与取消边界实施记录（A64）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”完成本地实施。新增 `apps/vite-app/src/lib/apiRequestTimeout.ts` 与直接单测，并由 `apps/vite-app/src/lib/api.ts` 的真实 `request` 消费；普通请求默认预算 10s，`updateUserSettings` 显式采用 15s，以覆盖后端最多 10s 的 Provider 并行校验及连接/响应余量。
