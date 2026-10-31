@@ -5,14 +5,30 @@
 
 ## 维护基线
 
-- 最近本地核对日期：2026-10-24；以下 main/CI 记录保留为历史发布证据，本轮本地三端增量未推送或部署。
-- 代码基线：`main@286a3db68ba2b43e76df5df3b9f7d24444a3a796`（#92 合并后）；
-  本轮进度条修复见 [#90](https://github.com/sunpcm/EchoTalk/pull/90)
-- 自动化证据：[#92 CI run 39348513442](https://github.com/sunpcm/EchoTalk/actions/runs/39348513442)；
-  [#90 检查记录](https://github.com/sunpcm/EchoTalk/pull/90/checks)
-- 证据范围：上述 CI 已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
-  PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
+- 最近本地核对日期：2026-11-01。
+- 代码基线：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
+  （`feat: integrate locally reviewed cross-platform milestones (A45-A63)`，squash 合并）。
+- 远端状态：`main` 为受保护分支（必需状态检查 `test-frontend` / `test-backend`、线性历史、对话已解决，
+  admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
+  [PR #108](https://github.com/sunpcm/EchoTalk/pull/108) 已 squash 合并，`test-frontend`、`test-backend`
+  与 `CI` 三项均通过。后续轮次沿用同一路径：分支 + PR，不直推 main。
+- 自动化证据：PR #108 的 CI run 41217340177 是最近一次远端 CI 记录；
+  更早的 #92（`286a3db`）CI run 39348513442 保留为历史发布证据。
+  A45–A63 的本地增量另由本地固定门禁逐轮验证，详见各轮评审报告与
+  `docs/verification/cross-platform/`。
+- 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
+  PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-11-01 本地 RF-11 Transport 请求超时与取消边界实施记录（A64）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”完成本地实施。新增 `apps/vite-app/src/lib/apiRequestTimeout.ts` 与直接单测，并由 `apps/vite-app/src/lib/api.ts` 的真实 `request` 消费；普通请求默认预算 10s，`updateUserSettings` 显式采用 15s，以覆盖后端最多 10s 的 Provider 并行校验及连接/响应余量。
+
+- 模块边界与非法值：解析仅接受正有限数，`0`、负数、`NaN`、无穷与非数字安全回退 10s；模块零网络、异步请求、DOM 节点、store、日志正文、全局可变配置与反向业务依赖，不修改传入参数，重复调用互相隔离。
+- 取消与超时契约：组合调用方 `AbortSignal` 与内部计时器；已取消 signal 在 `fetch` 前零网络短路；预算耗尽抛出 `ApiRequestTimeoutError`，调用方取消抛出 `ApiRequestAbortedError`，两者均不是 `ApiError` 且文案不含 URL、token、Header 或正文；外部取消始终优先，超时与取消不自动重试或重放请求。
+- 请求链路保持：认证 revision 读取、token 获取、revision 二次校验、Header 构造之后才创建组合 signal；原 `baseUrl/path`、`...options`、HTTP 错误与 `ApiError`、401 按原 revision 失效、非 JSON 回退、网络错误原样重抛及单次 `fetch` 均保持；超时/取消分别记录 `api_request_timeout` / `api_request_aborted` 结构化诊断。
+- 验证范围：直接单测覆盖默认/覆盖/非法预算、已取消 signal 零请求、错误类型区分、外部取消优先、计时器清理、错误文案稳定、冻结参数与实例隔离；公共 API 消费回归验证最终 fetch signal、超时与取消错误、一次 fetch 及设置更新的较长预算。固定检查入口因子 Agent 沙箱不能写锁目录而以 exit 78 / `PermissionError` 拒绝，独立评审阶段由主 Agent 在受控权限下补跑全部门禁并通过（前端 quality 8/8、Vite Vitest 31 文件/854 项、Chromium E2E 148、后端 pytest 529 项/82.49%）；评审另修复 `RequestInit.signal` 的 `AbortSignal | null` 类型缺陷并补 `null` 边界单测，三项前端变异自检全部被杀死。
+- 契约与记录见 [RF-11 Transport 请求超时与取消边界验证](./verification/cross-platform/RF-11-REQUEST-TIMEOUT.md)。OpenAPI 类型生成与会话状态模型重构仍待完成，RF-11 整项保持未勾选。
 
 ## 2026-10-31 本地 RF-11 API 请求 Header 合并边界抽离实施记录（A63）
 

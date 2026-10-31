@@ -9,6 +9,7 @@ import { zhCN } from "@/i18n/zh-CN";
 import { logDiagnostic } from "@/lib/diagnostics";
 import * as apiErrorMessageModule from "./apiErrorMessage";
 import * as apiRequestHeadersModule from "./apiRequestHeaders";
+import * as apiRequestTimeoutModule from "./apiRequestTimeout";
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -33,7 +34,11 @@ export class ApiError extends Error {
 }
 
 /** 通用请求封装 */
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  options?: RequestInit,
+  timeoutOptions?: apiRequestTimeoutModule.ApiRequestTimeoutOptions,
+): Promise<T> {
   const baseUrl = getBaseUrl();
   const reqRevision = getAuthRevision();
   const accessToken = await getAccessToken();
@@ -43,30 +48,64 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   const headers = apiRequestHeadersModule.buildApiRequestHeaders(options?.headers, accessToken);
+  const requestAbort = apiRequestTimeoutModule.createApiRequestAbortHandle(
+    options?.signal,
+    timeoutOptions,
+  );
   let res: Response;
+  let fetchFailed = false;
   try {
-    res = await fetch(`${baseUrl}${path}`, {
-      ...options,
-      headers,
-    });
-  } catch (error) {
-    logDiagnostic("api_network_failed");
-    throw error;
-  }
-
-  if (!res.ok) {
-    logDiagnostic("api_http_failed", { status: res.status });
-    if (res.status === 401) {
-      invalidateAuthSession(reqRevision);
+    const preflightFailure = requestAbort.getFailure();
+    if (preflightFailure) {
+      throw preflightFailure;
     }
-    const body = await res.json().catch(() => ({}));
 
-    const message = apiErrorMessageModule.getApiErrorMessage(res.status, body);
+    try {
+      res = await fetch(`${baseUrl}${path}`, {
+        ...options,
+        headers,
+        signal: requestAbort.signal,
+      });
+    } catch (error) {
+      fetchFailed = true;
+      throw error;
+    }
 
-    throw new ApiError(res.status, message, body);
+    if (!res.ok) {
+      logDiagnostic("api_http_failed", { status: res.status });
+      if (res.status === 401) {
+        invalidateAuthSession(reqRevision);
+      }
+      let body: any = {};
+      try {
+        body = await res.json();
+      } catch (error) {
+        if (requestAbort.getFailure()) {
+          throw error;
+        }
+      }
+
+      const message = apiErrorMessageModule.getApiErrorMessage(res.status, body);
+
+      throw new ApiError(res.status, message, body);
+    }
+
+    return await res.json();
+  } catch (error) {
+    const requestFailure = requestAbort.getFailure();
+    if (requestFailure) {
+      logDiagnostic(
+        requestFailure.kind === "timeout" ? "api_request_timeout" : "api_request_aborted",
+      );
+      throw requestFailure;
+    }
+    if (fetchFailed) {
+      logDiagnostic("api_network_failed");
+    }
+    throw error;
+  } finally {
+    requestAbort.dispose();
   }
-
-  return res.json();
 }
 
 // ─── 会话相关类型 ───
@@ -838,8 +877,12 @@ export function getUserSettings(): Promise<UserSettingsResponse> {
 
 /** 更新当前用户的双轨制配置（部分更新） */
 export function updateUserSettings(data: UserSettingsUpdate): Promise<UserSettingsResponse> {
-  return request<UserSettingsResponse>("/user/settings", {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
+  return request<UserSettingsResponse>(
+    "/user/settings",
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+    { timeoutMs: apiRequestTimeoutModule.UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS },
+  );
 }
