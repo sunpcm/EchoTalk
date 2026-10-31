@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-EchoTalk is a pnpm/Turborepo monorepo with a Python backend. Frontends live in `apps/`: `vite-app` is the primary React 19 client and `webpack-app` is the alternate bundler implementation. Shared UI and SVG assets are in `packages/ui-lib`; reusable tooling configuration is under `packages/configs`. FastAPI, LiveKit, Celery, SQLAlchemy, and Alembic code lives in `backend/`. Architecture notes and phase-specific manual checks belong in `docs/`; active work belongs in `TODO.md`.
+EchoTalk is a pnpm/Turborepo monorepo with a Python backend. Frontends live in `apps/`: `vite-app` is the primary React 19 client and `webpack-app` is the alternate bundler implementation. Shared UI and SVG assets are in `packages/ui-lib`; reusable tooling configuration is under `packages/configs`. FastAPI, LiveKit, PostgreSQL analysis worker, SQLAlchemy, and Alembic code lives in `backend/`. Architecture notes and phase-specific manual checks belong in `docs/`; active work belongs in `TODO.md`.
 
 ## Build, Test, and Development Commands
 

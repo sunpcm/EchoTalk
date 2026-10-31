@@ -2,7 +2,8 @@
 
 > 对应任务：A65 / RF-11 会话状态判别联合与 Reducer
 > 状态：独立 Review APPROVED，本地单提交
-> `356f69e9ceecf8868b6f11db7b53d566032bb2f6`，main 精确 fast-forward 并全量复验通过。
+> `356f69e9ceecf8868b6f11db7b53d566032bb2f6`，main 精确 fast-forward 并完成当时 8 项前端
+> 门禁与 backend 复验。
 > 未 push/部署；日期：2026-11-01。
 
 ## 1. 重构前事实与目标
@@ -113,9 +114,11 @@ Zustand 的 no-op 引用与零通知语义。
 
 ## 7. 未验边界
 
-A65 已通过独立 Review 并在本地 main 完成全量复验：876 Vitest、148 双浏览器 E2E、
-529 backend；三项有效变异均被真实断言杀死并完整还原源码。该结论固定在上述单提交，
-后续 A66–A69 的测试增量不回写为 A65 当时的数量。
+三项有效变异是 A65 lane 私有验证，均在提交前被真实断言杀死并完整还原源码，main 未重跑。
+该提交精确 fast-forward 后，main 按 A65 当时范围完成原 8 项前端门禁与 529 backend
+pytest，其中 Vitest 876、双浏览器 E2E 148。当时尚无 A67 才新增的 OpenAPI schema 门禁，
+也不把其他轮次或 lane 的 Ruff 结果追加为本次 main 事实。该结论固定在上述单提交，后续
+A66–A69 的测试增量不回写为 A65 当时的数量。
 
 真实 LiveKit、iOS 原生生命周期、真实认证服务与生产发布不在本轮实施节点验收范围内。
 A65 也没有把 UI 主动 abort 接入全部 store；该能力不由状态模型或后续公共 signal 入口

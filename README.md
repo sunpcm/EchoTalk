@@ -73,22 +73,21 @@
 ### 服务架构
 
 ```
-docker-compose.yml 包含 7 个服务：
+docker-compose.yml 包含 6 个服务：
 
-  echotalk-postgres   ── PostgreSQL 15
-  echotalk-redis      ── Redis 7
-  echotalk-chroma     ── ChromaDB 向量数据库
-  echotalk-api        ── FastAPI (uvicorn × 4 workers)
-  echotalk-agent      ── LiveKit 语音 Agent
-  echotalk-worker     ── Celery 异步任务
-  echotalk-web        ── Nginx 静态前端 + API 反向代理
+  echotalk-postgres          ── PostgreSQL 15
+  echotalk-chroma            ── ChromaDB 向量数据库
+  echotalk-api               ── FastAPI (uvicorn × 4 workers)
+  echotalk-agent             ── LiveKit 语音 Agent
+  echotalk-analysis-worker   ── PostgreSQL 持久化分析任务
+  echotalk-web               ── Nginx 静态前端 + API 反向代理
 ```
 
 ### 启动步骤
 
 ```bash
 # 1. 确认 .env 文件已配置（API keys 等敏感信息）
-#    docker-compose 中的 DATABASE_URL / REDIS_URL / CHROMA_HOST
+#    docker-compose 中的 DATABASE_URL / CHROMA_HOST
 #    已自动指向容器内部地址，无需手动修改
 
 # 2. 一键构建并启动全部服务（后台运行）
@@ -215,7 +214,7 @@ pnpm --filter vite-app dev
 - **音素可视化**：逐音素彩色色块渲染（绿=正确、红=替换/缺失、琥珀=多余），Hover 显示错误详情
 - **语法提示**：检测到的语法错误以列表形式展示，含 skill_tag 标签和原文标注
 - **技能掌握度**：BKT 知识状态按发音/语法分组，进度条 + 百分比展示，≥95% 标记「已掌握」
-- **轮询机制**：指数退避轮询兼容未来 Celery 异步分析，404 时自动重试
+- **轮询机制**：指数退避轮询 PostgreSQL 持久化分析状态，失败时提供显式重试入口
 - **评估状态管理**：独立 zustand store，管理 idle/polling/loaded/error 四状态生命周期
 
 ### Phase 2 — LiveKit 连接优化
@@ -239,7 +238,7 @@ pnpm --filter vite-app dev
 - **Krashen i+1 过滤**：CEFR 数值化映射（A1=1~C2=6），metadata `$gte/$lte` 硬过滤 + 向量相似度软排序
 - **自适应课程推荐**：读取 BKT 最弱技能 → RAG 检索匹配语料 → 生成定制化 System Prompt 模板
 - **智能难度定位**：根据最弱技能掌握度自动推断目标 CEFR 等级（<0.3→A2, <0.6→B1, else→B2）
-- **周报尚未实现**：Celery `generate_weekly_report` 当前只返回骨架；具体维度见 [TODO.md](TODO.md)
+- **周报尚未实现**：多维学习周报仍是独立产品功能；具体维度见 [TODO.md](TODO.md)
 
 ### Phase 4 — 课程推荐 Dashboard（前端）
 
@@ -359,8 +358,8 @@ EchoTalk/
 │   ├── livekit_agent/                 # LiveKit 语音 Agent
 │   │   ├── agent.py                   # 双轨路由入口
 │   │   └── plugin_factory.py          # PluginFactory 插件工厂
-│   ├── workers/                       # Celery 异步任务
-│   │   └── report_tasks.py            # 周报生成（骨架预留）
+│   ├── workers/                       # PostgreSQL 持久化分析任务
+│   │   └── analysis_worker.py         # 原子领取、重试与超时恢复
 │   └── scripts/                       # 工具脚本
 │       └── seed_corpus.py             # RAG 语料种子写入
 ├── apps/vite-app/                     # Vite React 前端
@@ -393,16 +392,15 @@ EchoTalk/
 
 当前所有外部依赖均可 Mock 运行（`.env` 中 `USE_MOCK_*=True`）：
 
-| 服务   | Mock 行为                             | 生产环境接入方式                    |
-| ------ | ------------------------------------- | ----------------------------------- |
-| LLM    | 返回固定回复文本                      | `USE_MOCK_LLM=False` + API Key      |
-| TTS    | 返回 null（无音频）                   | `USE_MOCK_TTS=False` + Cartesia Key |
-| 发音   | letter-by-letter + TH→S 注入          | CMU 词典 / ELSA API                 |
-| 语法   | 正则规则匹配                          | LLM 驱动检测                        |
-| 情绪   | 文本犹豫词 + 语速规则引擎             | Hume EVI 3 原生情绪（Premium）      |
-| Celery | 同步执行，无需 Redis                  | `USE_MOCK_CELERY=False` + Redis     |
-| RAG    | ChromaDB 本地嵌入（all-MiniLM-L6-v2） | sentence-transformers 自定义模型    |
+| 服务 | Mock 行为                             | 生产环境接入方式                    |
+| ---- | ------------------------------------- | ----------------------------------- |
+| LLM  | 返回固定回复文本                      | `USE_MOCK_LLM=False` + API Key      |
+| TTS  | 返回 null（无音频）                   | `USE_MOCK_TTS=False` + Cartesia Key |
+| 发音 | letter-by-letter + TH→S 注入          | CMU 词典 / ELSA API                 |
+| 语法 | 正则规则匹配                          | LLM 驱动检测                        |
+| 情绪 | 文本犹豫词 + 语速规则引擎             | Hume EVI 3 原生情绪（Premium）      |
+| RAG  | ChromaDB 本地嵌入（all-MiniLM-L6-v2） | sentence-transformers 自定义模型    |
 
 ---
 
-_文档状态核对：2026-07-26；未完成事项以 [TODO.md](TODO.md) 为准。_
+_历史全文最后核对：2026-07-26。A71 仅核对了本页 Redis/Celery 与分析 Worker 相关段落，其他内容未重新审阅，未完成事项以 [TODO.md](TODO.md) 为准。_

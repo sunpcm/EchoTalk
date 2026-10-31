@@ -4,7 +4,8 @@
 > 任务：A66 / RF-11 公共 API 取消入口
 > 基线：A65 `356f69e9ceecf8868b6f11db7b53d566032bb2f6`
 > 状态：独立 Review APPROVED，本地单提交
-> `fedc5f39d659bf591a7c8b42b087d46a13eb4349`，main 精确 fast-forward 并全量复验通过。
+> `fedc5f39d659bf591a7c8b42b087d46a13eb4349`，main 精确 fast-forward 并完成当时 8 项前端
+> 门禁与 backend 复验。
 > 未 push/部署。
 
 ## 1. 公共参数契约
@@ -107,15 +108,19 @@ await getSkills({ signal: controller.signal });
 7. `updateUserSettings` 接收公开 signal 时仍向 A64 句柄传入 15 秒覆盖值。
 8. 既有无外部取消超时测试继续断言 `ApiRequestTimeoutError`、一次 `fetch` 与无重放。
 
-独立 Review 与 main 全量复验已通过上述覆盖：22 个公开 API、24 个 request 分支末位 signal，
-Vitest 907、双浏览器 E2E 148、backend 529；两项有效变异均被真实断言杀死并完整还原源码。
-以上数字属于 A66 冻结证据，不追溯回写 A65 的 876/148/529。
+独立 Review 已核验 lane 覆盖：22 个公开 API、24 个 request 分支末位 signal；两项有效变异
+由 lane 私有验证执行，均被真实断言杀死并完整还原源码，main 未重跑。精确 fast-forward
+后，main 按 A66 当时范围完成原 8 项前端门禁与 529 backend pytest，其中 Vitest 907、
+双浏览器 E2E 148；当时尚无 A67 才新增的 OpenAPI schema 门禁，也不把其他轮次或 lane 的
+Ruff 结果追加为本次 main 事实。以上数字属于 A66 冻结证据，不追溯回写 A65 的
+876/148/529。
 
 ## 5. 完成状态与未验边界
 
-A66 已完成独立 Review、main 全量复验并精确 fast-forward，不再有待代跑门禁。本轮只完成
-前端公共 API 取消入口；UI/store 生命周期尚未主动创建 controller 并 cancel，不宣称全应用
-自动取消完成；真实浏览器、原生 WebView 和后端对断连后的服务端任务停止语义也未验证。
+A66 已完成独立 Review、lane 私有变异、main 按当时范围的 8 项前端与 backend 复验并精确
+fast-forward，不再有待代跑门禁；main 未重跑私有变异。本轮只完成前端公共 API 取消入口；
+UI/store 生命周期尚未主动创建 controller 并 cancel，不宣称全应用自动取消完成；真实浏览器、
+原生 WebView 和后端对断连后的服务端任务停止语义也未验证。
 OpenAPI TypeScript 类型/客户端生成及 `VoiceInterface`、`SettingsDrawer` 大组件拆分已由
 A67–A69 完成本地代码验收，RF-11 现按“本地代码验收完成”勾选；UI 主动 abort 全部 store
 仍未交付。

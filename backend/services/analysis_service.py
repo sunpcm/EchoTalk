@@ -1,7 +1,7 @@
 """
 会话分析管线。
 会话结束后，执行发音评估、语法错误检测、BKT 知识状态更新。
-当前为 mock 模式（USE_MOCK_CELERY=True），同步运行。
+由 PostgreSQL 持久化分析任务 worker 异步执行。
 """
 
 import logging

@@ -9,12 +9,16 @@
 > `TODO.md` 勾选状态和 A65–A69 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
-- 当前本地代码基线与 lane HEAD：`codex/refactor-status-reconcile@0936ea335dff8fdce8d307da10461ed2b8dec6a5`
-  （A69）。A65–A69 均经独立 Review APPROVED，分别以单提交定格并精确 fast-forward 到本地
-  main；A69 main 的 frontend10、专用 PostgreSQL backend、组件/store 消费探针与通知变异全量
-  复验通过，证据见 A70 b/r0 `check-receipt.json`。这些提交尚未 push。
+- 当前本地已验收代码基线：`main@4946a87432bf2f9ba04af54d18a669afbc126099`（A70）。
+  A65–A69 均经独立 Review APPROVED，分别以单提交定格并精确 fast-forward 到本地 main。
+  A69 自身已在 main 完成 frontend10、OpenAPI schema、Ruff 与专用 PostgreSQL backend 复验
+  （917 Vitest、148 双浏览器 E2E、540 backend）；A70 b/r0 `check-receipt.json` 记录的是
+  此前这次 A69 复验。A70 提交 `4946a87` 后续又在 main 完成一次同口径
+  frontend10/schema/Ruff/backend 复验，已由主 Agent 独立核实；该第二次复验不归入前述
+  receipt。4 项组件/store 消费探针与两项通知变异是 A69 lane 私有验证，main 未重跑。
+  这些提交尚未 push。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 5 个提交。该比较只读
+  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 6 个提交。该比较只读
   本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
@@ -37,6 +41,31 @@
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-11-01 本地 RF-05 Redis/Celery 减法待 Review（A71）
+
+基于 RF-05，对全部已跟踪生产、脚本与 Compose 引用做了定向审计。分析业务实际由
+`routers/sessions.py → services/analysis_jobs.py → workers/analysis_worker.py` 的
+PostgreSQL Job 链路承载；课程推荐由 `routers/curriculum.py → services/rag_service.py`
+继续消费 ChromaDB。`workers/report_tasks.py` 没有调用者，Celery/Redis 也没有核心业务
+消费者。
+
+- **源码减法**：删除 `workers/celery_app.py` 与 `workers/report_tasks.py`，移除
+  `celery[redis]` 直接依赖、`REDIS_URL`/`USE_MOCK_CELERY` dead fields，并清理分析服务头注释
+  与测试中唯一 dead fixture 参数。真实分析 Job、重试/恢复、课程推荐与 LiveKit 功能保留。
+- **Compose 减法**：移除 `echotalk-redis`、`echotalk-worker`、相关 Redis 环境/依赖和
+  `redis-data` 声明；保留 PostgreSQL、API、Agent、Chroma、Web 与
+  `echotalk-analysis-worker`。未操作任何现有容器、服务或卷。
+- **生成与依赖审计**：实施停写后，主 Agent 已使用 uv 0.9.18 离线配方原生生成
+  `backend/uv.lock`（192→179 包）并重新导出 `backend/requirements.txt`。删除
+  amqp/billiard/celery/click-didyoumean/click-plugins/click-repl/kombu/prompt-toolkit/
+  redis/tzdata/tzlocal/vine/wcwidth 共 13 包；全部存活包版本逐值相同，LiveKit 7 个 exact
+  SDK 保持。指定 dev/runtime 环境完成离线冻结同步，包数由 172/165 变为 159/152。
+- **仍待门禁**：完整 frontend10、OpenAPI schema、Ruff、专用 PostgreSQL backend pytest、
+  Compose 静态校验、Review 与集成仍待主 Agent 代跑；Git 写、服务与部署未执行，不能视为通过。
+- **剩余边界**：Chroma 业务语料迁移、重型 ML 依赖替换、镜像/CI 体积与冷启动比较、周报产品
+  功能仍未完成，RF05 整项保持未勾选。调用审计与精确文件清单见
+  [RF-05 Redis/Celery 减法验证](./verification/cross-platform/RF-05-DEAD-INFRA.md)。
 
 ## 2026-11-01 本地 RF-11 SettingsDrawer 行为拆分独立验收（A69）
 
@@ -62,11 +91,12 @@
   disabled、免费账号禁止关闭 custom、原文案/DOM/classes/label/id 与精确 payload 裁剪保持；
   未新增或放宽 E2E，原双浏览器可访问性、视口与零隐式写断言继续作为门禁。
 - **完成验证**：A69 定格于本地单提交
-  `0936ea335dff8fdce8d307da10461ed2b8dec6a5`；main 全量复验通过 frontend10
-  （917 Vitest/32 files、build-script 18、Fake API 61、typegen 8、Chromium+WebKit
-  E2E 148）、专用 PostgreSQL backend 540 passed/3 warnings/79.41%、4 项独立真实
-  组件/store 消费探针及两项有效通知变异，变异后源码已还原。独立 Review APPROVED，
-  main 精确 fast-forward。
+  `0936ea335dff8fdce8d307da10461ed2b8dec6a5`，独立 Review APPROVED 后精确
+  fast-forward。lane 私有验证执行 4 项真实组件/store 消费探针及两项有效通知变异，源码已
+  完整还原；main 标准全量复验只执行 frontend10（917 Vitest/32 files、build-script 18、
+  Fake API 61、typegen 8、Chromium+WebKit E2E 148）、OpenAPI schema、Ruff 与专用
+  PostgreSQL backend（540 passed/3 warnings/79.41%），正常 hook 通过且批准文件 hash 一致。
+  main 未重跑私有探针或变异。
 - **当前边界**：A69 未 push/部署；远端新 CI、真实 IdP/Provider/LiveKit、设备与发布未验。
   RF-11 可勾选为本地代码验收完成，但不代表 UI 主动 abort 已接入全部 store，也不代表
   其余手写 domain 适配或真实服务验收已完成。契约见
@@ -92,11 +122,12 @@
 - **兼容与测试策略**：公共 `VoiceInterface` 导出保持；`stopRoomLocalTracks` 移至
   `roomAudio.ts` 并从原入口兼容再导出。完整 `VoiceInterface.test.tsx` 继续走真实生产入口，
   ROOM/DSP/CON/DIA 矩阵不改为叶子镜像测试，仅补一项纯工具导出身份兼容断言。
-- **完成验证**：12 个交付文件独立 APPROVED；完整 frontend10 全绿，Vitest 908 项/32 files、
-  build-script 18、Fake API 61、typegen 8、双浏览器 E2E 148；专用 PostgreSQL pytest
-  540 passed/79.41%。13 个迁移函数体与 Room 资源 effect 等价核验通过，两项
-  cleanup/reentry 变异 killed 且精确还原，恢复后 908 项复验通过。main 完整复验状态见
-  A69 r0 `check-receipt.json`，均通过。
+- **完成验证**：12 个交付文件独立 APPROVED。lane 私有验证完成 13 个迁移函数体与 Room
+  资源 effect 等价核验、两项 cleanup/reentry 变异并精确还原，恢复后 908 项 Vitest 复验
+  通过。main 标准全量复验执行 frontend10（含 908 Vitest/32 files、build-script 18、
+  Fake API 61、typegen 8、双浏览器 E2E 148）、OpenAPI schema、Ruff 与专用 PostgreSQL
+  backend（540 passed/79.41%）；正常 hook 通过且批准文件 hash 一致，私有等价核验与变异
+  未在 main 重跑。
 - **当前边界**：A68 未 push/部署，远端新 CI、真实 IdP/Provider/LiveKit 与设备未验证。
   SettingsDrawer 已由 A69 完成本地代码验收；RF-11 当前按“本地代码验收完成”勾选，
   外部服务与未迁移 domain 适配仍是独立边界。契约见
@@ -141,11 +172,12 @@
   frozen uv 安装后增加真实 schema `--check` 及 full pytest 中的离线导出回归；原 8 项前端
   门禁不减少。接口与当前事实见
   [RF-11 OpenAPI 类型生成验证](./verification/cross-platform/RF-11-OPENAPI-TYPES.md)。
-- **完成验证**：完整前端 quality10 通过，包含 Vitest 907 项/32 files、Node 构建测试 18
-  项、Fake API 61 项、类型生成器 8 项、Chromium+WebKit E2E 148 项；两项 schema/types stale
-  变异均被真实断言 killed 并完整还原源码。六 DTO 精确键、双向兼容及 `api.ts` 去类型 JS 字节
-  等同基线通过。专用 PostgreSQL 全 pytest 为 540 passed/3 warnings、79.41%；子进程 coverage
-  未合并，59% 门禁保持。
+- **完成验证**：lane 私有验证执行两项 schema/types stale 变异，均被真实断言 killed 并完整
+  还原源码。main 标准全量复验执行 frontend10（907 Vitest/32 files、Node 构建测试 18 项、
+  Fake API 61 项、类型生成器 8 项、Chromium+WebKit E2E 148 项）、OpenAPI schema、Ruff 与
+  专用 PostgreSQL backend（540 passed/3 warnings、79.41%）；正常 hook 通过且批准文件 hash
+  一致，main 未重跑私有变异。六 DTO 精确键、双向兼容及 `api.ts` 去类型 JS 字节等同基线
+  通过；子进程 coverage 未合并，59% 门禁保持。
 - **当前边界**：A67 以本地单提交 `1321bbe43ac540cacb75ea3845ac381076a7c637` 完成独立
   Review，main 精确 fast-forward。未 push/部署，远端 CI、真实 IdP/Provider/LiveKit/设备仍未
   验证；后续 A68/A69 已补齐两个组件行为边界，RF-11 现按本地代码验收完成勾选。生成类型
@@ -172,8 +204,10 @@
   owner/无 owner 分支，并通过真实公开函数覆盖预取消、在途取消、并发隔离、写请求 body 与
   owner Header、缺省/null signal、HTTP 401、认证 revision 竞争和设置更新 15s 预算；既有
   无外部取消超时及全部负向用例保留。A66 定格于本地单提交
-  `fedc5f39d659bf591a7c8b42b087d46a13eb4349`；main 全量复验为 Vitest 907、
-  双浏览器 E2E 148、backend 529，两项有效变异均被杀死并完整还原源码。
+  `fedc5f39d659bf591a7c8b42b087d46a13eb4349`。两项有效变异由 lane 私有验证执行并完整
+  还原，main 未重跑。该提交精确 fast-forward 后，main 按 A66 当时范围完成原 8 项前端门禁
+  与 529 backend pytest，其中 Vitest 907、双浏览器 E2E 148；当时尚无 A67 才新增的
+  OpenAPI schema 门禁，也不把其他轮次或 lane 的 Ruff 结果追加为本次 main 事实。
 - **边界与记录**：未接入 UI/store 生命周期主动 abort，未验证浏览器/原生 WebView 与后端任务
   停止语义；其后续 OpenAPI 类型生成和 `VoiceInterface`、`SettingsDrawer` 大组件拆分已由
   A67–A69 完成本地代码验收。UI 主动 abort 全部 store 仍不在这些交付中。契约见
@@ -205,8 +239,10 @@ selectedScenario/dispatched*` 与公开 `setState` 测试入口保持兼容。�
 - 验证范围与边界：新增纯模型矩阵、非法凭据与类型负向、真实 create/token 前后 phase、
   public setState 原子归一化、无效激活、reset/goHome、ending/end_failed/ended 身份以及 UI
   房间挂载回退回归。A65 定格于本地单提交
-  `356f69e9ceecf8868b6f11db7b53d566032bb2f6`；main 全量复验为 Vitest 876、
-  双浏览器 E2E 148、backend 529，三项有效变异均被杀死并完整还原源码。
+  `356f69e9ceecf8868b6f11db7b53d566032bb2f6`。三项有效变异由 lane 私有验证执行并完整
+  还原，main 未重跑。该提交精确 fast-forward 后，main 按 A65 当时范围完成原 8 项前端门禁
+  与 529 backend pytest，其中 Vitest 876、双浏览器 E2E 148；当时尚无 A67 才新增的
+  OpenAPI schema 门禁，也不把其他轮次或 lane 的 Ruff 结果追加为本次 main 事实。
 - 契约与记录见 [RF-11 会话状态模型验证](./verification/cross-platform/RF-11-STATE-MODEL.md)。
   其后续 OpenAPI 类型生成与 `VoiceInterface`/`SettingsDrawer` 大组件按行为拆分已由
   A67–A69 完成本地代码验收；UI 主动 abort 全部 store 与真实外部链路仍保持独立边界。

@@ -32,10 +32,10 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
  PostgreSQL    ChromaDB                           外部 AI Provider
  事实数据       教学语料向量检索                  Deepgram/LLM/Cartesia
 
- Redis ◀──── Celery Worker（当前仅承载未完成的周报骨架，不在核心链路）
+ PostgreSQL ◀──── Analysis Worker（Job 原子领取、有限重试、超时恢复与幂等）
 ```
 
-这个边界适合当前体量：业务事务留在一个 FastAPI 服务内，低延迟音频处理交给 LiveKit Agent，只有真正需要脱离请求生命周期的任务才进入 Celery。现阶段继续拆分业务微服务会增加分布式事务、部署和可观测性成本，没有足够收益。
+这个边界适合当前体量：业务事务留在一个 FastAPI 服务内，低延迟音频处理交给 LiveKit Agent，持久化会话分析交给独立的 PostgreSQL Job Worker。现阶段继续拆分业务微服务会增加分布式事务、部署和可观测性成本，没有足够收益。
 
 ## 2. 能力状态
 
@@ -48,9 +48,9 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 | 实时语音          | 已实现                 | LiveKit Cloud + 独立 Agent；依赖外部 STT/LLM/TTS Provider                           |
 | 鉴权              | 仅 Mock                | 所有 Bearer Token 当前都映射到同一个固定用户，不能用于多用户或公网生产              |
 | BYOK              | 已实现但受鉴权边界限制 | Key 用 Fernet 加密入库；密钥由 `JWT_SECRET_KEY` 派生                                |
-| 评估 / BKT        | 已实现                 | 会话结束请求内同步计算，失败只记录 warning，不会重试                                |
+| 评估 / BKT        | 已实现                 | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态                  |
 | RAG               | 已实现                 | 课程推荐读取 ChromaDB；语料需单独播种                                               |
-| Celery 周报       | 骨架                   | Worker 可启动，但任务只返回 `status: skeleton`，核心流程不会投递它                  |
+| 周报              | 未实现                 | 多维学习报告仍是独立产品功能，当前没有任务骨架或业务入口                            |
 
 ## 3. 运行时与职责
 
@@ -92,9 +92,11 @@ Agent 是独立进程，不通过 FastAPI 依赖注入访问数据库。它以�
 
 Agent 与 API 共享数据库模型和配置，这是有意的代码复用，但也意味着两者必须使用相同版本的迁移和 `JWT_SECRET_KEY`。
 
-### 3.4 Celery Worker
+### 3.4 PostgreSQL Analysis Worker
 
-Celery 使用 Redis 同时作为 broker 和 result backend。当前只有 `generate_weekly_report` 骨架，尚未被核心业务投递。因此 Compose 中存在 Worker 并不等于周报功能已完成，也不代表评估已经异步化。
+会话结束事务创建唯一分析 Job 后立即返回。独立 Worker 通过 PostgreSQL
+`FOR UPDATE SKIP LOCKED` 领取任务，复用现有事务执行分析、知识状态更新、有限重试与
+陈旧运行任务恢复；Compose 中的 `echotalk-analysis-worker` 与 API 使用同一数据库。
 
 ## 4. 核心数据与所有权
 
@@ -114,7 +116,6 @@ users
 
 - PostgreSQL 是用户、会话、设置、转录与学习状态的事实源。
 - ChromaDB 只保存可重建的教学语料向量，不拥有用户事务数据。
-- Redis 当前只服务 Celery，不是会话状态或事实数据来源。
 - Schema 通过 Alembic 管理；应用启动不会自动执行迁移。
 
 ## 5. 关键业务链路
@@ -140,12 +141,15 @@ Web 默认经 Nginx/Vite 的 `/livekit-ws` 代理连接；原生默认使用后�
 ```text
 POST /sessions/{id}/end
   → session 标记 completed
-  → 请求内同步 analyze_session
-  → 请求内同步 update_knowledge
-  → 前端轮询 /assessments/{id}
+  → 同事务创建唯一 AnalysisJob，随后立即返回
+  → PostgreSQL Analysis Worker 原子领取并标记 running
+  → analyze_session + update_knowledge
+  → succeeded；可重试失败回到 pending，耗尽后进入 failed
+  → 前端轮询分析状态与 /assessments/{id}
 ```
 
-当前失败语义不够可靠：分析异常会被捕获并只写 warning，接口仍返回已完成会话；没有任务状态、重试或补偿器。结果是“会话完成但评估永久不存在”，前端只能轮询超时。
+分析失败会持久化稳定错误码，按有界策略重试；Worker 中断后的陈旧任务会在启动循环中恢复。
+达到尝试上限后 Job 进入 `failed`，前端可依据状态提供显式重试或返回主页。
 
 ### 5.3 DocTalk
 
@@ -155,15 +159,14 @@ POST /sessions/{id}/end
 
 根目录 Compose 是**本地集成/单机基线**，不是完整生产拓扑：
 
-| 服务              | 数量/命令          | 持久化或依赖                      |
-| ----------------- | ------------------ | --------------------------------- |
-| `echotalk-web`    | Nginx 1 个         | 静态文件；反代 API 与 LiveKit WSS |
-| `echotalk-api`    | Uvicorn 4 workers  | PostgreSQL、Redis、ChromaDB       |
-| `echotalk-agent`  | LiveKit Agent 1 个 | PostgreSQL、Redis、外部 Provider  |
-| `echotalk-worker` | Celery 1 个        | Redis、PostgreSQL                 |
-| PostgreSQL 15     | 1 个               | named volume                      |
-| Redis 7           | 1 个               | named volume                      |
-| ChromaDB `latest` | 1 个               | named volume                      |
+| 服务                       | 数量/命令          | 持久化或依赖                      |
+| -------------------------- | ------------------ | --------------------------------- |
+| `echotalk-web`             | Nginx 1 个         | 静态文件；反代 API 与 LiveKit WSS |
+| `echotalk-api`             | Uvicorn 4 workers  | PostgreSQL、ChromaDB              |
+| `echotalk-agent`           | LiveKit Agent 1 个 | PostgreSQL、外部 Provider         |
+| `echotalk-analysis-worker` | Python 1 个        | PostgreSQL Job                    |
+| PostgreSQL 15              | 1 个               | named volume                      |
+| ChromaDB `latest`          | 1 个               | named volume                      |
 
 部署前必须单独执行 `alembic upgrade head` 与语料播种。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
 
@@ -177,7 +180,8 @@ POST /sessions/{id}/end
 
 ### P1：可靠性
 
-1. **分析无持久任务状态**：同步分析失败被吞掉，没有 retry、幂等任务或人工补偿入口。
+1. **分析可观测性仍不足**：持久化 Job 已具备重试、超时恢复与幂等，但队列积压、执行延迟和
+   重试耗尽尚未形成集中告警。
 2. **多 worker 启动竞态**：4 个 Uvicorn worker 都执行测试用户与技能播种；“先查后插”缺少数据库级 upsert，冷启动时可能发生唯一键竞争。
 3. **迁移与启动未编排**：服务可能在旧 Schema 上启动；应由单独的一次性迁移 Job 串行执行，而不是让每个 API worker 自动迁移。
 4. **外部服务单点**：LiveKit Cloud、STT、LLM、TTS 任一不可用都会中断语音链路；当前缺少统一超时预算、熔断指标和降级说明。
@@ -194,7 +198,8 @@ POST /sessions/{id}/end
 
 1. **先封安全边界**：真实认证、稳定的加密主密钥策略、HTTPS/WSS、生产配置 fail-fast。
 2. **再补交付可靠性**：一次性迁移 Job、幂等播种、API/Agent/Provider 健康与结构化日志。
-3. **持久化分析任务**：为会话分析增加明确状态、幂等 Job、有限重试和补偿入口；可继续使用现有 Celery，无需新服务。
+3. **补齐分析任务可观测性**：PostgreSQL Job、幂等、有限重试与补偿入口已完成；继续补队列积压、
+   延迟和失败率告警，再做 Chroma 业务语料迁移与镜像/冷启动对比。
 4. **完成 iOS 真机闭环**：在真实认证与网络边界上验证，不把模拟器启动等同于可发布。
 5. **按需求扩展 Android/Desktop**：先做平台 Spike，再决定是否维护原生工程；不要提前创建空壳或抽取 `shared-core`。
 

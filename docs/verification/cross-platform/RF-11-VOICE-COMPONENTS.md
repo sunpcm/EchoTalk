@@ -1,7 +1,7 @@
 # RF-11 VoiceInterface 行为拆分验证
 
 > 状态：独立 Review APPROVED，集成到本地单提交
-> `0902aee45fc2de6d1050fd4610b8c9c9835108de`；main 完整复验通过。未 push/部署。
+> `0902aee45fc2de6d1050fd4610b8c9c9835108de`；main 标准门禁复验通过。未 push/部署。
 > 日期：2026-11-01。
 
 ## 目标与非目标
@@ -62,18 +62,18 @@ ROOM、DSP、CON、DIA 矩阵继续穿过拆分后的模块，覆盖：
 ## 验证状态
 
 - 12 个交付文件经独立 Review APPROVED 后集成到本地单提交 `0902aee`。
-- 完整 frontend10 全绿：Vitest 908 项/32 files、build-script 18、Fake API 61、typegen 8、
-  双浏览器 E2E 148。
-- 专用 PostgreSQL 测试库 backend pytest 为 540 passed/3 warnings、79.41%；13 个迁移函数体与
-  Room 资源 effect 等价核验通过。
-- 两项 cleanup/reentry 变异均 killed 且精确还原源码；恢复后 Vitest 908 项复验通过。
-- A68 main 完整复验通过，事实记录在 A69 r0 `check-receipt.json`。
+- lane 私有验证完成 13 个迁移函数体与 Room 资源 effect 等价核验；两项 cleanup/reentry
+  变异均 killed 且精确还原源码，恢复后 Vitest 908 项复验通过。
+- main 标准全量复验执行 frontend10（Vitest 908 项/32 files、build-script 18、Fake API
+  61、typegen 8、双浏览器 E2E 148）、OpenAPI schema、Ruff 与专用 PostgreSQL backend
+  pytest（540 passed/3 warnings、79.41%）；正常 hook 通过且批准文件 hash 一致。
+- main 未重跑 lane 私有等价核验或变异。
 
 真实 IdP、Provider、LiveKit、设备、远端新 CI、部署与发布未验证。
 
 ## 剩余 RF-11 范围
 
-SettingsDrawer 行为拆分已由 A69 完成独立 Review、main 全量复验与精确 fast-forward。RF-11
+SettingsDrawer 行为拆分已由 A69 完成独立 Review、main 标准全量复验与精确 fast-forward。RF-11
 计划所要求的两大组件行为边界至此完成本地代码验收，整项可按“本地代码验收完成”勾选。
 该勾选不覆盖 UI 主动 abort 全部 store、生成类型之外仍保留的 domain 适配，也不覆盖真实
 IdP/Provider/LiveKit、设备或远端新 CI。

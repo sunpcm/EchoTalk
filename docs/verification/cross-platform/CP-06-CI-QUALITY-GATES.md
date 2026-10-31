@@ -68,15 +68,19 @@ A64 已有真实远端基础门禁证据。PR #109 的 run 41220439360 绑定 he
 A70 b/r0 `ci-evidence.json`，源 URL 为
 [GitHub Actions run 41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)。
 
-A69 对当前本地树完成 main 全量复验：frontend10 全绿（917 Vitest/32 files、
-build-script 18、Fake API 61、typegen 8、双浏览器 E2E 148），专用 PostgreSQL backend
-为 540 passed/3 warnings、79.41%，并完成 4 项独立组件/store 消费探针与两项有效通知变异；
-事实记录在 A70 b/r0 `check-receipt.json`。
+A69 lane 私有验证完成 4 项独立组件/store 消费探针与两项有效通知变异，源码已完整还原；
+这些私有探针/变异没有在 main 重跑。A69 自身精确 fast-forward 后已在 main 完成
+frontend10、OpenAPI schema、Ruff 与专用 PostgreSQL backend 复验（917 Vitest/32 files、
+148 双浏览器 E2E、540 backend）；A70 b/r0 `check-receipt.json` 记录的是此前这次 A69
+复验。随后 A70 提交 `4946a87` 又在 main 完成一次同口径
+frontend10/schema/Ruff/backend 复验，已由主 Agent 独立核实；这次 A70 复验不是该 receipt
+记录的对象，不能把两者混写。
 
 仍未验边界：
 
-- A67 新增的 OpenAPI schema 漂移与 TypeScript 类型生成两层门禁只完成本地验收，尚未在
-  GitHub 当前树执行；A64 远端成功不能追溯覆盖之后新增的 workflow。
-- A65–A69 均未 push，当前远端新 CI、真实 IdP/Provider/LiveKit、设备与部署未验。
-- 因此既有 A64 远端证据已经核销“完全没有远端基础 CI 证据”的宽泛表述，但 RF-04 仍保持
-  未勾选，最后未验边界是当前树新增的两层 API 契约门禁及完整远端 current-tree 运行。
+- A64 的远端成功证明旧 8 项前端门禁、旧 backend 与聚合 job 可在 Linux CI 执行；它不能
+  追溯覆盖 A67 之后新增的 OpenAPI schema/TypeScript 类型生成与当前 10 项前端门禁。
+- A67 新增门禁只在本地通过；A65–A69 均未 push，因此当前 10 项前端门禁、schema 两层门禁、
+  完整 backend 与聚合 job 在 GitHub 当前树上均未执行。
+- 真实 IdP/Provider/LiveKit、设备与部署也未验。故 RF-04 继续未勾选，剩余门禁是当前远端树
+  的完整 CI 运行与真实链路验收。

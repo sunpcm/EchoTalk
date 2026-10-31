@@ -89,13 +89,16 @@ store action 替身，不以 mock 新 hook 绕开实现。新增覆盖：
 
 ## 当前验证状态
 
-A69 main 全量复验已通过：
+A69 lane 私有验证完成了 4 项独立真实组件/store 消费探针及两项有效通知变异；两项变异均被
+真实断言杀死，源码完整还原。main 未重跑这些私有探针或变异。
+
+A69 精确 fast-forward 后，main 标准全量复验通过：
 
 - frontend10：917 Vitest/32 files、build-script 18、Fake API 61、typegen 8、
   Chromium+WebKit E2E 148；
+- OpenAPI schema 与 Ruff；
 - 专用 PostgreSQL backend：540 passed/3 warnings、79.41%；
-- 4 项独立真实组件/store 消费探针；
-- 两项有效通知变异均被真实断言杀死，源码完整还原（A70 b/r0 `check-receipt.json`）。
+- 正常 hook 通过，批准文件 hash 一致（A70 b/r0 `check-receipt.json`）。
 
 r0 曾暴露两项测试夹具装配错误（915 passed、2 failed、917 total），r1 修正
 `installStore` 实际 action 所有权与 Provider 三种状态 fixture，并恢复 logout 失败提示的
