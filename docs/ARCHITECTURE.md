@@ -12,7 +12,6 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 ┌──────────────────────────────────────────────────────────────────────┐
 │ 客户端                                                               │
 │  Vite React Web（主客户端） | Capacitor iOS 壳（基础已接入）           │
-│  Webpack React（备用打包器，不是移动端/生产交付基线）                  │
 └──────────────┬─────────────────────┬─────────────────────────────────┘
                │ HTTPS / REST        │ WebRTC / DataChannel
                ▼                     ▼
@@ -61,7 +60,6 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 - `assessment` store：结束会话后轮询发音、语法和知识状态。
 - `settings` store：BYOK 配置从 API 水合；主题只保存在 `localStorage`。
 - `VoiceInterface`：选择 Web 代理或原生直连的 LiveKit URL，并监听 `agent_error` DataChannel。
-- `apps/webpack-app`：备用构建实现。它不应被当作与 Vite 客户端功能等价的第二生产前端。
 
 前端 API 路径由 `getApiBaseUrl()` 惰性解析。Web 默认使用同源 `/api`；原生端必须提供 `VITE_API_BASE_URL`，并自动补齐 `/api`。
 

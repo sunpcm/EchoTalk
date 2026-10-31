@@ -2,12 +2,12 @@
 
 ## Project Structure & Module Organization
 
-EchoTalk is a pnpm/Turborepo monorepo with a Python backend. Frontends live in `apps/`: `vite-app` is the primary React 19 client and `webpack-app` is the alternate bundler implementation. Shared UI and SVG assets are in `packages/ui-lib`; reusable tooling configuration is under `packages/configs`. FastAPI, LiveKit, PostgreSQL analysis worker, SQLAlchemy, and Alembic code lives in `backend/`. Architecture notes and phase-specific manual checks belong in `docs/`; active work belongs in `TODO.md`.
+EchoTalk is a pnpm/Turborepo monorepo with a Python backend. The sole product frontend and Capacitor client live in `apps/vite-app`; brand SVG assets are in `docs/assets/branding` and reusable tooling configuration is under `packages/configs`. FastAPI, LiveKit, PostgreSQL analysis worker, SQLAlchemy, and Alembic code lives in `backend/`. Architecture notes and phase-specific manual checks belong in `docs/`; active work belongs in `TODO.md`.
 
 ## Build, Test, and Development Commands
 
 - `pnpm install`: install all workspace dependencies (CI uses Node 22; pnpm 10.26).
-- `pnpm dev:vite`: run the main HTTPS client; use `pnpm dev:webpack` for the alternate app.
+- `pnpm dev:vite`: run the product HTTPS client.
 - `pnpm build`: build all Turbo packages and applications.
 - `pnpm lint && pnpm typecheck && pnpm format:check`: run the frontend quality gates.
 - `cd backend && uv venv && uv pip install -r requirements.txt`: prepare the Python 3.12 environment.
@@ -21,7 +21,7 @@ Prettier enforces 100-character lines, semicolons, double quotes, trailing comma
 
 ## Testing Guidelines
 
-The Vite app has real Vitest tests and Playwright + Fake API E2E; the backend uses pytest with PostgreSQL integration cases. Some other Turbo package test scripts are placeholders and must not be counted as coverage. Run lint, typecheck, build, and the relevant flow in `docs/PHASE_*_MANUAL_TEST.md`. Name future frontend tests `*.test.ts(x)` and backend tests `test_*.py`; prefer Vitest/React Testing Library and pytest. Add regression tests for defects.
+The Vite app has real Vitest tests and Playwright + Fake API E2E; the backend uses pytest with PostgreSQL integration cases. Shared configuration packages do not expose placeholder test scripts. Run lint, typecheck, build, and the relevant flow in `docs/PHASE_*_MANUAL_TEST.md`. Name future frontend tests `*.test.ts(x)` and backend tests `test_*.py`; prefer Vitest/React Testing Library and pytest. Add regression tests for defects.
 
 ## Commit & Pull Request Guidelines
 

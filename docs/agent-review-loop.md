@@ -28,9 +28,9 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 | 浏览器测试树    | `apps/vite-app`         | `pnpm test:e2e`                                                     | Chromium + 本地 Fake API；默认端口 4173/18181，单独串行运行           |
 | 后端测试树      | `backend`               | `.venv/bin/python -m pytest --cov=. --cov-report=term-missing`      | 仅在 §3 明确独立测试库并核验后运行，Mock/DB 用例和 skip 分开报告      |
 | 格式            | 仓库根                  | `pnpm format:check`                                                 | 不扫描本地 `.review/`                                                 |
-| 前端 lint       | 仓库根                  | `pnpm exec turbo run lint --force`                                  | 强制执行，覆盖 Vite/仍维护的 Webpack 脚本                             |
+| 前端 lint       | 仓库根                  | `pnpm exec turbo run lint --force`                                  | 强制执行，覆盖 Vite 与仍在维护的共享配置                              |
 | 前端类型        | 仓库根                  | `pnpm exec turbo run typecheck --force`                             | 强制执行                                                              |
-| 前端构建        | 仓库根                  | `pnpm exec turbo run build --force`                                 | Webpack/Vite 构建都保留，原生同步单独记录                             |
+| 前端构建        | 仓库根                  | `pnpm exec turbo run build --force`                                 | 构建 Vite/Capacitor 产品前端，原生同步单独记录                        |
 | 后端格式        | `backend`               | `.venv/bin/ruff format --check .`                                   | 与 CI 一致                                                            |
 | 后端 lint       | `backend`               | `.venv/bin/ruff check .`                                            | 与 CI 一致                                                            |
 | OpenAPI schema  | `backend`               | `../.review/rf07-a37-dev-venv/bin/python export_openapi.py --check` | 真实 app 导出后与 canonical `openapi.json` 字节比较；不读 dotenv/凭据 |
@@ -40,8 +40,8 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 | iOS 工程检查    | `apps/vite-app/ios/App` | `xcodebuild -list -project App.xcodeproj`                           | 仅清单；可能访问 SPM，运行前确认边界，完整编译不在本轮默认授权内      |
 | Fake API测试    | `apps/vite-app`         | `pnpm test:fake-api`                                                | 真实 Node 子进程回归，使用动态端口 0 与原生 node:test                 |
 
-`packages/ui-lib` 有 Vitest 配置但当前无测试文件；其他 package 的 echo/no tests 脚本不是测试树。
-根目录历史独立诊断脚本 `test_api_err.ts` 已移除，明确不属于测试树。新增真实 runner 时追加本表。
+共享配置 package 不提供占位 test 脚本，不得计入测试树。根目录历史独立诊断脚本
+`test_api_err.ts` 已移除，明确不属于测试树。新增真实 runner 时追加本表。
 构建脚本测试（`pnpm test:build`）与 Fake API 真实子进程回归测试（`pnpm test:fake-api`）均为 Node 原生 `node:test` 真实 runner，列入独立计数。
 当前前端 quality 门禁共 10 项：format、lint、typecheck、Vitest、build-script-test、fake-api-test、api-types-check、api-types-test、build、e2e；baseline 保留 3 项（format、lint、typecheck）。
 真实 IdP、LiveKit/Provider、iOS/macOS 设备链路是独立外部验收，不由 Fake API E2E 替代。
@@ -71,7 +71,7 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 
 | 产物                        | 源                             | 原生检查/边界                                                         |
 | --------------------------- | ------------------------------ | --------------------------------------------------------------------- |
-| Vite/Webpack dist           | TS/React、构建环境             | tsc/typecheck + 对应 build；产物不提交，环境切换后重新构建            |
+| Vite dist                   | TS/React、构建环境             | tsc/typecheck + build；产物不提交，环境切换后重新构建                 |
 | Capacitor public/config/SPM | webDir、Capacitor config、依赖 | 先核验 build/sync，再做 Xcode 编译；不手改自动生成的 SPM 配置规避错误 |
 | Alembic revision            | ORM/显式 schema 变更           | 审查迁移脚本；专用空库升级/current 及相关集成测试                     |
 | API 类型                    | 受跟踪的 OpenAPI schema        | 生成后仍需 typecheck 和契约测试；schema 与 types 两层漂移检查进入 CI  |
@@ -174,7 +174,14 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
 - canonical schema：`backend/openapi.json`，只能由 `backend/export_openapi.py` 在隔离子进程中调用真实 `main.app.openapi()` 生成；禁止手改。`.prettierignore` 排除该文件，以插件字节一致性作为原生检查。
 - schema 生成：`cd backend && ../.review/rf07-a37-dev-venv/bin/python export_openapi.py`；生成后检查：同解释器追加 `--check`。父进程不得携带应用 dotenv/凭据，子进程只接收合成非业务配置，并在导入业务前阻断 DNS/socket。TMP/TEMP 与 XDG 目录受控，但不重设 `HOME`；导入 config 前通过文档化 `BaseSettings` 构造参数禁用 dotenv/file-secret，再以真实 `settings_customise_sources` 签名仅保留 init/env。真实子进程 120 秒超时，异常仅输出阶段/类型并在父进程再次校验；全部 probe/test 子进程也有有限 timeout。
 - TypeScript 类型：`apps/vite-app/src/lib/api.generated.ts` 只能由 `openapi-typescript@7.13.0` 从上述 JSON 生成；生成命令为 `pnpm --filter vite-app generate:api-types`，漂移检查为 `pnpm --filter vite-app check:api-types`。
-- lock 更新：`pnpm-workspace.yaml` 仅保留精确 peer override `"@pmmmwh/react-refresh-webpack-plugin@0.6.2>type-fest": "0.21.3"`，防止新 generator 的 `type-fest@4.41.0` 重绑既有 Webpack 依赖。受控重生成使用 `pnpm install --lockfile-only --prefer-offline --config.dedupe-peer-dependents=false`，随后执行冻结安装；不把 dedupe 开关写入全局或 workspace 默认。lock 语义验收要求既有 packages 的 version/integrity 与既有 resolved snapshots/importer 不变，只新增 generator 必要传递项、精确 devDependency 与 override 元数据；已批准 override 对既有插件 peer range 记录为 `0.21.3`，不可把这项 native metadata 变化误报成完全未变。
+- lock 更新：RF-06 已删除 Webpack/ui-lib/Plop/Changesets workspace 消费者，因此
+  `pnpm-workspace.yaml` 不再保留 Webpack 专属 peer override；generator 所需的
+  `type-fest@4.41.0` 及精确 `openapi-typescript@7.13.0` 仍须保留。lock 由主 Agent 在
+  实施停写后使用 Node 22、pnpm 10.26.0 与
+  `pnpm install --lockfile-only --prefer-offline --config.dedupe-peer-dependents=false`
+  原生重生成，再执行 offline frozen install；不把 dedupe 开关写入全局或 workspace 默认。
+  验收要求所有存活 packages 的 version/integrity 与保留的 resolved snapshots/importer
+  不变；被删除 workspace 的 importer 及其独占依赖可移除，不能手写 lock 规避该边界。
 - 新 Node 真实 runner：`pnpm --filter vite-app test:api-types`，覆盖确定性、stale 不写、remote/越界 `$ref`、缺产物、输出失败及真实 CLI 检查。
 - 后端新增离线导出回归：`cd backend && ../.review/rf07-a37-dev-venv/bin/python -m pytest tests/test_openapi_export.py`；CI `test-backend` 另在 full pytest 前执行 schema `--check`。
 - 两层职责：backend job 验证实际 FastAPI schema 未漂移；frontend job 验证 schema 到 TypeScript 字节未漂移并运行生成器测试，不安装 Python 全栈。

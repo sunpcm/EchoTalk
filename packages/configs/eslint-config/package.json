@@ -6,9 +6,6 @@
   "exports": {
     ".": "./index.js"
   },
-  "scripts": {
-    "test": "echo \"(@biu/eslint-config) no tests\""
-  },
   "dependencies": {
     "@eslint/js": "^9.19.0",
     "@typescript-eslint/eslint-plugin": "catalog:",

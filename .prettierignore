@@ -1,4 +1,3 @@
-plop-templates/**/*.hbs
 /backend/openapi.json
 
 # Local review-loop prompts, reports and isolated worktrees

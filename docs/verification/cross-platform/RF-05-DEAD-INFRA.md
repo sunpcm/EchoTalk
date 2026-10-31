@@ -1,11 +1,12 @@
 # RF-05 Redis/Celery 死基础设施减法验证
 
 > 对应任务：A71 / RF-05
-> 状态：源码、仓内文档与依赖产物已完成；完整测试、Review 和集成待主 Agent 继续执行。
+> 状态：A71 已独立 Review APPROVED，以单提交 `dd0fbc0` 精确 fast-forward 到本地 main；
+> 完整测试、集成与 A72 最终复验均已完成。
 > 日期：2026-11-01。
 
-> 后续状态：A72 已继续完成课程语料离线迁移与 Chroma 引用清理。本文件第 1-5 节保留 A71
-> 当时事实；当前结论见
+> 后续状态：A72 已继续完成课程语料离线迁移与 Chroma 引用清理，并以 `b2b02b3` 完成最终
+> 复验。本文件第 1-3 节保留 A71 当时事实；当前结论见
 > [RF-05 版本化离线课程推荐验证](./RF-05-OFFLINE-CURRICULUM.md)。
 
 ## 1. 真实调用审计
@@ -60,21 +61,21 @@ backend/workers/analysis_worker.py`。结束会话创建 PostgreSQL `AnalysisJob
 
 依赖生成、lock 删除/存活版本审计、requirements 导出与两个环境 frozen 同步已由主 Agent
 完成。按共享锁权限限制，实施轮未执行 formatter、测试、build、Compose 配置校验、服务或 Git
-写操作；以下检查仍待主 Agent 代跑并独立核验：
+写操作；以下门禁已由 A72 main final receipt 核销：
 
 - 固定入口 `cross-platform-local-check.py b STEP` 经项目 `ev.sh` 留证。
 - frontend10、OpenAPI schema、Ruff、专用 PostgreSQL backend pytest。
-- `docker compose --env-file /dev/null -f <lane>/docker-compose.yml config --quiet
---no-env-resolution --no-interpolate`。
-- 生产分析 worker 接线、课程推荐和现有真实 PG 分析测试的最终代跑核验。
+
+Compose 静态校验未在该 main receipt 中单独列示；生产分析 worker 接线、课程推荐和真实
+PostgreSQL 分析测试由完整后端测试树及独立 Review 覆盖。
 
 不能把未执行的检查、旧日志或 cached 结果当作通过，也不能把依赖产物审计当作完整测试或
 Review APPROVED。
 
 ## 5. 剩余边界
 
-RF05 整项保持未勾选。Chroma 业务语料迁移、重型 ML 依赖替换、镜像/CI 体积、冷启动比较、
-当前远端树 CI 和真实外部链路仍未完成或未验证。
+RF05 整项仍保持未勾选。Chroma 业务语料迁移和重型 ML 依赖替换已由 A72 完成；镜像/CI
+体积、冷启动比较、当前远端树 CI 和真实外部链路仍未完成或未验证。
 
 ## 6. A72 当前结论
 
@@ -88,5 +89,7 @@ RF05 整项保持未勾选。Chroma 业务语料迁移、重型 ML 依赖替换�
   179→107、删除 72 条跨平台记录；本机 dev/runtime 安装包 159→106、152→99，各删除 53 包；
   全部存活 package 完整记录逐值相同，7 个 LiveKit exact SDK 保持。
 - 完整后端首次运行 565 passed/1 failed，唯一失败是测试 expected 漏掉 restaurant 次级 tag；
-  r1 已修正该 expected，并收窄空白包裹等级的错误放宽。最终全测试、Compose 静态校验、Review、
-  集成、镜像/CI 体积和冷启动比较仍待执行。RF05 整项继续保持未勾选。
+  r1 已修正该 expected，并收窄空白包裹等级的错误放宽。最终 main 复验为 frontend10、
+  917 Vitest、148 E2E、566 backend、80.10% coverage、OpenAPI schema 与 Ruff 全绿，
+  A72 已独立 Review APPROVED 并集成。镜像/CI 体积和冷启动比较仍待执行，RF05 整项继续
+  保持未勾选。

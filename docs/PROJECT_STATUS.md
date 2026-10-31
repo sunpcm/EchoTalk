@@ -6,19 +6,18 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A69 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A72 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
-- 当前本地已验收代码基线：`main@4946a87432bf2f9ba04af54d18a669afbc126099`（A70）。
-  A65–A69 均经独立 Review APPROVED，分别以单提交定格并精确 fast-forward 到本地 main。
-  A69 自身已在 main 完成 frontend10、OpenAPI schema、Ruff 与专用 PostgreSQL backend 复验
-  （917 Vitest、148 双浏览器 E2E、540 backend）；A70 b/r0 `check-receipt.json` 记录的是
-  此前这次 A69 复验。A70 提交 `4946a87` 后续又在 main 完成一次同口径
-  frontend10/schema/Ruff/backend 复验，已由主 Agent 独立核实；该第二次复验不归入前述
-  receipt。4 项组件/store 消费探针与两项通知变异是 A69 lane 私有验证，main 未重跑。
-  这些提交尚未 push。
+- 当前本地已验收代码基线：
+  `main@b2b02b3bf647676e903b3d9b837e2be4b1133b90`（A72）。A72 已经独立 Review
+  APPROVED，以单提交定格并精确 fast-forward 到本地 main。本轮 `check-receipt.json`
+  记录 main 最终复验：frontend10、917 Vitest、148 E2E、566 backend、80.10% coverage、
+  OpenAPI schema 与 Ruff 通过，源码保持不变；20 项独立消费探针及 CEFR/primary 两项变异
+  在 lane 完成且精确还原。lock/dev/runtime 为 107/106/99，全部存活 package 记录与 7 个
+  LiveKit exact SDK 保持。RF05 整项仍待 Docker 镜像、CI 与部署冷启动对照。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 6 个提交。该比较只读
+  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 8 个提交。该比较只读
   本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
@@ -28,7 +27,7 @@
   18 build-script、61 Fake API、Chromium 74 + WebKit 74；backend 空库迁移至
   `c06_transcript_events` 后 529 passed、82.49%；`test-frontend`、`test-backend` 与聚合
   `CI` 三 job 均 success。该运行不包含 A67 新增的 OpenAPI schema/TypeScript 类型生成
-  两层门禁，也不覆盖 A65–A69 未推送树。
+  两层门禁，也不覆盖 A65–A72 未推送树。
 - 较早的远端集成记录保留为历史：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
   （PR #108 squash 合并、`feat: integrate locally reviewed cross-platform milestones
 (A45-A63)`）。
@@ -36,11 +35,28 @@
   admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
   PR #108 与 PR #109 均已 squash 合并；后续轮次沿用同一路径：分支 + PR，不直推 main。
 - 自动化证据：#92（`286a3db`）CI run 39348513442 与 PR #108 的 run 41217340177 保留为
-  历史发布记录；A45–A69 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
+  历史发布记录；A45–A72 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
   与 `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-11-01 本地 RF-06 前端模板清理（A73 b/r0 实施中）
+
+基于 `b2b02b3` 对全部 tracked import、workspace、Turbo、CI、Docker、README 与脚本引用完成
+定向审计后，确认 Vite 产品源码没有 `@biu/ui-lib` 消费者，CI/Compose/Vite Dockerfile 也不
+直接调用 Webpack、Plop 或 Changesets。A73 b/r0 已删除这些模板与脚手架共 31 个 tracked
+文件，并把 4 份品牌 SVG 逐字节迁入 `docs/assets/branding/`；原 SVG 在删除前与迁移副本的
+SHA-256 完全一致。
+
+- 根脚本与依赖移除 Webpack、Plop、Changesets 入口；Vite 仅移除无消费者的 UI 包声明与
+  `optimizeDeps` 项，代理、认证、构建、安全和 Capacitor 配置保持不变。
+- workspace 移除 Webpack 专属 peer override，Turbo 移除 Babel/Webpack/`SOURCE_MAP` 输入；
+  共享配置 package 的 no-tests 占位脚本已删除，真实配置、依赖和主题 token 保持不变。
+- `pnpm-lock.yaml` 明确未由实施方手写或生成，须由主 Agent 在停写后按 Node 22/pnpm 10.26
+  原生重生成并冻结安装。完整检查、Web/iOS build、Capacitor sync、Docker 镜像与独立 Review
+  尚未执行，RF-06 继续未勾选；边界见
+  [RF-06 前端模板清理验证](./verification/cross-platform/RF-06-FRONTEND-TEMPLATE-CLEANUP.md)。
 
 ## 2026-11-01 本地 RF-05 Redis/Celery 减法（A71 当时状态）
 
@@ -594,7 +610,7 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 | BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast | 已实现；密钥轮换和 Provider 连通性需按环境验收             |
 | DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                | 已实现 Web 流程；移动端文件选择仍在 TODO                   |
 | 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、关键组件键盘与可访问性支持        | 已实现；完整无障碍审计仍未完成                             |
-| 周度学习报告   | 仅保留骨架，没有 API、调度器或任务队列调用入口                                     | **未实现，不可对外宣称可用**                               |
+| 周度学习报告   | 骨架已移除；仍没有 API、调度器或任务队列调用入口                                   | **未实现，不可对外宣称可用**                               |
 | 数字人和移动端 | 方案或待办存在，但没有完成可交付闭环                                               | **未实现**                                                 |
 
 ## 2026-10-20 PR 评审与处理

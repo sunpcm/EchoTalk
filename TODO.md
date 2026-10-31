@@ -79,7 +79,13 @@
       部署冷启动对比仍未完成，故整项保持未勾选。
 - [ ] **RF-06 清理前端模板**：引用审计后删除无调用者的 Webpack、UI 模板、Changesets、
       Plop 和一次性脚本；根包元数据、workspace、Turbo、Docker 和 Capacitor 保持一致。
-      本地已完成根包项目语义与一次性诊断脚本清理（A47）：根目录 `package.json` 规范声明 `name: "echotalk"`、准确 `description`、显式声明 `private: true` 并删除无目标的无效 `main: "index.js"`；引用审计确认根目录 `test_api_err.ts` 仅在手册中有说明且无任何自动化测试或工程调用，完成安全删除并同步更新评审手册；保留 Webpack/ui-lib/Plop/Changesets 等工具与模板链条；见 [RF-06 根元数据与一次性诊断清理验证](./docs/verification/cross-platform/RF-06-ROOT-CLEANUP.md)；前端模板深度精简仍待后续推进，整项保持未勾选。
+      A73 b/r0 已按全部 tracked 引用审计删除 Webpack/UI 模板、Changesets、Plop 等 31 个
+      tracked 文件，并将 4 份品牌 SVG 逐字节迁入 `docs/assets/branding/`；根脚本/依赖、
+      Vite 消费者声明、workspace/Turbo 残留和共享配置占位 test 已同步收敛。锁文件仍由主
+      Agent 在实施停写后原生重生成并冻结安装；formatter、完整前端/schema/Ruff/后端、实际
+      Web/iOS build 与 Capacitor sync、Docker 镜像和 Review 均待主 Agent 执行或核验，因此
+      整项保持未勾选。A47 根元数据与诊断脚本历史证据见
+      [RF-06 根清理记录](./docs/verification/cross-platform/RF-06-ROOT-CLEANUP.md)。
 
 ### Phase 5：依赖、迁移和运行时统一
 
@@ -165,7 +171,7 @@
 
 ## P1 — 功能完整性
 
-周度学习报告目前仅返回 `status: "skeleton"`，以下维度应分别实现并验证：
+周度学习报告骨架已移除，功能仍未实现；以下维度应分别实现并验证：
 
 - [ ] 统计最近 7 天练习时长与会话次数。
 - [ ] 计算各技能 `p_mastery` 环比趋势。

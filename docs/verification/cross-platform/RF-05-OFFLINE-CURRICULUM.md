@@ -2,7 +2,8 @@
 
 > 对应任务：A72 b/r0/r1  
 > 日期：2026-11-01  
-> 状态：源码、测试、依赖产物和仓内文档已写入；r1 返修后的完整门禁、Review 与集成待主 Agent 继续执行。
+> 状态：A72 已独立 Review APPROVED，以 `b2b02b3` 单提交精确 fast-forward 到本地 main；
+> main 最终复验见本轮 `check-receipt.json`。
 
 本轮依据现有 RF05/RF07 计划、课程接口契约和 10 条 tracked 种子实施，不依赖独立 PRD 文件或
 外部材料。旧 `PHASE_4_BACKEND_TECH_STACK.md` 中的 Chroma 方案仅保留为历史说明，不作为本轮
@@ -105,7 +106,10 @@ backend/routers/curriculum.py
 主 Agent 已通过 formatter、frontend10 与 Ruff。完整后端首次运行 565 passed/1 failed；
 唯一失败是测试 expected 漏掉 `mat_restaurant_b1` 的 `article_usage` 次级标签命中，生产排序
 本身符合 r0 规则。r1 已修正该 expected，并为 `' B2 '` 添加紧邻的 B1 回退回归；最终完整
-测试、OpenAPI schema、Compose 静态校验与 Review 仍需重验。
+测试、OpenAPI schema 与独立 Review 已完成。main 复验 receipt 记录 frontend10、917 Vitest、
+148 E2E、566 backend、80.10% coverage、OpenAPI schema 与 Ruff 全绿；20 项独立消费探针
+及 CEFR/primary 两项变异在 lane 完成且精确还原，源码保持不变。Compose 静态校验未在该
+main receipt 中单独列示。
 
 同口径本机观察：runtime 环境 1,390,752→326,916 KiB，dev/runtime 安装包分别为
 159→106、152→99；三次新进程仅导入 RAG 模块为

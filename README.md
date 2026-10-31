@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="packages/ui-lib/src/icons/echotalk-app-icon.svg" width="128" height="128" alt="EchoTalk Logo" />
+  <img src="docs/assets/branding/echotalk-app-icon.svg" width="128" height="128" alt="EchoTalk Logo" />
   <h1>EchoTalk — AI 英语口语练习平台</h1>
 </div>
 
