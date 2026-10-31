@@ -2,8 +2,8 @@
 
 > 对应任务：A73 b/r0  
 > 日期：2026-11-01  
-> 状态：只文件实施完成并停在 Review；锁文件原生重生成、全部检查、实际构建/同步、Docker 镜像
-> 与独立 Review 待主 Agent 执行。
+> 状态：A73 已完成文件实施、原生锁重生成、本地门禁与 main 精确集成；真实 Docker 镜像、
+> 远端 CI 与 API/Agent 角色分组仍未验收，RF-06 整项保持未勾选。
 
 ## 1. 引用审计与删除范围
 
@@ -48,23 +48,31 @@ README 的 logo 相对路径已更新到新位置。没有重绘 SVG、新增 np
 - 四个共享配置 package 只删除 no-tests 占位脚本；真实配置、依赖和 `theme.css` token 保持。
 - `.prettierignore` 只移除已删除 Plop 模板条目。
 
-`pnpm-lock.yaml` 未由实施方手写、编辑、安装或生成。主 Agent 须在停写后使用 Node 22、
-pnpm 10.26.0 原生执行 lockfile-only 与 offline frozen install，并审查所有存活 package
-记录。
+`pnpm-lock.yaml` 未由实施方手写、编辑、安装或生成。主 Agent 使用 Node 22、pnpm 10.26.0
+原生执行 lockfile-only 与 offline frozen install：packages/snapshots 由 1288/1289 收敛为
+656/657；所有存活 packages 的 version/integrity、保留下来的解析依赖边与 importer 保持。
+逐项审查的原生 metadata 变化仅为 6 个精确 optional metadata 字段由缺省状态新增为 true
+（原生锁新增该字段），另移除 1 个无消费者 catalog 锁项；它们不构成 metadata 任意漂移的
+通用放行。正常 Prettier 规范化后，最终 `pnpm-lock.yaml` SHA-256 为
+`37d4ddf0aec83ff8501b7daff87263ae3f4c2c8a8d608efc07b17a9685c276fe`，随后复验冻结安装。
 
-## 4. 待主 Agent 验收
+## 4. 已完成验证与剩余边界
 
-本 b/r0 未运行检查、formatter、安装、build、原生同步、服务或 Git 写操作。以下均待主 Agent
-受控执行并独立核验：
+A73 已定格为单提交 `5291207fcaf27025d0b7fae5782d439efc7f6654`，并精确 fast-forward
+本地 main；正常 hook 后批准文件 hash 一致。main 最终复验结果如下：
 
-- lockfile-only 原生重生成、offline frozen install 与存活依赖审计。
-- formatter、lint、typecheck、完整 frontend10、OpenAPI schema、Ruff 与专用 PostgreSQL
-  backend pytest。
-- Turbo/root 任务不再出现 no-tests 伪任务。
-- 完整 tracked 引用审计、4 份 SVG 字节一致性与 README 资源存在。
-- 实际本地 Web/iOS build 与 Capacitor sync 不依赖删除目录。
-- Vite Docker 配方静态检查与真实镜像构建；未能实际执行时 RF-06 整体保持未勾选。
-- 未签名、未联网 Xcode/SPM、未访问设备或执行发布；这些边界不得由本地脚本替代。
+- formatter、lint、typecheck、完整 frontend10 通过：917 Vitest、18 build-script、
+  61 Fake API、8 类型生成器、148 E2E。
+- OpenAPI schema、Ruff 与专用 PostgreSQL backend pytest 通过：566 passed，覆盖率 80.10%。
+- A73 lane 独立执行 root 真实强制 test，确认只运行 Vite 的 917 项且不含共享配置占位任务；
+  main 未复跑该 root test。
+- lane 在合成 OIDC 下完成 Web/iOS production-mode 构建及真实 Capacitor 资源同步；guard
+  未触发网络或原生工具，临时 tracked native config 已逐字还原。main 未重跑平台构建。
+- 4 份品牌 SVG 的最终 SHA-256 与迁移前一致，README 资源路径存在。
+- 未验证真实登录、签名、Xcode/SPM 网络、原生编译或设备链路，不能由上述本地检查替代。
+- Web Docker 的真实镜像构建、基础镜像 Corepack 签名链、实际 COPY/context 与远端 CI 仍待独立
+  验收；这些边界不因本轮新增
+  [RF-07 Web Docker 配方验证](./RF-07-WEB-DOCKER-RECIPE.md)的静态配方而关闭。
 
 后端源码、`backend/uv.lock`、schema/types 产物以及产品 UI/认证/API/store/主题/原生生命周期
 本轮均未修改。

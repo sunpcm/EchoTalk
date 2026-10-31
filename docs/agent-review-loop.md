@@ -28,7 +28,7 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 | 浏览器测试树    | `apps/vite-app`         | `pnpm test:e2e`                                                     | Chromium + 本地 Fake API；默认端口 4173/18181，单独串行运行           |
 | 后端测试树      | `backend`               | `.venv/bin/python -m pytest --cov=. --cov-report=term-missing`      | 仅在 §3 明确独立测试库并核验后运行，Mock/DB 用例和 skip 分开报告      |
 | 格式            | 仓库根                  | `pnpm format:check`                                                 | 不扫描本地 `.review/`                                                 |
-| 前端 lint       | 仓库根                  | `pnpm exec turbo run lint --force`                                  | 强制执行，覆盖 Vite 与仍在维护的共享配置                              |
+| 前端 lint       | 仓库根                  | `pnpm exec turbo run lint --force`                                  | 强制执行；实际只有 Vite 真实 lint 任务，共享配置包不伪造 lint 任务    |
 | 前端类型        | 仓库根                  | `pnpm exec turbo run typecheck --force`                             | 强制执行                                                              |
 | 前端构建        | 仓库根                  | `pnpm exec turbo run build --force`                                 | 构建 Vite/Capacitor 产品前端，原生同步单独记录                        |
 | 后端格式        | `backend`               | `.venv/bin/ruff format --check .`                                   | 与 CI 一致                                                            |
@@ -180,8 +180,11 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
   实施停写后使用 Node 22、pnpm 10.26.0 与
   `pnpm install --lockfile-only --prefer-offline --config.dedupe-peer-dependents=false`
   原生重生成，再执行 offline frozen install；不把 dedupe 开关写入全局或 workspace 默认。
-  验收要求所有存活 packages 的 version/integrity 与保留的 resolved snapshots/importer
-  不变；被删除 workspace 的 importer 及其独占依赖可移除，不能手写 lock 规避该边界。
+  验收要求所有存活 packages 的 version/integrity、保留下来的解析依赖边与 importer 不变；
+  被删除 workspace 的 importer 及其独占依赖可移除。原生 metadata 变化仍须逐项独立审查，
+  A73 的已审例外仅为 6 个精确 optional metadata 字段由缺省状态新增为 true（原生锁新增
+  该字段），以及 1 个无消费者 catalog 锁项移除；这不是任意 metadata 漂移的通用放行。
+  最终文件须经正常 Prettier 规范化后以 hash 冻结并复验，禁止手写 lock 或承受未审漂移。
 - 新 Node 真实 runner：`pnpm --filter vite-app test:api-types`，覆盖确定性、stale 不写、remote/越界 `$ref`、缺产物、输出失败及真实 CLI 检查。
 - 后端新增离线导出回归：`cd backend && ../.review/rf07-a37-dev-venv/bin/python -m pytest tests/test_openapi_export.py`；CI `test-backend` 另在 full pytest 前执行 schema `--check`。
 - 两层职责：backend job 验证实际 FastAPI schema 未漂移；frontend job 验证 schema 到 TypeScript 字节未漂移并运行生成器测试，不安装 Python 全栈。

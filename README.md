@@ -82,6 +82,10 @@ docker-compose.yml 包含 5 个服务：
   echotalk-web               ── Nginx 静态前端 + API 反向代理
 ```
 
+`echotalk-web` 使用仓库根作为 Docker build context。根 `.dockerignore` 以允许列表仅放行
+workspace 配置、Vite 构建源码与公开环境文件；`.review/`、Git 元数据、本地 dotenv 覆盖、
+依赖缓存和原生工程不会进入 Web 上下文。真实镜像构建仍由 CI 或独立验收执行。
+
 ### 启动步骤
 
 ```bash
@@ -136,7 +140,7 @@ docker compose down -v
 ### 前置条件
 
 - Python 3.12+ / [uv](https://docs.astral.sh/uv/)
-- Node.js 20+ / pnpm
+- Node.js 22 / Corepack（根 `packageManager` 固定 pnpm 10.26.0）
 - PostgreSQL 15+
 
 ### 后端启动
@@ -177,7 +181,8 @@ curl http://localhost:8000/api/health
 ### 前端启动
 
 ```bash
-# 1. 安装依赖
+# 1. 启用 Corepack 并按根 packageManager 选择 pnpm，然后安装依赖
+corepack enable pnpm
 pnpm install
 
 # 2. 启动开发服务器（HTTPS + /api 代理至 localhost:8000 + LiveKit WS 代理）

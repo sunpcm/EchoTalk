@@ -10,14 +10,15 @@
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@b2b02b3bf647676e903b3d9b837e2be4b1133b90`（A72）。A72 已经独立 Review
-  APPROVED，以单提交定格并精确 fast-forward 到本地 main。本轮 `check-receipt.json`
-  记录 main 最终复验：frontend10、917 Vitest、148 E2E、566 backend、80.10% coverage、
-  OpenAPI schema 与 Ruff 通过，源码保持不变；20 项独立消费探针及 CEFR/primary 两项变异
-  在 lane 完成且精确还原。lock/dev/runtime 为 107/106/99，全部存活 package 记录与 7 个
-  LiveKit exact SDK 保持。RF05 整项仍待 Docker 镜像、CI 与部署冷启动对照。
+  `main@5291207fcaf27025d0b7fae5782d439efc7f6654`（A73）。A73 以单提交精确
+  fast-forward 本地 main，正常 hook 后批准文件 hash 一致。main 最终复验为完整 frontend10、
+  917 Vitest、18 build-script、61 Fake API、8 类型生成器、148 E2E、566 backend、
+  80.10% coverage，OpenAPI schema 与 Ruff 通过。A73 lane 还独立验证了 root 强制 test
+  只运行 Vite 的 917 项真实用例，该检查不在 main 复验范围内。lock/dev/runtime 为
+  107/106/99，全部存活 package 的 version/integrity、解析依赖边与 importer 保持，7 个
+  LiveKit exact SDK 也保持。RF-05 整项仍待 Docker 镜像、CI 与部署冷启动对照。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 8 个提交。该比较只读
+  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 9 个提交。该比较只读
   本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
@@ -41,7 +42,7 @@
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
-## 2026-11-01 本地 RF-06 前端模板清理（A73 b/r0 实施中）
+## 2026-11-01 本地 RF-06 前端模板清理（A73）
 
 基于 `b2b02b3` 对全部 tracked import、workspace、Turbo、CI、Docker、README 与脚本引用完成
 定向审计后，确认 Vite 产品源码没有 `@biu/ui-lib` 消费者，CI/Compose/Vite Dockerfile 也不
@@ -53,10 +54,40 @@ SHA-256 完全一致。
   `optimizeDeps` 项，代理、认证、构建、安全和 Capacitor 配置保持不变。
 - workspace 移除 Webpack 专属 peer override，Turbo 移除 Babel/Webpack/`SOURCE_MAP` 输入；
   共享配置 package 的 no-tests 占位脚本已删除，真实配置、依赖和主题 token 保持不变。
-- `pnpm-lock.yaml` 明确未由实施方手写或生成，须由主 Agent 在停写后按 Node 22/pnpm 10.26
-  原生重生成并冻结安装。完整检查、Web/iOS build、Capacitor sync、Docker 镜像与独立 Review
-  尚未执行，RF-06 继续未勾选；边界见
+- Node 锁由主 Agent 使用 Node 22/pnpm 10.26 原生重生成并通过 offline frozen install；
+  packages/snapshots 由 1288/1289 收敛为 656/657。存活 version/integrity、解析依赖边与
+  importer 保持，6 个精确 optional metadata 字段由缺省状态新增为 true（原生锁新增该字段），
+  另移除 1 个无消费者 catalog 锁项；正常 Prettier 规范化后以最终 hash 冻结并复验。这些是
+  逐项审查的锁记录变化，不构成 metadata 任意漂移的通用放行。
+- A73 lane 完成 formatter、lint、typecheck、完整 frontend10、OpenAPI schema、Ruff 与专用
+  PostgreSQL backend pytest；合成 OIDC 下 Web/iOS production-mode 构建及真实 Capacitor
+  资源同步通过，guard 未触发网络或原生工具，临时 tracked native config 逐字还原；root
+  强制 test 仅运行 Vite 917 项也在 lane 独立完成。main 最终复验 566 backend、80.10%，
+  没有冒认 main 重跑平台构建或 root test，也未验证真实登录、原生编译或设备。
+- 4 份品牌 SVG 的最终 SHA-256 与迁移前一致。真实 Docker 镜像、CI 与角色分组仍未验收，
+  RF-06 继续未勾选；边界见
   [RF-06 前端模板清理验证](./verification/cross-platform/RF-06-FRONTEND-TEMPLATE-CLEANUP.md)。
+
+## 2026-11-01 Web Docker Node/pnpm 与上下文边界（A74 r0）
+
+Web Compose 的 build context 是仓库根。`apps/vite-app/Dockerfile` 已将 builder 从 Node 20
+统一到 `node:22-alpine`，移除未固定的 `npm install -g pnpm`，改为让镜像内 Corepack 从根
+`package.json` 的 `packageManager` 选择 pnpm 10.26.0；未关闭签名或完整性校验，下载或校验
+失败的 `RUN` 会直接终止构建。原有 Vite build args、frozen install、Nginx/proxy 和端口行为
+保持。
+
+- 新增根 `.dockerignore`，以 `**` 起始并仅放行根 package/lock/workspace、真实
+  `packages/configs`、Vite 的源码/脚本/配置/公开资源、生成 API 类型、两份 tracked 公开
+  Vite env 文件、Dockerfile 与 Nginx 配置。
+- 根 `.env*`、`apps/vite-app` 本地 dotenv 覆盖、`.review/`、`.git/`、`.agents/`、`.codex/`、
+  `node_modules`、dist/Turbo/Vite/test 缓存及 iOS 原生工程不进入 Web 上下文。没有读取任何
+  env 内容来证明排除。所有宽泛源码目录放行之后，规则会再次排除任意层级的本地 dotenv、
+  元数据和缓存，最后仅精确恢复两份公开 Vite mode 文件；后端独立
+  `backend/.dockerignore` 与构建上下文未改。
+- 本轮只做静态配方修正，未拉取或构建镜像。Node 22 镜像中的 Corepack 版本及对 pnpm 10.26.0
+  的签名校验链仍未实测，Docker 实际 COPY/上下文行为、远端 CI 和角色分组验收也待独立执行；
+  RF-07 整项保持未勾选。静态契约见
+  [RF-07 Web Docker 配方验证](./verification/cross-platform/RF-07-WEB-DOCKER-RECIPE.md)。
 
 ## 2026-11-01 本地 RF-05 Redis/Celery 减法（A71 当时状态）
 

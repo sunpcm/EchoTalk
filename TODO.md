@@ -81,24 +81,36 @@
       Plop 和一次性脚本；根包元数据、workspace、Turbo、Docker 和 Capacitor 保持一致。
       A73 b/r0 已按全部 tracked 引用审计删除 Webpack/UI 模板、Changesets、Plop 等 31 个
       tracked 文件，并将 4 份品牌 SVG 逐字节迁入 `docs/assets/branding/`；根脚本/依赖、
-      Vite 消费者声明、workspace/Turbo 残留和共享配置占位 test 已同步收敛。锁文件仍由主
-      Agent 在实施停写后原生重生成并冻结安装；formatter、完整前端/schema/Ruff/后端、实际
-      Web/iOS build 与 Capacitor sync、Docker 镜像和 Review 均待主 Agent 执行或核验，因此
-      整项保持未勾选。A47 根元数据与诊断脚本历史证据见
+      Vite 消费者声明、workspace/Turbo 残留和共享配置占位 test 已同步收敛。A73 已定格为
+      单提交 `5291207fcaf27025d0b7fae5782d439efc7f6654` 并精确 fast-forward 本地 main；
+      Node 锁原生重生成与 offline frozen install 后，A73 lane 独立验证 root 强制 test 仅
+      运行 Vite 的 917 项真实用例；main 最终复验完整前端 10 项门禁（917 Vitest、
+      18 build-script、61 Fake API、8 类型生成器、148 E2E）、schema、Ruff 和 566 backend
+      （80.10%），不包含上述 root test 复跑。合成 OIDC 下 Web/iOS production-mode 构建与
+      真实 Capacitor 资源同步在 lane 通过，未据此冒认 main 重跑、真实登录、原生编译或设备
+      链路。真实 Docker 镜像、CI 与角色分组仍未验收，因此 RF-06 整项保持未勾选。A47
+      根元数据与诊断脚本历史证据见
       [RF-06 根清理记录](./docs/verification/cross-platform/RF-06-ROOT-CLEANUP.md)。
 
 ### Phase 5：依赖、迁移和运行时统一
 
 - [ ] **RF-07 可复现依赖**：后端成为真实 uv 项目并提交完整 `uv.lock`；API、Agent、
       Dev 依赖分组；CI/Docker frozen 安装；Python 3.12、Node 22 与固定 pnpm 版本统一。
-      本地已完成后端 Python 3.12 标准 uv 项目化（`echotalk-backend`，`.python-version` 3.12），
-      生成并本地集成完整 192 包 `uv.lock`，严格保留 172 项 baseline 版本及 LiveKit 7 项 exact SDK 版本；
+      A36/A37 历史上已完成后端 Python 3.12 标准 uv 项目化（`echotalk-backend`，
+      `.python-version` 3.12），当时生成并本地集成 192 包 `uv.lock`，严格保留 172 项
+      baseline 版本及 LiveKit 7 项 exact SDK 版本；
       A37 完成依赖分组裁定落地（先拆 Dev 四项，运行时保持共用）：26 项保留默认 runtime，`ruff`、`pytest`、`pytest-asyncio`、`pytest-cov` 迁入 `[dependency-groups].dev`；
-      `requirements.txt` 作为锁导出的单一 runtime-only 兼容入口（跨平台导出 184 条，本机安装 165 包，排除四项开发工具）；
+      `requirements.txt` 作为锁导出的单一 runtime-only 兼容入口（A37 当时跨平台导出 184 条，本机安装 165 包，排除四项开发工具）；
       CI 安装显式指定 `--group dev`，Docker 配方统一补 `--no-dev`，保持环境与生产镜像最小化；
-      全新隔离环境 `.review/rf07-a37-dev-venv` (172包) 与 `.review/rf07-a37-runtime-venv` (165包，0 dev工具) 经受控离线护栏工具核验通过；
+      A37 当时全新隔离环境 `.review/rf07-a37-dev-venv` (172包) 与
+      `.review/rf07-a37-runtime-venv` (165包，0 dev工具) 经受控离线护栏工具核验通过；
       旧 `backend/.venv` 及 A36 `.review/rf07-venv` 保持只读；
-      当前 API/Agent 进一步分组、Linux/Docker 实际构建及跨平台验收尚待完成，整项保持未勾选。
+      A72 已把离线 lock 收敛至 107 个包，本机 dev/runtime 安装为 106/99，7 个 LiveKit exact
+      SDK 保持；A74 r0 将 Web builder 统一为 Node 22，并由根 `packageManager` 通过 Corepack
+      选择 pnpm 10.26.0，移除未固定的全局 npm 安装；仓根新增 Web build-context 允许列表，
+      排除本地 dotenv、`.review/`、Git/Agent 元数据、缓存和 iOS 原生资源。当前 API/Agent
+      进一步分组、真实 Linux/Docker 镜像构建、Corepack 签名预检及跨平台验收尚待完成，整项
+      保持未勾选。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；
       timezone-aware UTC、必要索引和有界分页完成；空库及现有数据库副本迁移均通过。
       本地已完成启动播种子项显式幂等化（A38）：lifespan 仅保留安全配置验证并移除隐式写库播种；

@@ -189,8 +189,9 @@ POST /sessions/{id}/end
 ### P2：维护与交付
 
 1. 教学语料目录变更仍需人工维护版本化数据与优先级；当前没有管理工作台或自动质量评测。
-2. CI 的 Node 版本是 22，而前端 Docker builder 是 Node 20；应统一到同一受支持版本。
-3. CI 没有验证 Alembic 从空库升级、Docker 镜像构建或 iOS 构建。
+2. Web Docker 配方已静态统一到 Node 22、Corepack 精确 pnpm 与根 context 允许列表，但 CI
+   尚未构建真实镜像；基础镜像 Corepack 签名链、实际 COPY 与上下文边界仍未验证。
+3. CI 没有验证 Alembic 从空库升级或 iOS 构建。
 4. 前端 API、状态与页面仍耦合在单一 SPA；在引入更多页面前再评估 Router，不需要现在为“未来可能”抽共享核心。
 
 ## 8. 推荐演进顺序
