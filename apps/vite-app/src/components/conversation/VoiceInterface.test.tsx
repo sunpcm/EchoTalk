@@ -60,6 +60,11 @@ const capturedRoomCallbacks = new Map<
   }
 >();
 
+const capturedDataChannelListeners: Array<{
+  topic: string;
+  callback: (msg: { payload: Uint8Array }) => void;
+}> = [];
+
 // Mock LiveKit react components
 vi.mock("@livekit/components-react", () => ({
   LiveKitRoom: ({
@@ -156,7 +161,9 @@ vi.mock("@livekit/components-react", () => ({
     state: "idle",
     audioTrack: { track: {} },
   }),
-  useDataChannel: vi.fn(),
+  useDataChannel: vi.fn((topic: string, callback: (msg: { payload: Uint8Array }) => void) => {
+    capturedDataChannelListeners.push({ topic, callback });
+  }),
   BarVisualizer: () => <div data-testid="bar-visualizer" />,
   VoiceAssistantControlBar: () => <div data-testid="control-bar" />,
 }));
@@ -308,6 +315,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     mockLifecycleDispose.mockClear();
     roomInstanceCounter = 0;
     capturedRoomCallbacks.clear();
+    capturedDataChannelListeners.length = 0;
     currentMockRoom = createMockRoom();
     useConversationStore.getState().goHome();
     vi.mocked(api.dispatchAgent).mockResolvedValue({ dispatched: true });
@@ -2358,6 +2366,326 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         // 组件正常卸载退出
         unmount();
         expect(mockTrackStop).toHaveBeenCalled();
+      });
+    });
+
+    describe("VoiceInterface Safe Diagnostics (CP-06)", () => {
+      let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+      let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+      let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+      beforeEach(() => {
+        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+        currentFakeApp = createFakeApp(true);
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+        capturedDataChannelListeners.length = 0;
+      });
+
+      afterEach(() => {
+        delete (window as any).Capacitor;
+        currentFakeApp = null;
+        vi.restoreAllMocks();
+      });
+
+      it("captures DataChannel agent_error, emits safe whitelist record without leaking parsed object, and updates UI & store", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-data-channel",
+          token: "tok-diag-dc",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        // 找到注册的 agent_error callback
+        const agentErrorListener = capturedDataChannelListeners.find(
+          (l) => l.topic === "agent_error",
+        );
+        expect(agentErrorListener).toBeDefined();
+
+        // 构造包含恶意 canary 与超限私有字段的真实 payload
+        const sensitivePayload = {
+          type: "agent_error",
+          code: "ERR_CUSTOM_KEY_INVALID",
+          message: "自定义密钥配置无效，请重新检查",
+          canary_secret_token: "leaked-token-xyz-12345",
+          canary_document_context: "confidential user exam text",
+          canary_account_id: "user-private-uuid-999",
+        };
+
+        const encoded = new TextEncoder().encode(JSON.stringify(sensitivePayload));
+
+        act(() => {
+          agentErrorListener!.callback({ payload: encoded });
+        });
+
+        // 1. 验证诊断记录发出且完全脱敏
+        expect(consoleErrorSpy).toHaveBeenCalled();
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+
+        const record = diagnosticCalls[0][1] as any;
+        expect(record).toEqual({
+          schema_version: 1,
+          app_version: expect.any(String),
+          platform: expect.any(String),
+          event: "agent_error_received",
+          agent_code: "ERR_CUSTOM_KEY_INVALID",
+        });
+
+        // 序列化断言：控制台绝无 parsed 对象或 canary 泄漏
+        const serialized = JSON.stringify(record);
+        expect(serialized).not.toContain("leaked-token-xyz-12345");
+        expect(serialized).not.toContain("confidential user exam text");
+        expect(serialized).not.toContain("user-private-uuid-999");
+        expect(serialized).not.toContain("自定义密钥配置无效");
+
+        // 2. 验证原有 store 与 UI 终态行为按原行为正确保持
+        expect(useConversationStore.getState().agentError).toEqual({
+          code: "ERR_CUSTOM_KEY_INVALID",
+          message: "自定义密钥配置无效，请重新检查",
+        });
+
+        // 验证 UI 渲染出了错误卡片提示
+        expect(screen.getByText("自定义密钥配置无效，请重新检查")).toBeInTheDocument();
+      });
+
+      it("sanitizes unknown or secret-like agent_code to 'unknown' in DataChannel error event", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-unknown-code",
+          token: "tok-diag-unknown",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const agentErrorListener = capturedDataChannelListeners.find(
+          (l) => l.topic === "agent_error",
+        );
+        expect(agentErrorListener).toBeDefined();
+
+        const sensitivePayload = {
+          type: "agent_error",
+          code: "SECRET_LEAK_TOKEN_KEY_999",
+          message: "发生未知错误",
+        };
+
+        act(() => {
+          agentErrorListener!.callback({
+            payload: new TextEncoder().encode(JSON.stringify(sensitivePayload)),
+          });
+        });
+
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+
+        expect(record.agent_code).toBe("unknown");
+        expect(JSON.stringify(record)).not.toContain("SECRET_LEAK_TOKEN_KEY_999");
+      });
+
+      it("emits agent_dispatch_failed on dispatchAgent failure", async () => {
+        vi.mocked(api.dispatchAgent).mockRejectedValue(new Error("Agent offline"));
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-dispatch-fail",
+          token: "tok-diag-dispatch",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const triggerConnectedBtn = screen.getByTestId("trigger-connected");
+        await act(async () => {
+          fireEvent.click(triggerConnectedBtn);
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+        });
+
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("agent_dispatch_failed");
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
+
+      it("emits livekit_connection_failed on LiveKitRoom onError", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-lk-error",
+          token: "tok-diag-lk-err",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const triggerErrorBtn = screen.getByTestId("trigger-error");
+        act(() => {
+          fireEvent.click(triggerErrorBtn);
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("livekit_connection_failed");
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
+
+      it("emits livekit_disconnected on LiveKitRoom onDisconnected", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-lk-disconnected",
+          token: "tok-diag-lk-disc",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const triggerDisconnectBtn = screen.getByTestId("trigger-disconnected");
+        act(() => {
+          fireEvent.click(triggerDisconnectBtn);
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+
+        const diagnosticCalls = consoleLogSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("livekit_disconnected");
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
+
+      it("emits lifecycle_audio_interrupted on native lifecycle inactive", async () => {
+        currentFakeApp = createFakeApp(true);
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-interrupted",
+          token: "tok-diag-interrupted",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        act(() => {
+          currentFakeApp!.triggerAppStateChange({ isActive: false });
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+
+        const diagnosticCalls = consoleWarnSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("lifecycle_audio_interrupted");
+      });
+
+      it("emits native_lifecycle_ready_timeout when native pending exceeds 10s", async () => {
+        vi.useFakeTimers();
+        try {
+          currentFakeApp = createFakeApp(true);
+          currentFakeApp.getState.mockImplementation(
+            () => new Promise(() => {}), // 永久 pending
+          );
+          (window as any).Capacitor = {
+            isNativePlatform: () => true,
+            getPlatform: () => "ios",
+          };
+
+          useConversationStore.setState({
+            sessionGen: 1,
+            sessionId: "sess-diag-timeout",
+            token: "tok-diag-timeout",
+            wsUrl: "wss://lk.test",
+            connectionState: "connecting",
+            appView: "session",
+          });
+
+          render(<VoiceInterface />);
+
+          act(() => {
+            vi.advanceTimersByTime(10001);
+          });
+
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+
+          const diagnosticCalls = consoleWarnSpy.mock.calls.filter(
+            (call: any[]) => call[0] === "[diagnostic]",
+          );
+          expect(diagnosticCalls.length).toBe(1);
+          const record = diagnosticCalls[0][1] as any;
+          expect(record.event).toBe("native_lifecycle_ready_timeout");
+        } finally {
+          vi.useRealTimers();
+        }
       });
     });
   });

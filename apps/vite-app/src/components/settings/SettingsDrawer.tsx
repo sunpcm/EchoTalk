@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSettingsStore, type ThemeName } from "@/store/settings";
 import { zhCN } from "@/i18n/zh-CN";
-import type { UserSettingsUpdate } from "@/lib/api";
+import { buildSettingsUpdate } from "./settingsPayload";
 import { beginLogout, getAuthMode } from "@/lib/auth";
 
 const t = zhCN.settings;
@@ -231,21 +231,16 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   };
 
   const handleSave = useCallback(async () => {
-    const data: UserSettingsUpdate = { is_custom_mode: isCustomMode };
-
-    if (isCustomMode) {
-      data.stt_provider = sttProvider as "deepgram";
-      data.llm_provider = llmProvider as "siliconflow" | "openrouter";
-      data.tts_provider = ttsProvider as "cartesia";
-
-      if (llmModel.trim()) {
-        data.llm_model = llmModel.trim();
-      }
-      // 仅在用户输入了新 Key 时才发送（空字符串 = 不更新）
-      if (sttKey.trim()) data.stt_key = sttKey.trim();
-      if (llmKey.trim()) data.llm_key = llmKey.trim();
-      if (ttsKey.trim()) data.tts_key = ttsKey.trim();
-    }
+    const data = buildSettingsUpdate({
+      isCustomMode,
+      sttProvider,
+      llmProvider,
+      llmModel,
+      ttsProvider,
+      sttKey,
+      llmKey,
+      ttsKey,
+    });
 
     // 清除上一次的toast
     setToastError(null);
@@ -333,7 +328,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
       {/* 主面板内容（独立纵向滚动，不使用 overflow-x: hidden） */}
       <div className="flex-1 space-y-6 overflow-x-visible overflow-y-auto px-6 py-6">
-        {/* Phase 8.5：外观主题切换（纯前端能力，不受设置加载态影响，始终可用） */}
+        {/* Phase 8.5 / A28：外观主题切换（local-first 即时切换，未认证仅本地偏好，已认证防抖同步后端持久化；不受设置加载态影响，始终可用） */}
         <div className="space-y-2">
           <div>
             <p className="text-text-default text-sm font-medium">{t.themeTitle}</p>
@@ -350,10 +345,10 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   aria-checked={active}
                   aria-label={`${s.label}${t.themeTitle}`}
                   onClick={() => setTheme(s.value)}
-                  className={`flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2.5 transition-colors ${
+                  className={`flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center gap-2 rounded-[14px] border-2 px-3 py-2.5 transition-colors ${
                     active
-                      ? "border-accent border-2"
-                      : "border-border-default hover:border-accent-soft-border border"
+                      ? "border-accent"
+                      : "border-border-default hover:border-accent-soft-border"
                   }`}
                 >
                   <span

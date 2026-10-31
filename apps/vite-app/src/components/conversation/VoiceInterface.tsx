@@ -37,6 +37,7 @@ import { AnswerRecommendations } from "@/components/learning/AnswerRecommendatio
 import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
 import { getLiveKitWsUrl, createLifecycleAdapter, detectPlatform } from "@/platform";
+import { logDiagnostic } from "@/lib/diagnostics";
 import type { AuthPrincipal } from "@/lib/auth";
 
 const tConv = zhCN.conversation;
@@ -213,7 +214,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
           return;
         }
 
-        console.warn("Lifecycle interrupted audio connection");
+        logDiagnostic("lifecycle_audio_interrupted");
         // 关键契约：必须同步停止所属 Room 全部本地音轨，再 failConnection
         stopRoomLocalTracks(roomRef.current);
         current.failConnection(sessionId, sessionGen);
@@ -265,7 +266,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
           return;
         }
 
-        console.warn("Native lifecycle pending timed out after 10s");
+        logDiagnostic("native_lifecycle_ready_timeout");
         stopRoomLocalTracks(roomRef.current);
         current.failConnection(sessionId, sessionGen);
       }, 10000);
@@ -522,7 +523,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
             }
 
             // P2 安全固定日志：避免异常内容回显或日志泄漏 Token
-            console.error("Agent dispatch failed");
+            logDiagnostic("agent_dispatch_failed");
             stopRoomLocalTracks(roomRef.current);
             latest.failDispatch(sessionId, sessionGen);
           });
@@ -551,7 +552,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
           return;
         }
 
-        console.error("LiveKit connection failure");
+        logDiagnostic("livekit_connection_failed");
         stopRoomLocalTracks(roomRef.current);
         current.failConnection(sessionId, sessionGen);
       }}
@@ -580,7 +581,7 @@ function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSessionProps) 
           return;
         }
 
-        console.log("LiveKit disconnected during active connection");
+        logDiagnostic("livekit_disconnected");
         stopRoomLocalTracks(roomRef.current);
         current.failConnection(sessionId, sessionGen);
       }}
@@ -767,7 +768,7 @@ function ActiveView({
       const text = new TextDecoder().decode(msg.payload);
       const parsed = JSON.parse(text);
       if (parsed.type === "agent_error" && parsed.code && parsed.message) {
-        console.error("Agent error received via DataChannel:", parsed);
+        logDiagnostic("agent_error_received", { agent_code: parsed.code });
         setAgentError({ code: parsed.code, message: parsed.message });
       }
     } catch {

@@ -8,7 +8,7 @@ CI保留现有job/check名与完整前后端门禁，只将前端Playwright安�
 
 ## 2. Fake API与新测试
 
-Fake API增加真实鉴权GET /api/sessions/active，路由在UUID详情前，返回内存active会话的SessionListItem（不含transcripts），可稳定排序。仅本机测试服务，无业务API/数据库变更，不增加测试控制端点/生产开关。新测试每次创建唯一fixture ID，禁止依赖全局会话数量、项目运行顺序或跨测试全局开关，兼容fullyParallel和双浏览器。原有6测试保留，不删质量断言。
+Fake API增加真实鉴权GET /api/sessions/active与GET /api/sessions及/api/sessions/daily-progress，路由在UUID详情前，返回游标分页包封`{ items, next_cursor }`与单次聚合数据，稳定排序。仅本机测试服务，无业务API/数据库变更，不增加测试控制端点/生产开关。新测试每次创建唯一fixture ID，禁止依赖全局会话数量、项目运行顺序或跨测试全局开关，兼容fullyParallel和双浏览器。原有6测试保留，不删质量断言。
 
 新增有实际UI操作的恢复/登录边界测试，至少以下5类在两浏览器默认执行：
 

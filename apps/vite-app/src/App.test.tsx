@@ -6,6 +6,23 @@ import * as api from "@/lib/api";
 import { useSettingsStore } from "@/store/settings";
 import { useConversationStore } from "@/store/conversation";
 
+vi.mock("@/lib/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth")>();
+  return {
+    ...actual,
+    getAuthSnapshot: vi.fn(() => ({
+      state: "authenticated",
+      principal: { issuer: "urn:echotalk:auth:dev", subject: "dev-user" },
+    })),
+    getAuthRevision: vi.fn(() => 1),
+    arePrincipalsEqual: vi.fn((a, b) => {
+      if (a === b) return true;
+      if (!a || !b) return false;
+      return a.issuer === b.issuer && a.subject === b.subject;
+    }),
+  };
+});
+
 vi.mock("@/lib/api", () => ({
   getUserSettings: vi.fn().mockResolvedValue({
     is_custom_mode: false,
@@ -29,8 +46,9 @@ vi.mock("@/lib/api", () => ({
     target_level: "B1",
     recommendations: [],
   }),
-  listSessions: vi.fn().mockResolvedValue([]),
-  listActiveSessions: vi.fn().mockResolvedValue([]),
+  listSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+  listActiveSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+  getDailyProgress: vi.fn().mockResolvedValue({ completed_sessions: 0, total_turns: 0 }),
 }));
 
 describe("App initialization", () => {

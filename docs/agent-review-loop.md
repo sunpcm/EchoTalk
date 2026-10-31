@@ -35,10 +35,20 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 | 后端 lint      | `backend`               | `.venv/bin/ruff check .`                                        | 与 CI 一致                                                            |
 | 空库迁移       | `backend`               | `.venv/bin/alembic upgrade head` 后 `.venv/bin/alembic current` | 仅在专用可重建测试库获授权后执行；不是普通基线检查的默认动作          |
 | iOS 工程检查   | `apps/vite-app/ios/App` | `xcodebuild -list -project App.xcodeproj`                       | 仅清单；可能访问 SPM，运行前确认边界，完整编译不在本轮默认授权内      |
+| Fake API测试   | `apps/vite-app`         | `pnpm test:fake-api`                                            | 真实 Node 子进程回归，使用动态端口 0 与原生 node:test                 |
 
 `packages/ui-lib` 有 Vitest 配置但当前无测试文件；其他 package 的 echo/no tests 脚本不是测试树。
-根目录 `test_api_err.ts` 是独立诊断脚本，不冒充测试 runner。新增真实 runner 时追加本表。
+根目录历史独立诊断脚本 `test_api_err.ts` 已移除，明确不属于测试树。新增真实 runner 时追加本表。
+构建脚本测试（`pnpm test:build`）与 Fake API 真实子进程回归测试（`pnpm test:fake-api`）均为 Node 原生 `node:test` 真实 runner，列入独立计数。
+当前前端 quality 门禁共 8 项：format、lint、typecheck、Vitest、build-script-test、fake-api-test、build、e2e；baseline 保留 3 项（format、lint、typecheck）。
 真实 IdP、LiveKit/Provider、iOS/macOS 设备链路是独立外部验收，不由 Fake API E2E 替代。
+
+### §2.1 RF-07 Python 依赖受控安装与环境验证规范
+
+1. **项目规范与解释器声明**：后端成为标准 uv 项目，`backend/pyproject.toml` 声明 `name = "echotalk-backend"`、`version = "0.1.0"`、`requires-python = ">=3.12,<3.13"`、`[tool.uv] package = false`；`backend/.python-version` 明确声明 `3.12`，统一对齐 CI 与本地解释器，禁止开发入口回退到其他 Python 版本。
+2. **唯一依赖真相与导出入口**：提交完整的 `backend/uv.lock`（192 个包），`backend/requirements.txt` 是由 `uv.lock` 通过 `uv export --frozen --no-dev --no-emit-project --no-header --no-annotate` 导出的单一只读兼容镜像产物（定义为 runtime-only，不含开发工具），禁止手写双重直接依赖。CI 中通过只读导出并与仓内文件精确 `cmp` 校验一致性。
+3. **环境隔离与只读边界**：原 `backend/.venv` 及 A36 `.review/rf07-venv` 保持严格只读，不得修改、删除或用于新依赖同步；RF-07 受控新环境固定位于 `cp00/.review/rf07-a37-dev-venv`（开发环境，包含 4 项 dev 依赖共 172 包）与 `cp00/.review/rf07-a37-runtime-venv`（生产运行时环境，排除 dev 依赖共 165 包），完全独立于 backend 目录，不进入 Docker build context。新环境的 frozen 同步安装由受控工具验证，269 项后端 pytest（覆盖率 73.72%）由架构评审在独立测试库执行与核验证实，实施方严禁直接读取数据库凭据或拿旧 env 日志充数。当前本地测试脚本与 runner 严格使用当前 lane 指定环境，不得擅自指向全局 Python。
+4. **CI 与 Docker 配方统一**：CI (`.github/workflows/ci.yml`) 锁定 `astral-sh/setup-uv@v3` 版本为 `0.9.18`，通过 `uv lock --check` 与 `uv sync --frozen --group dev --no-python-downloads` 实施冻结安装（显式包含 dev 组）；Dockerfile 统一为 `python:3.12-slim` 与 uv 0.9.18 配方，通过 `uv sync --frozen --no-dev --no-python-downloads` 排除 dev 组，隔离虚拟环境于 `/opt/venv`，`.dockerignore` 补充 `.env*`、`.review/` 及测试缓存排除规则，避免本地环境泄露至镜像上下文。
 
 ## §3 测试库与安装边界
 
@@ -51,10 +61,7 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 `DATABASE_URL` 缺失时不启动 pytest，避免配置模块回退根 `.env` 或默认应用库。
 不得通过假地址、Mock 开关或删除集成测试把测试树制造为全绿。
 
-用户已允许各隔离 worktree 按现有锁文件安装前端依赖、按现有 requirements.txt 安装独立 Python 环境；不扩展为任意依赖升级或浏览器安装。
-获准后前端使用现有锁文件 frozen 安装，不更改 manifest/lock；Python 依照当前 CI 的 requirements.txt，
-记录解析出的包版本。requirements.txt 使用范围约束，不能把这次解析称为 uv.lock 冻结安装；
-依赖可复现性改造属于 RF-07，本轮不顺手实施。
+既有各隔离 worktree 的前端 frozen 安装授权保持不变；本次 Python 锁定与 frozen 安装授权仅限当前 cp00 及其受控环境（A36 `.review/rf07-venv`、A37 `.review/rf07-a37-dev-venv` 与 `.review/rf07-a37-runtime-venv`），不扩展到其他 lane 或服务环境。Python 依赖可复现性改造（RF-07）已完成本地 Dev 组受控拆分：后端作为标准 Python 3.12 uv 项目锁定 192 个包（26 runtime + 4 dev，172 项 baseline 重叠版本与 LiveKit 7 项 exact SDK 版本严格不变）；依赖安装对齐 CI（`--group dev`）与 Docker（`--no-dev`）源码配方，通过受控工具在隔离环境验证。远端 Linux/Docker 实际镜像构建仍待后续独立验收。
 不借用主 checkout 的 node_modules/venv 冒充新 lane 的独立依赖环境。
 
 ## §4 生成产物及验证
@@ -152,3 +159,9 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
 ## §13 检查范围与布局任务
 
 新批次按review-loop的check_scope核对检查类型、预期/实际ID和逐项状态；baseline全绿不等于quality全绿，旧摘要范围缺失时需读取绑定manifest/summary。布局任务选择使用[本地布局清单](./verification/cross-platform/UI-LOCAL-CHECKLIST.md)，真实文字范围与元素内容框分别核验。新控制器和拒权早停边界见[自动流程手册](./REVIEW_LOOP_AUTOMATION.md)的2026-10-24优化记录；不据本文自动恢复已完成账本。
+
+## §14 PR #98 后的当前拓扑（2026-10-24）
+
+本轮实时核验本地/远端 main 为 `80fb8ec`，仅保留主 checkout 与 `.review/worktrees/cp00`；旧 track-a/b/c 已归档，前文路径/分支/服务状态均为带日期的历史事实，不能直接恢复使用。A27 仅在 cp00 的 `codex/cp05-reduced-motion` 实施，主 checkout 在评审通过前保持只读。
+
+现有固定 runner 的 b 角色已由评审重绑 cp00、本轮明确分支及已审查 HEAD；`.review/reports/track-b/` 仅复用历史证据目录名称，并不代表旧 worktree 仍存在。每轮继续维护 runner/baseline/hash，禁止仅改目录名绕过预检。后端仍仅由评审运行 cp00 专用虚拟环境及隔离测试库 helper。

@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "cross-env NODE_OPTIONS=--no-experimental-webstorage vitest run",
     "test:build": "node --test scripts/build-isolation-test.mjs",
+    "test:fake-api": "node --test scripts/fake-api-test.mjs",
     "test:e2e": "playwright test"
   },
   "keywords": [],

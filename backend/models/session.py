@@ -7,17 +7,21 @@ from datetime import datetime
 from sqlalchemy import (
     JSON,
     BigInteger,
+    DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
+from time_utils import utc_now
 
 
 class SessionMode(str, enum.Enum):
@@ -64,6 +68,12 @@ class Session(Base):
             "request_idempotency_key",
             name="uq_sessions_user_idempotency_key",
         ),
+        Index(
+            "ix_sessions_user_started_id",
+            "user_id",
+            text("started_at DESC"),
+            text("id DESC"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -84,8 +94,12 @@ class Session(Base):
     tier_used: Mapped[TierUsed | None] = mapped_column(
         Enum(TierUsed, name="tier_used_enum"), nullable=True
     )
-    started_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    ended_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     request_idempotency_key: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
@@ -110,10 +124,25 @@ class Transcript(Base):
     """会话转录记录表。"""
 
     __tablename__ = "transcripts"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "event_id",
+            name="uq_transcripts_session_event",
+        ),
+        Index(
+            "ix_transcripts_session_timestamp",
+            "session_id",
+            "timestamp_ms",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False
+    )
+    event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
     )
     role: Mapped[TranscriptRole] = mapped_column(
         Enum(TranscriptRole, name="transcript_role_enum"), nullable=False

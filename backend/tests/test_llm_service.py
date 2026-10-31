@@ -224,3 +224,17 @@ async def test_chat_completion_api_error(monkeypatch):
 
     with pytest.raises(APIError, match="API rate limit exceeded"):
         await chat_completion([{"role": "user", "content": "Hello"}])
+
+
+def test_provider_config_derived_from_catalog():
+    """验证 services.llm_service.PROVIDER_CONFIG 完整派生自 provider_catalog。"""
+    from provider_catalog import LLM_PROVIDER_CATALOG
+    from services.llm_service import PROVIDER_CONFIG
+
+    assert PROVIDER_CONFIG == {
+        k: {
+            "base_url": v.base_url,
+            "api_key_field": v.api_key_field,
+        }
+        for k, v in LLM_PROVIDER_CATALOG.items()
+    }

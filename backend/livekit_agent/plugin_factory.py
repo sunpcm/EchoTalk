@@ -7,34 +7,31 @@ from livekit.plugins import cartesia, deepgram, silero
 from livekit.plugins import openai as lk_openai
 
 from config import settings
+from provider_catalog import (
+    LLM_PROVIDER_CATALOG,
+    STT_PROVIDER_CATALOG,
+    TTS_PROVIDER_CATALOG,
+)
 
 logger = logging.getLogger("echotalk-agent")
 
-# LLM provider → base_url 映射（自包含，不依赖 llm_service.py）
+# LLM provider → base_url 映射（派生自不可变 catalog，保持导出变量名、类型与顺序）
 LLM_PROVIDER_BASE_URL: dict[str, str] = {
-    "siliconflow": "https://api.siliconflow.cn/v1",
-    "openrouter": "https://openrouter.ai/api/v1",
+    k: v.base_url for k, v in LLM_PROVIDER_CATALOG.items()
 }
 
-# 支持的 provider 集合（用于预检校验）
-SUPPORTED_STT_PROVIDERS: set[str] = {"deepgram"}
+# 支持的 provider 集合（用于预检校验，派生自不可变 catalog）
+SUPPORTED_STT_PROVIDERS: set[str] = set(STT_PROVIDER_CATALOG.keys())
 SUPPORTED_LLM_PROVIDERS: set[str] = set(LLM_PROVIDER_BASE_URL.keys())
-SUPPORTED_TTS_PROVIDERS: set[str] = {"cartesia"}
+SUPPORTED_TTS_PROVIDERS: set[str] = set(TTS_PROVIDER_CATALOG.keys())
 
-# 系统 LLM provider 名 → settings 字段名的映射（仅基础轨使用）
+# 系统 LLM provider 名 → settings 字段名的映射（派生自不可变 catalog，仅基础轨使用）
 _SYSTEM_LLM_KEY_FIELD: dict[str, str] = {
-    "siliconflow": "SILICONFLOW_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
+    k: v.api_key_field for k, v in LLM_PROVIDER_CATALOG.items()
 }
 
-
-class PluginInitError(Exception):
-    """插件初始化失败异常。用于自定义轨模式下的 fail-fast 报错。"""
-
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        self.message = message
-        super().__init__(f"[{code}] {message}")
+# 兼容导出：统一异常定义迁移至 plugin_errors.py
+from livekit_agent.plugin_errors import PluginInitError  # noqa: E402, F401
 
 
 def _validate_api_key(api_key: Any, provider_label: str) -> str:

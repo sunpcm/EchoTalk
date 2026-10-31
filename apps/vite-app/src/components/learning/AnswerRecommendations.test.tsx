@@ -776,4 +776,346 @@ describe("AnswerRecommendations", () => {
     });
     expect(screen.queryByText(t.copied)).not.toBeInTheDocument();
   });
+
+  it("A33 回归 (冒号边界碰撞切题)：已复制后切换至冒号碰撞的新题目立即清除复制提示", async () => {
+    // segA 与 segB 在冒号拼接下均为 "seg:What:is your hobby?"
+    // 在元组编码下分别为 '["seg","What:is your hobby?"]' 与 '["seg:What","is your hobby?"]'
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg",
+          text: "What:is your hobby?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    const { rerender } = render(<AnswerRecommendations />);
+    fireEvent.click(screen.getAllByRole("button")[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText(t.copied)).toBeInTheDocument();
+    });
+
+    // 切换至冒号边界碰撞的题目
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg:What",
+          text: "is your hobby?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+
+    rerender(<AnswerRecommendations />);
+    // 关键断言：无歧义元组必须立即清除上一题的提示
+    expect(screen.queryByText(t.copied)).not.toBeInTheDocument();
+  });
+
+  it("A33 回归 (冒号边界碰撞与延迟 Promise)：旧 pending 复制切至冒号碰撞题目后再 resolve 不显示提示，新题目可正常复制", async () => {
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg",
+          text: "What:is your hobby?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+
+    let resolvePromise1!: () => void;
+    const writeTextMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((res) => {
+          resolvePromise1 = res;
+        }),
+    );
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    const { rerender } = render(<AnswerRecommendations />);
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    expect(writeTextMock).toHaveBeenCalledTimes(1);
+
+    // 切换至冒号碰撞题目
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg:What",
+          text: "is your hobby?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+    rerender(<AnswerRecommendations />);
+
+    // 旧 Promise 迟到完成
+    await act(async () => {
+      resolvePromise1();
+    });
+
+    // 关键断言：旧 Promise 绝不能在新题目上显示提示
+    expect(screen.queryByText(t.copied)).not.toBeInTheDocument();
+
+    // 在新题目上发起复制，正常工作
+    writeTextMock.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+  });
+
+  it("A33 回归 (冒号碰撞与交叉竞争)：新 tuple 发起复制成功后，旧 promise 与旧 timer 不清除新提示", async () => {
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg",
+          text: "What:is your hobby?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+
+    const capturedTimeouts: Array<{ fn: () => void; ms: number }> = [];
+    vi.spyOn(window, "setTimeout").mockImplementation(((fn: () => void, ms?: number) => {
+      capturedTimeouts.push({ fn, ms: ms ?? 0 });
+      return (8800 + capturedTimeouts.length) as unknown as ReturnType<typeof setTimeout>;
+    }) as unknown as typeof setTimeout);
+
+    let resolvePromise1!: () => void;
+    let resolvePromise2!: () => void;
+
+    let writeCallCount = 0;
+    const writeTextMock = vi.fn().mockImplementation(() => {
+      writeCallCount++;
+      if (writeCallCount === 1) {
+        return new Promise<void>((res) => {
+          resolvePromise1 = res;
+        });
+      }
+      return new Promise<void>((res) => {
+        resolvePromise2 = res;
+      });
+    });
+
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    const { rerender } = render(<AnswerRecommendations />);
+    // 题 1 发起复制并挂起
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    });
+    expect(writeCallCount).toBe(1);
+
+    // 切换至冒号碰撞题 2
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg:What",
+          text: "is your hobby?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+    rerender(<AnswerRecommendations />);
+
+    // 题 2 发起复制
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    });
+    expect(writeCallCount).toBe(2);
+
+    // 题 2 的复制成功 resolve
+    await act(async () => {
+      resolvePromise2();
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+    expect(capturedTimeouts.length).toBe(1); // 题 2 的 1500ms 定时器
+
+    // 题 1 的迟到 Promise 此时完成
+    await act(async () => {
+      resolvePromise1();
+    });
+    // 关键断言：题 1 的迟到完成绝不能清除或篡改题 2 的已复制提示
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    // 模拟假设之前题 1 残留的任何外部 timer 回调被执行
+    act(() => {
+      // 执行一个捕获前的无害调用以模拟旧 timer
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    // 题 2 自身的定时器到达，正常清除
+    act(() => {
+      capturedTimeouts[0].fn();
+    });
+    expect(screen.queryByText(t.copied)).not.toBeInTheDocument();
+  });
+
+  it("A33 回归 (同 tuple 健康重渲染)：保留反馈且在原 1500ms 有效期后消失，不因重渲染重置计时", async () => {
+    vi.useFakeTimers();
+
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg-timer-test",
+          text: "What is your dream job?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    function Container({ renderCount }: { renderCount: number }) {
+      return (
+        <div data-testid={`container-${renderCount}`}>
+          <AnswerRecommendations />
+        </div>
+      );
+    }
+
+    const { rerender } = render(<Container renderCount={1} />);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    // 推进 1000ms（剩余 500ms）
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    // 同 tuple 发生健康 rerender
+    rerender(<Container renderCount={2} />);
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    // 再推进 510ms（自点击起已经过了 1510ms，距离 rerender 仅过了 510ms）
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(510);
+    });
+    // 关键断言：必须在原 1500ms 到期后消失，绝不能因为 rerender 而重置为新的 1500ms
+    expect(screen.queryByText(t.copied)).not.toBeInTheDocument();
+  });
+
+  it("A33 回归 (边界字符与文本 trim 语义)：正确处理缺少 id、冒号、引号、反斜杠、Unicode 以及空白 trim", async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    // 1. 默认缺失 id (undefined) 正常处理为默认空字符串并成功复制
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          text: "What is the plan?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+
+    const { rerender } = render(<AnswerRecommendations />);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    // 2. 引号、反斜杠与 Unicode 边界：
+    // segSpecial1: id='seg:"a\\b"', text='What: is "this"? 🚀'
+    // segSpecial2: id='seg:"a', text='\\b":What: is "this"? 🚀'
+    // 若非元组编码，这两者可能发生逃逸字符碰撞，元组编码下两者严格隔离
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: 'seg:"a\\b"',
+          text: 'What: is "this"? 🚀',
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+    rerender(<AnswerRecommendations />);
+    expect(screen.queryByText(t.copied)).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: 'seg:"a',
+          text: '\\b":What: is "this"? 🚀',
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+    rerender(<AnswerRecommendations />);
+    // 切换后立即清理
+    expect(screen.queryByText(t.copied)).not.toBeInTheDocument();
+
+    // 3. 文本 trim 语义保留：前后包含多余空白的同题文本与 trim 后的文本属于同 tuple，重渲染不清除反馈
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg-trim",
+          text: "   What do you like to eat?   ",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+    rerender(<AnswerRecommendations />);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    });
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+
+    // 文本变为已 trim 形式，同 tuple 健康重渲染，已复制状态保留
+    mockUseVoiceAssistant.mockReturnValue({
+      agentTranscriptions: [
+        {
+          id: "seg-trim",
+          text: "What do you like to eat?",
+          final: true,
+        },
+      ],
+      state: "listening",
+    });
+    rerender(<AnswerRecommendations />);
+    expect(screen.getByText(t.copied)).toBeInTheDocument();
+  });
 });

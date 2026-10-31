@@ -136,3 +136,65 @@ def test_from_system_defaults_unregistered_llm_provider():
         with pytest.raises(PluginInitError) as exc_info:
             PluginFactory.from_system_defaults()
         assert exc_info.value.code == "ERR_SYSTEM_CONFIG"
+
+
+def test_plugin_init_error_class_identity_and_catch_compatibility():
+    """验证 PluginInitError 类身份统一迁移至 plugin_errors，并保持完全向后兼容。"""
+    from livekit_agent.agent import PluginInitError as AgentError
+    from livekit_agent.plugin_errors import PluginInitError as BaseError
+    from livekit_agent.plugin_factory import PluginInitError as FactoryError
+
+    # 1. 严格同一类身份 (is)
+    assert FactoryError is BaseError
+    assert AgentError is BaseError
+
+    # 2. 异常捕获互通性
+    err = BaseError("ERR_CUSTOM_KEY_INVALID", "测试消息")
+    with pytest.raises(FactoryError) as caught_factory:
+        raise err
+    assert caught_factory.value is err
+    assert caught_factory.value.code == "ERR_CUSTOM_KEY_INVALID"
+    assert caught_factory.value.message == "测试消息"
+    assert str(caught_factory.value) == "[ERR_CUSTOM_KEY_INVALID] 测试消息"
+
+    with pytest.raises(AgentError) as caught_agent:
+        raise err
+    assert caught_agent.value is err
+
+
+def test_llm_metadata_derived_from_catalog():
+    """验证 PluginFactory 中的 LLM 元数据完整派生自 provider_catalog。"""
+    from livekit_agent.plugin_factory import (
+        _SYSTEM_LLM_KEY_FIELD,
+        LLM_PROVIDER_BASE_URL,
+        SUPPORTED_LLM_PROVIDERS,
+    )
+    from provider_catalog import LLM_PROVIDER_CATALOG
+
+    assert LLM_PROVIDER_BASE_URL == {
+        k: v.base_url for k, v in LLM_PROVIDER_CATALOG.items()
+    }
+    assert SUPPORTED_LLM_PROVIDERS == set(LLM_PROVIDER_CATALOG.keys())
+    assert _SYSTEM_LLM_KEY_FIELD == {
+        k: v.api_key_field for k, v in LLM_PROVIDER_CATALOG.items()
+    }
+
+
+def test_speech_metadata_derived_from_catalog():
+    """验证 PluginFactory 中的 STT/TTS 支持集合完整派生自 provider_catalog。"""
+    from livekit_agent.plugin_factory import (
+        SUPPORTED_STT_PROVIDERS,
+        SUPPORTED_TTS_PROVIDERS,
+    )
+    from provider_catalog import (
+        STT_PROVIDER_CATALOG,
+        TTS_PROVIDER_CATALOG,
+    )
+
+    assert isinstance(SUPPORTED_STT_PROVIDERS, set)
+    assert SUPPORTED_STT_PROVIDERS == set(STT_PROVIDER_CATALOG.keys())
+    assert SUPPORTED_STT_PROVIDERS == {"deepgram"}
+
+    assert isinstance(SUPPORTED_TTS_PROVIDERS, set)
+    assert SUPPORTED_TTS_PROVIDERS == set(TTS_PROVIDER_CATALOG.keys())
+    assert SUPPORTED_TTS_PROVIDERS == {"cartesia"}

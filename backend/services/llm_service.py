@@ -8,19 +8,17 @@ import logging
 from openai import APIError, AsyncOpenAI
 
 from config import settings
+from provider_catalog import LLM_PROVIDER_CATALOG
 
 logger = logging.getLogger(__name__)
 
-# Provider 配置：base_url + 对应的 settings 字段名
+# Provider 配置：base_url + 对应的 settings 字段名（派生自不可变 catalog，保持变量名、类型与顺序）
 PROVIDER_CONFIG = {
-    "siliconflow": {
-        "base_url": "https://api.siliconflow.cn/v1",
-        "api_key_field": "SILICONFLOW_API_KEY",
-    },
-    "openrouter": {
-        "base_url": "https://openrouter.ai/api/v1",
-        "api_key_field": "OPENROUTER_API_KEY",
-    },
+    k: {
+        "base_url": v.base_url,
+        "api_key_field": v.api_key_field,
+    }
+    for k, v in LLM_PROVIDER_CATALOG.items()
 }
 
 # 默认 System Prompt（anxiety_level 未知时使用）

@@ -170,7 +170,7 @@ Turbo缓存显式包含影响构建的公开环境变量、根构建控制变量
 
 客户端发起结束时，在等待HTTP响应之前卸载LiveKitRoom并清除内存Token/URL。使用独立ending/end_failed状态展示提交中及“本地音频已停止、服务端结束待重试”；仅服务端确认结束才进入分析视图。失败后只允许用户显式重试同一session的幂等end，不自动重连/恢复采音；在途结束去重。重置/返回主页或开始新操作后，旧异步health/create/token/end结果及旧setActive回调不得复活旧房间或覆盖新会话。新文案纳入i18n；当前不实现创建重试、持久化恢复或设备租约。
 
-后端新增GET /api/sessions/active，返回当前已认证用户status=active的SessionListItem数组，按started_at降序、id降序确定性排序；空数组为200，缺认证401。该路由置于动态UUID详情路由之前；保留既有GET /sessions完整历史及详情行为。不得含Token、转录或文档正文，不更新状态、不签Token、不dispatch、不调用Provider。不引入迁移/分页/过期清扫；此接口只发现数据库活动记录，不宣称房间存活或客户端拥有通话占用。
+后端 GET /api/sessions/active 与 GET /api/sessions 返回当前已认证用户的 SessionListResponse `{ items: SessionListItem[], next_cursor: string | null }`，按 started_at 降序、id 降序确定性排序及 keyset 游标分页；空列表返回 `{ items: [], next_cursor: null }` 为 200，缺认证 401。新增 GET /api/sessions/daily-progress 提供单次服务端聚合统计，避免客户端 N+1。该路由严格置于动态 UUID 详情路由之前；保留既有详情行为。不含Token、转录或文档正文，不更新状态、不签 Token、不 dispatch、不调用 Provider。此接口只发现数据库活动记录，不宣称房间存活或客户端拥有通话占用。
 
 ### 8.5 CP-02 Cloud单端占用
 

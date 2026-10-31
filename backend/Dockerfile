@@ -1,6 +1,8 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.18 /uv /usr/local/bin/uv
 
 # 1. 修改系统软件源为清华源，并强制 apt 使用 IPv4 防止网络解析卡死
 RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources && \
@@ -8,18 +10,13 @@ RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.li
     apt-get -o Acquire::ForceIPv4=true install -y ffmpeg gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
-# 2. 为 pip 配置清华源，并增加超时时间以防大文件（如 livekit, chromadb）下载中断
-# RUN pip install --no-cache-dir \
-#     --default-timeout=100 \
-#     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-#     -r requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir \
-    --default-timeout=100 \
-    -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    -r requirements.txt
+COPY pyproject.toml uv.lock .python-version ./
+
+RUN uv lock --check && \
+    uv sync --frozen --no-dev --no-python-downloads
 
 COPY . .
 

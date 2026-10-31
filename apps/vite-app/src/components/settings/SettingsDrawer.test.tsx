@@ -2,6 +2,7 @@ import React from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { SettingsDrawer } from "./SettingsDrawer";
+import * as settingsPayloadModule from "./settingsPayload";
 import { useSettingsStore } from "@/store/settings";
 import { zhCN } from "@/i18n/zh-CN";
 
@@ -76,5 +77,131 @@ describe("SettingsDrawer Component", () => {
 
     // 重新渲染不应再次重复调用 showModal
     expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalledTimes(1);
+  });
+
+  it("consumes buildSettingsUpdate and passes full payload to updateSettings on save", async () => {
+    const originalFetchSettings = useSettingsStore.getState().fetchSettings;
+    const originalUpdateSettings = useSettingsStore.getState().updateSettings;
+    const mockUpdateSettings = vi.fn().mockResolvedValue({ success: true });
+    const spyBuildPayload = vi.spyOn(settingsPayloadModule, "buildSettingsUpdate");
+
+    useSettingsStore.setState({
+      settings: {
+        is_custom_mode: true,
+        stt_provider: "deepgram",
+        llm_provider: "siliconflow",
+        llm_model: "test-model-1",
+        tts_provider: "cartesia",
+        has_stt_key: true,
+        has_llm_key: false,
+        has_tts_key: false,
+        stt_status: "verified",
+        llm_status: "unconfigured",
+        tts_status: "unconfigured",
+        theme: "warm",
+      },
+      loading: false,
+      saving: false,
+      fetchSettings: vi.fn().mockResolvedValue(undefined),
+      updateSettings: mockUpdateSettings,
+    });
+
+    try {
+      render(<SettingsDrawer open={true} onClose={vi.fn()} />);
+
+      const llmKeyInput = screen.getByLabelText(t.apiKey, { selector: "#llm-key-input" });
+      fireEvent.change(llmKeyInput, { target: { value: "  sk-new-llm-key  " } });
+
+      const saveBtn = screen.getByRole("button", { name: t.save });
+      fireEvent.click(saveBtn);
+
+      expect(spyBuildPayload).toHaveBeenCalledTimes(1);
+      expect(spyBuildPayload).toHaveBeenCalledWith({
+        isCustomMode: true,
+        sttProvider: "deepgram",
+        llmProvider: "siliconflow",
+        llmModel: "test-model-1",
+        ttsProvider: "cartesia",
+        sttKey: "",
+        llmKey: "  sk-new-llm-key  ",
+        ttsKey: "",
+      });
+
+      expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        is_custom_mode: true,
+        stt_provider: "deepgram",
+        llm_provider: "siliconflow",
+        llm_model: "test-model-1",
+        tts_provider: "cartesia",
+        llm_key: "sk-new-llm-key",
+      });
+    } finally {
+      spyBuildPayload.mockRestore();
+      useSettingsStore.setState({
+        fetchSettings: originalFetchSettings,
+        updateSettings: originalUpdateSettings,
+      });
+      useSettingsStore.getState().reset();
+    }
+  });
+
+  it("consumes buildSettingsUpdate when custom mode is disabled", async () => {
+    const originalFetchSettings = useSettingsStore.getState().fetchSettings;
+    const originalUpdateSettings = useSettingsStore.getState().updateSettings;
+    const mockUpdateSettings = vi.fn().mockResolvedValue({ success: true });
+    const spyBuildPayload = vi.spyOn(settingsPayloadModule, "buildSettingsUpdate");
+
+    useSettingsStore.setState({
+      settings: {
+        is_custom_mode: false,
+        stt_provider: "deepgram",
+        llm_provider: "siliconflow",
+        llm_model: "",
+        tts_provider: "cartesia",
+        has_stt_key: false,
+        has_llm_key: false,
+        has_tts_key: false,
+        stt_status: "unconfigured",
+        llm_status: "unconfigured",
+        tts_status: "unconfigured",
+        theme: "warm",
+      },
+      loading: false,
+      saving: false,
+      fetchSettings: vi.fn().mockResolvedValue(undefined),
+      updateSettings: mockUpdateSettings,
+    });
+
+    try {
+      render(<SettingsDrawer open={true} onClose={vi.fn()} />);
+
+      const saveBtn = screen.getByRole("button", { name: t.save });
+      fireEvent.click(saveBtn);
+
+      expect(spyBuildPayload).toHaveBeenCalledTimes(1);
+      expect(spyBuildPayload).toHaveBeenCalledWith({
+        isCustomMode: false,
+        sttProvider: "deepgram",
+        llmProvider: "siliconflow",
+        llmModel: "",
+        ttsProvider: "cartesia",
+        sttKey: "",
+        llmKey: "",
+        ttsKey: "",
+      });
+
+      expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        is_custom_mode: false,
+      });
+    } finally {
+      spyBuildPayload.mockRestore();
+      useSettingsStore.setState({
+        fetchSettings: originalFetchSettings,
+        updateSettings: originalUpdateSettings,
+      });
+      useSettingsStore.getState().reset();
+    }
   });
 });

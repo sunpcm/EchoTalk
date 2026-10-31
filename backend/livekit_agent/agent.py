@@ -13,10 +13,7 @@ Phase 5 新增：双轨制路由——根据 is_custom_mode 开关决定使用�
     cd backend && python livekit_agent/agent.py dev
 """
 
-import asyncio
-import json
 import logging
-import os
 import sys
 import time
 import uuid
@@ -35,10 +32,7 @@ load_dotenv(_backend_dir.parent / ".env", override=False)
 from livekit.agents import (  # noqa: E402
     Agent,
     AgentSession,
-    APIStatusError,
-    AutoSubscribe,
     ConversationItemAddedEvent,
-    ErrorEvent,
     JobContext,
     WorkerOptions,
     cli,
@@ -48,24 +42,20 @@ from sqlalchemy import select  # noqa: E402
 
 from config import settings  # noqa: E402
 from database import async_session_maker  # noqa: E402
-from livekit_agent.plugin_factory import PluginFactory, PluginInitError  # noqa: E402
+from livekit_agent.credential_resolver import CredentialResolver  # noqa: E402
+from livekit_agent.error_delivery import send_error_and_disconnect  # noqa: E402
+from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
+from livekit_agent.job_orchestrator import AgentJobOrchestrator  # noqa: E402
+from livekit_agent.plugin_errors import PluginInitError  # noqa: E402
+from livekit_agent.provider_registry import ProviderRegistry  # noqa: E402
+from livekit_agent.transcript_events import derive_transcript_event_id  # noqa: E402
+from livekit_agent.transcript_sink import TranscriptSink  # noqa: E402
 from models.session import Session, SessionContext  # noqa: E402
 from models.user import UserSettings  # noqa: E402
 from services.emotion_analyzer import EmotionAnalyzer  # noqa: E402
 from services.llm_service import build_dynamic_prompt  # noqa: E402
-from services.transcript_service import save_transcript  # noqa: E402
-from utils.crypto import decrypt_api_key  # noqa: E402
 
 logger = logging.getLogger("echotalk-agent")
-
-# 自定义轨模式下需要临时清除的系统环境变量，防止 SDK 使用系统密钥作为后备
-_SENSITIVE_ENV_VARS: list[str] = [
-    "DEEPGRAM_API_KEY",
-    "SILICONFLOW_API_KEY",
-    "OPENROUTER_API_KEY",
-    "CARTESIA_API_KEY",
-    "OPENAI_API_KEY",
-]
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +82,8 @@ async def _fetch_user_settings(session_id: str) -> UserSettings | None:
         result = await db.execute(stmt)
         user_id = result.scalar_one_or_none()
         if user_id is None:
-            logger.warning("Session '%s' 在数据库中不存在", session_id)
+            safe_sid = AgentErrorMapper.sanitize_session_id(session_id)
+            logger.warning("Session 在数据库中不存在: session=%s", safe_sid)
             return None
 
         # user_id → UserSettings
@@ -113,8 +104,8 @@ async def _fetch_session_context(session_id: str) -> SessionContext | None:
     """
     try:
         sid = uuid.UUID(session_id)
-    except ValueError:
-        logger.warning("无效的 session_id 格式: '%s'", session_id)
+    except (ValueError, TypeError, AttributeError):
+        logger.warning("无效的 session_id 格式")
         return None
 
     async with async_session_maker() as db:
@@ -125,9 +116,9 @@ async def _fetch_session_context(session_id: str) -> SessionContext | None:
 
 def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
     """
-    根据用户自定义配置解密 Key 并通过 PluginFactory 构建插件集。
+    根据用户自定义配置通过 CredentialResolver 解析凭据并由 ProviderRegistry 构建插件集。
 
-    预检校验:
+    预检校验与解密由 CredentialResolver 统一处理：
     1. 三组 provider 字段（stt/llm/tts）必须已设置
     2. 三组加密 Key 字段必须存在
     3. Fernet 解密必须成功
@@ -139,114 +130,32 @@ def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
         {"stt": ..., "llm": ..., "tts": ..., "vad": ...}
 
     异常:
-        PluginInitError: 任何预检失败或 PluginFactory 校验失败
+        PluginInitError: 任何预检失败、解密失败或 PluginFactory 校验失败
     """
-    us = user_settings
-
-    # ── 预检: provider 字段 ──
-    if not us.stt_provider:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 STT provider 未配置。请在设置页面选择提供商。",
-        )
-    if not us.llm_provider:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 LLM provider 未配置。请在设置页面选择提供商。",
-        )
-    if not us.tts_provider:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 TTS provider 未配置。请在设置页面选择提供商。",
-        )
-
-    # ── 预检: 加密 Key 字段 ──
-    if not us.encrypted_stt_key:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 STT API Key 未配置。请在设置页面输入密钥。",
-        )
-    if not us.encrypted_llm_key:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 LLM API Key 未配置。请在设置页面输入密钥。",
-        )
-    if not us.encrypted_tts_key:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "自定义模式下 TTS API Key 未配置。请在设置页面输入密钥。",
-        )
-
-    # ── 解密 ──
-    try:
-        stt_credential = decrypt_api_key(us.encrypted_stt_key, us.stt_key_version)
-        llm_credential = decrypt_api_key(us.encrypted_llm_key, us.llm_key_version)
-        tts_credential = decrypt_api_key(us.encrypted_tts_key, us.tts_key_version)
-        stt_key = stt_credential.plaintext
-        llm_key = llm_credential.plaintext
-        tts_key = tts_credential.plaintext
-    except Exception as e:
-        raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
-            "API Key 解密失败，请重新保存密钥。",
-        ) from e
-
-    # ── 通过 PluginFactory 构建（内部会再做一轮非空校验） ──
-    model = us.llm_model or settings.DEFAULT_LLM_MODEL
-
-    # ── 防御: 临时清除系统 API Key 环境变量 ──
-    # 防止 SDK 构造器在显式 key 参数失败时回退读取 os.environ
-    saved_env = {k: os.environ.pop(k) for k in _SENSITIVE_ENV_VARS if k in os.environ}
-    try:
-        return {
-            "stt": PluginFactory.create_stt(us.stt_provider.value, stt_key),
-            "llm": PluginFactory.create_llm(
-                us.llm_provider.value,
-                llm_key,
-                model,
-            ),
-            "tts": PluginFactory.create_tts(us.tts_provider.value, tts_key),
-            "vad": PluginFactory.create_vad(),
-        }
-    finally:
-        os.environ.update(saved_env)
+    resolved = CredentialResolver.resolve_custom(
+        user_settings,
+        default_llm_model=settings.DEFAULT_LLM_MODEL,
+    )
+    return ProviderRegistry.from_custom(resolved)
 
 
 async def _send_error_and_disconnect(
     ctx: JobContext,
     code: str,
-    message: str,
+    message: str | None = None,
+    fallback_code: str = "ERR_SYSTEM_RUNTIME",
 ) -> None:
     """
     通过 DataChannel 向客户端发送错误 JSON，然后断开房间连接。
 
-    错误载荷格式:
-        {"type": "agent_error", "code": "<CODE>", "message": "<描述>"}
-
-    发送使用 reliable=True（TCP 语义保证送达）和 topic="agent_error"
-    （前端可按 topic 过滤订阅）。
-
-    参数:
-        ctx: LiveKit JobContext（已连接到房间）
-        code: 机器可读错误码，如 "ERR_CUSTOM_KEY_INVALID"
-        message: 中文人类可读描述
+    兼容包装函数，实际实现委托给 livekit_agent.error_delivery.send_error_and_disconnect。
     """
-    payload = json.dumps(
-        {"type": "agent_error", "code": code, "message": message},
-        ensure_ascii=False,
+    await send_error_and_disconnect(
+        ctx,
+        code,
+        message,
+        fallback_code=fallback_code,
     )
-    try:
-        await ctx.room.local_participant.publish_data(
-            payload=payload,
-            reliable=True,
-            topic="agent_error",
-        )
-        logger.info("已发送错误消息到客户端: code=%s", code)
-    except Exception:
-        logger.warning("发送错误消息到客户端失败", exc_info=True)
-
-    await ctx.room.disconnect()
-    logger.info("已断开房间连接: session=%s, code=%s", ctx.room.name, code)
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +178,8 @@ class EchoTalkAgent(Agent):
         session_id: str,
         custom_prompt: str | None = None,
         document_content: str | None = None,
+        *,
+        sink: TranscriptSink | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -277,6 +188,7 @@ class EchoTalkAgent(Agent):
         self._document_content = document_content
         self._emotion_analyzer = EmotionAnalyzer()
         self._current_mode = "normal"  # "normal" | "encouragement"
+        self._sink = sink
 
     async def on_user_turn_completed(
         self,
@@ -317,14 +229,19 @@ class EchoTalkAgent(Agent):
             )
 
         # 3. 异步持久化用户转录 + 情绪状态（不阻塞 LLM 推理）
-        asyncio.ensure_future(
-            save_transcript(
-                self._session_id,
+        source_item_id = getattr(new_message, "id", None)
+        event_id = derive_transcript_event_id(self._session_id, "user", source_item_id)
+        if event_id is None:
+            logger.warning("用户消息缺少有效 item.id，丢弃转录持久化")
+        elif self._sink is not None:
+            self._sink.submit(
                 "user",
                 text,
+                event_id=event_id,
                 emotion_state=emotion.to_dict(),
             )
-        )
+        else:
+            logger.warning("未注入 TranscriptSink，丢弃转录持久化")
 
 
 # ---------------------------------------------------------------------------
@@ -333,184 +250,123 @@ class EchoTalkAgent(Agent):
 
 
 def _persist_assistant_conversation_item(
-    event: ConversationItemAddedEvent, session_id: str
-) -> None:
+    event: ConversationItemAddedEvent,
+    session_id: str,
+    *,
+    sink: TranscriptSink | None = None,
+) -> bool:
     """Persist assistant text from a LiveKit conversation event, if present."""
     item = event.item
     if isinstance(item, llm.ChatMessage) and item.role == "assistant":
         text = item.text_content
         if text:
-            asyncio.ensure_future(save_transcript(session_id, "assistant", text))
+            source_item_id = getattr(item, "id", None)
+            event_id = derive_transcript_event_id(
+                session_id, "assistant", source_item_id
+            )
+            if event_id is None:
+                logger.warning("AI 消息缺少有效 item.id，丢弃转录持久化")
+                return False
+            if sink is not None:
+                return sink.submit(
+                    "assistant",
+                    text,
+                    event_id=event_id,
+                )
+            logger.warning("未注入 TranscriptSink，丢弃转录持久化")
+            return False
+    return False
 
 
 async def entrypoint(ctx: JobContext):
-    """LiveKit Agent 入口：等待参与者 -> 查询双轨配置 -> 构建插件 -> 启动语音管线。"""
-    logger.info(
-        "Agent 收到任务，房间: %s，连接地址: %s",
-        ctx.room.name,
-        ctx._info.url,
-    )
+    """
+    LiveKit Agent 入口 (RF-09)。
 
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    logger.info("Agent 已连接到房间: %s", ctx.room.name)
+    将连接、参与者等待、TranscriptSink 生命周期及 AgentSession 事件接线
+    委托给 AgentJobOrchestrator；entrypoint 保留 DB 配置查询、双轨路由与 Agent 创建。
+    """
 
-    participant = await ctx.wait_for_participant()
-    logger.info("参与者加入: %s", participant.identity)
+    async def _setup_agent(
+        session_id: str, sink: TranscriptSink
+    ) -> tuple[EchoTalkAgent, bool] | None:
+        safe_session_id = orchestrator.safe_session_id
 
-    # 房间名即为 session_id（Token 端点使用 str(session.id) 作为房间名）
-    session_id = ctx.room.name
-
-    # ── 1. 查询双轨制配置 ──────────────────────────────────────
-    try:
-        user_settings = await _fetch_user_settings(session_id)
-    except Exception as e:
-        logger.error(
-            "查询用户配置失败: session_id=%s, error=%s", session_id, e, exc_info=True
-        )
-        await _send_error_and_disconnect(
-            ctx,
-            "ERR_SESSION_NOT_FOUND",
-            "会话配置查询失败，请重新登录后再试。",
-        )
-        return
-
-    # ── 1a. 安全校验: 必须查到用户配置 ────────────────────────
-    if user_settings is None:
-        logger.error("未找到 session_id=%s 的用户配置！拒绝服务。", session_id)
-        await _send_error_and_disconnect(
-            ctx,
-            "ERR_SESSION_NOT_FOUND",
-            "无法找到您的会话配置，请重新登录后再试。",
-        )
-        return
-
-    is_custom = user_settings.is_custom_mode
-
-    # ── 1b. 查询文档上下文 ────────────────────────────────────
-    session_context = await _fetch_session_context(session_id)
-    custom_prompt = session_context.custom_prompt if session_context else None
-    document_content = session_context.document_content if session_context else None
-
-    # ── 2. 根据模式构建插件 ────────────────────────────────────
-    if is_custom:
-        logger.info("自定义轨模式: session_id=%s", session_id)
+        # ── 1. 查询双轨制配置 ──────────────────────────────────────
         try:
-            plugins = _build_custom_plugins(user_settings)
-        except PluginInitError as e:
-            logger.error("自定义轨插件初始化失败: [%s] %s", e.code, e.message)
-            await _send_error_and_disconnect(ctx, e.code, e.message)
-            return
-    else:
-        logger.info("基础轨模式: session_id=%s", session_id)
-        plugins = PluginFactory.from_system_defaults()
-
-    # ── 3. 创建情绪感知 Agent ──────────────────────────────────
-    initial_prompt = build_dynamic_prompt(
-        anxiety_level=0.0,
-        custom_prompt=custom_prompt,
-        document_content=document_content,
-    )
-
-    agent = EchoTalkAgent(
-        session_id=session_id,
-        custom_prompt=custom_prompt,
-        document_content=document_content,
-        instructions=initial_prompt,
-        **plugins,
-    )
-
-    # ── 4. 创建会话并注册事件钩子 ─────────────────────────────
-    agent_session = AgentSession()
-
-    @agent_session.on("conversation_item_added")
-    def on_conversation_item(event: ConversationItemAddedEvent):
-        """
-        AI 回复的转录回写。
-
-        用户发言的转录已在 on_user_turn_completed 中处理（附带 emotion_state），
-        此处仅负责 assistant 消息的持久化。
-        """
-        _persist_assistant_conversation_item(event, session_id)
-
-    @agent_session.on("error")
-    def on_agent_error(event: ErrorEvent):
-        """
-        捕获运行时错误（如 HTTP 401 认证失败）。
-        仅在自定义轨模式下通知客户端并断连。
-        """
-        inner_error = event.error
-        actual_exception = getattr(inner_error, "error", inner_error)
-
-        logger.error(
-            "运行时错误: type=%s, recoverable=%s, error=%s",
-            getattr(inner_error, "type", "unknown"),
-            getattr(inner_error, "recoverable", "N/A"),
-            actual_exception,
-            exc_info=(
-                actual_exception if isinstance(actual_exception, Exception) else None
-            ),
-        )
-
-        if not is_custom:
-            return  # 基础轨交由 SDK 默认处理
-
-        # 检查是否为认证/授权错误 (HTTP 4xx)
-        is_auth_error = False
-        if isinstance(actual_exception, APIStatusError):
-            is_auth_error = actual_exception.status_code in (401, 403)
-        elif isinstance(actual_exception, Exception):
-            err_str = str(actual_exception).lower()
-            is_auth_error = (
-                "401" in err_str or "403" in err_str or "unauthorized" in err_str
+            user_settings = await _fetch_user_settings(session_id)
+        except Exception:
+            logger.error("查询用户配置失败: session_id=%s", safe_session_id)
+            await _send_error_and_disconnect(
+                ctx,
+                "ERR_SESSION_NOT_FOUND",
+                fallback_code="ERR_SESSION_NOT_FOUND",
             )
+            return None
 
-        if is_auth_error:
-            logger.error(
-                "自定义轨运行时认证失败: session_id=%s, error=%s",
-                session_id,
-                actual_exception,
+        # ── 1a. 安全校验: 必须查到用户配置 ────────────────────────
+        if user_settings is None:
+            logger.error("未找到用户配置: session_id=%s", safe_session_id)
+            await _send_error_and_disconnect(
+                ctx,
+                "ERR_SESSION_NOT_FOUND",
+                fallback_code="ERR_SESSION_NOT_FOUND",
             )
-            asyncio.ensure_future(
-                _send_error_and_disconnect(
+            return None
+
+        is_custom = user_settings.is_custom_mode
+        orchestrator.set_custom_mode(is_custom)
+
+        # ── 1b. 查询文档上下文 ────────────────────────────────────
+        session_context = await _fetch_session_context(session_id)
+        custom_prompt = session_context.custom_prompt if session_context else None
+        document_content = session_context.document_content if session_context else None
+
+        # ── 2. 根据模式构建插件 ────────────────────────────────────
+        if is_custom:
+            logger.info("自定义轨模式: session_id=%s", safe_session_id)
+            try:
+                plugins = _build_custom_plugins(user_settings)
+            except PluginInitError as e:
+                safe_code, _ = AgentErrorMapper.map_error(
+                    e.code,
+                    fallback_code="ERR_CUSTOM_KEY_INVALID",
+                )
+                logger.error("自定义轨插件初始化失败: code=%s", safe_code)
+                await _send_error_and_disconnect(
                     ctx,
-                    "ERR_CUSTOM_RUNTIME_AUTH",
-                    "您的自定义 API Key 认证失败（HTTP 401/403），请检查密钥是否有效。",
+                    safe_code,
+                    fallback_code="ERR_CUSTOM_KEY_INVALID",
                 )
-            )
+                return None
         else:
-            recoverable = getattr(inner_error, "recoverable", True)
-            if not recoverable:
-                logger.error(
-                    "自定义轨不可恢复运行时错误: session_id=%s, error=%s",
-                    session_id,
-                    actual_exception,
-                )
-                asyncio.ensure_future(
-                    _send_error_and_disconnect(
-                        ctx,
-                        "ERR_CUSTOM_RUNTIME",
-                        f"自定义 API 服务请求失败: {actual_exception}",
-                    )
-                )
+            logger.info("基础轨模式: session_id=%s", safe_session_id)
+            plugins = ProviderRegistry.from_system_defaults()
 
-    # ── 5. 启动语音管线 ───────────────────────────────────────
-    try:
-        await agent_session.start(agent, room=ctx.room)
-    except Exception as e:
-        logger.error(
-            "语音管线启动失败: session_id=%s, error=%s",
-            session_id,
-            e,
-            exc_info=True,
+        # ── 3. 创建情绪感知 Agent ──────────────────────────────────
+        initial_prompt = build_dynamic_prompt(
+            anxiety_level=0.0,
+            custom_prompt=custom_prompt,
+            document_content=document_content,
         )
-        error_code = "ERR_CUSTOM_RUNTIME" if is_custom else "ERR_SYSTEM_RUNTIME"
-        error_msg = (
-            f"语音管线启动失败: {e}" if is_custom else "语音管线启动失败，请稍后重试。"
-        )
-        await _send_error_and_disconnect(ctx, error_code, error_msg)
-        return
 
-    logger.info("语音管线已启动，session_id=%s, custom=%s", session_id, is_custom)
+        agent = EchoTalkAgent(
+            session_id=session_id,
+            custom_prompt=custom_prompt,
+            document_content=document_content,
+            instructions=initial_prompt,
+            sink=sink,
+            **plugins,
+        )
+        return agent, is_custom
+
+    orchestrator = AgentJobOrchestrator(
+        ctx,
+        session_factory=AgentSession,
+        sink_factory=TranscriptSink,
+        send_error_fn=_send_error_and_disconnect,
+        persist_assistant_fn=_persist_assistant_conversation_item,
+    )
+    await orchestrator.run(_setup_agent)
 
 
 if __name__ == "__main__":
