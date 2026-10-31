@@ -14,6 +14,24 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-29 本地 RF-11 API 错误消息解析边界抽离实施记录（A62）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”与 `TODO.md` RF-11 要求完成本地实施。将 `apps/vite-app/src/lib/api.ts` 内错误响应体解析为错误消息的纯计算抽离为小型独立纯函数模块 `apiErrorMessage.ts`，由真实客户端 `request` 消费，新增直接单测及可证伪测试替身消费回归，并闭环 A61 两项文字 P2。
+
+- 本地实现与模块边界：新建 `apps/vite-app/src/lib/apiErrorMessage.ts`，提供 `getApiErrorMessage(status: number, body: unknown): string` 纯计算函数；模块零网络、零 DOM/React/store/全局可变状态依赖，不发请求、不打日志、不缓存响应体；零反向导入 `api.ts`、`auth.ts` 或任何业务服务；`ApiError` 保持在原 `api.ts` 导出且签名与字段 100% 保持不变。
+- 逐项行为等价契约保持：
+  - 默认文案保持 `请求失败: <status>`。
+  - 标准 FastAPI `detail` 字符串包括合法空字符串 `""` 均优先采纳。
+  - 422 验证异常仅检查首项 `body.detail[0]`，非法首项不扫描后项；合法 `msg` 允许空字符串；`loc` 仅在全为 string/number 数组时安全拼接（空数组合法拼接为空字符串），其余非法或缺失结构统一安全回退 `"Unknown"`。
+  - `detail.errors` 仅取首项有效非空字符串，首值为空时不扫描第二项；`detail.message` 仅在非空字符串时采纳；合法空嵌套 `message` 或空对象回退 `JSON.stringify` 兜底；序列化异常安全回退默认文案。
+  - 外层 `errors` 仅取首项有效非空字符串；外层 `message` 支持合法空字符串。
+- 客户端真实消费与请求链路保持：`apps/vite-app/src/lib/api.ts` 的 `request` 移除旧错误解析私有副本并真实消费 `getApiErrorMessage`；401 在读取 JSON 前按原 revision 触发会话失效、非 JSON 解析失败安全回退 `{}`、认证检查、单次请求无重放等完整保留原有时序；原 `status` 与 `body` 对象身份完全保留。
+- 携带 A61 文字 P2 修正：
+  - `RF-11-SETTINGS-PAYLOAD.md` §2.1 标题“纯纯计算”更正为“纯计算”。
+  - `RF-11-SETTINGS-PAYLOAD.md` §2.2 首行测试统计数由笔误的“新增 7 项”更正为实际清单与执行的“新增 8 项”。
+- 质量与回归测试：新增 `apiErrorMessage.test.ts`（7 个 describe 分组覆盖默认文案、detail 字符串、422 数组、detail 嵌套对象、外层 errors/message、优先级及冻结入参不变性）；在 `api.test.ts` 中新增可证伪测试替身（spy mockReturnValue 证实 request 真正委托新纯函数，断言单次 fetch 与 status/data 保留，并在 finally 恢复）；原约 2088 行测试断言全部原样保持。
+- 契约与记录见 [RF-11 API 错误消息解析边界抽离验证](./verification/cross-platform/RF-11-API-ERROR-MESSAGE.md)。前端 API 类型生成与会话状态模型重构仍待完成，RF-11 整项保持未勾选。
+
 ## 2026-10-29 本地 RF-11 设置保存载荷行为抽取实施记录（A61）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“按行为拆分 SettingsDrawer”与 `TODO.md` RF-11 要求完成本地实施。将 `SettingsDrawer.handleSave` 内构建 `UserSettingsUpdate` 载荷的纯计算抽为小型独立纯函数模块 `settingsPayload.ts`，由真实组件消费，新增直接单测及真实保存回归，并修复两项维护 P2。

@@ -7,6 +7,7 @@ import { getApiBaseUrl } from "@/utils/env";
 import { getAccessToken, getAuthRevision, invalidateAuthSession } from "@/lib/auth";
 import { zhCN } from "@/i18n/zh-CN";
 import { logDiagnostic } from "@/lib/diagnostics";
+import * as apiErrorMessageModule from "./apiErrorMessage";
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -28,18 +29,6 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.data = data;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getFirstTruthyString(record: Record<string, unknown>): string | null {
-  const values = Object.values(record);
-  if (values.length > 0 && typeof values[0] === "string" && values[0]) {
-    return values[0];
-  }
-  return null;
 }
 
 /** 通用请求封装 */
@@ -77,57 +66,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     }
     const body = await res.json().catch(() => ({}));
 
-    let message = `请求失败: ${res.status}`;
-    if (isRecord(body)) {
-      if (typeof body.detail === "string") {
-        // 1. 标准 FastAPI 异常 (HTTPException(detail="xxx"))
-        message = body.detail;
-      } else if (Array.isArray(body.detail) && body.detail.length > 0) {
-        // 2. FastAPI 验证异常 (422 Unprocessable Entity - validation errors)
-        const firstError = body.detail[0];
-        if (isRecord(firstError) && typeof firstError.msg === "string") {
-          let errorLoc = "Unknown";
-          if (Array.isArray(firstError.loc)) {
-            const isAllValid = firstError.loc.every(
-              (part): part is string | number =>
-                typeof part === "string" || typeof part === "number",
-            );
-            if (isAllValid) {
-              errorLoc = firstError.loc.join(".");
-            }
-          }
-          message = `数据验证失败 (${errorLoc}): ${firstError.msg}`;
-        }
-      } else if (isRecord(body.detail)) {
-        // 3. 嵌套的自定义字典对象 (如 /health/ready 的 detail: { errors: {...} })
-        if (isRecord(body.detail.errors)) {
-          const firstErr = getFirstTruthyString(body.detail.errors);
-          if (firstErr) {
-            message = firstErr;
-          }
-        } else if (typeof body.detail.message === "string" && body.detail.message) {
-          message = body.detail.message;
-        } else if (
-          !("errors" in body.detail) &&
-          (!("message" in body.detail) || body.detail.message === "")
-        ) {
-          try {
-            message = JSON.stringify(body.detail); // 兜底返回完整 JSON 字符串避免 [object Object]
-          } catch {
-            // 忽略序列化异常，保留原 message 兜底
-          }
-        }
-      } else if (isRecord(body.errors)) {
-        // 4. 其他结构或未通过 detail 包装的字典
-        const firstErr = getFirstTruthyString(body.errors);
-        if (firstErr) {
-          message = firstErr;
-        }
-      } else if (typeof body.message === "string") {
-        // 5. 兜底解析 message 字段
-        message = body.message;
-      }
-    }
+    const message = apiErrorMessageModule.getApiErrorMessage(res.status, body);
 
     throw new ApiError(res.status, message, body);
   }

@@ -31,7 +31,7 @@
 
 ## 2. 本地实现与测试覆盖
 
-### 2.1 模块纯纯计算实现与组件消费
+### 2.1 模块纯计算实现与组件消费
 
 - `apps/vite-app/src/components/settings/settingsPayload.ts`：
   - 定义 `SettingsPayloadInput` 纯标量输入快照接口。
@@ -41,7 +41,7 @@
 
 ### 2.2 自动化回归测试
 
-- `apps/vite-app/src/components/settings/settingsPayload.test.ts`（新增 7 项直接行为测试）：
+- `apps/vite-app/src/components/settings/settingsPayload.test.ts`（新增 8 项直接行为测试）：
   1. `returns only is_custom_mode: false when custom mode is disabled`：验证自定义模式关闭时仅发送 `is_custom_mode: false`，不带 provider/model/key。
   2. `includes provider fields when custom mode is enabled with empty keys and empty model`：验证自定义模式开启且无新 key/model 时按顺序输出三路 provider。
   3. `trims and includes llm_model when non-empty, but omits when whitespace-only`：验证 llm_model trim 非空保留与全空白省略。

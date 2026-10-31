@@ -41,6 +41,7 @@ import {
   invalidateAuthSession,
   _resetAuthForTesting,
 } from "./auth";
+import * as apiErrorMessageModule from "./apiErrorMessage";
 import { zhCN } from "@/i18n/zh-CN";
 
 describe("API client", () => {
@@ -515,6 +516,35 @@ describe("API client", () => {
 
         await expect(createSession("chat")).rejects.toThrow(ApiError);
         expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("proves request delegates to getApiErrorMessage on HTTP error with falsifiable test double", async () => {
+        const spy = vi
+          .spyOn(apiErrorMessageModule, "getApiErrorMessage")
+          .mockReturnValue("falsifiable delegated error message");
+        const mockBody = { detail: "original detail" };
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 422,
+          json: () => Promise.resolve(mockBody),
+        } as unknown as Response);
+
+        try {
+          await checkHealthReady();
+          expect.fail("Should have thrown ApiError");
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ApiError);
+          if (e instanceof ApiError) {
+            expect(e.status).toBe(422);
+            expect(e.message).toBe("falsifiable delegated error message");
+            expect(e.data).toEqual(mockBody);
+          }
+          expect(spy).toHaveBeenCalledTimes(1);
+          expect(spy).toHaveBeenCalledWith(422, mockBody);
+          expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        } finally {
+          spy.mockRestore();
+        }
       });
     });
   });
