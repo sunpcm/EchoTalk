@@ -24,6 +24,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check generated API types
+        run: pnpm --filter vite-app check:api-types
+
+      - name: Test API type generation
+        run: pnpm --filter vite-app test:api-types
+
       - name: Format
         run: pnpm run format:check
 
@@ -93,6 +99,10 @@ jobs:
           uv export --frozen --no-dev --no-emit-project --no-header --no-annotate --output-file /tmp/exported-requirements.txt
           cmp requirements.txt /tmp/exported-requirements.txt
           uv sync --frozen --group dev --no-python-downloads
+
+      - name: Check tracked OpenAPI schema
+        working-directory: backend
+        run: .venv/bin/python export_openapi.py --check
 
       - name: Ruff format
         working-directory: backend

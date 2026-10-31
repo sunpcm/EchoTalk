@@ -20,6 +20,51 @@
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-11-01 本地 RF-11 OpenAPI 类型生成源码实现记录（A67）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11 与既有跨端、认证、分页和租约契约，
+建立“真实 FastAPI schema → tracked OpenAPI JSON → generated TypeScript → 生产 API 类型”的
+单一路径，同时保留小型自定义 Transport 和全部运行时 guard。
+
+- **离线 schema 导出**：`backend/export_openapi.py` 的公开 CLI 只做参数与原子文件 I/O；实际
+  schema 在全新 `-I` 子进程中导入真实 `main.app` 并调用 `app.openapi()`。子进程只接收最小合成
+  非业务环境，在 import 业务前阻断 DNS 与 socket；TMP/TEMP 与 XDG 目录受控且不重设 `HOME`。
+  导入 config 前以 Pydantic 文档化 `_env_file=None`/`_secrets_dir=None` 构造控制阻止 dotenv 与
+  file-secret source 读取，随后按真实 `settings_customise_sources` 签名仅保留 init/env source；
+  产品 Settings 默认行为不变。实际导出子进程有 120 秒 timeout，异常只输出阶段/类型，父进程
+  拒绝其他 stderr。导出不运行 lifespan、不连接 DB/Provider，失败或超时非零且不替换旧文件。
+- **受控 schema 与后端验证**：真实 `main.app.openapi()` 已生成 tracked
+  `backend/openapi.json`，当前包含 22 条路径、27 个模型，`export_openapi.py --check`
+  已通过。r1 的 dotenv/file-secret、零文件 Settings、异常 canary、stderr 和 timeout 合成
+  探针通过；离线导出 pytest 11 项、backend Ruff 格式/lint 通过。专用测试库全量 pytest 为
+  540 passed/3 warnings、覆盖率 79.41%。新增导出工具主要在隔离子进程中执行，不进入父
+  pytest coverage 统计，既有 59% 门禁不变。
+- **类型生成与消费**：`openapi-typescript@7.13.0` 已从真实 schema 生成
+  `api.generated.ts`；types `--check`、Node 生成器 8 项和 TypeScript 类型检查均通过。工具
+  只读取本地 `backend/openapi.json`，拒绝 remote/越界 `$ref`，按项目 Prettier 配置生成，
+  `--check` 字节比较且不写文件，缺产物或漂移非零退出。
+- **依赖图接线**：精确 override 已用于 pnpm 10.26.0 原生 lock 重生成，冻结安装通过。相对
+  基线，既有 packages 的 version/integrity 与既有 resolved snapshots/importer 不变；新增
+  17 个 packages、18 个 snapshots 及 vite-app 的精确 devDependency。唯一既有 package 元数据
+  变化是批准 override 将
+  `@pmmmwh/react-refresh-webpack-plugin@0.6.2` 的 peer range 记录为 `0.21.3`，generator 所需
+  `type-fest@4.41.0` 继续保留。
+- **生产 DTO 消费**：`DailyProgressResponse`、`SessionListItem`、`SessionListResponse`、
+  `CallCapabilitiesResponse`、`CallLeaseResponse`、`CallReleaseResponse` 从 generated
+  `components.schemas` 派生，不再重复手写后端字段；用 `Required`/`Omit` 保留
+  `ended_at`、`next_cursor`、`protocol_version` 的既有必需语义，并用窄字面量保留
+  `state: "held"` 与 `released: true`。请求字段、运行时 parser、认证、超时、取消、Header、
+  单 fetch 和 HTTP 行为未改。
+- **CI 与记录**：frontend job 增加 types 漂移检查与生成器 Node runner，backend job 在既有
+  frozen uv 安装后增加真实 schema `--check` 及 full pytest 中的离线导出回归；原 8 项前端
+  门禁不减少。接口与待执行命令见
+  [RF-11 OpenAPI 类型生成验证](./verification/cross-platform/RF-11-OPENAPI-TYPES.md)。
+- **当前边界**：完整前端 10 门禁曾在 r2 编译断言的 `@typescript-eslint/no-empty-object-type`
+  处于 lint 非零停止，后续门禁未形成完整证据。r3 已将该断言改成
+  `Pick<T, K>` 与 `Required<Pick<T, K>>` 的赋值关系判断，并保留全部 13 个编译断言；该修复
+  尚待主 Agent 复验。完整前端、变异、main 复验和独立 Review 仍未完成，远端 CI 尚未覆盖
+  A67，因此不能宣称 RF-11 完成。
+
 ## 2026-11-01 本地 RF-11 公共 API 取消入口实施记录（A66）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“保留小型自定义 Transport，统一处理

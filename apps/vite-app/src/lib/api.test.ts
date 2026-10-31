@@ -35,6 +35,12 @@ import {
   ApiError,
   getBaseUrl,
   type ApiRequestOptions,
+  type DailyProgressResponse,
+  type SessionListItem,
+  type SessionListResponse,
+  type CallCapabilitiesResponse,
+  type CallLeaseResponse,
+  type CallReleaseResponse,
 } from "./api";
 import {
   setAccessTokenProvider,
@@ -52,6 +58,26 @@ import {
   UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
 } from "./apiRequestTimeout";
 import { zhCN } from "@/i18n/zh-CN";
+
+type Assert<T extends true> = T;
+type IsRequired<T, K extends keyof T> = Pick<T, K> extends Required<Pick<T, K>> ? true : false;
+export type GeneratedContractAssertions = [
+  Assert<IsRequired<DailyProgressResponse, "completed_sessions">>,
+  Assert<IsRequired<DailyProgressResponse, "total_turns">>,
+  Assert<IsRequired<SessionListItem, "ended_at">>,
+  Assert<null extends SessionListItem["ended_at"] ? true : false>,
+  Assert<IsRequired<SessionListResponse, "items">>,
+  Assert<IsRequired<SessionListResponse, "next_cursor">>,
+  Assert<null extends SessionListResponse["next_cursor"] ? true : false>,
+  Assert<IsRequired<CallCapabilitiesResponse, "protocol_version">>,
+  Assert<IsRequired<CallCapabilitiesResponse, "call_lease_mode">>,
+  Assert<CallCapabilitiesResponse["protocol_version"] extends 1 ? true : false>,
+  Assert<
+    CallCapabilitiesResponse["call_lease_mode"] extends "disabled" | "livekit_cloud" ? true : false
+  >,
+  Assert<CallLeaseResponse["state"] extends "held" ? true : false>,
+  Assert<CallReleaseResponse["released"] extends true ? true : false>,
+];
 
 describe("API client", () => {
   const originalFetch = globalThis.fetch;

@@ -10,6 +10,10 @@ import { logDiagnostic } from "@/lib/diagnostics";
 import * as apiErrorMessageModule from "./apiErrorMessage";
 import * as apiRequestHeadersModule from "./apiRequestHeaders";
 import * as apiRequestTimeoutModule from "./apiRequestTimeout";
+import type { components as ApiComponents } from "./api.generated";
+
+type ApiSchemas = ApiComponents["schemas"];
+type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -222,26 +226,19 @@ export interface CurriculumNextResponse {
   recommendations: CurriculumRecommendation[];
 }
 
-/** 会话列表项（不含转录） */
-export interface SessionListItem {
-  id: string;
-  mode: string;
-  status: string;
-  started_at: string;
-  ended_at: string | null;
-}
+/** 会话列表项（不含转录）；保留客户端要求 ended_at 必须存在的既有契约。 */
+export type SessionListItem = WithRequired<ApiSchemas["SessionListItem"], "ended_at">;
 
-/** 会话分页列表响应 */
-export interface SessionListResponse {
+/** 会话分页列表响应；items 复用同一领域适配类型，next_cursor 保持必需。 */
+export type SessionListResponse = Omit<
+  WithRequired<ApiSchemas["SessionListResponse"], "next_cursor">,
+  "items"
+> & {
   items: SessionListItem[];
-  next_cursor: string | null;
-}
+};
 
 /** 每日进度聚合统计响应 */
-export interface DailyProgressResponse {
-  completed_sessions: number;
-  total_turns: number;
-}
+export type DailyProgressResponse = ApiSchemas["DailyProgressResponse"];
 
 export type AnalysisJobStatus = "pending" | "running" | "succeeded" | "failed";
 
@@ -258,12 +255,12 @@ export interface AnalysisStatusResponse {
 
 // ─── 通话能力 API ───
 
-export type CallLeaseMode = "disabled" | "livekit_cloud";
+export type CallCapabilitiesResponse = WithRequired<
+  ApiSchemas["CallCapabilitiesResponse"],
+  "protocol_version" | "call_lease_mode"
+>;
 
-export interface CallCapabilitiesResponse {
-  protocol_version: 1;
-  call_lease_mode: CallLeaseMode;
-}
+export type CallLeaseMode = CallCapabilitiesResponse["call_lease_mode"];
 
 /** 校验并解析通话协议能力响应，严格要求精确两字段、protocol_version=1 及合法 mode */
 export function parseCallCapabilities(data: unknown): CallCapabilitiesResponse {
@@ -311,18 +308,14 @@ export interface CallLeaseOwner {
   generation: number;
 }
 
-export interface CallLeaseResponse {
-  session_id: string;
-  device_id: string;
-  generation: number;
+/** 从生成契约派生字段，同时保留客户端对成功状态的窄字面量约束。 */
+export type CallLeaseResponse = Omit<ApiSchemas["CallLeaseResponse"], "state"> & {
   state: "held";
-  expires_at: string;
-}
+};
 
-export interface CallReleaseResponse {
+export type CallReleaseResponse = Omit<ApiSchemas["CallReleaseResponse"], "released"> & {
   released: true;
-  generation: number;
-}
+};
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
