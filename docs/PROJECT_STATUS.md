@@ -14,6 +14,16 @@
   PostgreSQL 空库迁移和后端覆盖率测试。它不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-10-31 本地 RF-11 API 请求 Header 合并边界抽离实施记录（A63）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“合并 `RequestInit.headers` 时保留默认 Header，不允许调用方无意覆盖认证信息”完成本地实施。将 `apps/vite-app/src/lib/api.ts` 的 `request` 内 Header 构造抽为独立同步纯函数 `apps/vite-app/src/lib/apiRequestHeaders.ts`，保持原请求链路时序与行为，并以直接单测和公共 API 消费回归验证。
+
+- 模块边界：`buildApiRequestHeaders(inputHeaders, accessToken)` 仅使用标准 `Headers` 初始化语义，返回新 `Headers`；零网络/异步/DOM/store/日志/全局可变状态，且不反向导入 `api.ts`、`auth.ts` 或业务模块。
+- 行为等价：未提供 `Content-Type` 时补 `application/json`；调用方已有值原样保留；有 token 时使用 `Bearer <token>` 覆盖认证 Header；无 token 时不删除调用方显式 `Authorization`；自定义 Header 与标准多值语义保持，不手动拼接字符串。
+- 请求链路：`request` 在原有 `getAuthRevision()` 与 `await getAccessToken()` 及 revision 二次校验之后真实委托新模块；`baseUrl/path`、`...options`、最终 `headers`、诊断、`ApiError`、401 失效、非 JSON 回退和单次 fetch 均未改变。
+- 验证范围：直接单测覆盖空、对象、数组、`Headers`、既有内容类型、显式认证、无 token、自定义 Header、冻结输入、多值和实例隔离；公共消费者测试用可证伪 spy 断言模块委托、最终 Headers 内容及一次 fetch。
+- 契约与记录见 [RF-11 API 请求 Header 合并边界抽离验证](./verification/cross-platform/RF-11-REQUEST-HEADERS.md)。前端 API 类型生成、会话状态模型重构及超时/取消仍待完成，RF-11 整项保持未勾选。
+
 ## 2026-10-29 本地 RF-11 API 错误消息解析边界抽离实施记录（A62）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”与 `TODO.md` RF-11 要求完成本地实施。将 `apps/vite-app/src/lib/api.ts` 内错误响应体解析为错误消息的纯计算抽离为小型独立纯函数模块 `apiErrorMessage.ts`，由真实客户端 `request` 消费，新增直接单测及可证伪测试替身消费回归，并闭环 A61 两项文字 P2。

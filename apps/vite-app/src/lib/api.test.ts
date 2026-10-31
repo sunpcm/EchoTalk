@@ -42,6 +42,7 @@ import {
   _resetAuthForTesting,
 } from "./auth";
 import * as apiErrorMessageModule from "./apiErrorMessage";
+import * as apiRequestHeadersModule from "./apiRequestHeaders";
 import { zhCN } from "@/i18n/zh-CN";
 
 describe("API client", () => {
@@ -516,6 +517,48 @@ describe("API client", () => {
 
         await expect(createSession("chat")).rejects.toThrow(ApiError);
         expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("proves request delegates header construction with final headers and one fetch", async () => {
+        const validSessionId = "123e4567-e89b-12d3-a456-426614174000";
+        const validDeviceId = "123e4567-e89b-12d3-a456-426614174001";
+        const owner: CallLeaseOwner = { device_id: validDeviceId, generation: 7 };
+        const delegatedHeaders = new Headers({
+          "Content-Type": "application/problem+json",
+          Authorization: "Bearer test-access-token",
+          "X-Call-Device-Id": validDeviceId,
+          "X-Call-Generation": "7",
+          "X-Delegated": "true",
+        });
+        const spy = vi
+          .spyOn(apiRequestHeadersModule, "buildApiRequestHeaders")
+          .mockReturnValue(delegatedHeaders);
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({ token: "token-1", ws_url: "wss://example.com" }),
+        } as unknown as Response);
+
+        try {
+          await getSessionToken(validSessionId, owner);
+
+          expect(spy).toHaveBeenCalledTimes(1);
+          const [inputHeaders, accessToken] = spy.mock.calls[0]!;
+          expect(new Headers(inputHeaders).get("X-Call-Device-Id")).toBe(validDeviceId);
+          expect(new Headers(inputHeaders).get("X-Call-Generation")).toBe("7");
+          expect(accessToken).toBe("test-access-token");
+
+          const options = fetchMock().mock.calls[0]?.[1];
+          expect(options?.headers).toBe(delegatedHeaders);
+          const headers = new Headers(options?.headers);
+          expect(headers.get("Content-Type")).toBe("application/problem+json");
+          expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+          expect(headers.get("X-Call-Device-Id")).toBe(validDeviceId);
+          expect(headers.get("X-Call-Generation")).toBe("7");
+          expect(headers.get("X-Delegated")).toBe("true");
+          expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        } finally {
+          spy.mockRestore();
+        }
       });
 
       it("proves request delegates to getApiErrorMessage on HTTP error with falsifiable test double", async () => {

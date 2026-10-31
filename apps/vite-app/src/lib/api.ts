@@ -8,6 +8,7 @@ import { getAccessToken, getAuthRevision, invalidateAuthSession } from "@/lib/au
 import { zhCN } from "@/i18n/zh-CN";
 import { logDiagnostic } from "@/lib/diagnostics";
 import * as apiErrorMessageModule from "./apiErrorMessage";
+import * as apiRequestHeadersModule from "./apiRequestHeaders";
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -41,13 +42,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(zhCN.auth.sessionChanged);
   }
 
-  const headers = new Headers(options?.headers);
-  if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  if (accessToken) {
-    headers.set("Authorization", `Bearer ${accessToken}`);
-  }
+  const headers = apiRequestHeadersModule.buildApiRequestHeaders(options?.headers, accessToken);
   let res: Response;
   try {
     res = await fetch(`${baseUrl}${path}`, {
