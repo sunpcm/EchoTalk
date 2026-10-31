@@ -33,6 +33,11 @@ export class ApiError extends Error {
   }
 }
 
+/** 公共网络函数的单请求覆盖选项。 */
+export interface ApiRequestOptions {
+  readonly signal?: AbortSignal | null;
+}
+
 /** 通用请求封装 */
 async function request<T>(
   path: string,
@@ -289,9 +294,12 @@ export function parseCallCapabilities(data: unknown): CallCapabilitiesResponse {
 }
 
 /** 获取通话协议能力，设置 fetch 的 cache: "no-store" */
-export async function getCallCapabilities(): Promise<CallCapabilitiesResponse> {
+export async function getCallCapabilities(
+  options?: ApiRequestOptions,
+): Promise<CallCapabilitiesResponse> {
   const raw = await request<unknown>("/call-capabilities", {
     cache: "no-store",
+    signal: options?.signal,
   });
   return parseCallCapabilities(raw);
 }
@@ -509,6 +517,7 @@ export async function claimCallLease(
   sessionId: string,
   deviceId: string,
   takeover: boolean = false,
+  options?: ApiRequestOptions,
 ): Promise<CallLeaseResponse> {
   validateUuid(sessionId, "sessionId");
   validateUuid(deviceId, "deviceId");
@@ -522,6 +531,7 @@ export async function claimCallLease(
       device_id: deviceId,
       takeover,
     }),
+    signal: options?.signal,
   });
 
   return parseCallLeaseResponse(raw, sessionId, deviceId);
@@ -534,6 +544,7 @@ export async function claimCallLease(
 export async function heartbeatCallLease(
   sessionId: string,
   owner: CallLeaseOwner,
+  options?: ApiRequestOptions,
 ): Promise<CallLeaseResponse> {
   validateUuid(sessionId, "sessionId");
   const validatedOwner = validateCallLeaseOwner(owner);
@@ -544,6 +555,7 @@ export async function heartbeatCallLease(
       device_id: validatedOwner.device_id,
       generation: validatedOwner.generation,
     }),
+    signal: options?.signal,
   });
 
   return parseCallLeaseResponse(
@@ -561,6 +573,7 @@ export async function heartbeatCallLease(
 export async function releaseCallLease(
   sessionId: string,
   owner: CallLeaseOwner,
+  options?: ApiRequestOptions,
 ): Promise<CallReleaseResponse> {
   validateUuid(sessionId, "sessionId");
   const validatedOwner = validateCallLeaseOwner(owner);
@@ -571,6 +584,7 @@ export async function releaseCallLease(
       device_id: validatedOwner.device_id,
       generation: validatedOwner.generation,
     }),
+    signal: options?.signal,
   });
 
   return parseCallReleaseResponse(raw, validatedOwner.generation);
@@ -583,8 +597,10 @@ export interface HealthReadyResponse {
 }
 
 /** 深度健康检查，验证 DB、LiveKit 等是否已就绪 */
-export function checkHealthReady(): Promise<HealthReadyResponse> {
-  return request<HealthReadyResponse>("/health/ready");
+export function checkHealthReady(options?: ApiRequestOptions): Promise<HealthReadyResponse> {
+  return request<HealthReadyResponse>("/health/ready", {
+    signal: options?.signal,
+  });
 }
 
 // ─── 会话 API ───
@@ -603,7 +619,11 @@ export interface CreateSessionBody {
 }
 
 /** 创建会话 */
-export function createSession(mode: string, docContext?: DocContext): Promise<Session> {
+export function createSession(
+  mode: string,
+  docContext?: DocContext,
+  options?: ApiRequestOptions,
+): Promise<Session> {
   const body: CreateSessionBody = { mode };
   if (docContext) {
     body.doc_context = docContext;
@@ -611,6 +631,7 @@ export function createSession(mode: string, docContext?: DocContext): Promise<Se
   return request<Session>("/sessions", {
     method: "POST",
     body: JSON.stringify(body),
+    signal: options?.signal,
   });
 }
 
@@ -618,9 +639,12 @@ export function createSession(mode: string, docContext?: DocContext): Promise<Se
 export async function getSessionToken(
   sessionId: string,
   owner?: CallLeaseOwner,
+  options?: ApiRequestOptions,
 ): Promise<TokenResponse> {
   if (owner === undefined) {
-    return request<TokenResponse>(`/sessions/${sessionId}/token`);
+    return request<TokenResponse>(`/sessions/${sessionId}/token`, {
+      signal: options?.signal,
+    });
   }
   validateUuid(sessionId, "sessionId");
   const validatedOwner = validateCallLeaseOwner(owner);
@@ -629,13 +653,15 @@ export async function getSessionToken(
       "X-Call-Device-Id": validatedOwner.device_id,
       "X-Call-Generation": String(validatedOwner.generation),
     },
+    signal: options?.signal,
   });
 }
 
 /** 结束会话 */
-export function endSession(sessionId: string): Promise<Session> {
+export function endSession(sessionId: string, options?: ApiRequestOptions): Promise<Session> {
   return request<Session>(`/sessions/${sessionId}/end`, {
     method: "POST",
+    signal: options?.signal,
   });
 }
 
@@ -643,10 +669,12 @@ export function endSession(sessionId: string): Promise<Session> {
 export async function dispatchAgent(
   sessionId: string,
   owner?: CallLeaseOwner,
+  options?: ApiRequestOptions,
 ): Promise<{ dispatched: boolean }> {
   if (owner === undefined) {
     return request<{ dispatched: boolean }>(`/sessions/${sessionId}/dispatch`, {
       method: "POST",
+      signal: options?.signal,
     });
   }
   validateUuid(sessionId, "sessionId");
@@ -657,6 +685,7 @@ export async function dispatchAgent(
       "X-Call-Device-Id": validatedOwner.device_id,
       "X-Call-Generation": String(validatedOwner.generation),
     },
+    signal: options?.signal,
   });
 }
 
@@ -755,7 +784,10 @@ export function parseDailyProgressResponse(data: unknown): DailyProgressResponse
 }
 
 /** 列出当前用户的会话（支持 keyset 游标分页、状态过滤与时间窗口） */
-export async function listSessions(params?: ListSessionsParams): Promise<SessionListResponse> {
+export async function listSessions(
+  params?: ListSessionsParams,
+  options?: ApiRequestOptions,
+): Promise<SessionListResponse> {
   const query = new URLSearchParams();
   if (params?.status) query.set("status", params.status);
   if (params?.start) query.set("start", params.start);
@@ -763,13 +795,16 @@ export async function listSessions(params?: ListSessionsParams): Promise<Session
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   if (params?.cursor) query.set("cursor", params.cursor);
   const qStr = query.toString();
-  const raw = await request<unknown>(`/sessions${qStr ? `?${qStr}` : ""}`);
+  const raw = await request<unknown>(`/sessions${qStr ? `?${qStr}` : ""}`, {
+    signal: options?.signal,
+  });
   return parseSessionListResponse(raw);
 }
 
 /** 列出当前已认证用户的活跃会话记录（支持 keyset 游标分页与时间窗口） */
 export async function listActiveSessions(
   params?: ListActiveSessionsParams,
+  options?: ApiRequestOptions,
 ): Promise<SessionListResponse> {
   const query = new URLSearchParams();
   if (params?.start) query.set("start", params.start);
@@ -777,61 +812,98 @@ export async function listActiveSessions(
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   if (params?.cursor) query.set("cursor", params.cursor);
   const qStr = query.toString();
-  const raw = await request<unknown>(`/sessions/active${qStr ? `?${qStr}` : ""}`);
+  const raw = await request<unknown>(`/sessions/active${qStr ? `?${qStr}` : ""}`, {
+    signal: options?.signal,
+  });
   return parseSessionListResponse(raw);
 }
 
 /** 获取每日练习聚合统计（单次服务端聚合指定窗口内已完成会话数及转录条数） */
-export async function getDailyProgress(start: string, end: string): Promise<DailyProgressResponse> {
+export async function getDailyProgress(
+  start: string,
+  end: string,
+  options?: ApiRequestOptions,
+): Promise<DailyProgressResponse> {
   const query = new URLSearchParams({ start, end });
-  const raw = await request<unknown>(`/sessions/daily-progress?${query.toString()}`);
+  const raw = await request<unknown>(`/sessions/daily-progress?${query.toString()}`, {
+    signal: options?.signal,
+  });
   return parseDailyProgressResponse(raw);
 }
 
 /** 获取会话详情（含转录记录） */
-export function getSessionDetail(sessionId: string): Promise<Session> {
-  return request<Session>(`/sessions/${sessionId}`);
+export function getSessionDetail(sessionId: string, options?: ApiRequestOptions): Promise<Session> {
+  return request<Session>(`/sessions/${sessionId}`, {
+    signal: options?.signal,
+  });
 }
 
 /** 获取持久化分析任务状态 */
-export function getAnalysisStatus(sessionId: string): Promise<AnalysisStatusResponse> {
-  return request<AnalysisStatusResponse>(`/sessions/${sessionId}/analysis-status`);
+export function getAnalysisStatus(
+  sessionId: string,
+  options?: ApiRequestOptions,
+): Promise<AnalysisStatusResponse> {
+  return request<AnalysisStatusResponse>(`/sessions/${sessionId}/analysis-status`, {
+    signal: options?.signal,
+  });
 }
 
 /** 重试最终失败或已超时的分析任务 */
-export function retryAnalysis(sessionId: string): Promise<AnalysisStatusResponse> {
+export function retryAnalysis(
+  sessionId: string,
+  options?: ApiRequestOptions,
+): Promise<AnalysisStatusResponse> {
   return request<AnalysisStatusResponse>(`/sessions/${sessionId}/analysis-retry`, {
     method: "POST",
+    signal: options?.signal,
   });
 }
 
 // ─── 评估 API ───
 
 /** 获取发音评估结果 */
-export function getAssessment(sessionId: string): Promise<AssessmentResponse> {
-  return request<AssessmentResponse>(`/assessments/${sessionId}`);
+export function getAssessment(
+  sessionId: string,
+  options?: ApiRequestOptions,
+): Promise<AssessmentResponse> {
+  return request<AssessmentResponse>(`/assessments/${sessionId}`, {
+    signal: options?.signal,
+  });
 }
 
 /** 获取语法错误列表 */
-export function getGrammarErrors(sessionId: string): Promise<GrammarErrorResponse[]> {
-  return request<GrammarErrorResponse[]>(`/assessments/${sessionId}/grammar`);
+export function getGrammarErrors(
+  sessionId: string,
+  options?: ApiRequestOptions,
+): Promise<GrammarErrorResponse[]> {
+  return request<GrammarErrorResponse[]>(`/assessments/${sessionId}/grammar`, {
+    signal: options?.signal,
+  });
 }
 
 /** 获取当前用户知识状态 */
-export function getKnowledgeStates(): Promise<KnowledgeStateResponse[]> {
-  return request<KnowledgeStateResponse[]>("/assessments/knowledge/states");
+export function getKnowledgeStates(options?: ApiRequestOptions): Promise<KnowledgeStateResponse[]> {
+  return request<KnowledgeStateResponse[]>("/assessments/knowledge/states", {
+    signal: options?.signal,
+  });
 }
 
 /** 获取技能列表 */
-export function getSkills(): Promise<SkillResponse[]> {
-  return request<SkillResponse[]>("/assessments/knowledge/skills");
+export function getSkills(options?: ApiRequestOptions): Promise<SkillResponse[]> {
+  return request<SkillResponse[]>("/assessments/knowledge/skills", {
+    signal: options?.signal,
+  });
 }
 
 // ─── 课程推荐 API ───
 
 /** 获取自适应课程推荐 */
-export function getRecommendedCurriculum(): Promise<CurriculumNextResponse> {
-  return request<CurriculumNextResponse>("/curriculum/next");
+export function getRecommendedCurriculum(
+  options?: ApiRequestOptions,
+): Promise<CurriculumNextResponse> {
+  return request<CurriculumNextResponse>("/curriculum/next", {
+    signal: options?.signal,
+  });
 }
 
 // ─── 用户设置相关类型 ───
@@ -871,17 +943,23 @@ export interface UserSettingsUpdate {
 // ─── 用户设置 API ───
 
 /** 获取当前用户的双轨制配置 */
-export function getUserSettings(): Promise<UserSettingsResponse> {
-  return request<UserSettingsResponse>("/user/settings");
+export function getUserSettings(options?: ApiRequestOptions): Promise<UserSettingsResponse> {
+  return request<UserSettingsResponse>("/user/settings", {
+    signal: options?.signal,
+  });
 }
 
 /** 更新当前用户的双轨制配置（部分更新） */
-export function updateUserSettings(data: UserSettingsUpdate): Promise<UserSettingsResponse> {
+export function updateUserSettings(
+  data: UserSettingsUpdate,
+  options?: ApiRequestOptions,
+): Promise<UserSettingsResponse> {
   return request<UserSettingsResponse>(
     "/user/settings",
     {
       method: "PUT",
       body: JSON.stringify(data),
+      signal: options?.signal,
     },
     { timeoutMs: apiRequestTimeoutModule.UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS },
   );

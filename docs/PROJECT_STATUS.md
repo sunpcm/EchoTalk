@@ -20,6 +20,33 @@
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-11-01 本地 RF-11 公共 API 取消入口实施记录（A66）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“保留小型自定义 Transport，统一处理
+认证、超时、取消、错误解析和 API Origin”完成公共调用入口子项。新增只包含可选 `signal`
+的 `ApiRequestOptions`，让调用方直接通过公开网络函数控制单请求取消。
+
+- **接口契约**：`ApiRequestOptions` 只含 `readonly signal?: AbortSignal | null`；实际 22 个
+  网络函数均在末尾追加该参数，保留 `owner`、`docContext`、`takeover`、查询参数及全部默认值。
+  无 owner 的 `getSessionToken`、`dispatchAgent` 仍需显式传 `undefined` 占位，options 不会被
+  误判为业务参数。
+- **请求边界**：各函数只把 `options?.signal` 写入单请求 `RequestInit.signal`，不暴露任意
+  `RequestInit`、Headers 或 timeout，也不把 options 展开进 body。请求继续复用 A64 组合句柄；
+  预取消在 `fetch` 前零请求，在途取消抛出 `ApiRequestAbortedError`，一次请求不重放；普通
+  请求保持 10s，`updateUserSettings` 保持 15s。
+- **既有语义**：URL/query/body、method、`cache: "no-store"`、认证与 owner Header、认证
+  revision 二次检查、HTTP 错误/`ApiError`、401 按原 revision 失效、错误解析及单请求行为不变；
+  两个并发请求使用独立组合句柄，取消一个不会影响另一个。
+- **测试覆盖**：`apps/vite-app/src/lib/api.test.ts` 以 24 个表驱动调用覆盖全部 22 个端点及
+  owner/无 owner 分支，并通过真实公开函数覆盖预取消、在途取消、并发隔离、写请求 body 与
+  owner Header、缺省/null signal、HTTP 401、认证 revision 竞争和设置更新 15s 预算；既有
+  无外部取消超时及全部负向用例保留。本实施节点按流程停止写入，尚未运行 formatter、测试、
+  类型、构建或后端门禁，不能宣称本轮已通过。
+- **边界与记录**：未接入 UI/store 生命周期主动 abort，未验证浏览器/原生 WebView 与后端任务
+  停止语义；OpenAPI 类型生成和 `VoiceInterface`、`SettingsDrawer` 大组件拆分仍未完成，RF-11
+  整项保持未勾选。契约见
+  [RF-11 公共 API 取消入口验证](./verification/cross-platform/RF-11-PUBLIC-CANCELLATION.md)。
+
 ## 2026-11-01 本地 RF-11 会话状态判别联合与 Reducer 实施记录（A65）
 
 基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“将会话状态改为判别联合或 Reducer”
