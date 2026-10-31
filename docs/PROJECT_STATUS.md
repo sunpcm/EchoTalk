@@ -5,27 +5,42 @@
 
 ## 维护基线
 
+> 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
+> `TODO.md` 勾选状态和 A65–A69 的验收结论为准。
+
 - 最近本地核对日期：2026-11-01。
-- 本地代码基线：A68 定格于 `0902aee45fc2de6d1050fd4610b8c9c9835108de`，
-  本地独立 Review APPROVED 并已集成；main 完整复验通过，尚未 push。
-- 最近远端集成基线：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
-  （`feat: integrate locally reviewed cross-platform milestones (A45-A63)`，PR #108 squash
-  合并）。
+- 当前本地代码基线与 lane HEAD：`codex/refactor-status-reconcile@0936ea335dff8fdce8d307da10461ed2b8dec6a5`
+  （A69）。A65–A69 均经独立 Review APPROVED，分别以单提交定格并精确 fast-forward 到本地
+  main；A69 main 的 frontend10、专用 PostgreSQL backend、组件/store 消费探针与通知变异全量
+  复验通过，证据见 A70 b/r0 `check-receipt.json`。这些提交尚未 push。
+- 本地 tracking reference `origin/main` 当前指向
+  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 5 个提交。该比较只读
+  本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
+- 最近已有远端运行证据：PR
+  [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
+  [41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)，精确 head
+  `b7585d140ecc6ad4f45580fabe71e32c9c51466b`、merge
+  `c704925bc9150d153fc951c2727e7472dad00d78`。旧 8 项前端门禁为 854 Vitest、
+  18 build-script、61 Fake API、Chromium 74 + WebKit 74；backend 空库迁移至
+  `c06_transcript_events` 后 529 passed、82.49%；`test-frontend`、`test-backend` 与聚合
+  `CI` 三 job 均 success。该运行不包含 A67 新增的 OpenAPI schema/TypeScript 类型生成
+  两层门禁，也不覆盖 A65–A69 未推送树。
+- 较早的远端集成记录保留为历史：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
+  （PR #108 squash 合并、`feat: integrate locally reviewed cross-platform milestones
+(A45-A63)`）。
 - 远端状态：`main` 为受保护分支（必需状态检查 `test-frontend` / `test-backend`、线性历史、对话已解决，
   admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
-  [PR #108](https://github.com/sunpcm/EchoTalk/pull/108) 已 squash 合并，`test-frontend`、`test-backend`
-  与 `CI` 三项均通过。后续轮次沿用同一路径：分支 + PR，不直推 main。
-- 自动化证据：PR #108 的 CI run 41217340177 是最近一次远端 CI 记录；
-  更早的 #92（`286a3db`）CI run 39348513442 保留为历史发布证据。
-  A45–A68 的本地增量另由本地固定门禁逐轮验证，详见各轮评审报告与
-  `docs/verification/cross-platform/`。
+  PR #108 与 PR #109 均已 squash 合并；后续轮次沿用同一路径：分支 + PR，不直推 main。
+- 自动化证据：#92（`286a3db`）CI run 39348513442 与 PR #108 的 run 41217340177 保留为
+  历史发布记录；A45–A69 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
+  与 `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
-## 2026-11-01 本地 RF-11 SettingsDrawer 行为拆分实施记录（A69-B）
+## 2026-11-01 本地 RF-11 SettingsDrawer 行为拆分独立验收（A69）
 
-基于 RF-11“按行为拆分 SettingsDrawer”完成本地实施，停在 Review。入口只保留 store 接线、
+基于 RF-11“按行为拆分 SettingsDrawer”完成本地实施并通过独立 Review。入口只保留 store 接线、
 打开 fetch、loading/saving/error 与外壳组装；dialog、本地表单/提示、主题视图和 Provider 视图
 拆为同目录行为模块。
 
@@ -43,13 +58,18 @@
 - **r1 返修**：关闭 r0 全量 Vitest 暴露的两项测试装配错误，统一让 `installStore` 返回实际
   写入 store 的 actions；Provider fixture 改为三种真实状态各一项。logout 失败提示恢复旧行为，
   保持到关闭或下一当前操作，不再复用保存错误 3 秒 timer；打开周期、操作归属和卸载清理保持。
-  format/lint/typecheck 已由独立评审报告通过，修复后的完整门禁仍需主 Agent 代跑。
 - **视图与兼容**：外观色板、local-first `setTheme`、Provider 选项/顺序/回退、badge、fieldset
   disabled、免费账号禁止关闭 custom、原文案/DOM/classes/label/id 与精确 payload 裁剪保持；
   未新增或放宽 E2E，原双浏览器可访问性、视口与零隐式写断言继续作为门禁。
-- **当前边界**：实施节点按受控执行分工只写源码、测试和文档，未运行 format、baseline、
-  quality10、backend pytest 或变异；这些检查与独立 Review 待主 Agent 代跑。RF-11 整项保持
-  未勾选。契约见
+- **完成验证**：A69 定格于本地单提交
+  `0936ea335dff8fdce8d307da10461ed2b8dec6a5`；main 全量复验通过 frontend10
+  （917 Vitest/32 files、build-script 18、Fake API 61、typegen 8、Chromium+WebKit
+  E2E 148）、专用 PostgreSQL backend 540 passed/3 warnings/79.41%、4 项独立真实
+  组件/store 消费探针及两项有效通知变异，变异后源码已还原。独立 Review APPROVED，
+  main 精确 fast-forward。
+- **当前边界**：A69 未 push/部署；远端新 CI、真实 IdP/Provider/LiveKit、设备与发布未验。
+  RF-11 可勾选为本地代码验收完成，但不代表 UI 主动 abort 已接入全部 store，也不代表
+  其余手写 domain 适配或真实服务验收已完成。契约见
   [RF-11 SettingsDrawer 行为拆分验证](./verification/cross-platform/RF-11-SETTINGS-COMPONENTS.md)。
 
 ## 2026-11-01 本地 RF-11 VoiceInterface 行为拆分已完成记录（A68-B）
@@ -78,7 +98,8 @@
   cleanup/reentry 变异 killed 且精确还原，恢复后 908 项复验通过。main 完整复验状态见
   A69 r0 `check-receipt.json`，均通过。
 - **当前边界**：A68 未 push/部署，远端新 CI、真实 IdP/Provider/LiveKit 与设备未验证。
-  SettingsDrawer 已进入 A69 实施并在独立 Review 前保持 RF-11 未勾选。契约见
+  SettingsDrawer 已由 A69 完成本地代码验收；RF-11 当前按“本地代码验收完成”勾选，
+  外部服务与未迁移 domain 适配仍是独立边界。契约见
   [RF-11 VoiceInterface 行为拆分验证](./verification/cross-platform/RF-11-VOICE-COMPONENTS.md)。
 
 ## 2026-11-01 本地 RF-11 OpenAPI 类型生成已完成记录（A67）
@@ -127,7 +148,8 @@
   未合并，59% 门禁保持。
 - **当前边界**：A67 以本地单提交 `1321bbe43ac540cacb75ea3845ac381076a7c637` 完成独立
   Review，main 精确 fast-forward。未 push/部署，远端 CI、真实 IdP/Provider/LiveKit/设备仍未
-  验证；RF-11 仍因组件拆分等工作保持未勾选。
+  验证；后续 A68/A69 已补齐两个组件行为边界，RF-11 现按本地代码验收完成勾选。生成类型
+  之外仍保留的 domain 适配与真实服务验收不作为本地代码完成声明。
 
 ## 2026-11-01 本地 RF-11 公共 API 取消入口实施记录（A66）
 
@@ -149,11 +171,12 @@
 - **测试覆盖**：`apps/vite-app/src/lib/api.test.ts` 以 24 个表驱动调用覆盖全部 22 个端点及
   owner/无 owner 分支，并通过真实公开函数覆盖预取消、在途取消、并发隔离、写请求 body 与
   owner Header、缺省/null signal、HTTP 401、认证 revision 竞争和设置更新 15s 预算；既有
-  无外部取消超时及全部负向用例保留。本实施节点按流程停止写入，尚未运行 formatter、测试、
-  类型、构建或后端门禁，不能宣称本轮已通过。
+  无外部取消超时及全部负向用例保留。A66 定格于本地单提交
+  `fedc5f39d659bf591a7c8b42b087d46a13eb4349`；main 全量复验为 Vitest 907、
+  双浏览器 E2E 148、backend 529，两项有效变异均被杀死并完整还原源码。
 - **边界与记录**：未接入 UI/store 生命周期主动 abort，未验证浏览器/原生 WebView 与后端任务
-  停止语义；OpenAPI 类型生成和 `VoiceInterface`、`SettingsDrawer` 大组件拆分仍未完成，RF-11
-  整项保持未勾选。契约见
+  停止语义；其后续 OpenAPI 类型生成和 `VoiceInterface`、`SettingsDrawer` 大组件拆分已由
+  A67–A69 完成本地代码验收。UI 主动 abort 全部 store 仍不在这些交付中。契约见
   [RF-11 公共 API 取消入口验证](./verification/cross-platform/RF-11-PUBLIC-CANCELLATION.md)。
 
 ## 2026-11-01 本地 RF-11 会话状态判别联合与 Reducer 实施记录（A65）
@@ -181,11 +204,12 @@ selectedScenario/dispatched*` 与公开 `setState` 测试入口保持兼容。�
   `ActiveSessions` 启动判定复用同一纯守卫。
 - 验证范围与边界：新增纯模型矩阵、非法凭据与类型负向、真实 create/token 前后 phase、
   public setState 原子归一化、无效激活、reset/goHome、ending/end_failed/ended 身份以及 UI
-  房间挂载回退回归。本实施节点按评审流程停写，固定质量门禁、Vite Vitest、Playwright、
-  backend pytest 与变异检查待主 Agent 在受控权限下复验，未在本节点宣称通过。
+  房间挂载回退回归。A65 定格于本地单提交
+  `356f69e9ceecf8868b6f11db7b53d566032bb2f6`；main 全量复验为 Vitest 876、
+  双浏览器 E2E 148、backend 529，三项有效变异均被杀死并完整还原源码。
 - 契约与记录见 [RF-11 会话状态模型验证](./verification/cross-platform/RF-11-STATE-MODEL.md)。
-  OpenAPI 类型生成与 `VoiceInterface`/`SettingsDrawer` 大组件按行为拆分仍未完成，RF-11
-  整项保持未勾选。
+  其后续 OpenAPI 类型生成与 `VoiceInterface`/`SettingsDrawer` 大组件按行为拆分已由
+  A67–A69 完成本地代码验收；UI 主动 abort 全部 store 与真实外部链路仍保持独立边界。
 
 ## 2026-11-01 本地 RF-11 Transport 请求超时与取消边界实施记录（A64）
 
@@ -195,7 +219,7 @@ selectedScenario/dispatched*` 与公开 `setState` 测试入口保持兼容。�
 - 取消与超时契约：组合调用方 `AbortSignal` 与内部计时器；已取消 signal 在 `fetch` 前零网络短路；预算耗尽抛出 `ApiRequestTimeoutError`，调用方取消抛出 `ApiRequestAbortedError`，两者均不是 `ApiError` 且文案不含 URL、token、Header 或正文；外部取消始终优先，超时与取消不自动重试或重放请求。
 - 请求链路保持：认证 revision 读取、token 获取、revision 二次校验、Header 构造之后才创建组合 signal；原 `baseUrl/path`、`...options`、HTTP 错误与 `ApiError`、401 按原 revision 失效、非 JSON 回退、网络错误原样重抛及单次 `fetch` 均保持；超时/取消分别记录 `api_request_timeout` / `api_request_aborted` 结构化诊断。
 - 验证范围：直接单测覆盖默认/覆盖/非法预算、已取消 signal 零请求、错误类型区分、外部取消优先、计时器清理、错误文案稳定、冻结参数与实例隔离；公共 API 消费回归验证最终 fetch signal、超时与取消错误、一次 fetch 及设置更新的较长预算。固定检查入口因子 Agent 沙箱不能写锁目录而以 exit 78 / `PermissionError` 拒绝，独立评审阶段由主 Agent 在受控权限下补跑全部门禁并通过（前端 quality 8/8、Vite Vitest 31 文件/854 项、Chromium E2E 148、后端 pytest 529 项/82.49%）；评审另修复 `RequestInit.signal` 的 `AbortSignal | null` 类型缺陷并补 `null` 边界单测，三项前端变异自检全部被杀死。
-- 契约与记录见 [RF-11 Transport 请求超时与取消边界验证](./verification/cross-platform/RF-11-REQUEST-TIMEOUT.md)。OpenAPI 类型生成与会话状态模型重构仍待完成，RF-11 整项保持未勾选。
+- 契约与记录见 [RF-11 Transport 请求超时与取消边界验证](./verification/cross-platform/RF-11-REQUEST-TIMEOUT.md)。OpenAPI 类型生成与会话状态模型重构已由后续 A65、A67–A69 完成本地代码验收；UI 主动 abort 与真实外部链路仍保持独立边界。
 
 ## 2026-10-31 本地 RF-11 API 请求 Header 合并边界抽离实施记录（A63）
 

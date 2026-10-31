@@ -73,5 +73,7 @@ ROOM、DSP、CON、DIA 矩阵继续穿过拆分后的模块，覆盖：
 
 ## 剩余 RF-11 范围
 
-SettingsDrawer 行为拆分已在 A69 实施，当前停在 Review。RF-11 整项继续保持未勾选，直至
-SettingsDrawer 独立 Review 与完整门禁通过。
+SettingsDrawer 行为拆分已由 A69 完成独立 Review、main 全量复验与精确 fast-forward。RF-11
+计划所要求的两大组件行为边界至此完成本地代码验收，整项可按“本地代码验收完成”勾选。
+该勾选不覆盖 UI 主动 abort 全部 store、生成类型之外仍保留的 domain 适配，也不覆盖真实
+IdP/Provider/LiveKit、设备或远端新 CI。

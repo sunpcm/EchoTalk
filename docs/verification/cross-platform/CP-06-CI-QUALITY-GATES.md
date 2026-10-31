@@ -2,6 +2,9 @@
 
 契约来源：`TODO.md` RF-04 CI 真实性与 CP-06 完整质量门禁。
 
+> §1–§4 保留 A30 本地接线与当时远端尚未运行的冻结历史。当前门禁拓扑、A64 远端
+> 基础证据及 A67 新增门禁的未验边界见 §5。
+
 ## §1 CI 门禁对齐与命令映射
 
 本次修改将 `.github/workflows/ci.yml` 中 `test-frontend` job 的执行步骤与本地 8 项质量门禁严格对齐，执行顺序为：格式 → Lint → Typecheck → 真实单测 → 两项 Node runner → Build → 双浏览器 E2E。
@@ -45,3 +48,35 @@
 - 本轮修改为本地配置阶段，未触发 GitHub Actions 远端运行。
 - 本地 8 项门禁通过不代表远端 Linux CI 实际通过；真实 Linux CI 双浏览器运行及远端证据保留为后续独立验收。
 - 实施严格停在 Review，不进行 commit、push、merge 或部署。
+
+## §5 当前状态核销（A70，2026-11-01）
+
+当前工作流已从 A30 的 8 项前端门禁扩展为 10 项：
+
+| 层次 | 当前门禁                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 前端 | Format、Lint、Typecheck、Vitest、build-script test、Fake API test、OpenAPI→TypeScript `check:api-types`、TypeScript 类型生成器 runner、Build、Chromium+WebKit Playwright |
+| 后端 | 真实 FastAPI OpenAPI `--check`、Ruff format、Ruff check、空 PostgreSQL 迁移至 head、带覆盖率 pytest                                                                      |
+| 聚合 | `ci` 并行等待 `test-frontend` 与 `test-backend`，任一非 `success` 即失败                                                                                                 |
+
+A64 已有真实远端基础门禁证据。PR #109 的 run 41220439360 绑定 head
+`b7585d140ecc6ad4f45580fabe71e32c9c51466b`、merge
+`c704925bc9150d153fc951c2727e7472dad00d78`；`test-frontend`、`test-backend` 与聚合
+`CI` 三 job 均为 completed/success。该次远端树的前端仍是旧 8 项门禁：854 Vitest、
+18 build-script、61 Fake API、Chromium 74 + WebKit 74；backend 将空库迁移到
+`c06_transcript_events` 后为 529 passed、3 warnings、82.49%。安全摘要与源 URL 位于
+A70 b/r0 `ci-evidence.json`，源 URL 为
+[GitHub Actions run 41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)。
+
+A69 对当前本地树完成 main 全量复验：frontend10 全绿（917 Vitest/32 files、
+build-script 18、Fake API 61、typegen 8、双浏览器 E2E 148），专用 PostgreSQL backend
+为 540 passed/3 warnings、79.41%，并完成 4 项独立组件/store 消费探针与两项有效通知变异；
+事实记录在 A70 b/r0 `check-receipt.json`。
+
+仍未验边界：
+
+- A67 新增的 OpenAPI schema 漂移与 TypeScript 类型生成两层门禁只完成本地验收，尚未在
+  GitHub 当前树执行；A64 远端成功不能追溯覆盖之后新增的 workflow。
+- A65–A69 均未 push，当前远端新 CI、真实 IdP/Provider/LiveKit、设备与部署未验。
+- 因此既有 A64 远端证据已经核销“完全没有远端基础 CI 证据”的宽泛表述，但 RF-04 仍保持
+  未勾选，最后未验边界是当前树新增的两层 API 契约门禁及完整远端 current-tree 运行。

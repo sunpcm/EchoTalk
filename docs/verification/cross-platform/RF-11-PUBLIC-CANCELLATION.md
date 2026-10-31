@@ -1,8 +1,11 @@
 # RF-11 公共 API 取消入口验证
 
 > 实施日期：2026-11-01
-> 任务：A66 / RF-11 公共 API 取消入口（本地单轮实施，停 Review）
-> 基线：`codex/rf11-public-cancellation@356f69e9ceecf8868b6f11db7b53d566032bb2f6`
+> 任务：A66 / RF-11 公共 API 取消入口
+> 基线：A65 `356f69e9ceecf8868b6f11db7b53d566032bb2f6`
+> 状态：独立 Review APPROVED，本地单提交
+> `fedc5f39d659bf591a7c8b42b087d46a13eb4349`，main 精确 fast-forward 并全量复验通过。
+> 未 push/部署。
 
 ## 1. 公共参数契约
 
@@ -104,15 +107,15 @@ await getSkills({ signal: controller.signal });
 7. `updateUserSettings` 接收公开 signal 时仍向 A64 句柄传入 15 秒覆盖值。
 8. 既有无外部取消超时测试继续断言 `ApiRequestTimeoutError`、一次 `fetch` 与无重放。
 
-本实施节点未运行测试或 formatter，因此以上覆盖只代表待执行的测试源码，不能视为已通过。
+独立 Review 与 main 全量复验已通过上述覆盖：22 个公开 API、24 个 request 分支末位 signal，
+Vitest 907、双浏览器 E2E 148、backend 529；两项有效变异均被真实断言杀死并完整还原源码。
+以上数字属于 A66 冻结证据，不追溯回写 A65 的 876/148/529。
 
-## 5. 待代跑门禁与未验边界
+## 5. 完成状态与未验边界
 
-主 Agent 需在实施节点停止写入后，通过固定入口代跑 format-fix、完整 quality 与后端三项；
-Vite Vitest、Vite Playwright 和 backend pytest 缺一不可。固定入口、依赖或数据库边界失败时，
-应记录为阻断并交回实施节点修复。
-
-本轮只完成前端公共 API 取消入口。UI/store 生命周期尚未主动创建 controller 并 cancel，
-不宣称全应用自动取消完成；真实浏览器、原生 WebView 和后端对断连后的服务端任务停止语义也未验证。
-OpenAPI TypeScript 类型/客户端生成及 `VoiceInterface`、`SettingsDrawer` 大组件拆分仍待完成，
-RF-11 整项保持未勾选。
+A66 已完成独立 Review、main 全量复验并精确 fast-forward，不再有待代跑门禁。本轮只完成
+前端公共 API 取消入口；UI/store 生命周期尚未主动创建 controller 并 cancel，不宣称全应用
+自动取消完成；真实浏览器、原生 WebView 和后端对断连后的服务端任务停止语义也未验证。
+OpenAPI TypeScript 类型/客户端生成及 `VoiceInterface`、`SettingsDrawer` 大组件拆分已由
+A67–A69 完成本地代码验收，RF-11 现按“本地代码验收完成”勾选；UI 主动 abort 全部 store
+仍未交付。

@@ -1,8 +1,8 @@
 # RF-11 SettingsDrawer 行为拆分验证
 
-> 状态：r1 返修完成，停在 Review；实施方按受控执行分工未运行 formatter、baseline、Vitest、
-> typecheck、build、backend pytest 或变异。固定 quality10、专用测试库 backend 与必要变异待
-> 主 Agent 在实施停写后通过 `cross-platform-local-check.py b` 代跑。
+> 状态：独立 Review APPROVED，本地单提交
+> `0936ea335dff8fdce8d307da10461ed2b8dec6a5`，main 精确 fast-forward 并全量复验通过。
+> 未 push/部署。
 > 日期：2026-11-01。
 
 ## 目标与非目标
@@ -89,19 +89,19 @@ store action 替身，不以 mock 新 hook 绕开实现。新增覆盖：
 
 ## 当前验证状态
 
-实施节点未执行以下项目，不能由 r0 native 预检或 baseline3 推断为实现后通过：
+A69 main 全量复验已通过：
 
-- format-fix 后 baseline format/lint/typecheck；
-- 固定前端 quality10；
-- 专用 PostgreSQL 测试库完整 backend pytest；
-- 针对 timer/打开周期所有权、dialog 资源与行为拆分的必要变异；
-- 独立 Review。
+- frontend10：917 Vitest/32 files、build-script 18、Fake API 61、typegen 8、
+  Chromium+WebKit E2E 148；
+- 专用 PostgreSQL backend：540 passed/3 warnings、79.41%；
+- 4 项独立真实组件/store 消费探针；
+- 两项有效通知变异均被真实断言杀死，源码完整还原（A70 b/r0 `check-receipt.json`）。
 
-独立评审已报告 r0 format/lint/typecheck 通过；完整 Vitest 为 915 passed、2 failed、917 total，
-两项失败均为测试夹具装配错误，产品 assertion 未放宽。r1 已修正 `installStore` 实际 action
-所有权与 Provider 三种状态 fixture，并恢复 logout 失败提示的持久语义。修复后的完整门禁尚待
-主 Agent 代跑；既有真实组件 + 真实 store 的重复错误 timer、close/reopen 迟到失败和成功水合
-后 2 秒提示三个消费者行为未改为 mock hook。
+r0 曾暴露两项测试夹具装配错误（915 passed、2 failed、917 total），r1 修正
+`installStore` 实际 action 所有权与 Provider 三种状态 fixture，并恢复 logout 失败提示的
+持久语义；产品 assertion 未放宽。既有真实组件 + 真实 store 的重复错误 timer、
+close/reopen 迟到失败和成功水合后 2 秒提示三个消费者行为未改为 mock hook。
 
 真实 IdP、Provider、LiveKit、设备、远端 CI、部署与发布仍未验证。RF-11 整项在 A69 独立
-Review 通过前继续保持未勾选。
+Review 通过后可按“本地代码验收完成”勾选；该状态不表示 UI 主动 abort 已接入全部 store，
+也不表示其余手写 domain 适配或真实服务验收已经完成。
