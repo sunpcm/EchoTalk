@@ -409,7 +409,12 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
       className="flex min-h-[60vh] flex-col"
     >
       <RoomContextSync roomRef={roomRef} />
-      <ActiveConversation boundPrincipal={boundPrincipal} boundRevision={boundRevision} />
+      <ActiveConversation
+        sessionId={sessionId}
+        sessionGen={sessionGen}
+        boundPrincipal={boundPrincipal}
+        boundRevision={boundRevision}
+      />
       <RoomAudioRenderer />
     </LiveKitRoom>
   );

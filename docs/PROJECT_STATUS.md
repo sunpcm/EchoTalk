@@ -6,17 +6,17 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A74 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A75 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@b43a0d807f6b3619c96d87abf4164b87ffd9b1f9`（A74）。A74 已独立 Review APPROVED，
+  `main@1e871c2dbf1b202112a544e6507c9ad00bf43bff`（A75）。A75 已独立 Review APPROVED，
   以单提交完成本地精确 fast-forward 与 main 完整复验：frontend10、917 Vitest、18
-  build-script、61 Fake API、8 类型生成器、148 E2E、566 backend、80.10% coverage、
-  OpenAPI schema 与 Ruff 通过。真实 Docker 镜像仍未验证；RF-05 与 RF-07 剩余 Docker/CI/
-  部署冷启动边界继续保留。
+  build-script、61 Fake API、8 类型生成器、148 E2E、576 backend、80.09% coverage、
+  OpenAPI schema 与 Ruff 通过。真实 Agent worker、LiveKit/Provider 外部连接、Docker 镜像、
+  远端 CI 与部署仍未验证；RF-09、RF-12 剩余边界继续保留。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 10 个提交。该比较只读
+  `c704925bc9150d153fc951c2727e7472dad00d78`；lane HEAD 相对它领先 11 个提交。该比较只读
   本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
@@ -34,7 +34,7 @@
   admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
   PR #108 与 PR #109 均已 squash 合并；后续轮次沿用同一路径：分支 + PR，不直推 main。
 - 自动化证据：#92（`286a3db`）CI run 39348513442 与 PR #108 的 run 41217340177 保留为
-  历史发布记录；A45–A74 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
+  历史发布记录；A45–A75 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
   与 `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
@@ -89,7 +89,7 @@ Web Compose 的 build context 是仓库根。`apps/vite-app/Dockerfile` 已将 b
   COPY/上下文行为、远端 CI 和角色分组仍未实测；RF-07 整项保持未勾选。静态契约见
   [RF-07 Web Docker 配方验证](./verification/cross-platform/RF-07-WEB-DOCKER-RECIPE.md)。
 
-## 2026-11-01 本地 RF-09 显式 Agent 启动（A75 b/r0）
+## 2026-11-01 本地 RF-09 显式 Agent 启动（A75）
 
 Agent 业务模块与显式启动边界已分离。普通导入全套 `livekit_agent` 模块将使用真实已锁定
 LiveKit SDK，并保持 `sys.path`、进程环境不变；导入期不读取 dotenv、不加载应用 config/
@@ -105,10 +105,33 @@ database、不创建 engine 或外部客户端。官方入口改为
 - 新增回归覆盖真实新进程全模块导入、root dotenv 访问/网络阻断、环境与 `sys.path` 不变、
   模块入口导入不启动、dotenv 进程值优先、配置失败不启动，以及无 writer 注入时真实
   PostgreSQL service 路径。接口、ORM、认证、凭据算法、锁、CI、镜像与 HTTP schema 未改。
-- b/r0 仅完成本地实施停写；formatter、完整前端/后端/Ruff/schema、独立导入与启动探针、
-  有效变异和 Review 尚待主 Agent 代跑。真实 LiveKit/Provider 连接、真实 start/dev、联网
-  CLI、Docker 镜像和部署未验，因此不把本地模块回归冒认线上启动，RF-09 整项及 RF-12
-  前置仍不完成。
+- A75 已独立 Review APPROVED，定格为本地单提交
+  `1e871c2dbf1b202112a544e6507c9ad00bf43bff`，并精确 fast-forward 本地 main。main
+  完整门禁复验通过：917 Vitest、18 build-script、61 Fake API、8 类型生成器、148 E2E、
+  576 backend、80.09% coverage、OpenAPI schema 与 Ruff。真实 LiveKit/Provider 连接、真实
+  start/dev、联网 CLI、Agent worker、Docker 镜像和部署未验，因此不把本地模块回归冒认线上
+  启动，RF-09 整项及 RF-12 前置仍不完成。
+
+## 2026-11-01 CP-06 Agent 错误消息归属与载荷边界（A76 b/r0）
+
+`agent_error` DataChannel 现在由实际 Room 的 `sessionId/sessionGen` 和认证
+principal/revision 共同拥有。旧 Room callback、卸载后的迟到 callback、终态 replay、身份
+变化以及同 principal revision 已变化但订阅尚未通知的 callback，都会在诊断、状态写入和
+startup tracker 清理之前静默拒绝。同一 principal 的正常认证事件通知到达后，保留 Room 的
+新 callback 可继续处理当前错误；该过程不重连、不停轨或发起网络写请求。
+
+- 新增纯解析器，要求 JSON 根为普通对象、`type` 精确为 `agent_error`、`code/message` 均为
+  非空字符串；数字、对象、数组、布尔、null、空白字符串、无效 JSON 与其他 type 均拒绝。
+  未知但合法的字符串 code 保持现有 UI 兼容，诊断仍只记录既有白名单映射后的 `unknown`。
+- store 的 `setAgentError` 要求原子 ownership 门禁，在实际提交时复核 `sessionId`、
+  `sessionGen`、`appView` 和 Room 可收取 phase。同步订阅者若在通知内切换到新会话，
+  旧错误不得随后终止或清理新会话。
+- r0 已写入真实组件/store 回归，覆盖旧/新代际、principal/revision 空窗、同 principal
+  revision 恢复、多种非法 payload、卸载、终态迟到、无关重渲染、StrictMode 和同步重入。
+  formatter、frontend10、backend/Ruff/schema、独立探针、有效变异与 Review 尚待主 Agent
+  代跑；真实 LiveKit DataChannel、真实 IdP、Provider 与设备未验。
+- 契约与边界见
+  [CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
 
 ## 2026-11-01 本地 RF-05 Redis/Celery 减法（A71 当时状态）
 

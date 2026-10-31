@@ -1588,13 +1588,19 @@ describe("useConversationStore", () => {
     it("sets agent error, clears tokens, and updates connectionState to ended", () => {
       useConversationStore.setState({
         connectionState: "active",
+        appView: "session",
         sessionId: "sess-agent-error",
+        sessionGen: 3,
         token: "tok-x",
         wsUrl: "wss://lk.test",
       });
       const error = { code: "CUSTOM_TRACK_FAILED", message: "Audio track error" };
 
-      useConversationStore.getState().setAgentError(error);
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(error, { sessionId: "sess-agent-error", sessionGen: 3 }),
+      ).toBe(true);
 
       const state = useConversationStore.getState();
       expect(state.agentError).toEqual(error);
@@ -1603,7 +1609,164 @@ describe("useConversationStore", () => {
       expect(state.wsUrl).toBeNull();
     });
 
-    it("cancels in-flight startup generation when agent error occurs", async () => {
+    it("rejects a non-owning callback without writing state", () => {
+      useConversationStore.setState({
+        connectionState: "active",
+        appView: "session",
+        sessionId: "sess-current",
+        sessionGen: 7,
+        token: "tok-current",
+        wsUrl: "wss://lk.test",
+      });
+      const before = useConversationStore.getState();
+
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "STALE", message: "stale error" },
+            { sessionId: "sess-old", sessionGen: 7 },
+          ),
+      ).toBe(false);
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "STALE", message: "stale error" },
+            { sessionId: "sess-current", sessionGen: 6 },
+          ),
+      ).toBe(false);
+
+      const after = useConversationStore.getState();
+      expect(after.sessionGen).toBe(before.sessionGen);
+      expect(after.sessionId).toBe("sess-current");
+      expect(after.token).toBe("tok-current");
+      expect(after.agentError).toBeNull();
+      expect(after.connectionState).toBe("active");
+    });
+
+    it("accepts an owning callback only while its Room can still receive errors", () => {
+      useConversationStore.setState({
+        connectionState: "connecting",
+        appView: "session",
+        sessionId: "sess-current",
+        sessionGen: 7,
+        token: "tok-current",
+        wsUrl: "wss://lk.test",
+      });
+
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "CONNECTING_ERROR", message: "while connecting" },
+            { sessionId: "sess-current", sessionGen: 7 },
+          ),
+      ).toBe(true);
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().token).toBeNull();
+
+      const endedGen = useConversationStore.getState().sessionGen;
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "LATE", message: "too late" },
+            { sessionId: "sess-current", sessionGen: endedGen },
+          ),
+      ).toBe(false);
+      expect(useConversationStore.getState().agentError?.code).toBe("CONNECTING_ERROR");
+    });
+
+    it("does not let a synchronous observer's replacement session be affected by the old error", () => {
+      useConversationStore.setState({
+        connectionState: "active",
+        appView: "session",
+        sessionId: "sess-old",
+        sessionGen: 4,
+        token: "tok-old",
+        wsUrl: "wss://lk.test",
+      });
+      let replaced = false;
+      const unsubscribe = useConversationStore.subscribe((state) => {
+        if (replaced || state.agentError?.code !== "OLD_ERROR") return;
+        replaced = true;
+        useConversationStore.getState().goHome();
+        useConversationStore.setState({
+          connectionState: "connecting",
+          appView: "session",
+          sessionId: "sess-new",
+          sessionGen: 9,
+          token: "tok-new",
+          wsUrl: "wss://lk.test",
+          agentError: null,
+        });
+      });
+
+      const accepted = useConversationStore
+        .getState()
+        .setAgentError(
+          { code: "OLD_ERROR", message: "old room" },
+          { sessionId: "sess-old", sessionGen: 4 },
+        );
+      unsubscribe();
+
+      expect(accepted).toBe(true);
+      const state = useConversationStore.getState();
+      expect(state.sessionId).toBe("sess-new");
+      expect(state.sessionGen).toBe(9);
+      expect(state.connectionState).toBe("connecting");
+      expect(state.agentError).toBeNull();
+      expect(state.token).toBe("tok-new");
+    });
+
+    it("does not cancel a new startup tracker for a stale Room callback", async () => {
+      let resolveHealth!: (value: api.HealthReadyResponse) => void;
+      vi.mocked(api.checkHealthReady).mockReturnValue(
+        new Promise((resolve) => {
+          resolveHealth = resolve;
+        }),
+      );
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "sess-new-startup",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-new-startup",
+        ws_url: "wss://lk.test",
+      });
+
+      const startPromise = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+        expect(useConversationStore.getState()._sessionState.phase).toBe("checking_health");
+      });
+      const startupGen = useConversationStore.getState().sessionGen;
+
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "STALE_ROOM", message: "old room" },
+            { sessionId: "sess-old", sessionGen: startupGen - 1 },
+          ),
+      ).toBe(false);
+      expect(useConversationStore.getState()._sessionState.phase).toBe("checking_health");
+      expect(useConversationStore.getState().sessionGen).toBe(startupGen);
+
+      resolveHealth({ status: "ready" });
+      await startPromise;
+
+      expect(useConversationStore.getState().sessionId).toBe("sess-new-startup");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("does not accept an error before a Room exists or cancel the startup", async () => {
       let resolveToken!: (val: { token: string; ws_url: string }) => void;
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockResolvedValue({
@@ -1626,20 +1789,26 @@ describe("useConversationStore", () => {
       await vi.waitFor(() => {
         expect(useConversationStore.getState().sessionId).toBe("sess-error-flight");
       });
+      const startupState = useConversationStore.getState();
 
-      // 发生 Agent 错误终止会话
-      useConversationStore
-        .getState()
-        .setAgentError({ code: "AUDIO_ERR", message: "Microphone error" });
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      // Token 尚未返回，没有可收取 DataChannel 错误的 Room。
+      expect(
+        useConversationStore.getState().setAgentError(
+          { code: "AUDIO_ERR", message: "Microphone error" },
+          {
+            sessionId: startupState.sessionId!,
+            sessionGen: startupState.sessionGen,
+          },
+        ),
+      ).toBe(false);
+      expect(useConversationStore.getState()._sessionState.phase).toBe("fetching_token");
 
       // 迟到的 Token 返回
-      resolveToken({ token: "tok-late-err", ws_url: "wss://late.com" });
+      resolveToken({ token: "tok-late-returned", ws_url: "wss://late.com" });
       await startPromise;
 
-      // 状态依然是 ended，未被 token 复活
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().token).toBe("tok-late-returned");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
     });
   });
 

@@ -3,6 +3,12 @@
 > 审计基线：`main@1f9a1b0`，2026-09-20。
 >
 > 本文保留 `main@1f9a1b0` 的历史审计，不代表当前实现。其 Mock 鉴权、密钥耦合等结论已由后续认证与凭据改造更新；不得据此判断当前发布状态。当前事实见 [PROJECT_STATUS.md](./PROJECT_STATUS.md)、[TODO.md](../TODO.md) 与 [三端门禁](./CROSS_PLATFORM_ARCHITECTURE.md)，以下为原审计内容。
+>
+> **当前边界补充（2026-11-01，A76 b/r0）**：`VoiceInterface` 已拆为 Room 资源/调度层与
+> 对话 UI 层；`agent_error` 只由实际 Room 的 `sessionId/sessionGen` 和当前认证
+> principal/revision 收取，runtime payload 在进入 store 前严格收窄。旧 callback、身份变化、
+> 卸载与终态迟到消息不得写入新会话。详细边界见
+> [CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
 
 ## 1. 架构结论
 

@@ -34,6 +34,7 @@ import {
   conversationSessionStateFromProjection,
   createCredentialsReadyConversationSessionState,
   createIdleConversationSessionState,
+  hasRoomConnection,
   isConnectingOrActiveConversationSession,
   isStartingConversationSession,
   projectConversationSessionState,
@@ -154,8 +155,11 @@ interface ConversationStore {
   setActive: (forSessionId?: string, forGen?: number) => void;
   /** 设置选中的推荐场景 */
   setSelectedScenario: (scenario: CurriculumRecommendation | null) => void;
-  /** 记录 Agent DataChannel 错误，同时切换到 ended 状态以卸载 LiveKitRoom */
-  setAgentError: (error: { code: string; message: string }) => void;
+  /** 记录 Agent DataChannel 错误；仅在 ownership 匹配的可用 Room 中接收 */
+  setAgentError: (
+    error: { code: string; message: string },
+    ownership: { readonly sessionId: string; readonly sessionGen: number },
+  ) => boolean;
   /** 重置连接状态（不切换视图） */
   reset: () => void;
   /** 返回主页：重置所有状态并切换到 Dashboard */
@@ -1190,15 +1194,35 @@ export const useConversationStore = create<ConversationStore>((set, get) => {
       set({ selectedScenario: scenario });
     },
 
-    setAgentError: (error) => {
+    setAgentError: (error, ownership) => {
+      const matchesOwnership = (state: ConversationStore): boolean =>
+        state.sessionId === ownership.sessionId &&
+        state.sessionGen === ownership.sessionGen &&
+        state.appView === "session" &&
+        hasRoomConnection(state._sessionState);
+
+      if (!matchesOwnership(get())) {
+        return false;
+      }
+
       if (currentStartupTracker) {
         currentStartupTracker.cleanup();
         currentStartupTracker = null;
       }
-      setSession({ type: "agent_error" }, (state) => ({
-        sessionGen: state.sessionGen + 1,
-        agentError: error,
-      }));
+
+      let accepted = false;
+      set((state) => {
+        if (!matchesOwnership(state)) {
+          return state;
+        }
+        accepted = true;
+        return {
+          ...reduceStoreSession(state._sessionState, { type: "agent_error" }),
+          sessionGen: state.sessionGen + 1,
+          agentError: error,
+        };
+      });
+      return accepted;
     },
 
     reset: () => {

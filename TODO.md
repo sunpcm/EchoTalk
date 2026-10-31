@@ -145,16 +145,19 @@
       本地已完成运行时错误通知任务所有权与关闭收束（A57）：消除 `AgentJobOrchestrator` 中未被追踪的 `asyncio.ensure_future`，每个编排器实例独立追踪自有运行时错误通知任务，完成回调自动移除任务并安全检索异常（仅写静态安全警告，杜绝异常正文/密钥/room 原文或 traceback 泄露，`CancelledError` 安全检索无 unretrieved 告警）；单一组合 shutdown callback（`orchestrator.close`）替代原 `sink.close` 注册，同步标记 `closing` 阻断迟到错误回调，按命名类常量 `ERROR_TASK_DRAIN_TIMEOUT_SECONDS = 2.0` 合作式排空并在超时或取消时强制 cancel + await 收束，保留 `TranscriptSink` 8.0s 排空预算与原 `bool` 返回值语义，排除当前任务自身防 `disconnect` 重入自锁；`setup`/`start` 失败与取消均完整清理，全链路回归通过（见 [RF-09 运行时错误通知任务生命周期验证](./docs/verification/cross-platform/RF-09-ERROR-TASK-LIFECYCLE.md)）；
       本地已完成公共 Sink 通知重入边界落地（A58）：在 `TranscriptSink` 建立小型公共行为查询 `is_failure_notification_task(task=None) -> bool`，只返回目标任务（默认当前任务）是否为本 Sink 的故障通知任务，不暴露内部 Task 对象，不改变 Sink 内部状态；`AgentJobOrchestrator._close_sink` 接入该公共行为查询，彻底消除对 `sink._notify_task` 私有属性的耦合；保持 `TranscriptSink` 原 close 流程、8.0s 排空预算、状态记账与 A57 错误通知 2.0s 预算完全不变；真实 Sink 故障通知回调触发“通知→disconnect→Orchestrator.close→Sink.close”重入经真实用例验证无自锁、无自取消且所有自有任务完全收束；关闭 A57 遗留两项文字 P2（`PROJECT_STATUS` 修正新增测试数实际为 12，核验并记录 `test_error_task_lifecycle.py` 装饰器真实文件情况）；全链路回归通过（见 [RF-09 公共 Sink 通知重入边界验证](./docs/verification/cross-platform/RF-09-SINK-REENTRY-BOUNDARY.md)）；
       本地已完成重入回归测试有界失败与资源清理落地（A59）：为 `test_sink_reentry_boundary.py`、`test_error_task_lifecycle.py` 与 `test_transcript_sink.py` 建立独立外部完成观察预算与轻量等待 helper（`_wait_bounded` / `_poll_bounded`，2.0s 预算），`_wait_bounded` 改为显式持有 Task 并通过 `asyncio.wait(timeout)` 观察，到期不在观察函数中无限等待取消完成（规避底层 shield 延迟响应取消导致测试卡死无法进入 finally），由 finally 接管，新建观察 Task 自动登记与回收；建立协调任务收束机制（`_cancel_and_wait_tasks` / `_cleanup_test_resources`），在 `finally` 块中释放自建 gate（`allow_reentrant_close`、`disconnect_entered` 等），一次性收集测试装置拥有的外部 Task、Orchestrator 共享 `_sink_close_task` 与错误任务以及 Sink worker/notify/close 任务，统一发起取消解开 shield 依赖并收束，检索所有（含早已完成）任务异常，对最终 pending 明确报错并给出任务名称；多资源清理保证前项失败不跳过后续资源；严格区分“真实正常关闭”与“强制清场”，移除测试 helper 篡改 `sink._closed=True` / `sink._accepting=False` 伪造终态的做法；重入调用直接在通知原 Task 中 await 保持 Task 身份，断言通知 Task 身份与非取消回退；修正并统一文档与注释中显式 `task=None` 语义（明确与无参调用一致均指当前任务，纠正任何情况下均 False 的错误表述并在矩阵中覆盖）；新增 2 项负向测试（验证通知未到达在短预算内超时并收束任务，及模拟重入查询失效关闭互等死锁并收束清场）与 2 项故障路径验证（验证延迟响应取消外部完成观察预算先到期抛错及步骤失败时清理其余自有资源）；使重入回归在变异场景下确定性失败退出 (exit 1) 而非挂起 900 秒（单个观察预算 0.05s~2.0s，整套变异回归在约 22 秒内产生 4 项预期失败并退出，见 [RF-09 重入回归测试有界失败与资源清理验证](./docs/verification/cross-platform/RF-09-BOUNDED-REENTRY-TESTS.md)）；
-      本地已完成显式 Agent 启动与无配置副作用导入落地（A75 b/r0）：移除 `agent.py` 的运行时
+      本地已完成显式 Agent 启动与无配置副作用导入落地（A75）：移除 `agent.py` 的运行时
       `sys.path` 注入与导入期 dotenv；新增无启动副作用的 `livekit_agent.__main__/bootstrap`，
       官方入口改为 `python -m livekit_agent dev|start`，Compose 同步为模块 start；显式启动严格
       先 root dotenv `override=False`，再加载并验证 config，最后导入真实 SDK/业务 CLI，且保持
       `WorkerOptions(entrypoint_fnc=entrypoint, num_idle_processes=1)`。`CredentialResolver`、
       系统 `PluginFactory`、`TranscriptSink` 与 Agent 数据访问改为窄延迟边界，Prompt 纯函数提取
       至 `services.agent_prompt` 并由 `llm_service` 兼容重导出；新增真实新进程全模块导入、合成
-      dotenv 优先级、配置失败不启动和真实 PostgreSQL 默认 writer 回归。formatter、完整测试树、
-      独立启动/导入探针、Review 与集成仍待主 Agent 代跑；真实 LiveKit/Provider 连接、真实
-      start/dev、联网 CLI、Docker 镜像与部署未验，RF-09 整项及 RF-12 前置均不提前完成。
+      dotenv 优先级、配置失败不启动和真实 PostgreSQL 默认 writer 回归。A75 已独立 Review
+      APPROVED，定格于本地单提交 `1e871c2dbf1b202112a544e6507c9ad00bf43bff` 并精确
+      fast-forward 本地 main；main 完整门禁为 917 Vitest、18 build-script、61 Fake API、
+      8 类型生成器、148 E2E、576 backend、80.09% coverage、OpenAPI schema 与 Ruff 通过。
+      真实 LiveKit/Provider 连接、真实 start/dev、联网 CLI、Agent worker、Docker 镜像与部署
+      未验，RF-09 整项及 RF-12 前置均不提前完成。
 - [ ] **RF-10 Provider Registry**：能力、模型、凭据、验证、超时、重试与错误映射统一；
       非敏感设置不解密旧凭据；多 Provider 验证并行且有总超时。
       本地已完成 LLM 静态元数据单一来源收敛（A50）：新增纯标准库不可变 `provider_catalog.py`（MappingProxyType 与 frozen dataclass 双重保护），收敛 `plugin_factory`（`LLM_PROVIDER_BASE_URL`、`_SYSTEM_LLM_KEY_FIELD`）、`llm_service`（`PROVIDER_CONFIG`）与 `validation_service`（`validate_llm_key`）三处重复定义；保持 SiliconFlow 与 OpenRouter 两 Provider 顺序、URL、Header 与变量类型；未知 provider 与空 key 零外部网络请求；携带 A49 遗留 P2 合法空嵌套 message 回退至 JSON 字符串；见 [RF-10 LLM 静态元数据单一来源验证](./docs/verification/cross-platform/RF-10-LLM-CATALOG.md)；
@@ -335,7 +338,7 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 取得当前树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 已有远端基础证据（旧 8 项前端门禁、Chromium/WebKit 各 74 项及 backend 529），但 A67 新增的 OpenAPI schema、TypeScript 类型生成与当前 10 项前端门禁尚未在 A65–A69 未推送树上执行，见 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；当前远端树和真实链路仍待验收。
 - [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
-- [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）；三端真实异常联动仍待外部验收；本计划不要求新增遥测上报，整项保持未勾选。
+- [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 b/r0 已补 Agent 错误 payload 严格收窄、实际 Room `sessionId/sessionGen` 与认证 principal/revision 归属、同 principal revision 通知后的监听恢复，以及旧 callback/卸载/终态迟到隔离；完整门禁、独立探针、变异和 Review 尚待主 Agent 代跑，见 [A76 本地实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。三端真实异常联动仍待外部验收；本计划不要求新增遥测上报，整项保持未勾选。
 
 ### CP-07：发布候选与交付
 

@@ -65,6 +65,7 @@ const capturedDataChannelListeners: Array<{
   topic: string;
   callback: (msg: { payload: Uint8Array }) => void;
 }> = [];
+const capturedAuthSnapshotListeners = new Set<(snapshot: auth.AuthSnapshot) => void>();
 
 // Mock LiveKit react components
 vi.mock("@livekit/components-react", () => ({
@@ -209,7 +210,12 @@ vi.mock("@/lib/auth", () => ({
   arePrincipalsEqual: vi.fn(
     (a: any, b: any) => a === b || (a && b && a.issuer === b.issuer && a.subject === b.subject),
   ),
-  subscribeAuthSnapshot: vi.fn(() => () => {}),
+  subscribeAuthSnapshot: vi.fn((listener: (snapshot: auth.AuthSnapshot) => void) => {
+    capturedAuthSnapshotListeners.add(listener);
+    return () => {
+      capturedAuthSnapshotListeners.delete(listener);
+    };
+  }),
 }));
 
 function createFakeApp(initialActive = true) {
@@ -266,25 +272,29 @@ let mockCurrentSnapshot = {
 };
 const mockLifecycleDispose = vi.fn();
 
+function createHealthyWebLifecycleAdapter(): platform.WebLifecycleAdapter {
+  return {
+    capabilities: { webEvents: true, nativeAppState: false },
+    getSnapshot: () => ({ ...mockCurrentSnapshot }),
+    subscribe: (listener: (event: any) => void) => {
+      mockWebLifecycleListeners.add(listener);
+      return () => {
+        mockWebLifecycleListeners.delete(listener);
+      };
+    },
+    dispose: vi.fn(() => {
+      mockLifecycleDispose();
+      mockWebLifecycleListeners.clear();
+    }),
+  };
+}
+
 vi.mock("@/platform", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/platform")>();
   return {
     ...actual,
     getLiveKitWsUrl: vi.fn(({ tokenWsUrl }) => tokenWsUrl || "wss://test.livekit.io"),
-    createWebLifecycleAdapter: vi.fn(() => ({
-      capabilities: { webEvents: true, nativeAppState: false },
-      getSnapshot: () => ({ ...mockCurrentSnapshot }),
-      subscribe: (listener: (event: any) => void) => {
-        mockWebLifecycleListeners.add(listener);
-        return () => {
-          mockWebLifecycleListeners.delete(listener);
-        };
-      },
-      dispose: vi.fn(() => {
-        mockLifecycleDispose();
-        mockWebLifecycleListeners.clear();
-      }),
-    })),
+    createWebLifecycleAdapter: vi.fn(createHealthyWebLifecycleAdapter),
     createLifecycleAdapter: vi.fn((options?: any) => {
       const resolvedPlatform = options?.platform ?? actual.detectPlatform();
       if (resolvedPlatform === "ios") {
@@ -308,6 +318,9 @@ vi.mock("@/platform", async (importOriginal) => {
 describe("VoiceInterface - CP-02 client end release & generation protection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(platform.createWebLifecycleAdapter)
+      .mockReset()
+      .mockImplementation(createHealthyWebLifecycleAdapter);
     delete (window as any).Capacitor;
     currentFakeApp = null;
     onLiveKitRoomLayoutEffect = null;
@@ -317,6 +330,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     roomInstanceCounter = 0;
     capturedRoomCallbacks.clear();
     capturedDataChannelListeners.length = 0;
+    capturedAuthSnapshotListeners.clear();
     currentMockRoom = createMockRoom();
     useConversationStore.getState().goHome();
     vi.mocked(api.dispatchAgent).mockResolvedValue({ dispatched: true });
@@ -1288,10 +1302,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 收到 agent_error
       act(() => {
-        useConversationStore.getState().setAgentError({
-          code: "PROVIDER_ERROR",
-          message: "Custom key failed",
-        });
+        useConversationStore.getState().setAgentError(
+          {
+            code: "PROVIDER_ERROR",
+            message: "Custom key failed",
+          },
+          { sessionId: "sess-agent-err", sessionGen: 1 },
+        );
       });
 
       expect(useConversationStore.getState().connectionState).toBe("ended");
@@ -1658,16 +1675,16 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     });
 
     it("detects hidden or offline environment in post-subscribe snapshot check and fails closed immediately (CON-04)", () => {
-      let callCount = 0;
+      let snapshotReadCount = 0;
       mockCurrentSnapshot = { visibility: "visible", online: true };
 
-      // 第一次 getSnapshot（VoiceInterface 渲染初始判定）返回 visible
-      // 第二次 getSnapshot（RoomLifecycleWatcher 订阅挂载后立即复查）返回 hidden
+      // 初次渲染与订阅生效会各自创建 adapter，计数必须跨 adapter 实例共享：
+      // 第一次 snapshot 读取返回 visible，订阅后的第二次读取返回 hidden。
       vi.mocked(platform.createWebLifecycleAdapter).mockImplementation(() => ({
         capabilities: { webEvents: true, nativeAppState: false },
         getSnapshot: () => {
-          callCount += 1;
-          if (callCount === 1) {
+          snapshotReadCount += 1;
+          if (snapshotReadCount === 1) {
             return { visibility: "visible", online: true };
           }
           return { visibility: "hidden", online: true };
@@ -2719,6 +2736,393 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           vi.useRealTimers();
         }
       });
+    });
+  });
+
+  describe("A76 Agent error ownership and payload boundary", () => {
+    const principal = {
+      issuer: "https://auth.example.com",
+      subject: "user-1",
+    };
+
+    function agentErrorListeners() {
+      return capturedDataChannelListeners.filter((listener) => listener.topic === "agent_error");
+    }
+
+    function seedRoom(sessionId: string, sessionGen = 1) {
+      useConversationStore.setState({
+        sessionGen,
+        sessionId,
+        token: `tok-${sessionGen}`,
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+        agentError: null,
+      });
+    }
+
+    function encodeAgentError(value: unknown): Uint8Array {
+      return new TextEncoder().encode(JSON.stringify(value));
+    }
+
+    it("silently rejects malformed and incorrectly typed payloads before any state write", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      seedRoom("sess-invalid-payload");
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+      const invalidPayloads = [
+        new TextEncoder().encode("{"),
+        encodeAgentError(null),
+        encodeAgentError([]),
+        encodeAgentError({ type: "other", code: "CODE", message: "message" }),
+        encodeAgentError({ type: "agent_error", code: null, message: "message" }),
+        encodeAgentError({ type: "agent_error", code: 42, message: "message" }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: null }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: false }),
+        encodeAgentError({ type: "agent_error", code: {}, message: "message" }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: [] }),
+        encodeAgentError({ type: "agent_error", code: "   ", message: "message" }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: "\n\t" }),
+      ];
+
+      act(() => {
+        for (const payload of invalidPayloads) {
+          listener.callback({ payload });
+        }
+      });
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connecting");
+      expect(state.sessionId).toBe("sess-invalid-payload");
+      expect(state.token).toBe("tok-1");
+      expect(state.agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("rejects a saved old-generation callback and lets the replacement Room receive errors", async () => {
+      seedRoom("sess-generation-old", 4);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const oldListener = agentErrorListeners()[0];
+
+      act(() => {
+        useConversationStore.setState({
+          sessionGen: 5,
+          sessionId: "sess-generation-new",
+          token: "tok-generation-new",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+          agentError: null,
+        });
+      });
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(1);
+      });
+      const newListener = agentErrorListeners().at(-1)!;
+
+      act(() => {
+        oldListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "OLD_ROOM",
+            message: "old",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().sessionId).toBe("sess-generation-new");
+      expect(useConversationStore.getState().sessionGen).toBe(5);
+      expect(useConversationStore.getState().agentError).toBeNull();
+
+      act(() => {
+        newListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "NEW_ROOM",
+            message: "new",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().agentError).toEqual({
+        code: "NEW_ROOM",
+        message: "new",
+      });
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        1,
+      );
+    });
+
+    it("rejects an old callback when the principal changes before its auth subscription is notified", async () => {
+      seedRoom("sess-principal-gap");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "authenticated",
+        principal: { ...principal, subject: "user-2" },
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      act(() => {
+        listener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "STALE_PRINCIPAL",
+            message: "stale",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("rejects an old callback after logout before the component receives the auth notification", async () => {
+      seedRoom("sess-logout-gap");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "anonymous",
+        principal: null,
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      act(() => {
+        listener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "STALE_LOGOUT",
+            message: "stale",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("rejects the old revision during the notification gap and adopts a same-principal event for new callbacks", async () => {
+      seedRoom("sess-revision");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+        expect(capturedAuthSnapshotListeners.size).toBeGreaterThanOrEqual(2);
+      });
+      const oldListener = agentErrorListeners()[0];
+      const initialListenerCount = agentErrorListeners().length;
+      const refreshedSnapshot = { state: "authenticated" as const, principal };
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue(refreshedSnapshot);
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      // Revision has advanced, but React/auth listeners have not observed it yet.
+      act(() => {
+        oldListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "GAP_REVISION",
+            message: "stale revision",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+
+      act(() => {
+        for (const listener of capturedAuthSnapshotListeners) {
+          listener(refreshedSnapshot);
+        }
+      });
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(initialListenerCount);
+      });
+      const currentListener = agentErrorListeners().at(-1)!;
+
+      act(() => {
+        oldListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "OLD_REVISION",
+            message: "old revision",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(api.endSession).not.toHaveBeenCalled();
+
+      act(() => {
+        currentListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "REFRESHED_REVISION",
+            message: "current revision",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().agentError).toEqual({
+        code: "REFRESHED_REVISION",
+        message: "current revision",
+      });
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        1,
+      );
+    });
+
+    it("keeps the active callback valid across an unrelated render without stopping tracks", async () => {
+      seedRoom("sess-unrelated-render");
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const initialListener = agentErrorListeners()[0];
+
+      act(() => {
+        useConversationStore.setState({ error: "transient warning" });
+      });
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(1);
+      });
+
+      expect(agentErrorListeners().at(-1)!.callback).toBe(initialListener.callback);
+      expect(mockTrackStop).not.toHaveBeenCalled();
+
+      act(() => {
+        initialListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "CURRENT_ERROR",
+            message: "current",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().agentError?.code).toBe("CURRENT_ERROR");
+    });
+
+    it("does not modify state or emit diagnostics when an old callback fires after unmount", async () => {
+      seedRoom("sess-unmounted");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { unmount } = render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+      unmount();
+
+      act(() => {
+        listener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "AFTER_UNMOUNT",
+            message: "late",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("silently ignores a terminal callback replay after the first valid error", async () => {
+      seedRoom("sess-terminal");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+      const payload = encodeAgentError({
+        type: "agent_error",
+        code: "TERMINAL_ERROR",
+        message: "terminal",
+      });
+
+      act(() => {
+        listener.callback({ payload });
+      });
+      const endedState = useConversationStore.getState();
+      await waitFor(() => {
+        expect(screen.getByText("terminal")).toBeInTheDocument();
+      });
+      expect(mockTrackStop).toHaveBeenCalled();
+      expect(endedState.token).toBeNull();
+
+      act(() => {
+        listener.callback({ payload });
+      });
+
+      const replayedState = useConversationStore.getState();
+      expect(replayedState.sessionGen).toBe(endedState.sessionGen);
+      expect(replayedState.agentError).toEqual(endedState.agentError);
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        1,
+      );
+    });
+
+    it("recovers a current listener after StrictMode effect re-entry", async () => {
+      seedRoom("sess-strict");
+      render(
+        <React.StrictMode>
+          <VoiceInterface />
+        </React.StrictMode>,
+      );
+
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(0);
+      });
+      act(() => {
+        agentErrorListeners()
+          .at(-1)!
+          .callback({
+            payload: encodeAgentError({
+              type: "agent_error",
+              code: "STRICT_MODE_ERROR",
+              message: "current",
+            }),
+          });
+      });
+
+      expect(useConversationStore.getState().agentError?.code).toBe("STRICT_MODE_ERROR");
     });
   });
 });

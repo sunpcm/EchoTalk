@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarVisualizer,
   useConnectionState,
@@ -11,27 +11,78 @@ import { ConnectionState } from "livekit-client";
 import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
 import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
-import { arePrincipalsEqual, getAuthRevision, getAuthSnapshot } from "@/lib/auth";
+import {
+  arePrincipalsEqual,
+  getAuthRevision,
+  getAuthSnapshot,
+  subscribeAuthSnapshot,
+} from "@/lib/auth";
 import type { AuthPrincipal } from "@/lib/auth";
 import { logDiagnostic } from "@/lib/diagnostics";
 import { useConversationStore } from "@/store/conversation";
+import { parseAgentErrorMessage } from "./agentErrorMessage";
 import { ConnectingView } from "./ConversationStatusViews";
 import { stopRoomLocalTracks } from "./roomAudio";
 
 const tConv = zhCN.conversation;
 
 interface ActiveConversationProps {
+  sessionId: string;
+  sessionGen: number;
   boundPrincipal: AuthPrincipal | null;
   boundRevision: number;
 }
 
 /** 对话中视图：LiveKit hooks、数据通道错误与显式结束。 */
-export function ActiveConversation({ boundPrincipal, boundRevision }: ActiveConversationProps) {
+export function ActiveConversation({
+  sessionId,
+  sessionGen,
+  boundPrincipal,
+  boundRevision,
+}: ActiveConversationProps) {
   const connectionState = useConnectionState();
   const voiceAssistant = useVoiceAssistant();
   const room = useRoomContext();
-  const { setActive, endSession, setAgentError, sessionId, sessionGen } = useConversationStore();
+  const { setActive, endSession, setAgentError } = useConversationStore();
   const endError = useConversationStore((state) => state.error);
+  const isMountedRef = useRef(true);
+  const [authorizedRevision, setAuthorizedRevision] = useState<number | null>(() =>
+    boundPrincipal ? boundRevision : null,
+  );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // A same-principal auth event advances the revision for all newly captured callbacks.
+  // The old callback still fails immediately because it closes over the prior revision.
+  useEffect(() => {
+    let isActive = true;
+    const adoptSnapshot = (snapshot: ReturnType<typeof getAuthSnapshot>): void => {
+      if (!isActive) return;
+      if (
+        snapshot.state === "authenticated" &&
+        snapshot.principal &&
+        boundPrincipal &&
+        arePrincipalsEqual(snapshot.principal, boundPrincipal)
+      ) {
+        setAuthorizedRevision(getAuthRevision());
+        return;
+      }
+      setAuthorizedRevision(null);
+    };
+
+    // Subscribe before reading so a same-principal event cannot fall into a gap.
+    const unsubscribe = subscribeAuthSnapshot(adoptSnapshot);
+    adoptSnapshot(getAuthSnapshot());
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
+  }, [boundPrincipal]);
 
   // 同步停止当前 Room 拥有的本地音轨，不等待网络 disconnect 延迟
   const handleEnd = useCallback(() => {
@@ -46,18 +97,33 @@ export function ActiveConversation({ boundPrincipal, boundRevision }: ActiveConv
     };
   }, [room]);
 
-  useDataChannel("agent_error", (msg) => {
-    try {
-      const text = new TextDecoder().decode(msg.payload);
-      const parsed = JSON.parse(text);
-      if (parsed.type === "agent_error" && parsed.code && parsed.message) {
-        logDiagnostic("agent_error_received", { agent_code: parsed.code });
-        setAgentError({ code: parsed.code, message: parsed.message });
+  const handleAgentError = useCallback(
+    (msg: { payload: Uint8Array }) => {
+      const parsed = parseAgentErrorMessage(msg.payload);
+      if (!parsed || !isMountedRef.current || authorizedRevision === null) {
+        return;
       }
-    } catch {
-      // 格式异常的消息，忽略
-    }
-  });
+
+      const currentAuth = getAuthSnapshot();
+      if (
+        currentAuth.state !== "authenticated" ||
+        !currentAuth.principal ||
+        !boundPrincipal ||
+        !arePrincipalsEqual(currentAuth.principal, boundPrincipal) ||
+        getAuthRevision() !== authorizedRevision
+      ) {
+        return;
+      }
+
+      const accepted = setAgentError(parsed, { sessionId, sessionGen });
+      if (accepted) {
+        logDiagnostic("agent_error_received", { agent_code: parsed.code });
+      }
+    },
+    [authorizedRevision, boundPrincipal, sessionGen, sessionId, setAgentError],
+  );
+
+  useDataChannel("agent_error", handleAgentError);
 
   // LiveKit 连接成功后，核对认证一致性后将 store 状态切换到 active
   useEffect(() => {
@@ -71,7 +137,7 @@ export function ActiveConversation({ boundPrincipal, boundRevision }: ActiveConv
       ) {
         return;
       }
-      setActive(sessionId ?? undefined, sessionGen);
+      setActive(sessionId, sessionGen);
     }
   }, [connectionState, setActive, sessionId, sessionGen, boundPrincipal, boundRevision]);
 
