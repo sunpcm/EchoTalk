@@ -6,8 +6,8 @@
 ## 维护基线
 
 - 最近本地核对日期：2026-11-01。
-- 本地代码基线：`main@1321bbe43ac540cacb75ea3845ac381076a7c637`
-  （A67 本地独立 Review 通过的单一提交，`main` 精确 fast-forward；尚未 push）。
+- 本地代码基线：A68 定格于 `0902aee45fc2de6d1050fd4610b8c9c9835108de`，
+  本地独立 Review APPROVED 并已集成；main 完整复验通过，尚未 push。
 - 最近远端集成基线：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
   （`feat: integrate locally reviewed cross-platform milestones (A45-A63)`，PR #108 squash
   合并）。
@@ -17,16 +17,45 @@
   与 `CI` 三项均通过。后续轮次沿用同一路径：分支 + PR，不直推 main。
 - 自动化证据：PR #108 的 CI run 41217340177 是最近一次远端 CI 记录；
   更早的 #92（`286a3db`）CI run 39348513442 保留为历史发布证据。
-  A45–A67 的本地增量另由本地固定门禁逐轮验证，详见各轮评审报告与
+  A45–A68 的本地增量另由本地固定门禁逐轮验证，详见各轮评审报告与
   `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
-## 2026-11-01 本地 RF-11 VoiceInterface 行为拆分实施记录（A68-B）
+## 2026-11-01 本地 RF-11 SettingsDrawer 行为拆分实施记录（A69-B）
+
+基于 RF-11“按行为拆分 SettingsDrawer”完成本地实施，停在 Review。入口只保留 store 接线、
+打开 fetch、loading/saving/error 与外壳组装；dialog、本地表单/提示、主题视图和 Provider 视图
+拆为同目录行为模块。
+
+- **依赖方向**：`SettingsDrawer` → `useSettingsDialog`、`useSettingsForm`、
+  `SettingsAppearance`、`SettingsProviderFields`；`useSettingsForm` → 既有
+  `settingsPayload`、auth `beginLogout` 与 settings store action。没有反向导入入口，也没有新增
+  全局状态、运行时依赖、store/API/auth/Provider/主题持久化契约或网络请求语义。
+- **资源所有权**：`useSettingsDialog` 只持有原生 dialog、焦点记录/恢复、body 滚动锁、初始关闭
+  按钮聚焦、focusin、Tab 双向循环、Escape/backdrop 和清理；行为 effect 只依赖真实 `open`，
+  回调引用、主题和表单更新不会关闭并重开 dialog，也不抢焦点或重复释放滚动锁。
+- **表单与提示所有权**：`useSettingsForm` 在 `open=false` 时仍持续挂载；仅后端 `settings`
+  对象引用变化时水合草稿并清空内存 key。显式保存继续消费 `buildSettingsUpdate`。本地提示
+  绑定“打开周期 + 操作序号 + 唯一 timer”：新保存取代旧 timer，关闭/重开和卸载作废旧回调，
+  旧成功/失败不能污染新周期；`stale` 结果静默，当前错误/成功分别保持 3 秒/2 秒。
+- **r1 返修**：关闭 r0 全量 Vitest 暴露的两项测试装配错误，统一让 `installStore` 返回实际
+  写入 store 的 actions；Provider fixture 改为三种真实状态各一项。logout 失败提示恢复旧行为，
+  保持到关闭或下一当前操作，不再复用保存错误 3 秒 timer；打开周期、操作归属和卸载清理保持。
+  format/lint/typecheck 已由独立评审报告通过，修复后的完整门禁仍需主 Agent 代跑。
+- **视图与兼容**：外观色板、local-first `setTheme`、Provider 选项/顺序/回退、badge、fieldset
+  disabled、免费账号禁止关闭 custom、原文案/DOM/classes/label/id 与精确 payload 裁剪保持；
+  未新增或放宽 E2E，原双浏览器可访问性、视口与零隐式写断言继续作为门禁。
+- **当前边界**：实施节点按受控执行分工只写源码、测试和文档，未运行 format、baseline、
+  quality10、backend pytest 或变异；这些检查与独立 Review 待主 Agent 代跑。RF-11 整项保持
+  未勾选。契约见
+  [RF-11 SettingsDrawer 行为拆分验证](./verification/cross-platform/RF-11-SETTINGS-COMPONENTS.md)。
+
+## 2026-11-01 本地 RF-11 VoiceInterface 行为拆分已完成记录（A68-B）
 
 基于 RF-11“按行为拆分 VoiceInterface”完成源码边界拆分，保持既有已验收行为、DOM、文案、
-资源所有权和公共导出；SettingsDrawer 留待下一轮，RF-11 整项继续未完成。
+资源所有权和公共导出；A68 已独立 Review APPROVED 并集成到本地单提交 `0902aee`。
 
 - **入口与依赖方向**：`VoiceInterface` 收缩为内部 phase 选择与 Room key/props；`RoomSession`
   承担 LiveKit 资源与生命周期；`ActiveConversation` 承担活动 UI；`EndedConversation` 承担
@@ -43,9 +72,13 @@
 - **兼容与测试策略**：公共 `VoiceInterface` 导出保持；`stopRoomLocalTracks` 移至
   `roomAudio.ts` 并从原入口兼容再导出。完整 `VoiceInterface.test.tsx` 继续走真实生产入口，
   ROOM/DSP/CON/DIA 矩阵不改为叶子镜像测试，仅补一项纯工具导出身份兼容断言。
-- **当前边界**：本轮实施节点按受控执行分工停写，未运行 format、baseline、quality10、
-  backend pytest 或变异；这些检查与独立 Review 待主 Agent 代跑。真实 IdP、Provider、
-  LiveKit、设备、远端 CI、部署和发布未验证。契约见
+- **完成验证**：12 个交付文件独立 APPROVED；完整 frontend10 全绿，Vitest 908 项/32 files、
+  build-script 18、Fake API 61、typegen 8、双浏览器 E2E 148；专用 PostgreSQL pytest
+  540 passed/79.41%。13 个迁移函数体与 Room 资源 effect 等价核验通过，两项
+  cleanup/reentry 变异 killed 且精确还原，恢复后 908 项复验通过。main 完整复验状态见
+  A69 r0 `check-receipt.json`，均通过。
+- **当前边界**：A68 未 push/部署，远端新 CI、真实 IdP/Provider/LiveKit 与设备未验证。
+  SettingsDrawer 已进入 A69 实施并在独立 Review 前保持 RF-11 未勾选。契约见
   [RF-11 VoiceInterface 行为拆分验证](./verification/cross-platform/RF-11-VOICE-COMPONENTS.md)。
 
 ## 2026-11-01 本地 RF-11 OpenAPI 类型生成已完成记录（A67）

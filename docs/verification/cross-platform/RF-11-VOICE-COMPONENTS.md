@@ -1,15 +1,14 @@
 # RF-11 VoiceInterface 行为拆分验证
 
-> 状态：源码、测试与文档实施完成，停在 Review；实施方按受控执行分工未运行 formatter、测试、
-> 类型检查、build 或 Git 写命令。固定 quality10、专用测试库 backend 与必要变异待主 Agent
-> 在实施停写后通过 `cross-platform-local-check.py b` 代跑。
+> 状态：独立 Review APPROVED，集成到本地单提交
+> `0902aee45fc2de6d1050fd4610b8c9c9835108de`；main 完整复验通过。未 push/部署。
 > 日期：2026-11-01。
 
 ## 目标与非目标
 
 本轮落实 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“按行为拆分 VoiceInterface”，
 保持既有已验收行为、DOM、文案、资源所有权与公共导出。本轮不修改产品功能、HTTP 契约、
-会话状态机、请求预算、分析重试政策、LiveKit SDK 或依赖；SettingsDrawer 留待下一轮。
+会话状态机、请求预算、分析重试政策、LiveKit SDK 或依赖；SettingsDrawer 随后进入 A69。
 
 ## 依赖方向
 
@@ -60,20 +59,19 @@ ROOM、DSP、CON、DIA 矩阵继续穿过拆分后的模块，覆盖：
 `stopRoomLocalTracks` 与新纯 `roomAudio` 边界指向同一函数；没有为纯搬运新增镜像测试或
 弱化既有负向断言。
 
-## 当前验证状态
+## 验证状态
 
-实施节点未执行，等待主 Agent 受控代跑：
+- 12 个交付文件经独立 Review APPROVED 后集成到本地单提交 `0902aee`。
+- 完整 frontend10 全绿：Vitest 908 项/32 files、build-script 18、Fake API 61、typegen 8、
+  双浏览器 E2E 148。
+- 专用 PostgreSQL 测试库 backend pytest 为 540 passed/3 warnings、79.41%；13 个迁移函数体与
+  Room 资源 effect 等价核验通过。
+- 两项 cleanup/reentry 变异均 killed 且精确还原源码；恢复后 Vitest 908 项复验通过。
+- A68 main 完整复验通过，事实记录在 A69 r0 `check-receipt.json`。
 
-- format-fix 后基线 format/lint/typecheck；
-- 固定前端 quality10；
-- 专用 PostgreSQL 测试库的完整 backend pytest；
-- 针对资源所有权、认证代际门禁和行为视图选择的必要变异；
-- 独立 Review。
-
-上述未执行项不得由 receipt 或 baseline 推断为“实现后通过”。真实 IdP、Provider、LiveKit、
-设备、远端 CI、部署与发布仍未验证。
+真实 IdP、Provider、LiveKit、设备、远端新 CI、部署与发布未验证。
 
 ## 剩余 RF-11 范围
 
-VoiceInterface 行为拆分完成后，RF-11 仍需 SettingsDrawer 行为拆分及相应回归。整项保持
-未勾选，直至两轮独立 Review 和完整门禁均通过。
+SettingsDrawer 行为拆分已在 A69 实施，当前停在 Review。RF-11 整项继续保持未勾选，直至
+SettingsDrawer 独立 Review 与完整门禁通过。
