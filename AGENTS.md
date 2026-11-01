@@ -49,3 +49,26 @@ Never commit `.env`, credentials, provider API keys, or user data. Use local env
 
 必跑测试树为 Vite Vitest、Vite Playwright 和 backend pytest；目录、解释器、环境与命令见手册 §2。
 未授权或缺失依赖导致不能执行时必须列为阻断，不能把 skip、缓存日志或占位任务当作通过。
+
+## Cursor Cloud specific instructions
+
+Cloud Agent VMs are not the review-lane machines in `docs/agent-review-loop.md`. They use host
+PostgreSQL 15.19 and Redis 7, not Docker Compose. Node.js 22, pnpm 10.26, `uv`, and
+`backend/.venv` are already installed. Boot starts tmux sessions `echotalk_api`
+(`http://127.0.0.1:8000`, log `/tmp/echotalk-api.log`) and `echotalk_web`
+(`https://127.0.0.1:5173`, self-signed, log `/tmp/echotalk-web.log`). The first boot writes
+gitignored `/workspace/.env` with `AUTH_MODE=dev` and a local `DEV_AUTH_TOKEN`.
+
+The app database is `echotalk`. Pytest must use `echotalk_test`. Role `echotalk` and password
+`echotalk_test` match `.github/workflows/ci.yml`. From `backend/`:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://echotalk:echotalk_test@127.0.0.1:5432/echotalk_test \
+  .venv/bin/python -m pytest --cov=. --cov-report=term-missing
+```
+
+`GET /api/health` does not need provider keys. `GET /api/health/ready` stays 503 until LiveKit
+and an LLM key exist, so resuming a call cannot connect. Creating and ending a session still
+persists. ChromaDB is a local directory and starts empty, so curriculum recommendations stay
+empty until `python scripts/seed_corpus.py` is run from `backend/`. Playwright E2E uses the Fake
+API on ports 4173 and 18181 and does not need those keys. Vitest is `pnpm --filter vite-app test`.
