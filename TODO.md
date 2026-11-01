@@ -12,14 +12,15 @@
 ### 执行基线
 
 - 当前已验收维护基线：
-  `main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c`（A82）。A83 b/r0 的正式本地
-  receipt 记录 A82 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
+  `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
+  receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
   和完整 15 项门禁核销；门禁计数为 972 Vitest/36 files、18 build-script、61 Fake API、
-  8 类型生成器、148 E2E、594 backend/78.10% coverage，以及 schema/Ruff 等相关检查。
+  8 类型生成器、148 E2E、598 backend/78.14% coverage，以及 schema/Ruff 等相关检查。
   历史基线与计数保留如下：A77 完成 967 Vitest/576 backend 本地集成；A78 为 969
   Vitest/34 files、586 backend/76.98%；A80 为 972 Vitest/36 files、586 backend/76.98%；
-  A81 为 972 Vitest/36 files、594 backend/78.10%。A82 具名基线相对本地 tracking
-  reference `c704925bc9150d153fc951c2727e7472dad00d78` 领先 18 个提交；该计数与上述
+  A81 为 972 Vitest/36 files、594 backend/78.10%；A82 为 594 backend/78.10%。A83
+  具名基线相对本地 tracking reference
+  `c704925bc9150d153fc951c2727e7472dad00d78` 领先 19 个提交；该计数与上述
   receipt 绑定，不表示未来 lane HEAD 或远端当前状态。
 - 基线：`origin/main@30f51f3175de20bc827ebdf29789ad934096133d`
 - 分支：`codex/mvp-remediation`
@@ -202,15 +203,28 @@
       门禁为 969 Vitest/34 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、
       586 backend/76.98% coverage，以及 schema/Ruff 等检查通过。远端 CI、真实外部
       Provider、部署与设备仍未验证，RF-10 整项保持未勾选。
-      A83 b/r0 已完成普通 OpenAI 兼容聊天 HTTP 客户端的 timeout/retry 显式化文件实施并
-      停在 Review：纯标准库不可变 Catalog 策略冻结现有 connect 5 秒、read/write/pool
-      默认 600 秒和 SDK `max_retries=2`；真实 `services.llm_service._get_client` 显式
-      构造 `httpx.Timeout` 并传重试值，替代策略消费与真实 SDK 默认属性由新回归覆盖。
+      A83 b/r0 已完成普通 OpenAI 兼容聊天 HTTP 客户端的 timeout/retry 显式化，并经独立
+      Review APPROVED、正常 hook 单提交
+      `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 与本地 main 精确 fast-forward；完整
+      15 项 main 门禁为 972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、
+      148 E2E、598 backend/78.14% coverage，以及 schema/Ruff 等相关检查。纯标准库不可变
+      Catalog 策略冻结现有 connect 5 秒、read/write/pool 默认 600 秒和 SDK
+      `max_retries=2`；真实 `services.llm_service._get_client` 显式构造
+      `httpx.Timeout` 并传重试值。
       600 秒仅是 HTTP 客户端各阶段默认配置，不是完整聊天 deadline；该策略不用于 LiveKit
       语音连接或 Provider key 验证，OpenAI HTTP 2 次重试也不与 LiveKit
-      APIConnectOptions 3 次混同。实施方未运行门禁，主 Agent 固定入口检查、独立 Review
-      与 main 复验尚未完成，RF-10 整项继续保持未勾选；见
+      APIConnectOptions 3 次混同。远端 CI、真实 Provider 与部署仍未验证，RF-10 整项继续
+      保持未勾选；见
       [RF-10 普通 OpenAI 兼容客户端策略验证](./docs/verification/cross-platform/RF-10-LLM-CLIENT-POLICY.md)。
+      A84 b/r0 已完成 LiveKit AgentSession STT/LLM/TTS 连接策略显式化文件实施并停在
+      Review：纯标准库 frozen Catalog 冻结三个 role 的 10 秒 timeout、3 次重试、2 秒
+      重试间隔及独立不可恢复错误阈值 3；新窄适配器通过公开 `APIConnectOptions` 与
+      `SessionConnectOptions` 每次创建全新选项，`agent.py` 以零参数 wrapper 在真实会话
+      创建时动态读取当前 `AgentSession` 并注入策略，未改 orchestrator 通用注入合同。
+      真实 SDK dataclass 默认、各 role 合法替代策略、跨 Job 隔离和生产入口消费回归已文件
+      落地；实施方未运行门禁，主 Agent 固定入口 15 项检查、独立 Review 与 main 复验尚未
+      完成，RF-10 整项保持未勾选；见
+      [RF-10 LiveKit 语音连接策略验证](./docs/verification/cross-platform/RF-10-SESSION-CONNECT-POLICY.md)。
 - [x] **RF-11 前端 API 与状态模型**：OpenAPI 生成类型/客户端；Transport 统一认证、
       超时、取消、Header 合并和错误解析；会话使用判别联合/Reducer；大组件按行为拆分。
       以下 A49–A64 条目保留各轮当时的“仍待完成/未勾选”边界；最终完成状态以上方勾选、

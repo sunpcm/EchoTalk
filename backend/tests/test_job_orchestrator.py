@@ -31,6 +31,7 @@ from livekit_agent.agent import entrypoint
 from livekit_agent.error_mapper import SAFE_ERROR_MESSAGES
 from livekit_agent.job_orchestrator import AgentJobOrchestrator
 from livekit_agent.transcript_sink import TranscriptSink
+from provider_catalog import SESSION_CONNECT_POLICY
 
 
 def _create_mock_job_context(room_name: str | None = None) -> MagicMock:
@@ -320,6 +321,25 @@ async def test_entrypoint_delegates_to_orchestrator():
         # 验证连接与启动已由编排器执行
         ctx.connect.assert_awaited_once()
         ctx.wait_for_participant.assert_awaited_once()
+        mock_session_cls.assert_called_once()
+        assert mock_session_cls.call_args.args == ()
+        sdk_conn_options = mock_session_cls.call_args.kwargs["conn_options"]
+        assert (
+            sdk_conn_options.stt_conn_options.max_retry
+            == SESSION_CONNECT_POLICY.stt.max_retry
+        )
+        assert (
+            sdk_conn_options.llm_conn_options.retry_interval
+            == SESSION_CONNECT_POLICY.llm.retry_interval
+        )
+        assert (
+            sdk_conn_options.tts_conn_options.timeout
+            == SESSION_CONNECT_POLICY.tts.timeout
+        )
+        assert (
+            sdk_conn_options.max_unrecoverable_errors
+            == SESSION_CONNECT_POLICY.max_unrecoverable_errors
+        )
         mock_sess_inst.start.assert_awaited_once()
         assert len(ctx.shutdown_callbacks) == 1
 

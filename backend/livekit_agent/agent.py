@@ -33,6 +33,7 @@ from livekit_agent.error_mapper import AgentErrorMapper
 from livekit_agent.job_orchestrator import AgentJobOrchestrator
 from livekit_agent.plugin_errors import PluginInitError
 from livekit_agent.provider_registry import ProviderRegistry
+from livekit_agent.session_policy import build_session_connect_options
 from livekit_agent.transcript_events import derive_transcript_event_id
 from livekit_agent.transcript_sink import TranscriptSink
 from models.session import Session, SessionContext
@@ -55,6 +56,11 @@ def _get_runtime_settings() -> Any:
     from config import settings
 
     return settings
+
+
+def _create_agent_session() -> AgentSession:
+    """延迟读取当前 AgentSession 绑定，并为单个 Job 创建独立连接选项。"""
+    return AgentSession(conn_options=build_session_connect_options())
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +368,7 @@ async def entrypoint(ctx: JobContext):
 
     orchestrator = AgentJobOrchestrator(
         ctx,
-        session_factory=AgentSession,
+        session_factory=_create_agent_session,
         sink_factory=TranscriptSink,
         send_error_fn=_send_error_and_disconnect,
         persist_assistant_fn=_persist_assistant_conversation_item,

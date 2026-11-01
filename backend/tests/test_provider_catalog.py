@@ -22,10 +22,13 @@ from provider_catalog import (
     LLM_CLIENT_POLICY,
     LLM_PROVIDER_CATALOG,
     PROVIDER_CATALOGS,
+    SESSION_CONNECT_POLICY,
     STT_PROVIDER_CATALOG,
     TTS_PROVIDER_CATALOG,
     LLMClientPolicy,
     LLMProviderMetadata,
+    SessionConnectPolicy,
+    SessionConnectRolePolicy,
     STTProviderMetadata,
     TTSProviderMetadata,
     get_llm_provider,
@@ -135,6 +138,21 @@ def test_llm_client_policy_defaults_are_frozen_catalog_values():
     assert policy.max_retries == 2
 
 
+def test_session_connect_policy_defaults_are_frozen_catalog_values():
+    """LiveKit 三个 role 与不可恢复错误阈值冻结为当前 SDK 有效行为。"""
+    expected_role = SessionConnectRolePolicy(
+        timeout=10.0,
+        max_retry=3,
+        retry_interval=2.0,
+    )
+
+    assert isinstance(SESSION_CONNECT_POLICY, SessionConnectPolicy)
+    assert SESSION_CONNECT_POLICY.stt == expected_role
+    assert SESSION_CONNECT_POLICY.llm == expected_role
+    assert SESSION_CONNECT_POLICY.tts == expected_role
+    assert SESSION_CONNECT_POLICY.max_unrecoverable_errors == 3
+
+
 def test_catalog_immutability():
     """验证 Catalog 映射与条目均为不可变结构。"""
     # 1. 映射不可篡改
@@ -181,6 +199,12 @@ def test_catalog_immutability():
 
     with pytest.raises((FrozenInstanceError, AttributeError)):
         LLM_CLIENT_POLICY.max_retries = 3  # type: ignore
+
+    with pytest.raises((FrozenInstanceError, AttributeError)):
+        SESSION_CONNECT_POLICY.stt.timeout = 99.0  # type: ignore
+
+    with pytest.raises((FrozenInstanceError, AttributeError)):
+        SESSION_CONNECT_POLICY.max_unrecoverable_errors = 99  # type: ignore
 
     dg = STT_PROVIDER_CATALOG["deepgram"]
     with pytest.raises((FrozenInstanceError, AttributeError)):
@@ -434,6 +458,7 @@ def test_pure_stdlib_isolated_subprocess_import():
         "    LLM_CLIENT_POLICY,\n"
         "    LLM_PROVIDER_CATALOG,\n"
         "    PROVIDER_CATALOGS,\n"
+        "    SESSION_CONNECT_POLICY,\n"
         "    STT_PROVIDER_CATALOG,\n"
         "    TTS_PROVIDER_CATALOG,\n"
         "    get_llm_provider,\n"
@@ -443,6 +468,10 @@ def test_pure_stdlib_isolated_subprocess_import():
         "assert LLM_CLIENT_POLICY.default_http_timeout_seconds == 600.0\n"
         "assert LLM_CLIENT_POLICY.connect_timeout_seconds == 5.0\n"
         "assert LLM_CLIENT_POLICY.max_retries == 2\n"
+        "assert SESSION_CONNECT_POLICY.stt.timeout == 10.0\n"
+        "assert SESSION_CONNECT_POLICY.llm.max_retry == 3\n"
+        "assert SESSION_CONNECT_POLICY.tts.retry_interval == 2.0\n"
+        "assert SESSION_CONNECT_POLICY.max_unrecoverable_errors == 3\n"
         "assert len(LLM_PROVIDER_CATALOG) == 2\n"
         "assert get_llm_provider('siliconflow').id == 'siliconflow'\n"
         "assert get_llm_provider('siliconflow').label == 'SiliconFlow'\n"

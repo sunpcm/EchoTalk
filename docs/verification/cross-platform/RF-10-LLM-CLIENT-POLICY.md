@@ -1,9 +1,10 @@
 # RF-10 普通 OpenAI 兼容客户端策略验证
 
-> 状态：A83 b/r0 已完成文件实施并停在 Review；主 Agent 固定入口门禁、独立 Review 与
-> main 复验尚未由实施方执行。
+> 状态：A83 b/r0 已 Review APPROVED，以正常 hook 单提交、本地 main 精确
+> fast-forward 与完整 main 门禁核销；未 push/部署。
 > 日期：2026-11-01。
 > 基线：`codex/rf10-llm-client-policy@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c`。
+> 定格：`fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`。
 
 ## 1. 问题与 SDK 事实
 
@@ -51,11 +52,13 @@
 
 ## 4. 未执行与边界
 
-- 实施方按授权只写文件，未运行 formatter、lint、类型检查、测试、build、安装、数据库、
-  服务或 Git 写操作。
-- 主 Agent 仍需通过固定入口运行相关后端回归、完整测试树、Ruff、Provider metadata 与
-  OpenAPI 检查，并证明策略消费变异会被杀死；本文件不预判这些结果。
-- 只有独立 Review APPROVED 后才进入正常 hook 本地单 commit、main 精确 fast-forward 与
-  main 完整复验。本轮不 commit、push、部署或调用真实 Provider。
+- A83 b/r0 文件实施阶段按授权只写文件，未运行 formatter、lint、类型检查、测试、build、
+  安装、数据库、服务或 Git 写操作。
+- 后续独立 Review APPROVED；正常 hook 生成单提交
+  `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 并精确 fast-forward 本地 main。完整
+  15 项 main 门禁为 972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、
+  148 E2E、598 backend/78.14% coverage，以及 OpenAPI/Provider metadata schema、
+  Ruff 等相关门禁通过。私有消费变异只在对应 lane 验证，main 未冒认重复。
+- 本轮未 push、部署或调用真实 Provider；远端 CI、真实 Provider 与生产链路仍未验证。
 - RF-10 的 Provider Registry 整体范围仍包含能力、模型、凭据、验证、超时、重试与错误映射
   的统一，以及真实外部链路验收；本子项显式化普通 LLM HTTP 策略不关闭 RF-10 整项。

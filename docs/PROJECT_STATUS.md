@@ -6,22 +6,22 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A82 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A83 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c`（A82）。A83 b/r0 的正式本地
-  receipt 记录 A82 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
+  `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
+  receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
   和完整 15 项门禁核销：972 Vitest/36 files、18 build-script、61 Fake API、
-  8 类型生成器、148 E2E、594 backend/78.10% coverage，以及 schema/Ruff 等相关检查。
+  8 类型生成器、148 E2E、598 backend/78.14% coverage，以及 schema/Ruff 等相关检查。
   历史基线与计数保持不变：A77 为 967 Vitest/576 backend 本地集成；A78 为 969
   Vitest/34 files、586 backend/76.98%；A80 为 972 Vitest/36 files、586 backend/
-  76.98%；A81 为 972 Vitest/36 files、594 backend/78.10%。私有探针和变异只在对应
-  lane 验证，main 未冒认重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、
-  远端 CI 与部署仍未验证。
+  76.98%；A81 为 972 Vitest/36 files、594 backend/78.10%；A82 为 594 backend/
+  78.10%。私有探针和变异只在对应 lane 验证，main 未冒认重复。真实 IdP、
+  LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；A83 b/r0 正式 receipt 绑定的具名已验
-  代码基线 `main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c`（A82）相对它领先 18 个
+  `c704925bc9150d153fc951c2727e7472dad00d78`；A84 b/r0 正式 receipt 绑定的具名已验
+  代码基线 `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）相对它领先 19 个
   提交。该计数只对应 receipt 中的具名基线，不是提交后必变的实时 lane HEAD 事实；比较
   也只读本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
@@ -63,12 +63,41 @@
 - 新独立回归覆盖真实 SDK 默认属性与合法替代策略的真实消费，确认四 timeout 分量及重试值，
   并在 `finally` 显式关闭客户端；Catalog 回归扩展不可变、默认构造兼容与纯净子进程导入。
   测试使用合成 key 与 loopback 断网 base URL，不调用 Provider。
-- A83 b/r0 仅完成文件实施并停在 Review；实施方未运行 formatter、测试、build、安装、
-  数据库、服务或 Git 写。主 Agent 固定入口门禁、OpenAPI/metadata 字节检查、真实消费变异、
-  独立 Review 与 main 复验尚未执行。该策略不替换 LiveKit 语音或 Provider key 验证策略，
-  OpenAI HTTP 2 次重试不与 LiveKit APIConnectOptions 3 次混同，RF-10 整项保持未勾选。
+- A83 b/r0 文件实施阶段未运行 formatter、测试、build、安装、数据库、服务或 Git 写。
+  后续经独立 Review APPROVED，以正常 hook 单提交
+  `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 精确 fast-forward 本地 main，并通过完整
+  15 项 main 门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、
+  148 E2E、598 backend/78.14% coverage，以及 schema/Ruff 等相关检查。该策略不替换
+  LiveKit 语音或 Provider key 验证策略，OpenAI HTTP 2 次重试不与 LiveKit
+  APIConnectOptions 3 次混同；未 push/部署，RF-10 整项保持未勾选。
 - 契约见
   [RF-10 普通 OpenAI 兼容客户端策略验证](./verification/cross-platform/RF-10-LLM-CLIENT-POLICY.md)。
+
+## 2026-11-01 RF-10 LiveKit 语音连接策略显式化（A84 b/r0）
+
+LiveKit Agents `1.4.3` 的 `AgentSession` 在未传 `conn_options` 时使用 SDK 默认的
+STT/LLM/TTS 连接策略。A84 b/r0 将三个 role 当前均生效的 10 秒 timeout、3 次重试、
+2 秒重试间隔及独立 `max_unrecoverable_errors=3` 冻结到纯标准库 Catalog，并由真实会话
+创建边界显式消费。
+
+- 新增 frozen `SessionConnectRolePolicy`、`SessionConnectPolicy` 与
+  `SESSION_CONNECT_POLICY`；三个 role 分开建模，不可恢复错误阈值不混同为
+  `APIConnectOptions.max_retry`。Catalog 保持纯标准库，不读取 config、环境或凭据。
+- 新 `livekit_agent/session_policy.py` 只使用公开 `APIConnectOptions` 与
+  `SessionConnectOptions` 字段，把九个 role 参数和独立错误阈值映射为每次调用全新的 SDK
+  对象；外层及三个 role options 不跨 Job 共享。
+- `livekit_agent/agent.py` 提供零参数 factory wrapper，在会话实际创建时动态读取当前
+  `AgentSession` 绑定并传入连接选项；entrypoint 显式注入该 wrapper。既有
+  `AgentJobOrchestrator` 零参数注入合同、默认 factory、错误与清理时序未改。
+- 新回归覆盖真实 SDK dataclass 默认值与 Catalog 一致、三个 role 的合法替代策略、跨 Job
+  对象隔离、factory 动态读取，以及生产 entrypoint 对当前 `AgentSession` 的真实构造边界
+  捕获。未启动真实 Session、Worker 或 Room，不调用插件、Provider、设备或网络。
+- A84 b/r0 仅完成文件实施并停在 Review；实施方未运行 formatter、测试、build、安装、
+  数据库、服务或 Git 写。主 Agent 固定入口 15 项检查、有效消费变异、OpenAPI/metadata
+  字节核验、独立 Review 与 main 复验尚未执行。
+- 该子项保持 SDK `1.4.3` 当前行为，不增加应用重试、不调整时限、不升级 SDK，也不代表
+  真实语音链路通过；RF-10 整项继续保持未勾选。契约见
+  [RF-10 LiveKit 语音连接策略验证](./verification/cross-platform/RF-10-SESSION-CONNECT-POLICY.md)。
 
 ## 2026-11-01 RF-10 Provider 前端展示元数据单一来源（A78 b/r0）
 

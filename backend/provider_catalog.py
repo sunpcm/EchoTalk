@@ -24,6 +24,45 @@ LLM_CLIENT_POLICY = LLMClientPolicy()
 
 
 @dataclass(frozen=True)
+class SessionConnectRolePolicy:
+    """LiveKit 单个 STT/LLM/TTS role 的不可变连接策略。"""
+
+    timeout: float
+    max_retry: int
+    retry_interval: float
+
+
+@dataclass(frozen=True)
+class SessionConnectPolicy:
+    """LiveKit AgentSession 三个 role 及不可恢复错误阈值的冻结策略。"""
+
+    stt: SessionConnectRolePolicy
+    llm: SessionConnectRolePolicy
+    tts: SessionConnectRolePolicy
+    max_unrecoverable_errors: int
+
+
+SESSION_CONNECT_POLICY = SessionConnectPolicy(
+    stt=SessionConnectRolePolicy(
+        timeout=10.0,
+        max_retry=3,
+        retry_interval=2.0,
+    ),
+    llm=SessionConnectRolePolicy(
+        timeout=10.0,
+        max_retry=3,
+        retry_interval=2.0,
+    ),
+    tts=SessionConnectRolePolicy(
+        timeout=10.0,
+        max_retry=3,
+        retry_interval=2.0,
+    ),
+    max_unrecoverable_errors=3,
+)
+
+
+@dataclass(frozen=True)
 class LLMProviderMetadata:
     """不可变 LLM Provider 静态配置元数据。"""
 
