@@ -12,12 +12,13 @@
 ### 执行基线
 
 - 当前已验收维护基线：
-  `main@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`（A78）。A77 已以
+  `main@eaac89d0f4f008e77ba51b26a590412a03541acb`（A79）。A77 已以
   `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成与
   967 Vitest/576 backend/80.09% coverage 等 main 复验；A78 随后以 15 项 main 门禁完成
   969 Vitest/34 files、586 backend/76.98% coverage、18 build-script、61 Fake API、
-  8 类型生成器和 148 E2E 等复验。该具名基线相对本地 tracking reference 领先 14 个提交，
-  不表示未来 lane HEAD 或远端当前状态。
+  8 类型生成器和 148 E2E 等复验；A79 再以单提交完成 Review、本地 main 精确快进及完整
+  15 项 main 门禁。该具名基线相对本地 tracking reference 领先 15 个提交，不表示未来
+  lane HEAD 或远端当前状态。
 - 基线：`origin/main@30f51f3175de20bc827ebdf29789ad934096133d`
 - 分支：`codex/mvp-remediation`
 - Worktree：
@@ -117,18 +118,18 @@
       A72 已把离线 lock 收敛至 107 个包，本机 dev/runtime 安装为 106/99，7 个 LiveKit exact
       SDK 保持；A74 r0 将 Web builder 统一为 Node 22，并由根 `packageManager` 通过 Corepack
       选择 pnpm 10.26.0，移除未固定的全局 npm 安装；仓根新增 Web build-context 允许列表，
-      排除本地 dotenv、`.review/`、Git/Agent 元数据、缓存和 iOS 原生资源。当前 API/Agent
-      进一步分组来源已由 A79 b/r0 实现并停在 Review：project common 仅保留 API/Agent
-      共用运行时依赖；`api` 组承载 FastAPI/uvicorn/Alembic/python-jose，`agent` 组承载
-      LiveKit RTC/Agents 与四个现有插件，`dev` 组保持四项工具；默认组合并
-      `api/agent/dev`，七个 LiveKit exact pins 不变。真实消费者审计确认 `passlib[bcrypt]`
-      只有项目根到 passlib 及 passlib extra 到 bcrypt 的锁入边、没有生产/测试/脚本消费者，
-      因而只删除这条死直接依赖。后端 Dockerfile 已改为受控 `BACKEND_ROLE=api|agent`，
-      非法值失败，使用 `--no-default-groups --group` 排除 dev；Compose 仅把 API 与
-      analysis-worker 绑定 `api`、语音 Agent 绑定 `agent`。`uv.lock`/`requirements.txt`
-      尚待主 Agent 用 uv 0.9.18 离线原生生成；角色安装、真实导入、schema、
-      Linux/Docker 镜像、Compose 服务、Corepack 签名预检及跨平台验收尚待完成，整项保持
-      未勾选，契约见
+      排除本地 dotenv、`.review/`、Git/Agent 元数据、缓存和 iOS 原生资源。A79 进一步完成
+      API/Agent 运行角色分组：project common 仅保留共用运行时依赖，`api` 组承载
+      FastAPI/uvicorn/Alembic/python-jose，`agent` 组承载 LiveKit RTC/Agents 与四个现有
+      插件，`dev` 组保持四项工具；默认组合并 `api/agent/dev`。主 Agent 已用 uv 0.9.18
+      离线原生重生成 lock/export，全部存活锁记录与全局 metadata 保持不变，只删除
+      `passlib 1.7.4`/`bcrypt 5.0.0`，七个 LiveKit exact pins 不变；受控角色验证为 dev
+      104、API 55、Agent 83，最终恢复 merged runtime 97。后端 Dockerfile 使用受控
+      `BACKEND_ROLE=api|agent` 并排除 dev，Compose 将 API/analysis-worker 绑定 `api`、
+      语音 Agent 绑定 `agent`。A79 已获独立 Review APPROVED，以单提交
+      `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main 并通过完整
+      15 项 main 门禁。Linux/Docker 镜像、Compose 服务、真实 Provider/LiveKit、设备、远端
+      CI 与部署仍未验证，RF-07 整项保持未勾选，契约见
       [RF-07 运行角色依赖与容器配方](./docs/verification/cross-platform/RF-07-RUNTIME-ROLES.md)。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；
       timezone-aware UTC、必要索引和有界分页完成；空库及现有数据库副本迁移均通过。
@@ -384,10 +385,12 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 
 - [ ] 在回归保护下简化Room初始Web快照与RoomContextSync引用所有权，移除多余可选回调并补并发渲染/SDK身份变化测试（A19 P2）。
 
-- [ ] 强化 `SettingsDrawer`/`useSettingsForm` 的 LLM 模型水合回归：真实组件与 Hook 必须先
+- [x] 强化 `SettingsDrawer`/`useSettingsForm` 的 LLM 模型水合回归：真实组件与 Hook 必须先
       断言初始缺省值，再覆盖 `llm_model: null` 到既有默认值、`null` 后切到合法自定义模型文本
       的实际水合与消费断言；另需证明合法默认值切换会被真实读取路径消费。不得只断言配置文档
-      字符串或静态映射。A79 记录该回归债务但不跨改前端源码。
+      字符串或静态映射。A80 b/r0 已补齐真实组件与 Hook 消费回归，并在隔离测试文件用合法
+      替代 LLM 默认证明初始草稿和空值水合确实读取 metadata 来源；生产行为未改，当前停在
+      Review，主 Agent 受控检查与 main 复验结果尚不在本项冒认。
 
 - [ ] 在回归保护下减少start/resume重复生命周期逻辑及全局测试注入入口；A18维护候选，不阻断本地增量。
 

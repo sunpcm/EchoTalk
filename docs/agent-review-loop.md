@@ -53,7 +53,7 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 3. **环境隔离与只读边界**：原 `backend/.venv` 及 A36 `.review/rf07-venv` 保持严格只读，不得修改、删除或用于新依赖同步；RF-07 受控新环境固定位于 `cp00/.review/rf07-a37-dev-venv` 与 `cp00/.review/rf07-a37-runtime-venv`。A71 后为 dev 159/runtime 152；A72 经离线 frozen sync 后各删除 53 个安装包，变为 dev 106/runtime 99。A37 当时 172/165 环境上的 269 项 backend pytest（覆盖率 73.72%）保留为历史证据，A71 的 540 项 backend pytest（79.59%）已在 `dd0fbc0` main 复验通过。两套环境完全独立于 backend 目录，不进入 Docker build context，实施方严禁直接读取数据库凭据或拿旧 env 日志充数。当前本地测试脚本与 runner 严格使用当前 lane 指定环境，不得擅自指向全局 Python。
 4. **CI 与 Docker 配方统一**：CI (`.github/workflows/ci.yml`) 锁定 `astral-sh/setup-uv@v3` 版本为 `0.9.18`，通过 `uv lock --check` 与 `uv sync --frozen --group dev --no-python-downloads` 实施冻结安装（显式包含 dev 组）；Dockerfile 统一为 `python:3.12-slim` 与 uv 0.9.18 配方，通过 `uv sync --frozen --no-dev --no-python-downloads` 排除 dev 组，隔离虚拟环境于 `/opt/venv`，`.dockerignore` 补充 `.env*`、`.review/` 及测试缓存排除规则，避免本地环境泄露至镜像上下文。
 
-### §2.1.1 RF-07 运行角色当前安装与受控环境（2026-11-01，A79 b/r0）
+### §2.1.1 RF-07 运行角色当前安装与受控环境（2026-11-01，A79 已验）
 
 - 当前 `backend/pyproject.toml` 将 API 与 Agent 共用依赖保留在 `[project].dependencies`，
   并以 `api`、`agent` 与既有 `dev` 组区分运行角色；`tool.uv.default-groups` 同时包含
@@ -72,8 +72,15 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
   offline/no-python-downloads 命令，dev 环境同步全部组。中间角色环境不得跑完整测试，异常
   后先恢复合并 runtime 再判断安装分布。`backend/.venv`、A36 旧环境、全局环境、uv cache、
   dotenv 与凭据均不在实施方读取或写入边界内。
-- 上述是本轮待验收源码配方，不等于 Linux/Docker 镜像、Compose 服务、远端 CI、真实
-  LiveKit/Provider、Worker 注册或语音链路已通过。
+- A79 已由主 Agent 使用既有 uv 0.9.18 离线工具完成 lock/export 原生生成与受控角色验证：
+  全部存活锁记录及全局 metadata 保持不变，只删除 `passlib 1.7.4`/`bcrypt 5.0.0`，七个
+  LiveKit exact pins 不变；导入分布为 dev 104、API 55、Agent 83，最终恢复 merged runtime
+  97。独立 Review APPROVED 后以单提交
+  `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main，并通过完整
+  15 项 main 门禁；该提交相对本地 tracking reference 领先 15 个提交，不是远端实时查询。
+- 上述本地配方与门禁不等于 Linux/Docker 镜像、Compose 服务、远端 CI、真实 LiveKit/
+  Provider、Worker 注册、设备或部署已通过；RF-05、RF-07、RF-09 与 RF-12 的外部边界继续
+  保持未完成。
 
 ## §3 测试库与安装边界
 

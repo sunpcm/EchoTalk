@@ -286,6 +286,11 @@ describe("SettingsDrawer Component", () => {
     );
     const { rerender } = render(<SettingsDrawer open={true} onClose={vi.fn()} />);
 
+    expect(screen.getByLabelText(t.sttProvider)).toHaveValue("deepgram");
+    expect(screen.getByLabelText(t.llmProvider)).toHaveValue("siliconflow");
+    expect(screen.getByLabelText(t.ttsProvider)).toHaveValue("cartesia");
+    expect(screen.getByLabelText(t.llmModel)).toHaveValue("");
+
     act(() => {
       useSettingsStore.setState({
         settings: makeSettings({

@@ -6,21 +6,21 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A78 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A79 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`（A78）。A77 已以单提交
+  `main@eaac89d0f4f008e77ba51b26a590412a03541acb`（A79）。A77 已以单提交
   `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成，main 复验为 967 Vitest/
   33 files、576 backend/80.09% coverage；A78 随后在同一本地 main 完成 Review、
   单提交 fast-forward 与 15 项 main 门禁：969 Vitest/34 files、18 build-script、
   61 Fake API、8 类型生成器、148 E2E、586 backend/76.98% coverage，以及 OpenAPI/
-  Provider metadata schema、Ruff 等相关门禁通过。私有探针和变异只在对应 lane 验证，
-  main 未冒认重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与
-  部署仍未验证。
+  Provider metadata schema、Ruff 等相关门禁通过；A79 再以单个本地提交完成 Review、
+  main 精确快进和完整 15 项 main 门禁。私有探针和变异只在对应 lane 验证，main 未冒认
+  重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
 - 本地 tracking reference `origin/main` 当前指向
   `c704925bc9150d153fc951c2727e7472dad00d78`；文内具名已验代码基线
-  `main@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`（A78）相对它领先 14 个提交。
+  `main@eaac89d0f4f008e77ba51b26a590412a03541acb`（A79）相对它领先 15 个提交。
   该计数只对应这个具名基线，不是提交后必变的实时 lane HEAD 事实；比较也只读本地 Git
   引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
@@ -55,7 +55,7 @@ Provider 的 role/id/label 及每个 role 的一个默认 id。
 - `backend/export_provider_metadata.py` 使用纯标准库，在有限 timeout、最小环境和网络失败
   关闭屏障中导入 catalog；canonical JSON 采用排序 key、2 空格缩进和末尾换行，经同目录
   临时文件原子替换。`--check` 只比较字节，缺产物或 stale 非零且不写文件。
-- `apps/vite-app/src/lib/providers.generated.json` 是待主 Agent 在实施停写后受控生成的
+- `apps/vite-app/src/lib/providers.generated.json` 已由主 Agent 在实施停写后受控生成并作为
   tracked 产物；`.prettierignore` 仅排除该路径。前端 `providerMetadata.ts` 直接消费 JSON，
   `SettingsProviderFields` 与 `useSettingsForm` 保持 Deepgram → SiliconFlow → OpenRouter /
   Cartesia 的既有顺序、label、默认和 LLM 自由文本模型，不新增请求或运行时加载支线。
@@ -68,6 +68,39 @@ Provider 的 role/id/label 及每个 role 的一个默认 id。
   门禁通过。实现方仍没有执行远端 CI、push、部署或真实外部 Provider 验证，RF-10 整体
   不完成，契约与命令见
   [RF-10 Provider 前端展示元数据单一来源](./verification/cross-platform/RF-10-FRONTEND-METADATA.md)。
+
+## 2026-11-01 RF-07 API/Agent 运行角色依赖边界（A79）
+
+后端依赖已按同一项目的运行角色拆分为 API、Agent 与开发组。API 与 Agent 共用依赖保留在
+project common，API 独有依赖进入 `api` 组，LiveKit RTC/Agents 与四个现有插件进入
+`agent` 组，Ruff/Pytest 等继续只进入 `dev` 组；本地无 flag 安装仍合并三组。
+
+- 主 Agent 使用 uv 0.9.18 离线原生工具重生成 lock/export 并完成受控 frozen sync。全部
+  存活锁记录与全局 metadata 保持不变，唯一删除是死依赖 `passlib 1.7.4` 与其
+  `bcrypt 5.0.0` extra 子树；七个 LiveKit exact SDK pins 不变。
+- 受控导入验证的安装分布为 dev 104、API 55、Agent 83，最终恢复 merged runtime 97。
+  Dockerfile 以 `BACKEND_ROLE=api|agent` 选择唯一运行组，Compose 将 API 与
+  analysis-worker 绑定 `api`、语音 Agent 绑定 `agent`。
+- A79 已由独立 Review APPROVED，以单提交
+  `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main，并通过完整
+  15 项 main 门禁；该具名提交相对本地 tracking reference 领先 15 个提交。
+- 未 push/部署；真实 Linux/Docker 镜像、Compose 服务、远端 CI、真实 Provider/LiveKit、
+  设备与生产运行链路仍未验证。RF-05、RF-07、RF-09 与 RF-12 的整项边界不因此关闭。
+
+## 2026-11-01 Settings 水合真实消费者回归（A80 b/r0）
+
+本轮只补设置默认值与空值水合的真实消费者回归。组件测试先锁定当前固定契约：STT、LLM、
+TTS 初始值分别为 Deepgram、SiliconFlow、Cartesia，LLM 模型初始为空字符串；随后再覆盖
+后端对象引用变成 OpenRouter 与任意自定义模型文本。Hook 测试覆盖 settings 缺失、provider
+和模型为 null/空字符串时的 fallback、合法非空值原样保留，以及同引用普通重渲染和开关切换
+保留草稿、只有新后端对象才重置内存 key。
+
+独立测试文件为 metadata adapter 提供合法替代 LLM 默认 `openrouter`，再调用真实
+`useSettingsForm`，分别验证初始草稿和空值水合消费该来源。测试没有修改生产源码、tracked
+generated JSON、后端 catalog、依赖或认证/生命周期行为，也没有使用全局 fake timer。
+
+该 lane 已停在 Review，主 Agent 的受控 formatter、完整测试树、实际消费变异与独立评审尚未
+在本记录中冒认通过；真实 Provider、设备、Linux/Docker、远端 CI 与部署边界不变。
 
 ## 2026-11-01 本地 RF-06 前端模板清理（A73）
 

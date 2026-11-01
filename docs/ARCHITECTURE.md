@@ -115,6 +115,11 @@ exporter 只投影 role、id、label 与默认选择到 tracked
 产物，不因展示元数据额外请求设置 API、Provider 服务或 SDK。生成文件由后端字节漂移门禁
 保护，前端 CI job 不安装 Python。
 
+A80 的回归边界要求真实 `SettingsDrawer` 先验证现行固定契约，再由 `useSettingsForm`
+验证 null/空字符串 fallback、合法自定义值、同引用重渲染和打开周期保持，以及新对象水合。
+另有隔离测试以合法替代 metadata 默认值调用真实 Hook，证明初始草稿和空值水合确实消费
+adapter 来源；该验证不改生产源码或 tracked 生成 JSON。
+
 ### 3.4 PostgreSQL Analysis Worker
 
 会话结束事务创建唯一分析 Job 后立即返回。独立 Worker 通过 PostgreSQL
@@ -196,6 +201,13 @@ POST /sessions/{id}/end
 （LiveKit RTC/Agents 与现有四个插件）；SQLAlchemy、asyncpg、Pydantic、dotenv、OpenAI、
 LiveKit API、cryptography 与 httpx 等共用依赖保留在项目公共依赖。无 flag 的本地开发默认
 安装 `api/agent/dev` 三组，镜像使用 `--no-default-groups` 只安装所选运行组。
+
+A79 的当前验收事实绑定本地单提交
+`eaac89d0f4f008e77ba51b26a590412a03541acb`：独立 Review APPROVED、main 精确快进及完整
+15 项门禁通过；受控安装分布为 dev 104、API 55、Agent 83，最终恢复 merged runtime 97。
+lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死依赖 `passlib` 及其
+`bcrypt` extra 子树，七个 LiveKit exact SDK pins 不变。该结果不代表真实 Linux/Docker
+镜像、Compose 服务、远端 CI、Provider/LiveKit、设备或部署已验收。
 
 部署前必须单独执行 `alembic upgrade head`；课程语料由镜像内的版本化 JSON 提供，可用
 `python -m scripts.seed_corpus` 校验。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、

@@ -1,7 +1,8 @@
 # RF-07 Python API/Agent 运行角色依赖验证
 
-> 状态：A79 b/r0 源码实施完成，停在 Review。`uv.lock`、`requirements.txt`、受控角色环境
-> 安装、全量门禁、Linux/Docker 镜像与外部运行链路尚未由实施方验证。
+> 状态：A79 已 Review APPROVED，单提交 `eaac89d0f4f008e77ba51b26a590412a03541acb`
+> 已精确 fast-forward 本地 main，并通过完整 15 项 main 门禁。真实 Linux/Docker 镜像、
+> Compose 服务、远端 CI 与外部运行链路仍未验证。
 > 起点：`codex/rf07-dependency-roles@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`。
 > 日期：2026-11-01。
 
@@ -71,7 +72,7 @@ CI 原有 `--group dev` 无需改成同义别名；兼容 `requirements.txt` 继
 - `passlib[bcrypt]` 在全部 tracked backend 生产、测试与脚本中零消费者。修改前 lock 中只有
   项目根到 `passlib[bcrypt]` 的直接入边，以及 `passlib` 自身 optional extra 到 `bcrypt`
   的边；没有其他 incoming edge。本轮据此只删除这一个死直接依赖。`bcrypt` 是它的 extra
-  子节点，应由主 Agent 原生重生成 lock/export 后自然消失，实施方不手写锁文件。
+  子节点，已由主 Agent 原生重生成 lock/export 后自然消失；实施方未手写锁文件。
 - `analysis_service.py` 对 `pronouncing` 使用 guarded optional import，并在不可用时回退到
   既有字母音素逻辑；该包原本不在项目声明或 lock 中。本轮按“不新增包”边界保持现状，不能
   把回退路径冒认为完整发音词典能力。
@@ -97,7 +98,9 @@ volumes、认证和启动入口逐字保持，没有新增 Worker 组或服务�
 现有 `backend/.dockerignore` 继续排除 `.env`、`.env.*`、`.review/` 与本地缓存，本轮未改
 其保护规则。
 
-## 5. 待主 Agent 受控执行
+## 5. 实施停写时待主 Agent 受控执行（冻结历史）
+
+以下五项是 b/r0 实施方停写时的边界；主 Agent 随后已完成上述受控执行，结果见 §6。
 
 1. 使用既有 uv 0.9.18 离线原生工具重生成 `backend/uv.lock`，逐包审查 version/hash 与依赖
    edge；除 `passlib`/其 `bcrypt` extra 子树外，必须证明全部存活锁记录保持，不能趁机升级。
@@ -111,7 +114,27 @@ volumes、认证和启动入口逐字保持，没有新增 Worker 组或服务�
 5. 运行 formatter、frontend10、OpenAPI schema、Provider metadata、Ruff 与专用 PostgreSQL
    上的 backend 全量 pytest；检查 Compose 静态解析并独立审查 diff。
 
-## 6. 当前未验证状态
+## 6. A79 主 Agent 当前验收状态
+
+- 主 Agent 使用既有 uv 0.9.18 离线原生工具重生成 `uv.lock` 与 `requirements.txt`，并完成
+  dev 与 runtime 环境的 exact frozen/offline/no-python-downloads 同步。全部存活 package
+  完整记录与全局 metadata 保持不变，唯一删除是 `passlib 1.7.4` 及其 extra 子树
+  `bcrypt 5.0.0`；七个 LiveKit exact SDK pins 均保持。
+- 受控导入验证的实际安装分布为 dev 104、API 55、Agent 83；runtime 环境按
+  `api → agent → 合并 runtime` 串行切换后恢复 merged runtime 97。
+- 主 Agent 已执行真实隔离导入、离线 OpenAPI/Provider metadata 检查、formatter、frontend10、
+  OpenAPI schema、Provider metadata、Ruff、Compose 静态解析及专用 PostgreSQL backend
+  全量测试。A79 后续独立 Review APPROVED，以单提交
+  `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main，并完成完整
+  15 项 main 门禁：969 Vitest/34 files、18 build-script、61 Fake API、8 类型生成器、
+  148 E2E、586 backend/76.98% coverage，以及 schema/metadata/Ruff 等相关检查。
+- 该具名提交是 receipt 中已完成的 A79 基线，相对本地 tracking reference
+  `c704925bc9150d153fc951c2727e7472dad00d78` 领先 15 个提交；不声称远端实时查询或远端
+  merge，本轮未 push 或部署，上述提交仅完成本地 main 精确 fast-forward。
+- RF-05、RF-07、RF-09 与 RF-12 继续保持未勾选。Linux/Docker 镜像、Compose 实际服务、远端
+  CI、真实 Provider/LiveKit、Worker 注册、设备与生产语音链路仍未验证。
+
+## 7. b/r0 实施方停写时状态（冻结历史）
 
 - 实施方未读取或写入任何 venv、uv cache、node_modules、dotenv、凭据或数据库内容，未执行
   formatter、测试、构建、安装、真实 Compose、镜像、服务、数据库、真实 CLI/Provider、
