@@ -11,6 +11,14 @@ tauri-build = { version = "=2.7.4", features = [] }
 
 [dependencies]
 tauri = { version = "=2.12.5", default-features = false, features = ["wry"] }
+tauri-plugin-deep-link = "=2.6.3"
+openidconnect = { version = "=4.1.0", default-features = false, features = ["timing-resistant-secret-traits"] }
+reqwest = { version = "=0.12.24", default-features = false, features = ["blocking", "native-tls"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+url = "=2.5.7"
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native"] }
+zeroize = { version = "=1.8.2", features = ["derive"] }
 
 [features]
 default = ["custom-protocol"]

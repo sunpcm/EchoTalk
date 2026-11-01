@@ -15,12 +15,13 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { BINARY, IDENTIFIER, NODE, createPlan } from "./policy.mjs";
+import { BINARY, IDENTIFIER, INPUTS, NODE, createPlan } from "./policy.mjs";
 import { executeBuild, runChild } from "./build.mjs";
+import { executeAuthTests } from "./auth-test.mjs";
 
 const source = dirname(dirname(fileURLToPath(import.meta.url)));
 const temporary =
-  "/Users/sunpcm/code/EchoTalk/.review/reports/macos-m1-native-host-20261101/implementer/r3/test-tmp";
+  "/Users/sunpcm/code/EchoTalk/.review/reports/macos-m1-auth-media-20261101/implementer/r3/test-tmp";
 const host = { platform: "darwin", arch: "arm64", version: "v22.13.1", execPath: NODE };
 const env = { HOME: process.env.HOME };
 const failed =
@@ -40,8 +41,12 @@ function fixture(t) {
   });
   const project = join(root, "lane/tools/macos-m1-native-probe");
   mkdirSync(project, { recursive: true });
-  for (const path of ["package.json", "src-tauri", "web"])
-    cpSync(join(source, path), join(project, path), { recursive: true });
+  // Copy frozen inputs, excluding native build outputs (gen/permissions/target).
+  // The dependency owner may have compiled this source before Node regression.
+  for (const path of [...INPUTS, "scripts/build.test.mjs", "scripts/auth-ui.test.mjs"]) {
+    mkdirSync(dirname(join(project, path)), { recursive: true });
+    cpSync(join(source, path), join(project, path));
+  }
   const cliDir = join(project, "node_modules/@tauri-apps/cli");
   mkdirSync(cliDir, { recursive: true });
   writeFileSync(
@@ -81,7 +86,7 @@ function writeBundle(
   mkdirSync(join(plan.bundle, "Contents/MacOS"), { recursive: true });
   writeFileSync(
     join(plan.bundle, "Contents/Info.plist"),
-    `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${identifier}</string><key>CFBundleExecutable</key><string>${executable}</string><key>CFBundleShortVersionString</key><string>0.0.0</string><key>LSMinimumSystemVersion</key><string>${minimum}</string></dict></plist>`,
+    `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${identifier}</string><key>CFBundleExecutable</key><string>${executable}</string><key>CFBundleShortVersionString</key><string>0.0.0</string><key>LSMinimumSystemVersion</key><string>${minimum}</string><key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>echotalk-m1</string></array></dict></array></dict></plist>`,
   );
   const header = Buffer.alloc(32);
   header.writeUInt32LE(magic, 0);
@@ -494,7 +499,7 @@ test("real runner bounds a Node-only timeout and records the signal rather than 
 
 test("real entry in an isolated fixture with missing locks fails closed, never executing its throwing CLI substitute", (t) => {
   const f = fixture(t);
-  mkdirSync(join(f.project, "scripts"));
+  mkdirSync(join(f.project, "scripts"), { recursive: true });
   for (const name of ["build.mjs", "policy.mjs"])
     cpSync(join(source, "scripts", name), join(f.project, "scripts", name));
   rmSync(join(f.project, "package-lock.json"));
@@ -511,7 +516,7 @@ test("real entry in an isolated fixture with missing locks fails closed, never e
 
 test("r1 real build branch preserves both complete large streams and exit37, with no post-build stage", (t) => {
   const f = fixture(t);
-  mkdirSync(join(f.project, "scripts"));
+  mkdirSync(join(f.project, "scripts"), { recursive: true });
   for (const name of ["build.mjs", "policy.mjs"])
     cpSync(join(source, "scripts", name), join(f.project, "scripts", name));
   const stdout = "R1_BUILD_OUT_BEGIN\n" + "O".repeat(1024 * 1024 + 123) + "R1_BUILD_OUT_END";
@@ -595,7 +600,7 @@ test("r1 real captured control-step failure forwards complete stdout/stderr with
 for (const stage of ["version", "help"]) {
   test(`r1 real ${stage} failure retains both diagnostic streams and blocks build`, (t) => {
     const f = fixture(t);
-    mkdirSync(join(f.project, "scripts"));
+    mkdirSync(join(f.project, "scripts"), { recursive: true });
     for (const name of ["build.mjs", "policy.mjs"])
       cpSync(join(source, "scripts", name), join(f.project, "scripts", name));
     const stdout = `R1_${stage}_STDOUT`;
@@ -631,7 +636,7 @@ for (const stage of ["version", "help"]) {
 
 test("r1 a malformed successful version response still has complete local diagnostics", (t) => {
   const f = fixture(t);
-  mkdirSync(join(f.project, "scripts"));
+  mkdirSync(join(f.project, "scripts"), { recursive: true });
   for (const name of ["build.mjs", "policy.mjs"])
     cpSync(join(source, "scripts", name), join(f.project, "scripts", name));
   writeFileSync(
@@ -745,4 +750,229 @@ test("r3 independently observed vendor macOS layout passes complete artifact val
   assert.equal(r.calls.at(-1).args.at(-1), join(vendorBundle, "Contents/Info.plist"));
   assert.match(result.executableSha256, /^[a-f0-9]{64}$/u);
   assert.equal(existsSync(join(vendorBundle, "Contents/MacOS", BINARY)), true);
+});
+
+for (const mutate of [
+  (c) => {
+    c.oidc.issuer = "http://localhost:19444/realm";
+  },
+  (c) => {
+    c.oidc.token_endpoint += "?injection=true";
+  },
+  (c) => {
+    c.oidc.jwks_uri += "#fragment";
+  },
+  (c) => {
+    c.oidc.authorization_endpoint = "https://user@localhost/auth";
+  },
+  (c) => {
+    c.oidc.redirect_uri = "echotalk-m1://other/callback";
+  },
+  (c) => {
+    c.oidc.client_secret = "SYNTHETIC forbidden field";
+  },
+  (c) => {
+    c.environment = "not-schema";
+  },
+  (c) => {
+    c.version = 2;
+  },
+]) {
+  test("auth public-config rejects unsafe endpoint/schema before child or cache effects", (t) => {
+    const f = fixture(t);
+    const path = join(f.project, "src-tauri/public-config.json");
+    const config = JSON.parse(readFileSync(path));
+    mutate(config);
+    writeFileSync(path, JSON.stringify(config, null, 2) + "\n");
+    const r = runner(f);
+    assert.throws(() => executeBuild(f.plan, r), failed("PUBLIC_CONFIG_INVALID"));
+    assert.equal(r.calls.length, 0);
+    assert.equal(existsSync(f.plan.cache), false);
+  });
+}
+
+test("null OIDC public config is a supported fail-closed candidate; duplicate keys fail pre-side-effect", (t) => {
+  const f = fixture(t);
+  const path = join(f.project, "src-tauri/public-config.json");
+  writeFileSync(path, JSON.stringify({ version: 1, oidc: null }, null, 2) + "\n");
+  assert.equal(executeBuild(f.plan, runner(f)).stage, "built-not-run");
+  const r = runner(f);
+  writeFileSync(path, '{"version":1,"oidc":null,"oidc":null}\n');
+  assert.throws(() => executeBuild(f.plan, r), failed("PUBLIC_CONFIG_INVALID"));
+  assert.equal(r.calls.length, 0);
+});
+
+for (const mutate of [
+  (c) => {
+    c.app.security.capabilities[0].remote = { urls: ["https://localhost:19444/*"] };
+  },
+  (c) => {
+    c.app.security.capabilities[0].windows = ["*"];
+  },
+  (c) => {
+    c.app.security.capabilities[0].permissions.push("deep-link:default");
+  },
+  (c) => {
+    c.plugins["deep-link"].desktop.schemes.push("http");
+  },
+  (c) => {
+    c.plugins.opener = {};
+  },
+  (c) => {
+    c.app.security.csp = c.app.security.csp.replace(
+      "script-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+    );
+  },
+  (c) => {
+    c.app.security.csp = c.app.security.csp.replace(
+      "connect-src ipc: http://ipc.localhost",
+      "connect-src https: ipc:",
+    );
+  },
+  (c) => {
+    c.bundle.macOS.infoPlist = "../../outside.plist";
+  },
+]) {
+  test("auth ACL/CSP/plugin/path expansion refuses all child effects", (t) => {
+    const f = fixture(t);
+    const path = join(f.project, "src-tauri/tauri.conf.json");
+    const config = JSON.parse(readFileSync(path));
+    mutate(config);
+    writeFileSync(path, JSON.stringify(config));
+    const r = runner(f);
+    assert.throws(() => executeBuild(f.plan, r), failed("CONFIG_FORBIDDEN"));
+    assert.equal(r.calls.length, 0);
+    assert.equal(existsSync(f.plan.cache), false);
+  });
+}
+
+for (const path of ["src-tauri/src/auth.rs", "src-tauri/public-config.json", "web/main.mjs"]) {
+  test(`auth source hash detects ${path} changing during build`, (t) => {
+    const f = fixture(t);
+    const r = runner(f, () => {
+      const full = join(f.project, path);
+      if (path.endsWith(".json")) {
+        const c = JSON.parse(readFileSync(full));
+        c.oidc.client_id += "-changed";
+        writeFileSync(full, JSON.stringify(c, null, 2) + "\n");
+      } else writeFileSync(full, readFileSync(full, "utf8") + "\n// changed in test\n");
+      writeBundle(f.plan);
+    });
+    assert.throws(() => executeBuild(f.plan, r), failed("INPUT_CHANGED"));
+    assert.equal(r.calls.length, 3);
+    assert.equal(
+      r.records.some((record) => record.stage === "built-not-run"),
+      false,
+    );
+  });
+}
+
+for (const path of ["src-tauri/Info.plist", "src-tauri/public-config.json", "web/auth-ui.mjs"]) {
+  test(`auth new input ${path} rejects symlink before child effects`, (t) => {
+    const f = fixture(t);
+    const full = join(f.project, path);
+    const outside = join(f.root, "outside-input");
+    cpSync(full, outside);
+    rmSync(full);
+    symlinkSync(outside, full);
+    const r = runner(f);
+    assert.throws(() => executeBuild(f.plan, r), failed("PATH_SYMLINK"));
+    assert.equal(r.calls.length, 0);
+  });
+}
+
+test("unknown Rust input, command, permissions file and plist injection fail closed", (t) => {
+  const f = fixture(t);
+  const r = runner(f);
+  const unknown = join(f.project, "src-tauri/src/unknown.rs");
+  writeFileSync(unknown, "// not allowed\n");
+  assert.throws(() => executeBuild(f.plan, r), failed("INPUT_FORBIDDEN"));
+  rmSync(unknown);
+  const path = join(f.project, "package.json");
+  const original = readFileSync(path);
+  const pkg = JSON.parse(original);
+  pkg.scripts["probe:arbitrary"] = "unknown";
+  writeFileSync(path, JSON.stringify(pkg));
+  assert.throws(() => executeBuild(f.plan, r), failed("COMMAND_FORBIDDEN"));
+  writeFileSync(path, original);
+  const permission = join(f.project, "src-tauri/permissions");
+  mkdirSync(permission);
+  writeFileSync(join(permission, "evil.toml"), "unknown");
+  assert.throws(() => executeBuild(f.plan, r), failed("CONFIG_OVERLAY_FORBIDDEN"));
+  rmSync(permission, { recursive: true });
+  const plist = join(f.project, "src-tauri/Info.plist");
+  writeFileSync(plist, readFileSync(plist, "utf8").replace("echotalk-m1", "other-scheme"));
+  assert.throws(() => executeBuild(f.plan, r), failed("CONFIG_FORBIDDEN"));
+  assert.equal(r.calls.length, 0);
+});
+
+test("all Rust and static auth inputs are represented in the successful build receipt", (t) => {
+  const f = fixture(t);
+  const result = executeBuild(f.plan, runner(f));
+  for (const path of [
+    "src-tauri/src/auth.rs",
+    "src-tauri/src/config.rs",
+    "src-tauri/src/native.rs",
+    "src-tauri/src/oidc.rs",
+    "src-tauri/src/auth_tests.rs",
+    "src-tauri/src/oidc_tests.rs",
+    "src-tauri/src/oidc-fixture.json",
+    "src-tauri/public-config.json",
+    "src-tauri/Info.plist",
+    "web/main.mjs",
+    "web/auth-ui.mjs",
+  ])
+    assert.match(result.inputHashes[path], /^[a-f0-9]{64}$/u, path);
+});
+
+test("Rust test entry rejects arbitrary argv without launching Cargo", () => {
+  const child = spawnSync(NODE, [join(source, "scripts/auth-test.mjs"), "--online"], {
+    env: { HOME: env.HOME, PATH: "/usr/bin:/bin" },
+    encoding: "utf8",
+    timeout: 2000,
+  });
+  assert.equal(child.status, 64);
+  assert.equal(child.stdout, "");
+  assert.equal(JSON.parse(child.stderr).code, "ARGUMENTS_FORBIDDEN");
+});
+
+test("fixed Rust-test wrapper uses isolated locked offline target and propagates the actual exit", (t) => {
+  const f = fixture(t);
+  let called = 0;
+  const run = (command, args, options) => {
+    called++;
+    assert.equal(command, "/Users/sunpcm/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo");
+    assert.deepEqual(args, [
+      "test",
+      "--manifest-path",
+      join(f.project, "src-tauri/Cargo.toml"),
+      "--locked",
+      "--offline",
+      "--target",
+      "aarch64-apple-darwin",
+      "--jobs",
+      "2",
+    ]);
+    assert.equal(options.env.CARGO_HOME, f.plan.env.CARGO_HOME);
+    assert.equal(options.capture, false);
+    return { status: 37 };
+  };
+  assert.throws(() => executeAuthTests(f.plan, run), failed("CHILD_FAILED", 37));
+  assert.equal(called, 1);
+});
+
+test("fixed Rust-test wrapper refuses missing locks before child or cache creation", (t) => {
+  const f = fixture(t);
+  rmSync(join(f.project, "src-tauri/Cargo.lock"));
+  let calls = 0;
+  assert.throws(
+    () =>
+      executeAuthTests(f.plan, () => {
+        calls++;
+      }),
+    failed("LOCKS_MISSING"),
+  );
+  assert.equal(calls, 0);
+  assert.equal(existsSync(f.plan.cache), false);
 });

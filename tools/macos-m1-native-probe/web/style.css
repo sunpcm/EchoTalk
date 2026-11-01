@@ -29,3 +29,9 @@ p {
 .status {
   color: #42637a;
 }
+
+button {
+  padding: 10px 12px;
+  margin-right: 8px;
+  font: inherit;
+}

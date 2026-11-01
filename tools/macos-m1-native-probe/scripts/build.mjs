@@ -7,6 +7,7 @@ import {
   BINARY,
   BuildFailure,
   IDENTIFIER,
+  INPUTS,
   NODE,
   createPlan,
   requireSafePath,
@@ -14,6 +15,36 @@ import {
 } from "./policy.mjs";
 
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+export function inputHashes(plan) {
+  return Object.fromEntries(
+    [...INPUTS, "package-lock.json", "src-tauri/Cargo.lock"].map((path) => [
+      path,
+      sha(readFileSync(join(plan.projectDir, path))),
+    ]),
+  );
+}
+
+export function prepareCaches(plan) {
+  for (const path of [
+    plan.env.CARGO_HOME,
+    plan.target,
+    plan.env.npm_config_cache,
+    plan.env.TMPDIR,
+    plan.env.CLANG_MODULE_CACHE_PATH,
+    plan.env.XDG_CACHE_HOME,
+  ]) {
+    requireSafePath(path);
+    mkdirSync(path, { recursive: true });
+  }
+  for (const path of [plan.env.npm_config_userconfig, plan.env.npm_config_globalconfig]) {
+    requireSafePath(path);
+    if (existsSync(path)) {
+      if (!lstatSync(path).isFile() || lstatSync(path).size !== 0)
+        throw new BuildFailure("NPM_CONFIG_NOT_EMPTY");
+    } else writeFileSync(path, "", { flag: "wx", mode: 0o600 });
+  }
+}
 
 export function runChild(command, args, options) {
   const result = spawnSync(command, args, {
@@ -67,6 +98,7 @@ export function executeBuild(
     return result.stdout;
   }
   validateInputs(plan);
+  const inputs = inputHashes(plan);
   const version = step("cli-version", NODE, [plan.cli, "--version"], 10000).trim();
   if (!/^(?:tauri-cli|tauri) 2\.12\.4$/u.test(version))
     throw new BuildFailure("CLI_VERSION_INVALID");
@@ -79,26 +111,7 @@ export function executeBuild(
     !/cargo|runner/iu.test(help)
   )
     throw new BuildFailure("CLI_HELP_INVALID");
-  for (const path of [
-    plan.env.CARGO_HOME,
-    plan.target,
-    plan.env.npm_config_cache,
-    plan.env.TMPDIR,
-    plan.env.CLANG_MODULE_CACHE_PATH,
-    plan.env.XDG_CACHE_HOME,
-  ]) {
-    requireSafePath(path);
-    mkdirSync(path, { recursive: true });
-  }
-  for (const path of [plan.env.npm_config_userconfig, plan.env.npm_config_globalconfig]) {
-    requireSafePath(path);
-    if (existsSync(path)) {
-      if (!lstatSync(path).isFile() || lstatSync(path).size !== 0)
-        throw new BuildFailure("NPM_CONFIG_NOT_EMPTY");
-    } else {
-      writeFileSync(path, "", { flag: "wx", mode: 0o600 });
-    }
-  }
+  prepareCaches(plan);
   requireSafePath(plan.bundle);
   if (existsSync(plan.bundle)) {
     if (!lstatSync(plan.bundle).isDirectory()) throw new BuildFailure("ARTIFACT_INVALID");
@@ -109,6 +122,9 @@ export function executeBuild(
   }
   // No install/fetch, npm/npx, shell, config override, sign or binary execution.
   step("tauri-build", NODE, [plan.cli, ...plan.args], 1200000, false);
+  validateInputs(plan);
+  if (JSON.stringify(inputHashes(plan)) !== JSON.stringify(inputs))
+    throw new BuildFailure("INPUT_CHANGED");
   requireSafePath(plan.bundle);
   const plist = join(plan.bundle, "Contents/Info.plist");
   const binary = join(plan.bundle, "Contents/MacOS", BINARY);
@@ -132,7 +148,10 @@ export function executeBuild(
     metadata.CFBundleIdentifier !== IDENTIFIER ||
     metadata.CFBundleExecutable !== BINARY ||
     metadata.CFBundleShortVersionString !== "0.0.0" ||
-    !/^14\.0(?:\.0)?$/u.test(metadata.LSMinimumSystemVersion ?? "")
+    !/^14\.0(?:\.0)?$/u.test(metadata.LSMinimumSystemVersion ?? "") ||
+    metadata.CFBundleURLTypes?.length !== 1 ||
+    JSON.stringify(metadata.CFBundleURLTypes[0].CFBundleURLSchemes) !==
+      JSON.stringify(["echotalk-m1"])
   )
     throw new BuildFailure("ARTIFACT_INVALID");
   const bytes = readFileSync(binary);
@@ -152,6 +171,8 @@ export function executeBuild(
     configSha256: sha(readFileSync(join(plan.projectDir, "src-tauri/tauri.conf.json"))),
     npmLockSha256: sha(readFileSync(join(plan.projectDir, "package-lock.json"))),
     cargoLockSha256: sha(readFileSync(join(plan.projectDir, "src-tauri/Cargo.lock"))),
+    inputHashes: inputs,
+    sourceSha256: sha(JSON.stringify(inputs)),
   };
   emit(result);
   return result;
