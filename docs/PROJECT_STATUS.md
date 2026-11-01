@@ -5,11 +5,11 @@
 
 ## 维护基线
 
-> 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A83 的验收结论为准。
+> 下列带日期的实施记录保留各轮当时的事实与边界；A83 是历史具名完整门禁记录，
+> 不外推为后续提交已复验。最新状态见下方「项目入口刷新与最新本地边界」及 `TODO.md`。
 
 - 最近本地核对日期：2026-11-01。
-- 当前本地已验收代码基线：
+- A83 历史具名本地验收代码基线：
   `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
   receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
   和完整 15 项门禁核销：972 Vitest/36 files、18 build-script、61 Fake API、
@@ -45,6 +45,32 @@
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-11-01 项目入口刷新与最新本地边界
+
+本节补充最新事实；上方 A83 具名验收基线与下方各轮历史记录保留原样，不据此改写旧轮计数。
+
+- 文档核对的代码基线为 `e35d89b1d492ee92fd741331f6f23f572406ff1a`。A84 已有本地提交
+  `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9`；macOS 探针构建及原生认证也已本地提交，
+  最新为 `e35d89b`。提交存在不代表后续源码已完成业务 15 项门禁复验，
+  不代表 push、远端 CI 或部署完成；本摘要不提供远端实时状态。
+- macOS 当前仅有 [auth-only 原生探针](../tools/macos-m1-native-probe/README.md)。
+  [原生认证验证记录](./verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)记载主控对安装包
+  真实冷暖登录回跳、取消后迟到回跳拒绝及再次登录的独立验证；设备结论仅覆盖所列场景，
+  临时服务、证书和进程的最终清理状态须以单独回执为准。
+- M1 尚欠最小 API/媒体接线、真实 Provider 5 分钟 5 轮和设备测试；正式
+  `apps/vite-app/src-tauri/` 尚不存在，仍属 [M2 计划](./MACOS_MVP_DEVELOPMENT_PLAN.md)。
+  Web/iOS 已有代码和本地自动化记录不等于真机、完整真实语音或生产验收。
+- 最新支持方向为共享业务/UI/API/状态，薄适配隔离原生 SDK、登录、安全存储、权限、媒体设备
+  与生命周期；Android/Windows 后续按需扩展，不提前实现新平台或大型 shared-core。
+  仅面向主流系统、浏览器与工具链，未来最低 OS 尚未冻结；旧计划的 macOS 14 仅是历史候选，
+  不再作为兼容承诺。开发工具链仍为 Python 3.12、Node 22、pnpm 10.26.0。
+- 根 README 改为简明中文项目入口：按当前源码说明冻结安装、根 dotenv、独立开发库与破坏性
+  迁移风险、参考技能写库/离线语料校验区别、API/Agent/分析 Worker 分进程启动，接口链接
+  canonical OpenAPI；不再复制失效鉴权接口或旧 Phase 全完成列表。新账号默认免费且使用自定义轨，
+  须通过设置界面验证保存 BYOK；免费账号不能关闭自定义模式，服务端 dotenv 不自动授予基础轨权限。
+- 文档静态核对不替代 Vitest、Playwright、backend pytest、完整业务门禁或原生构建；
+  DB/迁移、服务、模型和真实外部依赖的可用性仍需各自运行证据。
 
 ## 2026-11-01 RF-10 普通 OpenAI 兼容客户端策略显式化（A83 b/r0）
 
