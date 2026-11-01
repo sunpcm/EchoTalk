@@ -6,19 +6,21 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A76 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A78 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a`（A76）。A76 已独立 Review
-  APPROVED，以单提交完成本地精确 fast-forward 与 main 完整复验：frontend10、954 Vitest、
-  18 build-script、61 Fake API、8 类型生成器、148 E2E、576 backend、80.09% coverage、
-  OpenAPI schema 与 Ruff 通过。lane 另有 5 项独立消费探针及 3 项 killed/byte-restored
-  auth/session/code 变异，main 未冒认重复这些私有检查。真实 IdP、LiveKit/Provider、
-  设备、Docker 镜像、远端 CI 与部署仍未验证。
+  `main@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`（A78）。A77 已以单提交
+  `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成，main 复验为 967 Vitest/
+  33 files、576 backend/80.09% coverage；A78 随后在同一本地 main 完成 Review、
+  单提交 fast-forward 与 15 项 main 门禁：969 Vitest/34 files、18 build-script、
+  61 Fake API、8 类型生成器、148 E2E、586 backend/76.98% coverage，以及 OpenAPI/
+  Provider metadata schema、Ruff 等相关门禁通过。私有探针和变异只在对应 lane 验证，
+  main 未冒认重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与
+  部署仍未验证。
 - 本地 tracking reference `origin/main` 当前指向
   `c704925bc9150d153fc951c2727e7472dad00d78`；文内具名已验代码基线
-  `main@f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a`（A76）相对它领先 12 个提交。
+  `main@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`（A78）相对它领先 14 个提交。
   该计数只对应这个具名基线，不是提交后必变的实时 lane HEAD 事实；比较也只读本地 Git
   引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
@@ -60,9 +62,11 @@ Provider 的 role/id/label 及每个 role 的一个默认 id。
 - 后端新增真实生成 CLI、确定性、缺失/stale、原子替换失败、timeout/异常输出、导入纯净与
   敏感字段零透出回归；真实设置组件回归覆盖 label/顺序、空值默认和后端对象引用水合。CI
   只在 backend job 显式运行 metadata `--check`，不要求 frontend job 安装 Python。
-- 当前 b/r0 停在 Review：生成 JSON、本地固定 runner 的独立 `provider-metadata-check`、
-  formatter、相关与完整测试、Ruff、CI、Review 和集成均未由本轮实施方执行。真实外部
-  Provider 仍未验证，RF-10 整体不完成，契约与命令见
+- A78 已由独立 Review APPROVED，生成 JSON 与本地固定 runner 的独立
+  `provider-metadata-check` 均已完成接线，并以单提交
+  `8efb92387ac0bf3b9489a20b6080d78d6ec91ab4` 精确 fast-forward 本地 main；15 项 main
+  门禁通过。实现方仍没有执行远端 CI、push、部署或真实外部 Provider 验证，RF-10 整体
+  不完成，契约与命令见
   [RF-10 Provider 前端展示元数据单一来源](./verification/cross-platform/RF-10-FRONTEND-METADATA.md)。
 
 ## 2026-11-01 本地 RF-06 前端模板清理（A73）
@@ -204,8 +208,10 @@ lifecycle adapter 与 Room 可保持稳定，但每次通知交付都会建立�
   发网络请求或产生音轨副作用。删除生产 handle guard 会使新回归出现真实失败，产品逻辑不变。
 - r1–r4 回归保留旧/新 SDK 与 Web/native 业务监听、旧已保存函数永久失效、健康 ready
   单次挂载、ready 后转 inactive、空窗 expired/inactive、dispatch 去重、旧在途结果、
-  独立 adapter 清理、CON-04、StrictMode 与 A76 DataChannel 保护。r4 的完整门禁、第四项
-  变异复验、Review 与集成仍须由主 Agent 在停写后代跑；真实设备音频事件未验证。
+  独立 adapter 清理、CON-04、StrictMode 与 A76 DataChannel 保护。A77 已由独立 Review
+  APPROVED，r4 以单提交 `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 精确 fast-forward
+  本地 main；主 Agent 完成完整门禁与第四项 timer-handle 变异复验，967 Vitest/33 files、
+  576 backend/80.09% coverage 等结果通过。真实设备音频事件仍未验证。
 - 边界见
   [CP-06 Room 同 principal 认证刷新验证](./verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)。
 

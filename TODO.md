@@ -11,6 +11,13 @@
 
 ### 执行基线
 
+- 当前已验收维护基线：
+  `main@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`（A78）。A77 已以
+  `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成与
+  967 Vitest/576 backend/80.09% coverage 等 main 复验；A78 随后以 15 项 main 门禁完成
+  969 Vitest/34 files、586 backend/76.98% coverage、18 build-script、61 Fake API、
+  8 类型生成器和 148 E2E 等复验。该具名基线相对本地 tracking reference 领先 14 个提交，
+  不表示未来 lane HEAD 或远端当前状态。
 - 基线：`origin/main@30f51f3175de20bc827ebdf29789ad934096133d`
 - 分支：`codex/mvp-remediation`
 - Worktree：
@@ -111,8 +118,18 @@
       SDK 保持；A74 r0 将 Web builder 统一为 Node 22，并由根 `packageManager` 通过 Corepack
       选择 pnpm 10.26.0，移除未固定的全局 npm 安装；仓根新增 Web build-context 允许列表，
       排除本地 dotenv、`.review/`、Git/Agent 元数据、缓存和 iOS 原生资源。当前 API/Agent
-      进一步分组、真实 Linux/Docker 镜像构建、Corepack 签名预检及跨平台验收尚待完成，整项
-      保持未勾选。
+      进一步分组来源已由 A79 b/r0 实现并停在 Review：project common 仅保留 API/Agent
+      共用运行时依赖；`api` 组承载 FastAPI/uvicorn/Alembic/python-jose，`agent` 组承载
+      LiveKit RTC/Agents 与四个现有插件，`dev` 组保持四项工具；默认组合并
+      `api/agent/dev`，七个 LiveKit exact pins 不变。真实消费者审计确认 `passlib[bcrypt]`
+      只有项目根到 passlib 及 passlib extra 到 bcrypt 的锁入边、没有生产/测试/脚本消费者，
+      因而只删除这条死直接依赖。后端 Dockerfile 已改为受控 `BACKEND_ROLE=api|agent`，
+      非法值失败，使用 `--no-default-groups --group` 排除 dev；Compose 仅把 API 与
+      analysis-worker 绑定 `api`、语音 Agent 绑定 `agent`。`uv.lock`/`requirements.txt`
+      尚待主 Agent 用 uv 0.9.18 离线原生生成；角色安装、真实导入、schema、
+      Linux/Docker 镜像、Compose 服务、Corepack 签名预检及跨平台验收尚待完成，整项保持
+      未勾选，契约见
+      [RF-07 运行角色依赖与容器配方](./docs/verification/cross-platform/RF-07-RUNTIME-ROLES.md)。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；
       timezone-aware UTC、必要索引和有界分页完成；空库及现有数据库副本迁移均通过。
       本地已完成启动播种子项显式幂等化（A38）：lifespan 仅保留安全配置验证并移除隐式写库播种；
@@ -165,15 +182,18 @@
       本地已完成用户设置惰性解密与非敏感更新解耦（A54）：修复设置更新无条件解密三路旧凭据缺陷，确立仅在 role 发生变化且需要沿用旧 key 时才按需解密该 role 旧密文；未变化 role（含主题/模型偏好/自定义模式等非敏感配置更新及同 provider 原值重复提交）零读取、零解密、零拨测，避免因旧密文版本漂移或损坏导致非敏感设置更新失败；显式提供新 key 仅拨测新 key 绝不解密旧密文；严格保持 STT→LLM→TTS 校验顺序与 422 失败响应形状；见 [RF-10 用户设置凭据惰性解密验证](./docs/verification/cross-platform/RF-10-LAZY-KEY-DECRYPTION.md)；
       本地已完成多 Provider 有界并行验证与统一总预算控制（A55）：`ProviderValidationService.validate_parallel` 以 `TOTAL_TIMEOUT_SECONDS = 10.0` 整批并发执行需拨测的独立 role，单请求 `REQUEST_TIMEOUT_SECONDS = 8.0` 保持；总预算到期保留已完成真实结果，未完成 role 标为 `timeout` 并强制 cancel 与 await 收束全部 pending task，意外异常先清理在途任务再原样抛出；设置路由仅调度 changed 且同时具备 provider/key 的 role，严格保持 A54 惰性解密边界与 STT→LLM→TTS 响应/错误字段顺序；`validate_all` 复用同一有界并行入口并保持 `bool` 返回兼容；见 [RF-10 多 Provider 有界并行验证](./docs/verification/cross-platform/RF-10-BOUNDED-PARALLEL-VALIDATION.md)；
       本地已完成用户设置业务服务边界抽离（A60）：把 `backend/routers/user.py` 中的设置响应构建、权限判断、按变更凭据验证与更新/加密业务逻辑抽入独立纯净服务 `backend/services/user_settings_service.py`；HTTP 路由保留认证依赖、当前用户限定数据库查询/创建/flush/refresh 与对原 helper 签名（`get_key_status`、`_decrypt_and_rotate`、`_as_validation_result`、`_build_user_settings_response`、`_validate_custom_mode_permission`、`_validate_provider_keys`、`_apply_settings_update`）及测试 patch（`routers.user.decrypt_api_key`、`encrypt_api_key`、`ProviderValidationService`）的薄兼容委托；路由在调用服务时显式从当前命名空间注入依赖，服务导入期零路由反向依赖、零模块默认值绑定及零全局可变状态；A54 惰性解密与 A55 有界并行边界与响应脱敏完全保持；新增 `test_user_settings_service.py` 覆盖状态三态映射、响应脱敏、权限校验、零副作用、密钥旋转、失败顺序、字段写入及生产路由直接消费与 patch 兼容回归（见 [RF-10 用户设置业务服务边界验证](./docs/verification/cross-platform/RF-10-SETTINGS-SERVICE.md)）；真实外部 Provider 拨测与前端展示元数据统一仍待完成，整项保持未勾选。
-      A78 b/r0 已完成 Provider 前端展示元数据单一来源实施并停在 Review：不可变 catalog 为
+      A78 b/r0 已完成 Provider 前端展示元数据单一来源实施并通过 Review：不可变 catalog 为
       STT/LLM/TTS 条目补充带默认值的 `role`、`label` 与默认标记；新增纯标准库离线 exporter，
       从真实 catalog 生成仅含 role/id/label/default 的 canonical JSON，并覆盖 timeout、安全
       异常、原子失败保护、缺失/stale 不写与敏感字段零透出回归；前端 adapter、真实设置视图和
       `useSettingsForm` 初始/水合 fallback 改由生成 JSON 消费，保持既有顺序、文案、默认和
       LLM 自由文本模型；CI 后端新增独立 byte check，`.prettierignore` 精确排除生成文件。
-      tracked 生成 JSON、本地 fixed runner 独立 provider-metadata-check、formatter、相关/
-      完整测试、Ruff、CI、Review 与集成都待主 Agent 在实施停写后受控执行；真实外部
-      Provider 仍未验证，RF-10 整项保持未勾选。
+      主 Agent 已原生生成 tracked JSON、接线本地 fixed runner 独立
+      `provider-metadata-check`，并以单提交
+      `8efb92387ac0bf3b9489a20b6080d78d6ec91ab4` 精确 fast-forward 本地 main；15 项 main
+      门禁为 969 Vitest/34 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、
+      586 backend/76.98% coverage，以及 schema/Ruff 等检查通过。远端 CI、真实外部
+      Provider、部署与设备仍未验证，RF-10 整项保持未勾选。
 - [x] **RF-11 前端 API 与状态模型**：OpenAPI 生成类型/客户端；Transport 统一认证、
       超时、取消、Header 合并和错误解析；会话使用判别联合/Reducer；大组件按行为拆分。
       以下 A49–A64 条目保留各轮当时的“仍待完成/未勾选”边界；最终完成状态以上方勾选、
@@ -240,7 +260,9 @@
 - [x] 按主要容器补齐主题颜色过渡，避免子元素瞬间切色（A35 本地独立评审通过）；
       为 #root 注入 theme-transitions 作用域，补齐主要容器、卡片、设置抽屉及显式文本 250ms ease 颜色过渡，
       保持 box-shadow 150ms 与 hover 能力，兼容 reduce 偏好与 WAAPI 插值中间态验证，见 [主要容器主题过渡验证](./docs/verification/cross-platform/CP-05-THEME-TRANSITIONS.md)。
-- [ ] 移除 LiveKit 消息访问处的 SDK 类型忽略，改用类型收窄或兼容适配层。
+- [ ] 移除生产 LiveKit SDK 消息访问路径的 SDK 类型忽略，改用类型收窄或兼容适配层；
+      验收只限定真实生产消息读取及消费路径，并取得当前 SDK 类型与调用证据。无关测试文件中的
+      类型忽略不构成本项产品缺陷，也不能据此勾选本项。
 
 ## 三端交付计划（Web / macOS / iOS）
 
@@ -361,6 +383,11 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [x] 将回答推荐scope键的id/text直接拼接替换为无歧义元组编码，并覆盖分隔符外部ID（A33 本地独立完成，见 [回答推荐作用域编码验证](./docs/verification/cross-platform/CP-05-ANSWER-SCOPE.md)）；消除冒号等外部ID边界碰撞。
 
 - [ ] 在回归保护下简化Room初始Web快照与RoomContextSync引用所有权，移除多余可选回调并补并发渲染/SDK身份变化测试（A19 P2）。
+
+- [ ] 强化 `SettingsDrawer`/`useSettingsForm` 的 LLM 模型水合回归：真实组件与 Hook 必须先
+      断言初始缺省值，再覆盖 `llm_model: null` 到既有默认值、`null` 后切到合法自定义模型文本
+      的实际水合与消费断言；另需证明合法默认值切换会被真实读取路径消费。不得只断言配置文档
+      字符串或静态映射。A79 记录该回归债务但不跨改前端源码。
 
 - [ ] 在回归保护下减少start/resume重复生命周期逻辑及全局测试注入入口；A18维护候选，不阻断本地增量。
 

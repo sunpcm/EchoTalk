@@ -53,6 +53,28 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
 3. **环境隔离与只读边界**：原 `backend/.venv` 及 A36 `.review/rf07-venv` 保持严格只读，不得修改、删除或用于新依赖同步；RF-07 受控新环境固定位于 `cp00/.review/rf07-a37-dev-venv` 与 `cp00/.review/rf07-a37-runtime-venv`。A71 后为 dev 159/runtime 152；A72 经离线 frozen sync 后各删除 53 个安装包，变为 dev 106/runtime 99。A37 当时 172/165 环境上的 269 项 backend pytest（覆盖率 73.72%）保留为历史证据，A71 的 540 项 backend pytest（79.59%）已在 `dd0fbc0` main 复验通过。两套环境完全独立于 backend 目录，不进入 Docker build context，实施方严禁直接读取数据库凭据或拿旧 env 日志充数。当前本地测试脚本与 runner 严格使用当前 lane 指定环境，不得擅自指向全局 Python。
 4. **CI 与 Docker 配方统一**：CI (`.github/workflows/ci.yml`) 锁定 `astral-sh/setup-uv@v3` 版本为 `0.9.18`，通过 `uv lock --check` 与 `uv sync --frozen --group dev --no-python-downloads` 实施冻结安装（显式包含 dev 组）；Dockerfile 统一为 `python:3.12-slim` 与 uv 0.9.18 配方，通过 `uv sync --frozen --no-dev --no-python-downloads` 排除 dev 组，隔离虚拟环境于 `/opt/venv`，`.dockerignore` 补充 `.env*`、`.review/` 及测试缓存排除规则，避免本地环境泄露至镜像上下文。
 
+### §2.1.1 RF-07 运行角色当前安装与受控环境（2026-11-01，A79 b/r0）
+
+- 当前 `backend/pyproject.toml` 将 API 与 Agent 共用依赖保留在 `[project].dependencies`，
+  并以 `api`、`agent` 与既有 `dev` 组区分运行角色；`tool.uv.default-groups` 同时包含
+  `api/agent/dev`，无 flag 的本地开发安装保持完整。CI 仍显式使用 `--group dev`，并继续
+  先执行 `uv lock --check`，不因默认组变化改写同义命令。
+- 后端 Dockerfile 以受控 `BACKEND_ROLE=api|agent` 选择唯一运行组，固定 uv 0.9.18 后使用
+  `--frozen --no-default-groups --group "$BACKEND_ROLE" --no-python-downloads`，非法值在
+  `uv sync` 前失败；dev 不进入任一角色镜像。Compose 中 API 与 analysis-worker 使用 `api`，
+  语音 Agent 使用 `agent`。
+- `requirements.txt` 继续作为兼容镜像产物，由当前完整默认组导出后排除 dev，内容等价于
+  `api + agent` 两组运行依赖；不得改成只含 API 或只含 Agent 的导出。`uv.lock` 与
+  `requirements.txt` 只能由受控主 Agent 使用既有 uv 0.9.18 离线原生工具生成，实施方不手写。
+- 当前只允许主 Agent 使用 lane 内
+  `.review/rf07-a37-dev-venv` 与 `.review/rf07-a37-runtime-venv` 做受控安装与导入证据；
+  runtime 环境须按 `api → agent → 合并 runtime` 串行切换并在每个状态使用精确 frozen/
+  offline/no-python-downloads 命令，dev 环境同步全部组。中间角色环境不得跑完整测试，异常
+  后先恢复合并 runtime 再判断安装分布。`backend/.venv`、A36 旧环境、全局环境、uv cache、
+  dotenv 与凭据均不在实施方读取或写入边界内。
+- 上述是本轮待验收源码配方，不等于 Linux/Docker 镜像、Compose 服务、远端 CI、真实
+  LiveKit/Provider、Worker 注册或语音链路已通过。
+
 ## §3 测试库与安装边界
 
 用户已授权专用容器 `echotalk-cp00-pg`（postgres:15.19-alpine），仅监听 `127.0.0.1:55432`，库 `echotalk_cp00_test`。密码仅存在本地受保护 runtime，不提供给外部 Agent。CP-00 空库迁移至 `b3f1c8e92a10`；后续仅后端 B 线使用此库，A/C 不连接数据库。

@@ -1,7 +1,7 @@
 # RF-10 Provider 前端展示元数据单一来源验证
 
-> 状态：A78 b/r0 实施完成，停在 Review。生成产物、formatter、测试、CI、Review 与集成都
-> 尚未由实施方执行。
+> 状态：A78 b/r0 已 Review APPROVED，单提交 `8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`
+> 已精确 fast-forward 本地 main，并完成 main 15 项门禁复验。
 > 日期：2026-11-01。
 
 ## 1. 目标与边界
@@ -71,9 +71,9 @@ stale 或其他失败均非零，不创建文件或目录。
 `SettingsProviderFields` 与 `useSettingsForm` 是真实消费者。生成器不写前端映射，adapter 与
 组件也不维护第二份 id/label/default 字典。品牌名保持现有专有名词，不新增用户文案。
 
-设置组件回归覆盖三个下拉框的 option label/顺序、未知后端值或空值时的既有 fallback，以及
-后端 settings 对象引用变化后的 Provider 和自由文本模型水合。LLM 模型仍为空初始值/用户
-自由文本，不生成固定模型列表。
+设置组件回归覆盖三个下拉框的 option label/顺序、`null/空值`的既有 fallback，并保持未知
+非空 provider 与任意 LLM 模型文本原样；后端 settings 对象引用变化后的 Provider 和自由
+文本模型继续按既有规则水合。LLM 模型仍为空初始值/用户自由文本，不生成固定模型列表。
 
 ## 5. CI 与回归
 
@@ -97,17 +97,17 @@ cd backend
 `tests/test_provider_catalog.py` 另覆盖新增展示字段、默认值兼容构造、只读目录与纯标准库
 隔离导入。`SettingsDrawer.test.tsx` 和 `providerMetadata.test.ts` 覆盖真实前端消费。
 
-本地固定 runner 保留既有 frontend10 与 OpenAPI schema 门禁，并新增独立
-`provider-metadata-check`。runner 配置不在本次允许写入的文件范围，必须由主 Agent 在实施
-停写后审查并接线，不能把尚未执行的 metadata check 追溯写成旧轮已通过。
+本地固定 runner 保留既有 frontend10 与 OpenAPI schema 门禁，并由主 Agent 审查接线独立
+`provider-metadata-check`。A78 的 main 复验共 15 项门禁，覆盖 tracked 生成 JSON 的字节
+检查；该结果与更早轮的通过事实分开记录。
 
 ## 6. 当前未验证状态
 
-- `providers.generated.json` 尚未生成；必须由受控主 Agent 在实施停写后先审查 exporter，
-  再执行真实生成并审阅 diff。
-- 本地固定 runner 的 `provider-metadata-check` 尚未接线；formatter、metadata `--check`、
-  相关后端 pytest、前端 typecheck/Vitest、完整 frontend10、Ruff、backend 全量 pytest、
-  schema 门禁和 CI 均尚未由实施方运行。
-- 本轮无 Git commit、push、merge、部署、真实 CLI SDK、服务启动或外部 Provider 调用。
-- 真实 Provider、远端 CI、镜像、设备与生产链路保持未验证；A78 通过 Review 也不能单独完成
+- `apps/vite-app/src/lib/providers.generated.json` 已由受控主 Agent 原生生成并跟踪；A78 的
+  main 复验为 15 项门禁，包含 969 Vitest/34 files、18 build-script、61 Fake API、
+  8 类型生成器、148 E2E、586 backend/76.98% coverage、OpenAPI/provider metadata schema
+  检查与 Ruff。具体计数绑定具名提交
+  `8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`，不是未来 HEAD 的实时断言。
+- A78 只完成本地 Review、单提交集成与 main 复验；未 push、部署或启动真实 CLI/服务。
+- 真实 Provider、远端 CI、Linux/Docker 镜像、设备与生产链路仍未验证；A78 不能单独完成
   RF-10 或 RF-12。

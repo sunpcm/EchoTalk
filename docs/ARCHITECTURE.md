@@ -190,6 +190,13 @@ POST /sessions/{id}/end
 | `echotalk-analysis-worker` | Python 1 个        | PostgreSQL Job                    |
 | PostgreSQL 15              | 1 个               | named volume                      |
 
+三个 Python 服务共用 `backend/Dockerfile`，构建时只接受显式
+`BACKEND_ROLE=api|agent`。API 与 analysis-worker 使用 `api` 组
+（FastAPI、uvicorn、Alembic、python-jose），语音 Agent 使用 `agent` 组
+（LiveKit RTC/Agents 与现有四个插件）；SQLAlchemy、asyncpg、Pydantic、dotenv、OpenAI、
+LiveKit API、cryptography 与 httpx 等共用依赖保留在项目公共依赖。无 flag 的本地开发默认
+安装 `api/agent/dev` 三组，镜像使用 `--no-default-groups` 只安装所选运行组。
+
 部署前必须单独执行 `alembic upgrade head`；课程语料由镜像内的版本化 JSON 提供，可用
 `python -m scripts.seed_corpus` 校验。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、
 资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
@@ -214,8 +221,9 @@ POST /sessions/{id}/end
 ### P2：维护与交付
 
 1. 教学语料目录变更仍需人工维护版本化数据与优先级；当前没有管理工作台或自动质量评测。
-2. Web Docker 配方已静态统一到 Node 22、Corepack 精确 pnpm 与根 context 允许列表，但 CI
-   尚未构建真实镜像；基础镜像 Corepack 签名链、实际 COPY 与上下文边界仍未验证。
+2. Web Docker 配方已静态统一到 Node 22、Corepack 精确 pnpm 与根 context 允许列表；
+   后端也已按 API/Agent 运行角色分流。CI 尚未构建这些真实镜像，基础镜像 Corepack 签名链、
+   后端角色安装分布、实际 COPY 与服务启动仍未验证。
 3. CI 没有验证 Alembic 从空库升级或 iOS 构建。
 4. 前端 API、状态与页面仍耦合在单一 SPA；在引入更多页面前再评估 Router，不需要现在为“未来可能”抽共享核心。
 

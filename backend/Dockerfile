@@ -13,10 +13,17 @@ RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.li
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
+ARG BACKEND_ROLE=api
+
 COPY pyproject.toml uv.lock .python-version ./
 
-RUN uv lock --check && \
-    uv sync --frozen --no-dev --no-python-downloads
+RUN case "$BACKEND_ROLE" in \
+        api|agent) ;; \
+        *) echo "BACKEND_ROLE must be 'api' or 'agent'" >&2; exit 64 ;; \
+    esac && \
+    uv lock --check && \
+    uv sync --frozen --no-default-groups \
+        --group "$BACKEND_ROLE" --no-python-downloads
 
 COPY . .
 

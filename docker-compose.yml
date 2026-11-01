@@ -19,7 +19,10 @@ services:
 
   # ── 后端服务 ────────────────────────────────────────────────
   echotalk-api:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        BACKEND_ROLE: api
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
     restart: unless-stopped
     env_file:
@@ -37,7 +40,10 @@ services:
       - echotalk-net
 
   echotalk-agent:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        BACKEND_ROLE: agent
     command: python -m livekit_agent start
     restart: unless-stopped
     env_file:
@@ -55,7 +61,10 @@ services:
       - echotalk-net
 
   echotalk-analysis-worker:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        BACKEND_ROLE: api
     command: python -m workers.analysis_worker
     restart: unless-stopped
     env_file:
