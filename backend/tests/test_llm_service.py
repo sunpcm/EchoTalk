@@ -160,7 +160,8 @@ def test_get_client_missing_api_key(monkeypatch):
         ("openrouter", "OPENROUTER_API_KEY", "https://openrouter.ai/api/v1"),
     ],
 )
-def test_get_client_success(
+@pytest.mark.asyncio
+async def test_get_client_success(
     monkeypatch, provider_name, api_key_field, expected_base_url
 ):
     monkeypatch.setattr(
@@ -171,9 +172,12 @@ def test_get_client_success(
     )
 
     client = _get_client()
-    assert isinstance(client, AsyncOpenAI)
-    assert client.api_key == "test_api_key"
-    assert str(client.base_url).rstrip("/") == expected_base_url
+    try:
+        assert isinstance(client, AsyncOpenAI)
+        assert client.api_key == "test_api_key"
+        assert str(client.base_url).rstrip("/") == expected_base_url
+    finally:
+        await client.close()
 
 
 @pytest.mark.asyncio

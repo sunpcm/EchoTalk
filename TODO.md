@@ -12,18 +12,15 @@
 ### 执行基线
 
 - 当前已验收维护基线：
-  `main@bbde1ff20ea961375401c714d36a65ffc268b1d7`（A81）。A77 已以
-  `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成与
-  967 Vitest/576 backend/80.09% coverage 等 main 复验；A78 随后以 15 项 main 门禁完成
-  969 Vitest/34 files、586 backend/76.98% coverage、18 build-script、61 Fake API、
-  8 类型生成器和 148 E2E 等复验；A79 再以单提交完成 Review、本地 main 精确快进及完整
-  15 项 main 门禁；A80 随后以正常 hook 单提交精确快进本地 main，并通过完整 15 项门禁：
-  972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、586 backend/
-  76.98% coverage；A81 已由独立 Review APPROVED，以正常 hook 单提交
-  `bbde1ff20ea961375401c714d36a65ffc268b1d7` 精确 fast-forward 本地 main，并通过完整
-  15 项门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、
-  594 backend/78.10% coverage 及 schema/Ruff 等相关检查。该具名基线相对本地 tracking
-  reference 领先 17 个提交，不表示未来 lane HEAD 或远端当前状态。
+  `main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c`（A82）。A83 b/r0 的正式本地
+  receipt 记录 A82 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
+  和完整 15 项门禁核销；门禁计数为 972 Vitest/36 files、18 build-script、61 Fake API、
+  8 类型生成器、148 E2E、594 backend/78.10% coverage，以及 schema/Ruff 等相关检查。
+  历史基线与计数保留如下：A77 完成 967 Vitest/576 backend 本地集成；A78 为 969
+  Vitest/34 files、586 backend/76.98%；A80 为 972 Vitest/36 files、586 backend/76.98%；
+  A81 为 972 Vitest/36 files、594 backend/78.10%。A82 具名基线相对本地 tracking
+  reference `c704925bc9150d153fc951c2727e7472dad00d78` 领先 18 个提交；该计数与上述
+  receipt 绑定，不表示未来 lane HEAD 或远端当前状态。
 - 基线：`origin/main@30f51f3175de20bc827ebdf29789ad934096133d`
 - 分支：`codex/mvp-remediation`
 - Worktree：
@@ -205,6 +202,15 @@
       门禁为 969 Vitest/34 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、
       586 backend/76.98% coverage，以及 schema/Ruff 等检查通过。远端 CI、真实外部
       Provider、部署与设备仍未验证，RF-10 整项保持未勾选。
+      A83 b/r0 已完成普通 OpenAI 兼容聊天 HTTP 客户端的 timeout/retry 显式化文件实施并
+      停在 Review：纯标准库不可变 Catalog 策略冻结现有 connect 5 秒、read/write/pool
+      默认 600 秒和 SDK `max_retries=2`；真实 `services.llm_service._get_client` 显式
+      构造 `httpx.Timeout` 并传重试值，替代策略消费与真实 SDK 默认属性由新回归覆盖。
+      600 秒仅是 HTTP 客户端各阶段默认配置，不是完整聊天 deadline；该策略不用于 LiveKit
+      语音连接或 Provider key 验证，OpenAI HTTP 2 次重试也不与 LiveKit
+      APIConnectOptions 3 次混同。实施方未运行门禁，主 Agent 固定入口检查、独立 Review
+      与 main 复验尚未完成，RF-10 整项继续保持未勾选；见
+      [RF-10 普通 OpenAI 兼容客户端策略验证](./docs/verification/cross-platform/RF-10-LLM-CLIENT-POLICY.md)。
 - [x] **RF-11 前端 API 与状态模型**：OpenAPI 生成类型/客户端；Transport 统一认证、
       超时、取消、Header 合并和错误解析；会话使用判别联合/Reducer；大组件按行为拆分。
       以下 A49–A64 条目保留各轮当时的“仍待完成/未勾选”边界；最终完成状态以上方勾选、
@@ -382,8 +388,10 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 已 Review APPROVED、以单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 精确 fast-forward 本地 main，并完成 main 完整门禁；lane 独立消费探针与 3 项有效变异未在 main 重复。A77 已把 Room 物理 adapter/Room 与认证业务监听归属分离；r1 产品 Vitest 为 940 passed/25 failed/965 total，r2 已修复 native pending 占位 hidden 被误判为真实 inactive，并把 Web 订阅后快照与 native pending 分开：Web 立即失败，native 等 `whenReady` 后重读 snapshot/能力并按原 10 秒 deadline 对账；旧 timer 不得清空新句柄，刷新后当前 native 业务监听仍可停轨。r2 独立 9 项时序与 A76 compat 5 项在 formatter 前通过，随后 format/lint/typecheck 通过，完整 Vitest 为 958 passed/9 failed/967 total，失败均由 stale timer fixture 残留 fake 全局时钟导致后续 A76 异步等待超时；r3 已清理该 fixture，并通过 967 Vitest/33 files、18 build-script、61 Fake API、8 type generator、148 双浏览器 E2E、576 backend/80.09% coverage、schema 与 Ruff。auth revision、原 deadline、ready snapshot 三个产品变异产生 11/6/4 项失败并精确还原；第四项 timer-handle 变异未被原 967 测试杀死，但实际 timer 队列确认卸载后残留本 Room timer，因此 r4 已补真实队列与卸载清理回归，产品逻辑不变。r1 只执行官方返修 native 预检，baseline3 是历史 r0 实测，当前 r4 仍待主 Agent 停写后完整代跑、复验第四项变异必被杀死并由独立 Review 判定，见 [A76 冻结实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md) 与 [A77 本地实施记录](./docs/verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)；三端真实异常联动仍待外部验收，本计划不要求新增遥测上报，整项保持未勾选。
 - [ ] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再
-      等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；主 Agent 门禁与
-      独立 Review 尚未执行，见
+      等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；A83 b/r0 的
+      正式 receipt 已核销 A82 Review APPROVED、正常 hook 单提交、main 精确 fast-forward
+      与完整 15 项门禁。该次失败已观察到的直接事实仅为 callback map 未就绪，显式等待已新增；
+      触发失败的完整因果尚未独立证明，有限次通过不构成因果或概率证明，见
       [CP-06 Native Room 回归夹具就绪](./docs/verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
 
 ### CP-07：发布候选与交付

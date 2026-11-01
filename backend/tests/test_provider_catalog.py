@@ -19,10 +19,12 @@ from livekit_agent.plugin_factory import (
     PluginInitError,
 )
 from provider_catalog import (
+    LLM_CLIENT_POLICY,
     LLM_PROVIDER_CATALOG,
     PROVIDER_CATALOGS,
     STT_PROVIDER_CATALOG,
     TTS_PROVIDER_CATALOG,
+    LLMClientPolicy,
     LLMProviderMetadata,
     STTProviderMetadata,
     TTSProviderMetadata,
@@ -123,6 +125,16 @@ def test_display_fields_preserve_original_constructor_compatibility():
     assert (tts.role, tts.label, tts.is_default) == ("tts", "", False)
 
 
+def test_llm_client_policy_defaults_are_frozen_catalog_values():
+    """普通 OpenAI 兼容 HTTP 客户端的现有 timeout/retry 值仅收敛一处。"""
+    policy = LLMClientPolicy()
+
+    assert policy == LLM_CLIENT_POLICY
+    assert policy.default_http_timeout_seconds == 600.0
+    assert policy.connect_timeout_seconds == 5.0
+    assert policy.max_retries == 2
+
+
 def test_catalog_immutability():
     """验证 Catalog 映射与条目均为不可变结构。"""
     # 1. 映射不可篡改
@@ -166,6 +178,9 @@ def test_catalog_immutability():
         sf.base_url = "https://mutated.com"  # type: ignore
     with pytest.raises((FrozenInstanceError, AttributeError)):
         sf.label = "Mutated"  # type: ignore
+
+    with pytest.raises((FrozenInstanceError, AttributeError)):
+        LLM_CLIENT_POLICY.max_retries = 3  # type: ignore
 
     dg = STT_PROVIDER_CATALOG["deepgram"]
     with pytest.raises((FrozenInstanceError, AttributeError)):
@@ -416,6 +431,7 @@ def test_pure_stdlib_isolated_subprocess_import():
         "import sys\n"
         "import provider_catalog\n"
         "from provider_catalog import (\n"
+        "    LLM_CLIENT_POLICY,\n"
         "    LLM_PROVIDER_CATALOG,\n"
         "    PROVIDER_CATALOGS,\n"
         "    STT_PROVIDER_CATALOG,\n"
@@ -424,6 +440,9 @@ def test_pure_stdlib_isolated_subprocess_import():
         "    get_stt_provider,\n"
         "    get_tts_provider,\n"
         ")\n"
+        "assert LLM_CLIENT_POLICY.default_http_timeout_seconds == 600.0\n"
+        "assert LLM_CLIENT_POLICY.connect_timeout_seconds == 5.0\n"
+        "assert LLM_CLIENT_POLICY.max_retries == 2\n"
         "assert len(LLM_PROVIDER_CATALOG) == 2\n"
         "assert get_llm_provider('siliconflow').id == 'siliconflow'\n"
         "assert get_llm_provider('siliconflow').label == 'SiliconFlow'\n"
@@ -434,7 +453,10 @@ def test_pure_stdlib_isolated_subprocess_import():
         "assert get_tts_provider('cartesia').id == 'cartesia'\n"
         "assert list(PROVIDER_CATALOGS) == ['stt', 'llm', 'tts']\n"
         "# 确保未导入 SDK / 业务模块\n"
-        "forbidden = ['livekit', 'openai', 'aiohttp', 'config', 'sqlalchemy', 'deepgram', 'cartesia']\n"
+        "forbidden = [\n"
+        "    'livekit', 'openai', 'httpx', 'aiohttp', 'config',\n"
+        "    'sqlalchemy', 'deepgram', 'cartesia',\n"
+        "]\n"
         "for mod in forbidden:\n"
         "    assert mod not in sys.modules, f'意外导入了 {mod}'\n"
         "print('ISOLATED_IMPORT_SUCCESS')\n"

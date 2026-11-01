@@ -8,6 +8,22 @@ ProviderRole = Literal["stt", "llm", "tts"]
 
 
 @dataclass(frozen=True)
+class LLMClientPolicy:
+    """普通 OpenAI 兼容聊天 HTTP 客户端的不可变超时与重试策略。
+
+    ``default_http_timeout_seconds`` 对应 httpx 未单独指定阶段的默认值，不是完整聊天
+    总 deadline；它不适用于 LiveKit 语音连接或 Provider key 验证请求。
+    """
+
+    default_http_timeout_seconds: float = 600.0
+    connect_timeout_seconds: float = 5.0
+    max_retries: int = 2
+
+
+LLM_CLIENT_POLICY = LLMClientPolicy()
+
+
+@dataclass(frozen=True)
 class LLMProviderMetadata:
     """不可变 LLM Provider 静态配置元数据。"""
 

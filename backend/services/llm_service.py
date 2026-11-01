@@ -5,10 +5,15 @@ LLM 服务层：封装大语言模型调用。
 
 import logging
 
+import httpx
 from openai import APIError, AsyncOpenAI
 
 from config import settings
-from provider_catalog import LLM_PROVIDER_CATALOG
+from provider_catalog import (
+    LLM_CLIENT_POLICY,
+    LLM_PROVIDER_CATALOG,
+    LLMClientPolicy,
+)
 from services.agent_prompt import SYSTEM_PROMPT as SYSTEM_PROMPT
 from services.agent_prompt import build_dynamic_prompt as build_dynamic_prompt
 
@@ -24,8 +29,10 @@ PROVIDER_CONFIG = {
 }
 
 
-def _get_client() -> AsyncOpenAI:
-    """根据 DEFAULT_LLM_PROVIDER 创建对应的 AsyncOpenAI 客户端。"""
+def _get_client(
+    policy: LLMClientPolicy = LLM_CLIENT_POLICY,
+) -> AsyncOpenAI:
+    """根据 DEFAULT_LLM_PROVIDER 创建显式配置超时与重试的客户端。"""
     provider_name = settings.DEFAULT_LLM_PROVIDER
     provider = PROVIDER_CONFIG.get(provider_name)
     if provider is None:
@@ -44,6 +51,11 @@ def _get_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         api_key=api_key,
         base_url=provider["base_url"],
+        timeout=httpx.Timeout(
+            timeout=policy.default_http_timeout_seconds,
+            connect=policy.connect_timeout_seconds,
+        ),
+        max_retries=policy.max_retries,
     )
 
 

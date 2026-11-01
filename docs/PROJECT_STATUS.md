@@ -6,28 +6,24 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A81 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A82 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@bbde1ff20ea961375401c714d36a65ffc268b1d7`（A81）。A77 已以单提交
-  `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成，main 复验为 967 Vitest/
-  33 files、576 backend/80.09% coverage；A78 随后在同一本地 main 完成 Review、
-  单提交 fast-forward 与 15 项 main 门禁：969 Vitest/34 files、18 build-script、
-  61 Fake API、8 类型生成器、148 E2E、586 backend/76.98% coverage，以及 OpenAPI/
-  Provider metadata schema、Ruff 等相关门禁通过；A79 再以单个本地提交完成 Review、
-  main 精确快进和完整 15 项 main 门禁；A80 已通过正常 hook 单提交、本地 main 精确快进
-  与完整 15 项门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、
-  148 E2E、586 backend/76.98% coverage；A81 随后由独立 Review APPROVED，通过正常 hook
-  单提交与本地 main 精确 fast-forward，完整 15 项门禁为 972 Vitest/36 files、
-  18 build-script、61 Fake API、8 类型生成器、148 E2E、594 backend/78.10% coverage，
-  以及 schema/Ruff 等相关检查。私有探针和变异只在对应 lane 验证，main 未冒认重复。
-  真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
+  `main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c`（A82）。A83 b/r0 的正式本地
+  receipt 记录 A82 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
+  和完整 15 项门禁核销：972 Vitest/36 files、18 build-script、61 Fake API、
+  8 类型生成器、148 E2E、594 backend/78.10% coverage，以及 schema/Ruff 等相关检查。
+  历史基线与计数保持不变：A77 为 967 Vitest/576 backend 本地集成；A78 为 969
+  Vitest/34 files、586 backend/76.98%；A80 为 972 Vitest/36 files、586 backend/
+  76.98%；A81 为 972 Vitest/36 files、594 backend/78.10%。私有探针和变异只在对应
+  lane 验证，main 未冒认重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、
+  远端 CI 与部署仍未验证。
 - 本地 tracking reference `origin/main` 当前指向
-  `c704925bc9150d153fc951c2727e7472dad00d78`；文内具名已验代码基线
-  `main@bbde1ff20ea961375401c714d36a65ffc268b1d7`（A81）相对它领先 17 个提交。
-  该计数只对应这个具名基线，不是提交后必变的实时 lane HEAD 事实；比较也只读本地 Git
-  引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
+  `c704925bc9150d153fc951c2727e7472dad00d78`；A83 b/r0 正式 receipt 绑定的具名已验
+  代码基线 `main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c`（A82）相对它领先 18 个
+  提交。该计数只对应 receipt 中的具名基线，不是提交后必变的实时 lane HEAD 事实；比较
+  也只读本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
   [41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)，精确 head
@@ -49,6 +45,30 @@
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-11-01 RF-10 普通 OpenAI 兼容客户端策略显式化（A83 b/r0）
+
+普通 LLM 服务的 OpenAI 兼容 HTTP 客户端此前依赖 SDK 隐式 timeout/retry。A83 b/r0 将
+当前有效行为冻结为纯标准库不可变 Catalog 策略，并由真实
+`services.llm_service._get_client` 显式消费。
+
+- 正式本地 receipt 记录 OpenAI `2.54.0`、httpx `0.28.1` 与常量源码 SHA-256
+  `ace7e06c293099027477a40f94cad2f9d761ca9b5c4f8e62b874972c3dd70fa0`；真实 SDK
+  默认客户端实测为 connect 5 秒、read/write/pool 600 秒、`max_retries=2`。600 秒是
+  HTTP 客户端各阶段默认配置，不是一次聊天总 deadline。
+- Catalog 新增 `LLMClientPolicy` 冻结值对象与 `LLM_CLIENT_POLICY` 单例；不导入
+  httpx/OpenAI SDK/config/环境，也不把策略混入 Provider metadata、生成 JSON 或 key
+  验证路径。`_get_client` 使用同一策略显式构造 `httpx.Timeout` 并传入
+  `max_retries`，保持 `PROVIDER_CONFIG` 结构、顺序与 patch 路径不变。
+- 新独立回归覆盖真实 SDK 默认属性与合法替代策略的真实消费，确认四 timeout 分量及重试值，
+  并在 `finally` 显式关闭客户端；Catalog 回归扩展不可变、默认构造兼容与纯净子进程导入。
+  测试使用合成 key 与 loopback 断网 base URL，不调用 Provider。
+- A83 b/r0 仅完成文件实施并停在 Review；实施方未运行 formatter、测试、build、安装、
+  数据库、服务或 Git 写。主 Agent 固定入口门禁、OpenAPI/metadata 字节检查、真实消费变异、
+  独立 Review 与 main 复验尚未执行。该策略不替换 LiveKit 语音或 Provider key 验证策略，
+  OpenAI HTTP 2 次重试不与 LiveKit APIConnectOptions 3 次混同，RF-10 整项保持未勾选。
+- 契约见
+  [RF-10 普通 OpenAI 兼容客户端策略验证](./verification/cross-platform/RF-10-LLM-CLIENT-POLICY.md)。
 
 ## 2026-11-01 RF-10 Provider 前端展示元数据单一来源（A78 b/r0）
 
@@ -150,6 +170,12 @@ A82 b/r0 实施交付时停在 Review，未运行 formatter、测试、build、�
 与 main 复验尚未在本条中冒认。真实 Provider、Linux/Docker、设备、远端 CI 与部署边界不变，
 契约见
 [CP-06 Native Room 回归夹具就绪](./verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
+
+A83 b/r0 据正式本地 receipt 核销 A82 已 Review APPROVED，并以正常 hook 单提交、
+`main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c` 精确 fast-forward 和完整 15 项门禁
+通过。该次失败已观察到的直接事实仅为 callback map 未就绪，显式等待已新增；触发该次失败
+的完整因果仍未独立证明，有限次通过不构成因果或概率证明。A82 实施交付时历史保留，不据此
+宣称产品时序缺陷、概率改善或外部链路完成。
 
 ## 2026-11-01 本地 RF-06 前端模板清理（A73）
 
