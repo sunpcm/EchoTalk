@@ -587,12 +587,13 @@ def test_custom_plugin_construction_logs_absolutely_zero_canary():
 def test_baseline_track_from_system_defaults_reads_settings_normally():
     """验证基础轨正常读取系统 settings，且零 _build_custom_plugins / 零 resolver 逻辑调用。"""
     with (
-        patch("livekit_agent.plugin_factory.settings") as mock_settings,
+        patch("livekit_agent.plugin_factory._get_settings") as mock_get_settings,
         patch("livekit.plugins.deepgram.STT") as mock_stt,
         patch("livekit.plugins.openai.LLM") as mock_llm,
         patch("livekit.plugins.cartesia.TTS") as mock_tts,
         patch("livekit.plugins.silero.VAD.load") as mock_vad,
     ):
+        mock_settings = mock_get_settings.return_value
         mock_settings.DEFAULT_LLM_PROVIDER = "siliconflow"
         mock_settings.SILICONFLOW_API_KEY = "system_sf_key_123"
         mock_settings.DEFAULT_LLM_MODEL = "sys-default-model"

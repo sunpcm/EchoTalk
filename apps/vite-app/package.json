@@ -8,11 +8,14 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "build:web": "node scripts/build.mjs --platform web",
     "build:ios": "node scripts/build.mjs --platform ios",
+    "check:api-types": "node scripts/generate-api-types.mjs --check",
+    "generate:api-types": "node scripts/generate-api-types.mjs",
     "sync:ios": "node scripts/sync-ios.mjs",
     "preview": "vite preview",
     "lint": "eslint src --report-unused-disable-directives",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "cross-env NODE_OPTIONS=--no-experimental-webstorage vitest run",
+    "test:api-types": "node --test scripts/api-types-test.mjs",
     "test:build": "node --test scripts/build-isolation-test.mjs",
     "test:fake-api": "node --test scripts/fake-api-test.mjs",
     "test:e2e": "playwright test"
@@ -38,6 +41,7 @@
     "autoprefixer": "catalog:",
     "eslint": "catalog:",
     "jsdom": "^30.0.1",
+    "openapi-typescript": "7.13.0",
     "postcss": "catalog:",
     "postcss-nesting": "^14.0.0",
     "rollup-plugin-visualizer": "^6.0.5",
@@ -47,7 +51,6 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@biu/ui-lib": "workspace:*",
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "^8.5.0",
     "@livekit/components-react": "^2.9.20",

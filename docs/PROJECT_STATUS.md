@@ -5,20 +5,596 @@
 
 ## 维护基线
 
+> 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
+> `TODO.md` 勾选状态和 A65–A83 的验收结论为准。
+
 - 最近本地核对日期：2026-11-01。
-- 代码基线：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
-  （`feat: integrate locally reviewed cross-platform milestones (A45-A63)`，squash 合并）。
+- 当前本地已验收代码基线：
+  `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
+  receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
+  和完整 15 项门禁核销：972 Vitest/36 files、18 build-script、61 Fake API、
+  8 类型生成器、148 E2E、598 backend/78.14% coverage，以及 schema/Ruff 等相关检查。
+  历史基线与计数保持不变：A77 为 967 Vitest/576 backend 本地集成；A78 为 969
+  Vitest/34 files、586 backend/76.98%；A80 为 972 Vitest/36 files、586 backend/
+  76.98%；A81 为 972 Vitest/36 files、594 backend/78.10%；A82 为 594 backend/
+  78.10%。私有探针和变异只在对应 lane 验证，main 未冒认重复。真实 IdP、
+  LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
+- 本地 tracking reference `origin/main` 当前指向
+  `c704925bc9150d153fc951c2727e7472dad00d78`；A84 b/r0 正式 receipt 绑定的具名已验
+  代码基线 `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）相对它领先 19 个
+  提交。该计数只对应 receipt 中的具名基线，不是提交后必变的实时 lane HEAD 事实；比较
+  也只读本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
+- 最近已有远端运行证据：PR
+  [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
+  [41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)，精确 head
+  `b7585d140ecc6ad4f45580fabe71e32c9c51466b`、merge
+  `c704925bc9150d153fc951c2727e7472dad00d78`。旧 8 项前端门禁为 854 Vitest、
+  18 build-script、61 Fake API、Chromium 74 + WebKit 74；backend 空库迁移至
+  `c06_transcript_events` 后 529 passed、82.49%；`test-frontend`、`test-backend` 与聚合
+  `CI` 三 job 均 success。该运行不包含 A67 新增的 OpenAPI schema/TypeScript 类型生成
+  两层门禁，也不覆盖 A65–A74 未推送树。
+- 较早的远端集成记录保留为历史：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
+  （PR #108 squash 合并、`feat: integrate locally reviewed cross-platform milestones
+(A45-A63)`）。
 - 远端状态：`main` 为受保护分支（必需状态检查 `test-frontend` / `test-backend`、线性历史、对话已解决，
   admin 同样受限），直推会被保护钩子拒绝（GH006）。本地累积提交通过 PR + CI 送回远端：
-  [PR #108](https://github.com/sunpcm/EchoTalk/pull/108) 已 squash 合并，`test-frontend`、`test-backend`
-  与 `CI` 三项均通过。后续轮次沿用同一路径：分支 + PR，不直推 main。
-- 自动化证据：PR #108 的 CI run 41217340177 是最近一次远端 CI 记录；
-  更早的 #92（`286a3db`）CI run 39348513442 保留为历史发布证据。
-  A45–A63 的本地增量另由本地固定门禁逐轮验证，详见各轮评审报告与
-  `docs/verification/cross-platform/`。
+  PR #108 与 PR #109 均已 squash 合并；后续轮次沿用同一路径：分支 + PR，不直推 main。
+- 自动化证据：#92（`286a3db`）CI run 39348513442 与 PR #108 的 run 41217340177 保留为
+  历史发布记录；A45–A76 的本地增量另由固定门禁与独立 Review 逐轮验证，详见各轮本地报告
+  与 `docs/verification/cross-platform/`。
 - 证据范围：CI 与本地门禁已验证格式、Lint、TypeScript、前端构建、Vitest、Playwright、Ruff、
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
+
+## 2026-11-01 RF-10 普通 OpenAI 兼容客户端策略显式化（A83 b/r0）
+
+普通 LLM 服务的 OpenAI 兼容 HTTP 客户端此前依赖 SDK 隐式 timeout/retry。A83 b/r0 将
+当前有效行为冻结为纯标准库不可变 Catalog 策略，并由真实
+`services.llm_service._get_client` 显式消费。
+
+- 正式本地 receipt 记录 OpenAI `2.54.0`、httpx `0.28.1` 与常量源码 SHA-256
+  `ace7e06c293099027477a40f94cad2f9d761ca9b5c4f8e62b874972c3dd70fa0`；真实 SDK
+  默认客户端实测为 connect 5 秒、read/write/pool 600 秒、`max_retries=2`。600 秒是
+  HTTP 客户端各阶段默认配置，不是一次聊天总 deadline。
+- Catalog 新增 `LLMClientPolicy` 冻结值对象与 `LLM_CLIENT_POLICY` 单例；不导入
+  httpx/OpenAI SDK/config/环境，也不把策略混入 Provider metadata、生成 JSON 或 key
+  验证路径。`_get_client` 使用同一策略显式构造 `httpx.Timeout` 并传入
+  `max_retries`，保持 `PROVIDER_CONFIG` 结构、顺序与 patch 路径不变。
+- 新独立回归覆盖真实 SDK 默认属性与合法替代策略的真实消费，确认四 timeout 分量及重试值，
+  并在 `finally` 显式关闭客户端；Catalog 回归扩展不可变、默认构造兼容与纯净子进程导入。
+  测试使用合成 key 与 loopback 断网 base URL，不调用 Provider。
+- A83 b/r0 文件实施阶段未运行 formatter、测试、build、安装、数据库、服务或 Git 写。
+  后续经独立 Review APPROVED，以正常 hook 单提交
+  `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 精确 fast-forward 本地 main，并通过完整
+  15 项 main 门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、
+  148 E2E、598 backend/78.14% coverage，以及 schema/Ruff 等相关检查。该策略不替换
+  LiveKit 语音或 Provider key 验证策略，OpenAI HTTP 2 次重试不与 LiveKit
+  APIConnectOptions 3 次混同；未 push/部署，RF-10 整项保持未勾选。
+- 契约见
+  [RF-10 普通 OpenAI 兼容客户端策略验证](./verification/cross-platform/RF-10-LLM-CLIENT-POLICY.md)。
+
+## 2026-11-01 RF-10 LiveKit 语音连接策略显式化（A84 b/r0）
+
+LiveKit Agents `1.4.3` 的 `AgentSession` 在未传 `conn_options` 时使用 SDK 默认的
+STT/LLM/TTS 连接策略。A84 b/r0 将三个 role 当前均生效的 10 秒 timeout、3 次重试、
+2 秒重试间隔及独立 `max_unrecoverable_errors=3` 冻结到纯标准库 Catalog，并由真实会话
+创建边界显式消费。
+
+- 新增 frozen `SessionConnectRolePolicy`、`SessionConnectPolicy` 与
+  `SESSION_CONNECT_POLICY`；三个 role 分开建模，不可恢复错误阈值不混同为
+  `APIConnectOptions.max_retry`。Catalog 保持纯标准库，不读取 config、环境或凭据。
+- 新 `livekit_agent/session_policy.py` 只使用公开 `APIConnectOptions` 与
+  `SessionConnectOptions` 字段，把九个 role 参数和独立错误阈值映射为每次调用全新的 SDK
+  对象；外层及三个 role options 不跨 Job 共享。
+- `livekit_agent/agent.py` 提供零参数 factory wrapper，在会话实际创建时动态读取当前
+  `AgentSession` 绑定并传入连接选项；entrypoint 显式注入该 wrapper。既有
+  `AgentJobOrchestrator` 零参数注入合同、默认 factory、错误与清理时序未改。
+- 新回归覆盖真实 SDK dataclass 默认值与 Catalog 一致、三个 role 的合法替代策略、跨 Job
+  对象隔离、factory 动态读取，以及生产 entrypoint 对当前 `AgentSession` 的真实构造边界
+  捕获。未启动真实 Session、Worker 或 Room，不调用插件、Provider、设备或网络。
+- A84 b/r0 仅完成文件实施并停在 Review；实施方未运行 formatter、测试、build、安装、
+  数据库、服务或 Git 写。主 Agent 固定入口 15 项检查、有效消费变异、OpenAPI/metadata
+  字节核验、独立 Review 与 main 复验尚未执行。
+- 该子项保持 SDK `1.4.3` 当前行为，不增加应用重试、不调整时限、不升级 SDK，也不代表
+  真实语音链路通过；RF-10 整项继续保持未勾选。契约见
+  [RF-10 LiveKit 语音连接策略验证](./verification/cross-platform/RF-10-SESSION-CONNECT-POLICY.md)。
+
+## 2026-11-01 RF-10 Provider 前端展示元数据单一来源（A78 b/r0）
+
+Provider 下拉框与设置表单 fallback 的 id、品牌 label 和默认选择已收敛到后端不可变
+`provider_catalog.py`。STT、LLM、TTS 条目新增带默认值的 `role`、`label` 与默认标记，旧
+dataclass 构造方式保持兼容；公开 JSON 由新 exporter 从真实 catalog 投影，仅包含每个
+Provider 的 role/id/label 及每个 role 的一个默认 id。
+
+- `backend/export_provider_metadata.py` 使用纯标准库，在有限 timeout、最小环境和网络失败
+  关闭屏障中导入 catalog；canonical JSON 采用排序 key、2 空格缩进和末尾换行，经同目录
+  临时文件原子替换。`--check` 只比较字节，缺产物或 stale 非零且不写文件。
+- `apps/vite-app/src/lib/providers.generated.json` 已由主 Agent 在实施停写后受控生成并作为
+  tracked 产物；`.prettierignore` 仅排除该路径。前端 `providerMetadata.ts` 直接消费 JSON，
+  `SettingsProviderFields` 与 `useSettingsForm` 保持 Deepgram → SiliconFlow → OpenRouter /
+  Cartesia 的既有顺序、label、默认和 LLM 自由文本模型，不新增请求或运行时加载支线。
+- 后端新增真实生成 CLI、确定性、缺失/stale、原子替换失败、timeout/异常输出、导入纯净与
+  敏感字段零透出回归；真实设置组件回归覆盖 label/顺序、空值默认和后端对象引用水合。CI
+  只在 backend job 显式运行 metadata `--check`，不要求 frontend job 安装 Python。
+- A78 已由独立 Review APPROVED，生成 JSON 与本地固定 runner 的独立
+  `provider-metadata-check` 均已完成接线，并以单提交
+  `8efb92387ac0bf3b9489a20b6080d78d6ec91ab4` 精确 fast-forward 本地 main；15 项 main
+  门禁通过。实现方仍没有执行远端 CI、push、部署或真实外部 Provider 验证，RF-10 整体
+  不完成，契约与命令见
+  [RF-10 Provider 前端展示元数据单一来源](./verification/cross-platform/RF-10-FRONTEND-METADATA.md)。
+
+## 2026-11-01 RF-07 API/Agent 运行角色依赖边界（A79）
+
+后端依赖已按同一项目的运行角色拆分为 API、Agent 与开发组。API 与 Agent 共用依赖保留在
+project common，API 独有依赖进入 `api` 组，LiveKit RTC/Agents 与四个现有插件进入
+`agent` 组，Ruff/Pytest 等继续只进入 `dev` 组；本地无 flag 安装仍合并三组。
+
+- 主 Agent 使用 uv 0.9.18 离线原生工具重生成 lock/export 并完成受控 frozen sync。全部
+  存活锁记录与全局 metadata 保持不变，唯一删除是死依赖 `passlib 1.7.4` 与其
+  `bcrypt 5.0.0` extra 子树；七个 LiveKit exact SDK pins 不变。
+- 受控导入验证的安装分布为 dev 104、API 55、Agent 83，最终恢复 merged runtime 97。
+  Dockerfile 以 `BACKEND_ROLE=api|agent` 选择唯一运行组，Compose 将 API 与
+  analysis-worker 绑定 `api`、语音 Agent 绑定 `agent`。
+- A79 已由独立 Review APPROVED，以单提交
+  `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main，并通过完整
+  15 项 main 门禁；该具名提交相对本地 tracking reference 领先 15 个提交。
+- 未 push/部署；真实 Linux/Docker 镜像、Compose 服务、远端 CI、真实 Provider/LiveKit、
+  设备与生产运行链路仍未验证。RF-05、RF-07、RF-09 与 RF-12 的整项边界不因此关闭。
+
+## 2026-11-01 Settings 水合真实消费者回归（A80 b/r0）
+
+本轮只补设置默认值与空值水合的真实消费者回归。组件测试先锁定当前固定契约：STT、LLM、
+TTS 初始值分别为 Deepgram、SiliconFlow、Cartesia，LLM 模型初始为空字符串；随后再覆盖
+后端对象引用变成 OpenRouter 与任意自定义模型文本。Hook 测试覆盖 settings 缺失、provider
+和模型为 null/空字符串时的 fallback、合法非空值原样保留，以及同引用普通重渲染和开关切换
+保留草稿、只有新后端对象才重置内存 key。
+
+独立测试文件为 metadata adapter 提供合法替代 LLM 默认 `openrouter`，再调用真实
+`useSettingsForm`，分别验证初始草稿和空值水合消费该来源。测试没有修改生产源码、tracked
+generated JSON、后端 catalog、依赖或认证/生命周期行为，也没有使用全局 fake timer。
+
+该轮已由独立 Review APPROVED，并以正常 hook 单提交精确 fast-forward 本地
+`main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`。完整 15 项 main 门禁为 972 Vitest/
+36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、586 backend/76.98%
+coverage，以及 schema/Ruff 等相关检查。实际消费变异保留在对应 lane 的私有证据中，main
+未冒认重复。真实 Provider、设备、Linux/Docker、远端 CI 与部署边界不变。
+
+## 2026-11-01 旧 LLM/dispatch 对外输出安全边界（A81 b/r0）
+
+独立合成复现确认四个应用侧出口仍可能透出不可信正文：LLM 成功日志记录回复前缀、SDK
+`APIError` 原文进入错误日志、同一错误正文进入 conversation 502 detail，以及
+`CALL_LEASE_MODE=disabled` 的 dispatch 日志格式化异常对象。
+
+- LLM 服务日志改为固定事件、经 catalog 校验的 provider 名称、消息条数、回复字符数和异常
+  类型名；不再记录 provider 返回正文、用户消息、任意模型配置文本、SDK 异常 message/body/
+  request/URL/header，也不附加异常或堆栈信息。
+- conversation 的 502 保持字符串 detail 形状与“LLM 服务调用失败”前缀，内容固定为可操作
+  的重试提示；服务层仍抛出原 `APIError` 对象。两种 dispatch 分支保持原 success/
+  `dispatched`、归属与租约顺序、去重、cloud 3 秒与 disabled 无 timeout 包装语义，只把
+  异常日志改为固定 mode 与异常类型名，既有固定 502 文案不变。
+- 新增真实 service/ASGI router 合成 canary 回归，覆盖 SDK 成功回复、`None`、`APIError`，
+  以及 dispatch list/create/context-manager 异常和 cloud 固定 502；测试同时扫描日志全字段、
+  异常信息/堆栈与公开响应，并明确断言生产传参、正常回复、原异常对象和单次调用。
+- 实施交付时按授权只写文件并停在 Review，未运行 formatter、测试、build、安装、数据库或
+  服务。主 Agent 随后独立确认四类合成边界在修复后不再复现，四类实际输出变异均被新增回归
+  杀死并精确还原；独立 Review APPROVED 后以正常 hook 单提交
+  `bbde1ff20ea961375401c714d36a65ffc268b1d7` 精确 fast-forward 本地 main，并通过完整
+  15 项门禁，backend 为 594 passed/78.10% coverage。
+- 真实 Provider、Linux/Docker、设备、远端 CI 与部署仍未验证。
+- 契约见
+  [RF-03 旧 LLM/dispatch 对外输出安全边界](./verification/cross-platform/RF-03-EXTERNAL-OUTPUT-SAFETY.md)。
+
+## 2026-11-01 Native Room 回归夹具就绪边界（A82 b/r0）
+
+A80 曾出现一次 native 同步停轨用例在 Room DOM 已出现、但被动 effect 尚未写入
+`capturedRoomCallbacks` 时读取 callback 的夹具失败。该失败不构成产品停轨缺陷，也不计入
+目标 Hook 变异效果。
+
+本轮只修现有测试夹具的跨异步就绪判断：先从当前 DOM 保存 `data-instance-id`，再等待同一
+实例的 callback 登记。目标 native event 回调返回前的同步停轨断言保持原位；未改产品源码、
+被动 effect 时序、callback 注入、重试包装、timeout 或 assertion。
+
+A82 b/r0 实施交付时停在 Review，未运行 formatter、测试、build、安装、数据库、服务或 Git
+写；主 Agent 完整 frontend10/backend 专用 PostgreSQL、schema/metadata、Ruff、独立 Review
+与 main 复验尚未在本条中冒认。真实 Provider、Linux/Docker、设备、远端 CI 与部署边界不变，
+契约见
+[CP-06 Native Room 回归夹具就绪](./verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
+
+A83 b/r0 据正式本地 receipt 核销 A82 已 Review APPROVED，并以正常 hook 单提交、
+`main@d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c` 精确 fast-forward 和完整 15 项门禁
+通过。该次失败已观察到的直接事实仅为 callback map 未就绪，显式等待已新增；触发该次失败
+的完整因果仍未独立证明，有限次通过不构成因果或概率证明。A82 实施交付时历史保留，不据此
+宣称产品时序缺陷、概率改善或外部链路完成。
+
+## 2026-11-01 本地 RF-06 前端模板清理（A73）
+
+基于 `b2b02b3` 对全部 tracked import、workspace、Turbo、CI、Docker、README 与脚本引用完成
+定向审计后，确认 Vite 产品源码没有 `@biu/ui-lib` 消费者，CI/Compose/Vite Dockerfile 也不
+直接调用 Webpack、Plop 或 Changesets。A73 b/r0 已删除这些模板与脚手架共 31 个 tracked
+文件，并把 4 份品牌 SVG 逐字节迁入 `docs/assets/branding/`；原 SVG 在删除前与迁移副本的
+SHA-256 完全一致。
+
+- 根脚本与依赖移除 Webpack、Plop、Changesets 入口；Vite 仅移除无消费者的 UI 包声明与
+  `optimizeDeps` 项，代理、认证、构建、安全和 Capacitor 配置保持不变。
+- workspace 移除 Webpack 专属 peer override，Turbo 移除 Babel/Webpack/`SOURCE_MAP` 输入；
+  共享配置 package 的 no-tests 占位脚本已删除，真实配置、依赖和主题 token 保持不变。
+- Node 锁由主 Agent 使用 Node 22/pnpm 10.26 原生重生成并通过 offline frozen install；
+  packages/snapshots 由 1288/1289 收敛为 656/657。存活 version/integrity、解析依赖边与
+  importer 保持，6 个精确 optional metadata 字段由缺省状态新增为 true（原生锁新增该字段），
+  另移除 1 个无消费者 catalog 锁项；正常 Prettier 规范化后以最终 hash 冻结并复验。这些是
+  逐项审查的锁记录变化，不构成 metadata 任意漂移的通用放行。
+- A73 lane 完成 formatter、lint、typecheck、完整 frontend10、OpenAPI schema、Ruff 与专用
+  PostgreSQL backend pytest；合成 OIDC 下 Web/iOS production-mode 构建及真实 Capacitor
+  资源同步通过，guard 未触发网络或原生工具，临时 tracked native config 逐字还原；root
+  强制 test 仅运行 Vite 917 项也在 lane 独立完成。main 最终复验 566 backend、80.10%，
+  没有冒认 main 重跑平台构建或 root test，也未验证真实登录、原生编译或设备。
+- 4 份品牌 SVG 的最终 SHA-256 与迁移前一致。真实 Docker 镜像、CI 与角色分组仍未验收，
+  RF-06 继续未勾选；边界见
+  [RF-06 前端模板清理验证](./verification/cross-platform/RF-06-FRONTEND-TEMPLATE-CLEANUP.md)。
+
+## 2026-11-01 Web Docker Node/pnpm 与上下文边界（A74）
+
+Web Compose 的 build context 是仓库根。`apps/vite-app/Dockerfile` 已将 builder 从 Node 20
+统一到 `node:22-alpine`，移除未固定的 `npm install -g pnpm`，改为让镜像内 Corepack 从根
+`package.json` 的 `packageManager` 选择 pnpm 10.26.0；未关闭签名或完整性校验，下载或校验
+失败的 `RUN` 会直接终止构建。原有 Vite build args、frozen install、Nginx/proxy 和端口行为
+保持。
+
+- 新增根 `.dockerignore`，以 `**` 起始并仅放行根 package/lock/workspace、真实
+  `packages/configs`、Vite 的源码/脚本/配置/公开资源、生成 API 类型、两份 tracked 公开
+  Vite env 文件、Dockerfile 与 Nginx 配置。
+- 根 `.env*`、`apps/vite-app` 本地 dotenv 覆盖、`.review/`、`.git/`、`.agents/`、`.codex/`、
+  `node_modules`、dist/Turbo/Vite/test 缓存及 iOS 原生工程不进入 Web 上下文。没有读取任何
+  env 内容来证明排除。所有宽泛源码目录放行之后，规则会再次排除任意层级的本地 dotenv、
+  元数据和缓存，最后仅精确恢复两份公开 Vite mode 文件；后端独立
+  `backend/.dockerignore` 与构建上下文未改。
+- A74 已由独立 Review APPROVED，定格为单提交
+  `b43a0d807f6b3619c96d87abf4164b87ffd9b1f9`，并精确 fast-forward 本地 main；main 完整
+  frontend10、917 Vitest、148 E2E、566 backend、80.10% coverage、OpenAPI schema 与 Ruff
+  复验通过。真实 Docker 镜像未验证，Node 22 镜像中的 Corepack 签名链、Docker 实际
+  COPY/上下文行为、远端 CI 和角色分组仍未实测；RF-07 整项保持未勾选。静态契约见
+  [RF-07 Web Docker 配方验证](./verification/cross-platform/RF-07-WEB-DOCKER-RECIPE.md)。
+
+## 2026-11-01 本地 RF-09 显式 Agent 启动（A75）
+
+Agent 业务模块与显式启动边界已分离。普通导入全套 `livekit_agent` 模块将使用真实已锁定
+LiveKit SDK，并保持 `sys.path`、进程环境不变；导入期不读取 dotenv、不加载应用 config/
+database、不创建 engine 或外部客户端。官方入口改为
+`cd backend && python -m livekit_agent dev|start`，Compose 使用同一模块入口。
+
+- `bootstrap.main()` 严格先加载仓库根 `.env`（`override=False`），再加载并校验真实配置，
+  最后导入 SDK 与业务 CLI；配置校验失败不会创建或启动 `WorkerOptions`/CLI。
+  `WorkerOptions(entrypoint_fnc=entrypoint, num_idle_processes=1)` 保持原值。
+- `CredentialResolver` 的解密、系统插件配置、默认转录 writer 与 Agent 数据库会话均在
+  实际调用点窄延迟加载；BYOK 显式凭据路径不读取系统 Provider Key，也不修改进程环境。
+  Prompt 纯函数迁至 `services.agent_prompt`，`services.llm_service` 保留兼容重导出。
+- 新增回归覆盖真实新进程全模块导入、root dotenv 访问/网络阻断、环境与 `sys.path` 不变、
+  模块入口导入不启动、dotenv 进程值优先、配置失败不启动，以及无 writer 注入时真实
+  PostgreSQL service 路径。接口、ORM、认证、凭据算法、锁、CI、镜像与 HTTP schema 未改。
+- A75 已独立 Review APPROVED，定格为本地单提交
+  `1e871c2dbf1b202112a544e6507c9ad00bf43bff`，并精确 fast-forward 本地 main。main
+  完整门禁复验通过：917 Vitest、18 build-script、61 Fake API、8 类型生成器、148 E2E、
+  576 backend、80.09% coverage、OpenAPI schema 与 Ruff。真实 LiveKit/Provider 连接、真实
+  start/dev、联网 CLI、Agent worker、Docker 镜像和部署未验，因此不把本地模块回归冒认线上
+  启动，RF-09 整项及 RF-12 前置仍不完成。
+
+## 2026-11-01 CP-06 Agent 错误消息归属与载荷边界（A76）
+
+`agent_error` DataChannel 现在由实际 Room 的 `sessionId/sessionGen` 和认证
+principal/revision 共同拥有。旧 Room callback、卸载后的迟到 callback、终态 replay、身份
+变化以及同 principal revision 已变化但订阅尚未通知的 callback，都会在诊断、状态写入和
+startup tracker 清理之前静默拒绝。同一 principal 的正常认证事件通知到达后，保留 Room 的
+新 callback 可继续处理当前错误；该过程不重连、不停轨或发起网络写请求。
+
+- 新增纯解析器，要求 JSON 根为普通对象、`type` 精确为 `agent_error`、`code/message` 均为
+  非空字符串；数字、对象、数组、布尔、null、空白字符串、无效 JSON 与其他 type 均拒绝。
+  未知但合法的字符串 code 保持现有 UI 兼容，诊断仍只记录既有白名单映射后的 `unknown`。
+- store 的 `setAgentError` 要求原子 ownership 门禁，在实际提交时复核 `sessionId`、
+  `sessionGen`、`appView` 和 Room 可收取 phase。同步订阅者若在通知内切换到新会话，
+  旧错误不得随后终止或清理新会话。
+- 真实组件/store 回归覆盖旧/新代际、principal/revision 空窗、同 principal revision
+  恢复、多种非法 payload、卸载、终态迟到、无关重渲染、StrictMode 和同步重入。A76 已
+  Review APPROVED，定格为本地单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 并精确
+  fast-forward 本地 main；main 完整门禁为 954 Vitest、18 build-script、61 Fake API、
+  8 类型生成器、148 E2E、576 backend、80.09% coverage、OpenAPI schema 与 Ruff。
+- lane 的 5 项独立消费探针与 3 项 killed/byte-restored auth/session/code 变异保留为本轮
+  私有证据，main 未冒认重复。A76 两轮 fixture 失败历史继续保留在冻结实施记录和评审证据
+  中，本轮不回写冻结报告。真实 LiveKit DataChannel、真实 IdP、Provider 与设备未验。
+- 契约与边界见
+  [CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
+
+## 2026-11-01 CP-06 Room 同 principal 认证刷新与 native pending 对账（A77 b/r4）
+
+同 principal 的认证通知现在由单一 Room ownership 边界推进新回调 revision。物理
+lifecycle adapter 与 Room 可保持稳定，但每次通知交付都会建立新的业务监听归属；旧
+`onConnected`、`onError`、`onDisconnected`、Web/native lifecycle 与在途 dispatch
+函数按自身 revision 永久失效，通知前主动保存的旧业务函数不会因新 revision 已交付而复活。
+该刷新不停止健康音轨，也不重发 `sessionId/sessionGen` 已去重的 dispatch。
+
+- 媒体资源与回调归属分开：当前 SDK 错误/断连及后台/离线仍同步停本 Room 轨并进入
+  `connection_failed`；身份、代际、结束、取消、卸载后的旧事件继续零副作用。
+- native pending 保留同一原始 deadline。ready 在认证通知空窗中完成时只记录内部事实，
+  通知前零挂载、零网络与零 store 副作用；通知后重新读取当前 snapshot/能力，健康时只挂
+  一个 Room，inactive 或 deadline 已过时安全清 Token。空窗触发的旧 timer 不写新归属，
+  通知后立即按原 deadline 对账，不续 10 秒。
+- r1 产品 Vitest 为 940 passed/25 failed/965 total，25 项均属 native pending 被订阅后
+  占位 hidden 提前关闭；独立消费为 4 passed/4 failed，且未执行 r1 整套 E2E/backend/schema。
+  r1 只执行官方返修 native 预检；baseline3 是初次 r0 派发前历史实测，没有新的 r1 三项
+  baseline 回执，r0 全绿不冒认为 r1 通过。
+- r2 修正平台区分：Web 保留订阅后快照立即失败，native pending 占位 hidden 不触发关闭，
+  等 `whenReady` 后按当前 snapshot/能力与原 deadline 结算。native timer callback 绑定自身
+  handle，旧 callback 主动调用不能清空新 timer；刷新后的当前 native 业务监听仍可停轨。
+- r2 的独立 9 项时序回归与 A76 compat 5 项在 formatter 前通过；随后 format/lint/typecheck
+  通过，完整 Vitest 为 958 passed/9 failed/967 total。9 项失败均是 stale timer 测试让
+  全局时钟残留 fake `setTimeout` 后，后续 A76 Agent error ownership 的 5 秒异步等待超时；
+  stale timer 单项本身通过，不是 Agent error 产品回归。后续完整 E2E/build/backend/schema
+  未执行。
+- r3 仅修正该 timer fixture：移除会由外层 `restoreAllMocks()` 二次恢复的全局 spy，直接
+  包装 fake `setTimeout`，并在局部 finally 中先恢复 fake 函数、再切回真实时钟。旧 callback
+  主动调用、新 handle 所有权和超时关闭断言保留，产品逻辑不变。
+- r3 停写后完整门禁通过：frontend10 的 967 Vitest/33 files、18 build-script、61 Fake API、
+  8 type generator、148 双浏览器 E2E，backend 576 与 80.09% coverage，OpenAPI schema 和
+  Ruff 均通过；独立 9 项时序、A76 compat 5 项与真实时钟恢复通过。
+- auth revision、原 10 秒 deadline、ready snapshot 三个有效产品变异分别产生 11/6/4 项真实
+  断言失败并精确还原。第四项 timer-handle 变异未杀死 967 产品测试，但独立实际 timer 队列
+  确认旧 callback 会清掉新 handle 登记，卸载后残留本 Room timer；这是回归覆盖缺口，不是
+  当前产品逻辑坏。
+- r4 只补该回归：每个 pending callback 现在先进入真实 fake timer 队列后再被保存；认证轮换
+  前推进 9 秒、轮换后的新 timer 剩余延迟必须仍为 1 秒；主动执行旧 callback 必须保持
+  state 与队列所有权，立即卸载后队列必须回到基线，迟到 callback 与推进时钟不得写 store、
+  发网络请求或产生音轨副作用。删除生产 handle guard 会使新回归出现真实失败，产品逻辑不变。
+- r1–r4 回归保留旧/新 SDK 与 Web/native 业务监听、旧已保存函数永久失效、健康 ready
+  单次挂载、ready 后转 inactive、空窗 expired/inactive、dispatch 去重、旧在途结果、
+  独立 adapter 清理、CON-04、StrictMode 与 A76 DataChannel 保护。A77 已由独立 Review
+  APPROVED，r4 以单提交 `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 精确 fast-forward
+  本地 main；主 Agent 完成完整门禁与第四项 timer-handle 变异复验，967 Vitest/33 files、
+  576 backend/80.09% coverage 等结果通过。真实设备音频事件仍未验证。
+- 边界见
+  [CP-06 Room 同 principal 认证刷新验证](./verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)。
+
+## 2026-11-01 本地 RF-05 Redis/Celery 减法（A71 当时状态）
+
+基于 RF-05，对全部已跟踪生产、脚本与 Compose 引用做了定向审计。分析业务实际由
+`routers/sessions.py → services/analysis_jobs.py → workers/analysis_worker.py` 的
+PostgreSQL Job 链路承载；课程推荐由 `routers/curriculum.py → services/rag_service.py`
+继续消费 ChromaDB。`workers/report_tasks.py` 没有调用者，Celery/Redis 也没有核心业务
+消费者。
+
+- **源码减法**：删除 `workers/celery_app.py` 与 `workers/report_tasks.py`，移除
+  `celery[redis]` 直接依赖、`REDIS_URL`/`USE_MOCK_CELERY` dead fields，并清理分析服务头注释
+  与测试中唯一 dead fixture 参数。真实分析 Job、重试/恢复、课程推荐与 LiveKit 功能保留。
+- **Compose 减法**：移除 `echotalk-redis`、`echotalk-worker`、相关 Redis 环境/依赖和
+  `redis-data` 声明；保留 PostgreSQL、API、Agent、Chroma、Web 与
+  `echotalk-analysis-worker`。未操作任何现有容器、服务或卷。
+- **生成与依赖审计**：实施停写后，主 Agent 已使用 uv 0.9.18 离线配方原生生成
+  `backend/uv.lock`（192→179 包）并重新导出 `backend/requirements.txt`。删除
+  amqp/billiard/celery/click-didyoumean/click-plugins/click-repl/kombu/prompt-toolkit/
+  redis/tzdata/tzlocal/vine/wcwidth 共 13 包；全部存活包版本逐值相同，LiveKit 7 个 exact
+  SDK 保持。指定 dev/runtime 环境完成离线冻结同步，包数由 172/165 变为 159/152。
+- **仍待门禁**：完整 frontend10、OpenAPI schema、Ruff、专用 PostgreSQL backend pytest、
+  Compose 静态校验、Review 与集成仍待主 Agent 代跑；Git 写、服务与部署未执行，不能视为通过。
+- **剩余边界**：Chroma 业务语料迁移、重型 ML 依赖替换、镜像/CI 体积与冷启动比较、周报产品
+  功能仍未完成，RF05 整项保持未勾选。调用审计与精确文件清单见
+  [RF-05 Redis/Celery 减法验证](./verification/cross-platform/RF-05-DEAD-INFRA.md)。
+
+## 2026-11-01 本地 RF-05 离线课程目录实施（A72 r0/r1）
+
+A71 已核销为独立 Review APPROVED、单提交 `dd0fbc0`、main 精确 fast-forward 并完成 main
+复验：frontend10、917 Vitest、148 E2E、540 backend（79.59%）、OpenAPI schema 与 Ruff
+全绿；lock/dev/runtime 为 179/159/152，删除的 13 个 Celery/Redis 孤儿包在存活记录与 7 个
+LiveKit exact SDK 版本中保持既定结果。这些 A71 事实与 A37/A65/A66 等历史范围分开记录。
+
+A72 r0 将原有 10 条教学种子逐值迁入 `backend/data/teaching_materials.json`，把
+`services/rag_service.retrieve_materials()` 改为无网络、无环境变量、无数据库和无 embedding
+模型的确定性检索。目录加载严格校验 id、CEFR、数值、必填字段、priority、标签类型及
+primary-skill 归属；缓存为冻结对象，调用返回的列表和标签可变副本不会污染后续请求。
+Krashen target 至 target+1 范围、非法等级回退 B1、大小写兼容及既有调用形状保持不变。
+
+- **路由**：`routers/curriculum.py` 的鉴权、当前用户/BKT 弱项、等级推导和响应模型未改；
+  只更新说明与检索阶段注释。
+- **Compose**：删除 `echotalk-chroma`、API/Agent 的 `CHROMA_HOST`/`CHROMA_PORT`、Chroma
+  健康依赖和 `chroma-data` 声明；其他服务、地址、端口、环境与卷未改。
+- **依赖声明**：从 `backend/pyproject.toml` 删除 `chromadb`、`sentence-transformers`、
+  `librosa`、`soundfile`、`scikit-learn` 五个直接声明。主 Agent 已用 uv 0.9.18 离线原生
+  重生成 lock/export 并完成 dev/runtime frozen sync：lock 179→107，删除 72 条跨平台记录；
+  本机两环境各删除 53 个安装包，dev 159→106、runtime 152→99。全部存活 package 完整记录
+  逐值相同，7 个 LiveKit exact SDK 保持。实施方未手写或重算锁/环境。
+- **离线工具**：`python -m scripts.seed_corpus` 从 `backend` 或模块装配下的任意 cwd 校验
+  catalog 并输出确定性摘要，不再写 Chroma、下载模型或注入 `sys.path`。
+- **测试**：新增真实目录 10 项对账、坏数据失败、缓存隔离、CEFR/top_k 边界、确定性排序、
+  离线子进程测试，以及专用 PostgreSQL schema 中的默认弱项、技能相关性、用户隔离和 401
+  路由回归；旧 Chroma client/cache 测试已删除。
+- **当前门禁**：formatter、frontend10 与 Ruff 已通过；完整后端首次运行 565 passed/1 failed。
+  唯一失败是测试 expected 漏掉 `mat_restaurant_b1` 的 `article_usage` 次级标签命中，生产
+  rank 本身符合 r0 规则。A72 r1 已修正真实排序 expected，并将 `' B2 '` 收回未知等级的 B1
+  回退；全部测试、schema、Compose 静态校验、Review 与集成仍需最终重验。
+- **同口径本机观察**：runtime 环境 1,390,752→326,916 KiB；requirements
+  82,071→52,074 bytes；三次新进程仅导入 RAG 模块为
+  2.658671542/0.269479250/0.260155625 秒→0.003195792/0.001239125/0.001205500 秒，
+  中位数 0.269479250→0.001239125 秒。数据受 OS 缓存影响，不代表物理冷读、完整应用启动、
+  Docker 镜像、CI 安装或部署指标。
+- **产品边界**：HTTP 响应契约、身份隔离、分析、Provider 与语音功能未改。镜像/CI 体积和
+  部署冷启动尚无迁移前后实测，RF05 整项保持未勾选；周报仍未实现。
+
+## 2026-11-01 本地 RF-11 SettingsDrawer 行为拆分独立验收（A69）
+
+基于 RF-11“按行为拆分 SettingsDrawer”完成本地实施并通过独立 Review。入口只保留 store 接线、
+打开 fetch、loading/saving/error 与外壳组装；dialog、本地表单/提示、主题视图和 Provider 视图
+拆为同目录行为模块。
+
+- **依赖方向**：`SettingsDrawer` → `useSettingsDialog`、`useSettingsForm`、
+  `SettingsAppearance`、`SettingsProviderFields`；`useSettingsForm` → 既有
+  `settingsPayload`、auth `beginLogout` 与 settings store action。没有反向导入入口，也没有新增
+  全局状态、运行时依赖、store/API/auth/Provider/主题持久化契约或网络请求语义。
+- **资源所有权**：`useSettingsDialog` 只持有原生 dialog、焦点记录/恢复、body 滚动锁、初始关闭
+  按钮聚焦、focusin、Tab 双向循环、Escape/backdrop 和清理；行为 effect 只依赖真实 `open`，
+  回调引用、主题和表单更新不会关闭并重开 dialog，也不抢焦点或重复释放滚动锁。
+- **表单与提示所有权**：`useSettingsForm` 在 `open=false` 时仍持续挂载；仅后端 `settings`
+  对象引用变化时水合草稿并清空内存 key。显式保存继续消费 `buildSettingsUpdate`。本地提示
+  绑定“打开周期 + 操作序号 + 唯一 timer”：新保存取代旧 timer，关闭/重开和卸载作废旧回调，
+  旧成功/失败不能污染新周期；`stale` 结果静默，当前错误/成功分别保持 3 秒/2 秒。
+- **r1 返修**：关闭 r0 全量 Vitest 暴露的两项测试装配错误，统一让 `installStore` 返回实际
+  写入 store 的 actions；Provider fixture 改为三种真实状态各一项。logout 失败提示恢复旧行为，
+  保持到关闭或下一当前操作，不再复用保存错误 3 秒 timer；打开周期、操作归属和卸载清理保持。
+- **视图与兼容**：外观色板、local-first `setTheme`、Provider 选项/顺序/回退、badge、fieldset
+  disabled、免费账号禁止关闭 custom、原文案/DOM/classes/label/id 与精确 payload 裁剪保持；
+  未新增或放宽 E2E，原双浏览器可访问性、视口与零隐式写断言继续作为门禁。
+- **完成验证**：A69 定格于本地单提交
+  `0936ea335dff8fdce8d307da10461ed2b8dec6a5`，独立 Review APPROVED 后精确
+  fast-forward。lane 私有验证执行 4 项真实组件/store 消费探针及两项有效通知变异，源码已
+  完整还原；main 标准全量复验只执行 frontend10（917 Vitest/32 files、build-script 18、
+  Fake API 61、typegen 8、Chromium+WebKit E2E 148）、OpenAPI schema、Ruff 与专用
+  PostgreSQL backend（540 passed/3 warnings/79.41%），正常 hook 通过且批准文件 hash 一致。
+  main 未重跑私有探针或变异。
+- **当前边界**：A69 未 push/部署；远端新 CI、真实 IdP/Provider/LiveKit、设备与发布未验。
+  RF-11 可勾选为本地代码验收完成，但不代表 UI 主动 abort 已接入全部 store，也不代表
+  其余手写 domain 适配或真实服务验收已完成。契约见
+  [RF-11 SettingsDrawer 行为拆分验证](./verification/cross-platform/RF-11-SETTINGS-COMPONENTS.md)。
+
+## 2026-11-01 本地 RF-11 VoiceInterface 行为拆分已完成记录（A68-B）
+
+基于 RF-11“按行为拆分 VoiceInterface”完成源码边界拆分，保持既有已验收行为、DOM、文案、
+资源所有权和公共导出；A68 已独立 Review APPROVED 并集成到本地单提交 `0902aee`。
+
+- **入口与依赖方向**：`VoiceInterface` 收缩为内部 phase 选择与 Room key/props；`RoomSession`
+  承担 LiveKit 资源与生命周期；`ActiveConversation` 承担活动 UI；`EndedConversation` 承担
+  终态分析；`ConversationStatusViews` 保留各 phase 的原 DOM/classes/testid/store action；
+  `roomAudio` 是无 React/LiveKit/store 依赖的同步停轨纯工具。依赖只从入口流向叶子，没有
+  反向导入 `VoiceInterface` 或模块环。LiveKit 包与样式副作用仍在公共入口按原顺序求值。
+- **资源与认证所有权**：Room 继续绑定进入时的 issuer+subject principal 与 revision；保留
+  原生 pending/ready/10 秒 timeout、Web 初始与 subscribe-before-snapshot、hidden/offline
+  同步停轨再失败、`RoomContextSync` render/layout 绑定与稳定 cleanup、LiveKit callbacks，以及
+  dispatch 单次去重、同步 reentry 后复验、迟到成功/失败隔离。
+- **活动与终态行为**：`ActiveConversation` 保留 LiveKit hooks、agent_error DataChannel、
+  显式结束同步停轨、健康重渲染不误停和 Connected→active；`EndedConversation` 保留无 ID 本地
+  取消、Agent 错误、分析轮询/失败/重试/主页与 assessment reset，不自动重连或重发旧任务。
+- **兼容与测试策略**：公共 `VoiceInterface` 导出保持；`stopRoomLocalTracks` 移至
+  `roomAudio.ts` 并从原入口兼容再导出。完整 `VoiceInterface.test.tsx` 继续走真实生产入口，
+  ROOM/DSP/CON/DIA 矩阵不改为叶子镜像测试，仅补一项纯工具导出身份兼容断言。
+- **完成验证**：12 个交付文件独立 APPROVED。lane 私有验证完成 13 个迁移函数体与 Room
+  资源 effect 等价核验、两项 cleanup/reentry 变异并精确还原，恢复后 908 项 Vitest 复验
+  通过。main 标准全量复验执行 frontend10（含 908 Vitest/32 files、build-script 18、
+  Fake API 61、typegen 8、双浏览器 E2E 148）、OpenAPI schema、Ruff 与专用 PostgreSQL
+  backend（540 passed/79.41%）；正常 hook 通过且批准文件 hash 一致，私有等价核验与变异
+  未在 main 重跑。
+- **当前边界**：A68 未 push/部署，远端新 CI、真实 IdP/Provider/LiveKit 与设备未验证。
+  SettingsDrawer 已由 A69 完成本地代码验收；RF-11 当前按“本地代码验收完成”勾选，
+  外部服务与未迁移 domain 适配仍是独立边界。契约见
+  [RF-11 VoiceInterface 行为拆分验证](./verification/cross-platform/RF-11-VOICE-COMPONENTS.md)。
+
+## 2026-11-01 本地 RF-11 OpenAPI 类型生成已完成记录（A67）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11 与既有跨端、认证、分页和租约契约，
+建立“真实 FastAPI schema → tracked OpenAPI JSON → generated TypeScript → 生产 API 类型”的
+单一路径，同时保留小型自定义 Transport 和全部运行时 guard。
+
+- **离线 schema 导出**：`backend/export_openapi.py` 的公开 CLI 只做参数与原子文件 I/O；实际
+  schema 在全新 `-I` 子进程中导入真实 `main.app` 并调用 `app.openapi()`。子进程只接收最小合成
+  非业务环境，在 import 业务前阻断 DNS 与 socket；TMP/TEMP 与 XDG 目录受控且不重设 `HOME`。
+  导入 config 前以 Pydantic 文档化 `_env_file=None`/`_secrets_dir=None` 构造控制阻止 dotenv 与
+  file-secret source 读取，随后按真实 `settings_customise_sources` 签名仅保留 init/env source；
+  产品 Settings 默认行为不变。实际导出子进程有 120 秒 timeout，异常只输出阶段/类型，父进程
+  拒绝其他 stderr。导出不运行 lifespan、不连接 DB/Provider，失败或超时非零且不替换旧文件。
+- **受控 schema 与后端验证**：真实 `main.app.openapi()` 已生成 tracked
+  `backend/openapi.json`，当前包含 22 条路径、27 个模型，`export_openapi.py --check`
+  已通过。r1 的 dotenv/file-secret、零文件 Settings、异常 canary、stderr 和 timeout 合成
+  探针通过；离线导出 pytest 11 项、backend Ruff 格式/lint 通过。专用测试库全量 pytest 为
+  540 passed/3 warnings、覆盖率 79.41%。新增导出工具主要在隔离子进程中执行，不进入父
+  pytest coverage 统计，既有 59% 门禁不变。
+- **类型生成与消费**：`openapi-typescript@7.13.0` 已从真实 schema 生成
+  `api.generated.ts`；types `--check`、Node 生成器 8 项和 TypeScript 类型检查均通过。工具
+  只读取本地 `backend/openapi.json`，拒绝 remote/越界 `$ref`，按项目 Prettier 配置生成，
+  `--check` 字节比较且不写文件，缺产物或漂移非零退出。
+- **依赖图接线**：精确 override 已用于 pnpm 10.26.0 原生 lock 重生成，冻结安装通过。相对
+  基线，既有 packages 的 version/integrity 与既有 resolved snapshots/importer 不变；新增
+  17 个 packages、18 个 snapshots 及 vite-app 的精确 devDependency。唯一既有 package 元数据
+  变化是批准 override 将
+  `@pmmmwh/react-refresh-webpack-plugin@0.6.2` 的 peer range 记录为 `0.21.3`，generator 所需
+  `type-fest@4.41.0` 继续保留。
+- **生产 DTO 消费**：`DailyProgressResponse`、`SessionListItem`、`SessionListResponse`、
+  `CallCapabilitiesResponse`、`CallLeaseResponse`、`CallReleaseResponse` 从 generated
+  `components.schemas` 派生，不再重复手写后端字段；用 `Required`/`Omit` 保留
+  `ended_at`、`next_cursor`、`protocol_version` 的既有必需语义，并用窄字面量保留
+  `state: "held"` 与 `released: true`。请求字段、运行时 parser、认证、超时、取消、Header、
+  单 fetch 和 HTTP 行为未改。
+- **CI 与记录**：frontend job 增加 types 漂移检查与生成器 Node runner，backend job 在既有
+  frozen uv 安装后增加真实 schema `--check` 及 full pytest 中的离线导出回归；原 8 项前端
+  门禁不减少。接口与当前事实见
+  [RF-11 OpenAPI 类型生成验证](./verification/cross-platform/RF-11-OPENAPI-TYPES.md)。
+- **完成验证**：lane 私有验证执行两项 schema/types stale 变异，均被真实断言 killed 并完整
+  还原源码。main 标准全量复验执行 frontend10（907 Vitest/32 files、Node 构建测试 18 项、
+  Fake API 61 项、类型生成器 8 项、Chromium+WebKit E2E 148 项）、OpenAPI schema、Ruff 与
+  专用 PostgreSQL backend（540 passed/3 warnings、79.41%）；正常 hook 通过且批准文件 hash
+  一致，main 未重跑私有变异。六 DTO 精确键、双向兼容及 `api.ts` 去类型 JS 字节等同基线
+  通过；子进程 coverage 未合并，59% 门禁保持。
+- **当前边界**：A67 以本地单提交 `1321bbe43ac540cacb75ea3845ac381076a7c637` 完成独立
+  Review，main 精确 fast-forward。未 push/部署，远端 CI、真实 IdP/Provider/LiveKit/设备仍未
+  验证；后续 A68/A69 已补齐两个组件行为边界，RF-11 现按本地代码验收完成勾选。生成类型
+  之外仍保留的 domain 适配与真实服务验收不作为本地代码完成声明。
+
+## 2026-11-01 本地 RF-11 公共 API 取消入口实施记录（A66）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“保留小型自定义 Transport，统一处理
+认证、超时、取消、错误解析和 API Origin”完成公共调用入口子项。新增只包含可选 `signal`
+的 `ApiRequestOptions`，让调用方直接通过公开网络函数控制单请求取消。
+
+- **接口契约**：`ApiRequestOptions` 只含 `readonly signal?: AbortSignal | null`；实际 22 个
+  网络函数均在末尾追加该参数，保留 `owner`、`docContext`、`takeover`、查询参数及全部默认值。
+  无 owner 的 `getSessionToken`、`dispatchAgent` 仍需显式传 `undefined` 占位，options 不会被
+  误判为业务参数。
+- **请求边界**：各函数只把 `options?.signal` 写入单请求 `RequestInit.signal`，不暴露任意
+  `RequestInit`、Headers 或 timeout，也不把 options 展开进 body。请求继续复用 A64 组合句柄；
+  预取消在 `fetch` 前零请求，在途取消抛出 `ApiRequestAbortedError`，一次请求不重放；普通
+  请求保持 10s，`updateUserSettings` 保持 15s。
+- **既有语义**：URL/query/body、method、`cache: "no-store"`、认证与 owner Header、认证
+  revision 二次检查、HTTP 错误/`ApiError`、401 按原 revision 失效、错误解析及单请求行为不变；
+  两个并发请求使用独立组合句柄，取消一个不会影响另一个。
+- **测试覆盖**：`apps/vite-app/src/lib/api.test.ts` 以 24 个表驱动调用覆盖全部 22 个端点及
+  owner/无 owner 分支，并通过真实公开函数覆盖预取消、在途取消、并发隔离、写请求 body 与
+  owner Header、缺省/null signal、HTTP 401、认证 revision 竞争和设置更新 15s 预算；既有
+  无外部取消超时及全部负向用例保留。A66 定格于本地单提交
+  `fedc5f39d659bf591a7c8b42b087d46a13eb4349`。两项有效变异由 lane 私有验证执行并完整
+  还原，main 未重跑。该提交精确 fast-forward 后，main 按 A66 当时范围完成原 8 项前端门禁
+  与 529 backend pytest，其中 Vitest 907、双浏览器 E2E 148；当时尚无 A67 才新增的
+  OpenAPI schema 门禁，也不把其他轮次或 lane 的 Ruff 结果追加为本次 main 事实。
+- **边界与记录**：未接入 UI/store 生命周期主动 abort，未验证浏览器/原生 WebView 与后端任务
+  停止语义；其后续 OpenAPI 类型生成和 `VoiceInterface`、`SettingsDrawer` 大组件拆分已由
+  A67–A69 完成本地代码验收。UI 主动 abort 全部 store 仍不在这些交付中。契约见
+  [RF-11 公共 API 取消入口验证](./verification/cross-platform/RF-11-PUBLIC-CANCELLATION.md)。
+
+## 2026-11-01 本地 RF-11 会话状态判别联合与 Reducer 实施记录（A65）
+
+基于 `docs/MVP_REFACTORING_REMEDIATION_PLAN.md` RF-11“将会话状态改为判别联合或 Reducer”
+完成会话状态子项。新增纯模块 `apps/vite-app/src/store/conversationState.ts`，内部以明确
+phase 表达健康检查、创建会话、获取令牌、凭据就绪、active、ending、失败与终态；生产 store
+真实消费该模型的构造、守卫、Reducer 与投影，未增加未接线的并行状态。
+
+- 单一真值与兼容面：Zustand 内部 `_sessionState` 为判别联合真值，九个外部
+  `connectionState` 字符串及 nullable `sessionId/token/wsUrl` 在同一个原子 set 中投影；
+  空闲态 token/wsUrl 仍为 null，全部既有 action、`appView/error/sessionGen/agentError/
+selectedScenario/dispatched*` 与公开 `setState` 测试入口保持兼容。公开扁平夹具经同一层
+  归一化，完整非空 sessionId/token/wsUrl 才能进入 credentials-ready 或 active。
+- 启动语义纠偏：旧 `connecting + null token` 是 `startSession` 的刻意过渡态，内部进一步拆为
+  `creating_session` 与 `fetching_token`；认证/生命周期“启动中”判定只覆盖
+  `checking_health/creating_session/fetching_token`，有凭据的 connecting 不属于启动中。
+  `resumeSession` 仍在校验、详情、健康检查与 token 全部成功后一次发布完整凭据。
+- 状态机保持：`setActive` 仅允许 credentials-ready 转 active；dispatch/connection 失败只从
+  connecting/active 生效并清凭据；ending、end_failed、ended 保留原 sessionId，包括无会话时
+  直接 ended；reset/goHome 清内部模型与扁平投影；markDispatched 去重、全部 sessionGen 增量、
+  写后复核、auth revision/principal 与迟到响应隔离保持。
+- 消费面与 UI：`VoiceInterface` 通过模型类型收窄决定 idle/startup/终态/room-ready 分支，
+  仅 `credentials_ready/active` 可挂载 LiveKitRoom，Room key/props、DOM、文案与释放行为不变；
+  `ActiveSessions` 启动判定复用同一纯守卫。
+- 验证范围与边界：新增纯模型矩阵、非法凭据与类型负向、真实 create/token 前后 phase、
+  public setState 原子归一化、无效激活、reset/goHome、ending/end_failed/ended 身份以及 UI
+  房间挂载回退回归。A65 定格于本地单提交
+  `356f69e9ceecf8868b6f11db7b53d566032bb2f6`。三项有效变异由 lane 私有验证执行并完整
+  还原，main 未重跑。该提交精确 fast-forward 后，main 按 A65 当时范围完成原 8 项前端门禁
+  与 529 backend pytest，其中 Vitest 876、双浏览器 E2E 148；当时尚无 A67 才新增的
+  OpenAPI schema 门禁，也不把其他轮次或 lane 的 Ruff 结果追加为本次 main 事实。
+- 契约与记录见 [RF-11 会话状态模型验证](./verification/cross-platform/RF-11-STATE-MODEL.md)。
+  其后续 OpenAPI 类型生成与 `VoiceInterface`/`SettingsDrawer` 大组件按行为拆分已由
+  A67–A69 完成本地代码验收；UI 主动 abort 全部 store 与真实外部链路仍保持独立边界。
 
 ## 2026-11-01 本地 RF-11 Transport 请求超时与取消边界实施记录（A64）
 
@@ -28,7 +604,7 @@
 - 取消与超时契约：组合调用方 `AbortSignal` 与内部计时器；已取消 signal 在 `fetch` 前零网络短路；预算耗尽抛出 `ApiRequestTimeoutError`，调用方取消抛出 `ApiRequestAbortedError`，两者均不是 `ApiError` 且文案不含 URL、token、Header 或正文；外部取消始终优先，超时与取消不自动重试或重放请求。
 - 请求链路保持：认证 revision 读取、token 获取、revision 二次校验、Header 构造之后才创建组合 signal；原 `baseUrl/path`、`...options`、HTTP 错误与 `ApiError`、401 按原 revision 失效、非 JSON 回退、网络错误原样重抛及单次 `fetch` 均保持；超时/取消分别记录 `api_request_timeout` / `api_request_aborted` 结构化诊断。
 - 验证范围：直接单测覆盖默认/覆盖/非法预算、已取消 signal 零请求、错误类型区分、外部取消优先、计时器清理、错误文案稳定、冻结参数与实例隔离；公共 API 消费回归验证最终 fetch signal、超时与取消错误、一次 fetch 及设置更新的较长预算。固定检查入口因子 Agent 沙箱不能写锁目录而以 exit 78 / `PermissionError` 拒绝，独立评审阶段由主 Agent 在受控权限下补跑全部门禁并通过（前端 quality 8/8、Vite Vitest 31 文件/854 项、Chromium E2E 148、后端 pytest 529 项/82.49%）；评审另修复 `RequestInit.signal` 的 `AbortSignal | null` 类型缺陷并补 `null` 边界单测，三项前端变异自检全部被杀死。
-- 契约与记录见 [RF-11 Transport 请求超时与取消边界验证](./verification/cross-platform/RF-11-REQUEST-TIMEOUT.md)。OpenAPI 类型生成与会话状态模型重构仍待完成，RF-11 整项保持未勾选。
+- 契约与记录见 [RF-11 Transport 请求超时与取消边界验证](./verification/cross-platform/RF-11-REQUEST-TIMEOUT.md)。OpenAPI 类型生成与会话状态模型重构已由后续 A65、A67–A69 完成本地代码验收；UI 主动 abort 与真实外部链路仍保持独立边界。
 
 ## 2026-10-31 本地 RF-11 API 请求 Header 合并边界抽离实施记录（A63）
 
@@ -324,11 +900,11 @@ A独立通话占用控制器`deacf3e`与B Web生命周期适配器`418d2cd`已�
 | 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                  | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明 |
 | 会话分析       | 持久化分析状态、发音评估、语法检测、BKT 知识追踪、失败/重试状态                    | 自动化覆盖核心状态机；真实发音 Provider 仍需外部验收       |
 | 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态 | 已实现                                                     |
-| 自适应课程     | 读取薄弱技能，通过 ChromaDB/Krashen i+1 生成课程推荐                               | 存在真实 API 调用链；ChromaDB 客户端按进程复用             |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务   |
 | BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast | 已实现；密钥轮换和 Provider 连通性需按环境验收             |
 | DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                | 已实现 Web 流程；移动端文件选择仍在 TODO                   |
 | 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、关键组件键盘与可访问性支持        | 已实现；完整无障碍审计仍未完成                             |
-| 周度学习报告   | 仅保留骨架，没有 API、调度器或任务队列调用入口                                     | **未实现，不可对外宣称可用**                               |
+| 周度学习报告   | 骨架已移除；仍没有 API、调度器或任务队列调用入口                                   | **未实现，不可对外宣称可用**                               |
 | 数字人和移动端 | 方案或待办存在，但没有完成可交付闭环                                               | **未实现**                                                 |
 
 ## 2026-10-20 PR 评审与处理

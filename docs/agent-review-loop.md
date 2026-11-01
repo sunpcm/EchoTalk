@@ -22,33 +22,65 @@
 当前默认 PATH 是 Node 24，不能据此宣称完成 CI Node 22 验证。
 Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用其他 lane 的可变虚拟环境。
 
-| 类型           | lane 内工作目录         | 命令                                                            | 环境/说明                                                             |
-| -------------- | ----------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------- |
-| 真实单元测试树 | `apps/vite-app`         | `pnpm test`                                                     | 使用项目脚本配置 NODE_OPTIONS；Vitest 不使用 Turbo 缓存日志作为新证据 |
-| 浏览器测试树   | `apps/vite-app`         | `pnpm test:e2e`                                                 | Chromium + 本地 Fake API；默认端口 4173/18181，单独串行运行           |
-| 后端测试树     | `backend`               | `.venv/bin/python -m pytest --cov=. --cov-report=term-missing`  | 仅在 §3 明确独立测试库并核验后运行，Mock/DB 用例和 skip 分开报告      |
-| 格式           | 仓库根                  | `pnpm format:check`                                             | 不扫描本地 `.review/`                                                 |
-| 前端 lint      | 仓库根                  | `pnpm exec turbo run lint --force`                              | 强制执行，覆盖 Vite/仍维护的 Webpack 脚本                             |
-| 前端类型       | 仓库根                  | `pnpm exec turbo run typecheck --force`                         | 强制执行                                                              |
-| 前端构建       | 仓库根                  | `pnpm exec turbo run build --force`                             | Webpack/Vite 构建都保留，原生同步单独记录                             |
-| 后端格式       | `backend`               | `.venv/bin/ruff format --check .`                               | 与 CI 一致                                                            |
-| 后端 lint      | `backend`               | `.venv/bin/ruff check .`                                        | 与 CI 一致                                                            |
-| 空库迁移       | `backend`               | `.venv/bin/alembic upgrade head` 后 `.venv/bin/alembic current` | 仅在专用可重建测试库获授权后执行；不是普通基线检查的默认动作          |
-| iOS 工程检查   | `apps/vite-app/ios/App` | `xcodebuild -list -project App.xcodeproj`                       | 仅清单；可能访问 SPM，运行前确认边界，完整编译不在本轮默认授权内      |
-| Fake API测试   | `apps/vite-app`         | `pnpm test:fake-api`                                            | 真实 Node 子进程回归，使用动态端口 0 与原生 node:test                 |
+| 类型            | lane 内工作目录         | 命令                                                                | 环境/说明                                                             |
+| --------------- | ----------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 真实单元测试树  | `apps/vite-app`         | `pnpm test`                                                         | 使用项目脚本配置 NODE_OPTIONS；Vitest 不使用 Turbo 缓存日志作为新证据 |
+| 浏览器测试树    | `apps/vite-app`         | `pnpm test:e2e`                                                     | Chromium + 本地 Fake API；默认端口 4173/18181，单独串行运行           |
+| 后端测试树      | `backend`               | `.venv/bin/python -m pytest --cov=. --cov-report=term-missing`      | 仅在 §3 明确独立测试库并核验后运行，Mock/DB 用例和 skip 分开报告      |
+| 格式            | 仓库根                  | `pnpm format:check`                                                 | 不扫描本地 `.review/`                                                 |
+| 前端 lint       | 仓库根                  | `pnpm exec turbo run lint --force`                                  | 强制执行；实际只有 Vite 真实 lint 任务，共享配置包不伪造 lint 任务    |
+| 前端类型        | 仓库根                  | `pnpm exec turbo run typecheck --force`                             | 强制执行                                                              |
+| 前端构建        | 仓库根                  | `pnpm exec turbo run build --force`                                 | 构建 Vite/Capacitor 产品前端，原生同步单独记录                        |
+| 后端格式        | `backend`               | `.venv/bin/ruff format --check .`                                   | 与 CI 一致                                                            |
+| 后端 lint       | `backend`               | `.venv/bin/ruff check .`                                            | 与 CI 一致                                                            |
+| OpenAPI schema  | `backend`               | `../.review/rf07-a37-dev-venv/bin/python export_openapi.py --check` | 真实 app 导出后与 canonical `openapi.json` 字节比较；不读 dotenv/凭据 |
+| API 类型漂移    | `apps/vite-app`         | `pnpm check:api-types`                                              | 从 tracked schema 重新生成并与 `api.generated.ts` 字节比较            |
+| API 类型 runner | `apps/vite-app`         | `pnpm test:api-types`                                               | Node 真实 runner；覆盖确定性、stale、`$ref` 与写入失败                |
+| 空库迁移        | `backend`               | `.venv/bin/alembic upgrade head` 后 `.venv/bin/alembic current`     | 仅在专用可重建测试库获授权后执行；不是普通基线检查的默认动作          |
+| iOS 工程检查    | `apps/vite-app/ios/App` | `xcodebuild -list -project App.xcodeproj`                           | 仅清单；可能访问 SPM，运行前确认边界，完整编译不在本轮默认授权内      |
+| Fake API测试    | `apps/vite-app`         | `pnpm test:fake-api`                                                | 真实 Node 子进程回归，使用动态端口 0 与原生 node:test                 |
 
-`packages/ui-lib` 有 Vitest 配置但当前无测试文件；其他 package 的 echo/no tests 脚本不是测试树。
-根目录历史独立诊断脚本 `test_api_err.ts` 已移除，明确不属于测试树。新增真实 runner 时追加本表。
+共享配置 package 不提供占位 test 脚本，不得计入测试树。根目录历史独立诊断脚本
+`test_api_err.ts` 已移除，明确不属于测试树。新增真实 runner 时追加本表。
 构建脚本测试（`pnpm test:build`）与 Fake API 真实子进程回归测试（`pnpm test:fake-api`）均为 Node 原生 `node:test` 真实 runner，列入独立计数。
-当前前端 quality 门禁共 8 项：format、lint、typecheck、Vitest、build-script-test、fake-api-test、build、e2e；baseline 保留 3 项（format、lint、typecheck）。
+当前前端 quality 门禁共 10 项：format、lint、typecheck、Vitest、build-script-test、fake-api-test、api-types-check、api-types-test、build、e2e；baseline 保留 3 项（format、lint、typecheck）。
 真实 IdP、LiveKit/Provider、iOS/macOS 设备链路是独立外部验收，不由 Fake API E2E 替代。
 
 ### §2.1 RF-07 Python 依赖受控安装与环境验证规范
 
 1. **项目规范与解释器声明**：后端成为标准 uv 项目，`backend/pyproject.toml` 声明 `name = "echotalk-backend"`、`version = "0.1.0"`、`requires-python = ">=3.12,<3.13"`、`[tool.uv] package = false`；`backend/.python-version` 明确声明 `3.12`，统一对齐 CI 与本地解释器，禁止开发入口回退到其他 Python 版本。
-2. **唯一依赖真相与导出入口**：提交完整的 `backend/uv.lock`（192 个包），`backend/requirements.txt` 是由 `uv.lock` 通过 `uv export --frozen --no-dev --no-emit-project --no-header --no-annotate` 导出的单一只读兼容镜像产物（定义为 runtime-only，不含开发工具），禁止手写双重直接依赖。CI 中通过只读导出并与仓内文件精确 `cmp` 校验一致性。
-3. **环境隔离与只读边界**：原 `backend/.venv` 及 A36 `.review/rf07-venv` 保持严格只读，不得修改、删除或用于新依赖同步；RF-07 受控新环境固定位于 `cp00/.review/rf07-a37-dev-venv`（开发环境，包含 4 项 dev 依赖共 172 包）与 `cp00/.review/rf07-a37-runtime-venv`（生产运行时环境，排除 dev 依赖共 165 包），完全独立于 backend 目录，不进入 Docker build context。新环境的 frozen 同步安装由受控工具验证，269 项后端 pytest（覆盖率 73.72%）由架构评审在独立测试库执行与核验证实，实施方严禁直接读取数据库凭据或拿旧 env 日志充数。当前本地测试脚本与 runner 严格使用当前 lane 指定环境，不得擅自指向全局 Python。
+2. **唯一依赖真相与导出入口**：`backend/uv.lock` 经 A71 原生删除 Celery/Redis 依赖后为 179 个包（原 192）；`backend/requirements.txt` 已由主 Agent 使用 uv 0.9.18 通过 `uv export --frozen --no-dev --no-emit-project --no-header --no-annotate` 重新导出，仍是单一只读兼容镜像产物（runtime-only，不含开发工具），禁止手写双重直接依赖。CI 中通过只读导出并与仓内文件精确 `cmp` 校验一致性。A72 又经同版本 uv 离线原生重算，lock 179→107、删除 72 条跨平台记录；`requirements.txt` 为 82,071→52,074 bytes，全部存活 package 完整记录逐值相同，7 个 LiveKit exact SDK 保持。
+3. **环境隔离与只读边界**：原 `backend/.venv` 及 A36 `.review/rf07-venv` 保持严格只读，不得修改、删除或用于新依赖同步；RF-07 受控新环境固定位于 `cp00/.review/rf07-a37-dev-venv` 与 `cp00/.review/rf07-a37-runtime-venv`。A71 后为 dev 159/runtime 152；A72 经离线 frozen sync 后各删除 53 个安装包，变为 dev 106/runtime 99。A37 当时 172/165 环境上的 269 项 backend pytest（覆盖率 73.72%）保留为历史证据，A71 的 540 项 backend pytest（79.59%）已在 `dd0fbc0` main 复验通过。两套环境完全独立于 backend 目录，不进入 Docker build context，实施方严禁直接读取数据库凭据或拿旧 env 日志充数。当前本地测试脚本与 runner 严格使用当前 lane 指定环境，不得擅自指向全局 Python。
 4. **CI 与 Docker 配方统一**：CI (`.github/workflows/ci.yml`) 锁定 `astral-sh/setup-uv@v3` 版本为 `0.9.18`，通过 `uv lock --check` 与 `uv sync --frozen --group dev --no-python-downloads` 实施冻结安装（显式包含 dev 组）；Dockerfile 统一为 `python:3.12-slim` 与 uv 0.9.18 配方，通过 `uv sync --frozen --no-dev --no-python-downloads` 排除 dev 组，隔离虚拟环境于 `/opt/venv`，`.dockerignore` 补充 `.env*`、`.review/` 及测试缓存排除规则，避免本地环境泄露至镜像上下文。
+
+### §2.1.1 RF-07 运行角色当前安装与受控环境（2026-11-01，A79 已验）
+
+- 当前 `backend/pyproject.toml` 将 API 与 Agent 共用依赖保留在 `[project].dependencies`，
+  并以 `api`、`agent` 与既有 `dev` 组区分运行角色；`tool.uv.default-groups` 同时包含
+  `api/agent/dev`，无 flag 的本地开发安装保持完整。CI 仍显式使用 `--group dev`，并继续
+  先执行 `uv lock --check`，不因默认组变化改写同义命令。
+- 后端 Dockerfile 以受控 `BACKEND_ROLE=api|agent` 选择唯一运行组，固定 uv 0.9.18 后使用
+  `--frozen --no-default-groups --group "$BACKEND_ROLE" --no-python-downloads`，非法值在
+  `uv sync` 前失败；dev 不进入任一角色镜像。Compose 中 API 与 analysis-worker 使用 `api`，
+  语音 Agent 使用 `agent`。
+- `requirements.txt` 继续作为兼容镜像产物，由当前完整默认组导出后排除 dev，内容等价于
+  `api + agent` 两组运行依赖；不得改成只含 API 或只含 Agent 的导出。`uv.lock` 与
+  `requirements.txt` 只能由受控主 Agent 使用既有 uv 0.9.18 离线原生工具生成，实施方不手写。
+- 当前只允许主 Agent 使用 lane 内
+  `.review/rf07-a37-dev-venv` 与 `.review/rf07-a37-runtime-venv` 做受控安装与导入证据；
+  runtime 环境须按 `api → agent → 合并 runtime` 串行切换并在每个状态使用精确 frozen/
+  offline/no-python-downloads 命令，dev 环境同步全部组。中间角色环境不得跑完整测试，异常
+  后先恢复合并 runtime 再判断安装分布。`backend/.venv`、A36 旧环境、全局环境、uv cache、
+  dotenv 与凭据均不在实施方读取或写入边界内。
+- A79 已由主 Agent 使用既有 uv 0.9.18 离线工具完成 lock/export 原生生成与受控角色验证：
+  全部存活锁记录及全局 metadata 保持不变，只删除 `passlib 1.7.4`/`bcrypt 5.0.0`，七个
+  LiveKit exact pins 不变；导入分布为 dev 104、API 55、Agent 83，最终恢复 merged runtime
+  97。独立 Review APPROVED 后以单提交
+  `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main，并通过完整
+  15 项 main 门禁；该提交相对本地 tracking reference 领先 15 个提交，不是远端实时查询。
+- 上述本地配方与门禁不等于 Linux/Docker 镜像、Compose 服务、远端 CI、真实 LiveKit/
+  Provider、Worker 注册、设备或部署已通过；RF-05、RF-07、RF-09 与 RF-12 的外部边界继续
+  保持未完成。
 
 ## §3 测试库与安装边界
 
@@ -68,10 +100,10 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 
 | 产物                        | 源                             | 原生检查/边界                                                         |
 | --------------------------- | ------------------------------ | --------------------------------------------------------------------- |
-| Vite/Webpack dist           | TS/React、构建环境             | tsc/typecheck + 对应 build；产物不提交，环境切换后重新构建            |
+| Vite dist                   | TS/React、构建环境             | tsc/typecheck + build；产物不提交，环境切换后重新构建                 |
 | Capacitor public/config/SPM | webDir、Capacitor config、依赖 | 先核验 build/sync，再做 Xcode 编译；不手改自动生成的 SPM 配置规避错误 |
 | Alembic revision            | ORM/显式 schema 变更           | 审查迁移脚本；专用空库升级/current 及相关集成测试                     |
-| 未来 API 类型               | OpenAPI                        | 生成后仍需 typecheck 和契约测试；当前不提前引入生成器                 |
+| API 类型                    | 受跟踪的 OpenAPI schema        | 生成后仍需 typecheck 和契约测试；schema 与 types 两层漂移检查进入 CI  |
 
 ## §5 证据与报告
 
@@ -83,7 +115,12 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
   01 'git status --porcelain -b && git log --oneline -1'
 ```
 
-脚本从技能副本复制，并修正命令失败时返回相同非零退出码，保留原输出格式与拒绝覆盖行为。
+脚本是项目兼容副本：三参数调用保留流式输出、pipefail 和命令真实退出码，不能用共享
+legacy 的 tee 状态代替。显式 `--quiet` 才只回显日志末尾；完整 stdout/stderr 和真实
+`# exit` 仍落盘。执行前拒绝已有文件、目录、软链接（含悬空链接），同目录同编号只允许
+一个调用执行命令；创建或日志写入失败必须非零。旧调用无须添加 quiet。
+两种模式先保存命令真实退出码，再在原始双流字节后额外写一个 LF 和独立末行 `# exit=N`；
+已有尾换行或空输出会多一个分隔换行。原始二进制字节不删改，旧历史日志保持原样。
 记录 cwd/HEAD/dirty、命令、时间、完整输出与真实退出码；不输出环境全集、凭据或用户内容。
 重跑使用新编号并写明原因。报告可写数字，但每个数字必须指向对应 ev 原文；禁止手填通过数。
 
@@ -91,6 +128,20 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 测试库边界；迁移前后版本；未做/未验证；需要裁决的问题。
 区分既有代码失败、依赖缺失、未授权环境和本轮回归。交付后不再改动，等独立 Review。
 评审结论为 APPROVED 或 CHANGES REQUESTED；缺外部证据时明确保留对应门禁未通过。
+
+后续 prompt 与报告同时列出以下字段；不改历史报告和通用工具 receipt schema：
+
+| 字段                    | 必填内容与证据限制                                                      |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `execution_mode`        | 实际执行方式，例如主节点前台、原生子 Agent 或 CLI；不表示进程是否仍运行 |
+| `source_writes_stopped` | 是 / 否 / 未知，分列实施方声明和独立稳定字节观察                        |
+| `task_processes`        | 本任务范围未发现残留 / 仍运行 / 未知；评审待办不是进程                  |
+| `known_session_ids`     | 已知工具 session/进程身份及状态；不可查询写未知，空列表不是 OS 全量核验 |
+| `evidence_basis`        | 分列节点声明、完成事件、工具退出记录、独立观察及各自证据路径/hash/范围  |
+
+没有实际 OS 退出记录就记未知；合成 failure marker 与超时门禁码不充当真实进程退出码。
+主节点能执行也不能证明原生子节点可执行：派发前分别核固定入口、报告目录和原共享锁根
+的实际权限；受限实施方继续由获授权主控代跑验收，不扩权限或换锁根。
 
 ## §6 并行边界与集成
 
@@ -165,3 +216,159 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
 本轮实时核验本地/远端 main 为 `80fb8ec`，仅保留主 checkout 与 `.review/worktrees/cp00`；旧 track-a/b/c 已归档，前文路径/分支/服务状态均为带日期的历史事实，不能直接恢复使用。A27 仅在 cp00 的 `codex/cp05-reduced-motion` 实施，主 checkout 在评审通过前保持只读。
 
 现有固定 runner 的 b 角色已由评审重绑 cp00、本轮明确分支及已审查 HEAD；`.review/reports/track-b/` 仅复用历史证据目录名称，并不代表旧 worktree 仍存在。每轮继续维护 runner/baseline/hash，禁止仅改目录名绕过预检。后端仍仅由评审运行 cp00 专用虚拟环境及隔离测试库 helper。
+
+## §15 RF-11 OpenAPI schema 与 TypeScript 类型门禁（2026-11-01）
+
+- canonical schema：`backend/openapi.json`，只能由 `backend/export_openapi.py` 在隔离子进程中调用真实 `main.app.openapi()` 生成；禁止手改。`.prettierignore` 排除该文件，以插件字节一致性作为原生检查。
+- schema 生成：`cd backend && ../.review/rf07-a37-dev-venv/bin/python export_openapi.py`；生成后检查：同解释器追加 `--check`。父进程不得携带应用 dotenv/凭据，子进程只接收合成非业务配置，并在导入业务前阻断 DNS/socket。TMP/TEMP 与 XDG 目录受控，但不重设 `HOME`；导入 config 前通过文档化 `BaseSettings` 构造参数禁用 dotenv/file-secret，再以真实 `settings_customise_sources` 签名仅保留 init/env。真实子进程 120 秒超时，异常仅输出阶段/类型并在父进程再次校验；全部 probe/test 子进程也有有限 timeout。
+- TypeScript 类型：`apps/vite-app/src/lib/api.generated.ts` 只能由 `openapi-typescript@7.13.0` 从上述 JSON 生成；生成命令为 `pnpm --filter vite-app generate:api-types`，漂移检查为 `pnpm --filter vite-app check:api-types`。
+- lock 更新：RF-06 已删除 Webpack/ui-lib/Plop/Changesets workspace 消费者，因此
+  `pnpm-workspace.yaml` 不再保留 Webpack 专属 peer override；generator 所需的
+  `type-fest@4.41.0` 及精确 `openapi-typescript@7.13.0` 仍须保留。lock 由主 Agent 在
+  实施停写后使用 Node 22、pnpm 10.26.0 与
+  `pnpm install --lockfile-only --prefer-offline --config.dedupe-peer-dependents=false`
+  原生重生成，再执行 offline frozen install；不把 dedupe 开关写入全局或 workspace 默认。
+  验收要求所有存活 packages 的 version/integrity、保留下来的解析依赖边与 importer 不变；
+  被删除 workspace 的 importer 及其独占依赖可移除。原生 metadata 变化仍须逐项独立审查，
+  A73 的已审例外仅为 6 个精确 optional metadata 字段由缺省状态新增为 true（原生锁新增
+  该字段），以及 1 个无消费者 catalog 锁项移除；这不是任意 metadata 漂移的通用放行。
+  最终文件须经正常 Prettier 规范化后以 hash 冻结并复验，禁止手写 lock 或承受未审漂移。
+- 新 Node 真实 runner：`pnpm --filter vite-app test:api-types`，覆盖确定性、stale 不写、remote/越界 `$ref`、缺产物、输出失败及真实 CLI 检查。
+- 后端新增离线导出回归：`cd backend && ../.review/rf07-a37-dev-venv/bin/python -m pytest tests/test_openapi_export.py`；CI `test-backend` 另在 full pytest 前执行 schema `--check`。
+- 两层职责：backend job 验证实际 FastAPI schema 未漂移；frontend job 验证 schema 到 TypeScript 字节未漂移并运行生成器测试，不安装 Python 全栈。
+- 更新流程：修改 HTTP schema 后，由受控主 Agent 先执行 Python 导出，再审阅 JSON diff，执行 Node 生成，最后运行 `check:api-types`、typecheck、生成器测试和完整测试树。任一失败都保留旧已审产物，不把部分写入当成功。
+- A67 当前已验状态（2026-11-01）：本地独立 Review APPROVED，定格于单提交
+  `1321bbe43ac540cacb75ea3845ac381076a7c637`，main 精确 fast-forward。完整前端
+  quality10 通过（Vitest 907 项/32 files、Node 构建测试 18 项、Fake API 61 项、类型生成器
+  8 项、Chromium+WebKit E2E 148 项）；专用 PostgreSQL 全 pytest 为 540 passed/3 warnings、
+  79.41%，子进程 coverage 未合并、59% 门禁保持；两项 stale 变异被 killed 并完整还原源码。
+  未 push/部署，远端 CI、真实 IdP/Provider/LiveKit 与设备仍未验证。
+
+## §16 RF-10 Provider 展示元数据生成门禁（2026-11-01）
+
+- 单一来源：`backend/provider_catalog.py` 是不可变 Provider 展示元数据来源。`role`、
+  `label` 和默认标记随对应 Provider 条目维护，展示字段必须有默认值以保持既有 dataclass
+  构造兼容；禁止在 exporter、adapter 或组件中再维护 id、label、默认选择映射。
+- canonical 产物：`apps/vite-app/src/lib/providers.generated.json` 只能由
+  `backend/export_provider_metadata.py` 从真实 catalog 生成，禁止手改。投影白名单仅包含
+  `role`、`id`、`label` 及每个 role 的一个默认 id；不得透出 URL、凭据字段、Headers、
+  校验配置或其他内部运行字段。`.prettierignore` 精确排除该产物，由生成器字节检查守护。
+- 生成命令：`cd backend && ../.review/rf07-a37-dev-venv/bin/python
+export_provider_metadata.py`；漂移检查追加 `--check`。父进程只加载标准库，真实 catalog
+  导入、投影与序列化在带有限 timeout 和网络失败关闭屏障的隔离子进程中完成；输出采用
+  UTF-8、排序 key、2 空格缩进、末尾换行并通过同目录临时文件原子替换。
+- `--check` 只比较完整字节，缺产物或 stale 均非零且不写文件或目录；生成、超时、子进程
+  异常和替换失败不得破坏已有产物，异常输出只允许阶段与异常类型。后端回归覆盖真实 CLI、
+  稳定字节、缺失/stale、原子失败、导入纯净和敏感字段零透出。
+- CI 接线：`test-backend` 在既有 OpenAPI schema 检查后显式运行
+  `.venv/bin/python export_provider_metadata.py --check`。`test-frontend` 不安装 Python；
+  前端通过 `providerMetadata.ts` 消费 tracked JSON，不新增 fetch、缓存或 session 支线。
+- 本地固定 runner 在实施停写后新增独立 `provider-metadata-check`；现有 frontend10 与
+  OpenAPI schema 门禁保持原项，不能把本轮 metadata check 追溯写成旧轮已执行。
+- 更新流程：修改 catalog 展示字段后，由受控主 Agent 在实施停写后先审查 exporter，再执行
+  原生生成、审阅 JSON diff，最后运行 metadata check、Ruff、相关 pytest、前端 typecheck/
+  Vitest、完整 frontend10 与 backend 测试树。生成文件提交前不得手写或交给 formatter。
+
+## §17 局部工具接线与批准任务数据（2026-11-01，待独立 Review）
+
+本节只描述本次工具接线候选，不授权恢复 A85 或其他业务。实际交付状态、最终 hash 和
+当前增量交付在主 checkout 的 `.review/reports/skill-wiring-20261101-53cb562/implementer/r1/`；
+已评审 r0 记录仍在 `.review/reports/skill-wiring-20261101-68c0632/implementer/r0/`，保持原样。
+两份仓内文档在独立 `codex/review-loop-local-wiring` worktree 修改，main/cp00 保持只读。
+共享 skill 经本地差异复核后固定于 `53cb562160d9a29f0ca560efff765a2c35e98832`；公共预检及
+loop_gate hash 与 r0 相同，仅接入 ev 分隔格式。固定 runtime 及其
+runtime-pin、bounded_step、DB helpers、旧任务指针和 A84 脚本不升级或改写。
+
+### §17.1 稳定入口和审批链
+
+固定 CLI 仍是 `.review/reports/tools/cross-platform-local-check.py <lane> <step>`。
+稳定入口先校验新 helper hash，再由 helper 校验工具、共享预检及固定 runtime。
+新配置命名空间是 `.review/reports/tools/review-loop-local-wiring/`，由评审方维护：
+
+- `config.json` 固定实际工具 hash、共享 HEAD/预检脚本 hash、原 runtime-pin hash 和
+  新 `tasks.json` 路径；仅更新确有变化的工具 pin，不回写旧 `review-loop-launch-baselines.json`。
+- `tasks.json` 的 a/b/c 初始均为 null：真实入口拒绝执行，不能把旧任务视为自动激活。
+  评审方批准新任务后才发布指针，绑定 task、manifest/approval 的绝对路径及 SHA256。
+- 每轮 manifest 使用独立新文件，绑定 schema/task/lane/worktree、批准 branch/HEAD、
+  `require_clean`、`allowed_files`、`formatter_files`、`allowed_steps`、`quality_ids`、
+  `required_checks`、report_root、launch_mode、source_writes_stopped；按需列
+  expected_fingerprint、带 hash 的 artifacts 与 integration_target。
+- 独立 approval 以 `approved_for_execution` 绑定 manifest SHA、source_fingerprint、
+  评审依据文件路径/SHA；审批不可由 runner 读取当前 Git 状态自动补造。dirty 使用明确 bool
+  false 和独立批准的合法 expected_fingerprint；未填、字符串 false 或不符均拒绝。
+- 检查完成后，新 approval 用 `check_summaries` 显式选择 summary 路径/SHA；不扫描最新成功
+  日志，也不为补证据修改原 manifest。正式 audit 要求15项齐全、逐项真实退出/完整计数、
+  日志 hash 及源码/manifest/config/tool hash 均匹配最终输入；只有字节冻结仍不能通过审计。
+- allowed_files/formatter_files 是文件级相对路径，formatter 范围必须为修改范围子集。
+  Git `-z` 清单保留空格，重命名源/目的分别确认；未跟踪文件也核范围。拒绝路径越界、
+  软链接及解析后越界，不接任意 argv、SQL、环境变量或目录范围扩张。
+
+检查前以及持锁后都核任务、manifest/approval/tool hash、分支/HEAD、dirty 范围和批准指纹，
+失败不启动命令。formatter 仅接批准且实际变更的现存文件，删除文件不传 formatter；
+执行后字节变化会使旧审批失效，必须由评审方审阅最终 diff 后另建批准文件和指针。
+生成产物同样完成原生生成/检查后再冻结，不能用 formatter 前回执验收最终字节。
+生成准备写入只豁免 `api-types-generate`、`provider-metadata-generate`、`schema-export`；
+它们仍核允许范围、配置/hash、分支/HEAD、锁及停写声明，真正非零保持非零，越界仍拒绝。
+其余只读检查即使仅改变 allowed_files 内字节也拒绝，不把整个 EXTRA 列表视为写入许可。
+三项生成准备在命令启动前将输入 approval 的消费回执写入 report_root/preparation-inputs；
+即使无字节变化、非零或中断，旧批准也不能再检查、freeze/audit 或执行依赖后步。该回执
+不改 manifest、approval、指针或 expected_fingerprint，不代表批准输出；由评审方审阅 diff
+后另建最终字节批准才可继续。普通格式化步骤原有的字节变化后重批规则保持。
+
+### §17.2 固定检查与通道
+
+`b quality` 保持 frontend10：format、lint、typecheck、test、build-script-test、
+fake-api-test、api-types-check、api-types-test、build、e2e。完整验收另需 backend5：
+backend-format、backend-lint、backend-test、schema-check、provider-metadata-check。
+baseline 不冒充完整验收；有依赖步骤按真实非零立即停止。有效测试须有非零计数和完整摘要，
+零测试、摘要无效、skip/error/中断不算通过；退出 1 无有效失败摘要时改为门禁 78，不能
+当有效 mutation kill。receipt 分开 command process_exit_code 与门禁 exit_code。
+
+原生预检使用官方 `launch_mode=native`，不携带 CLI 字段；CLI 预检保留既有可执行文件、
+权限文件/条目和代理组检查。清单只由固定配置构造，不借通道切换删掉公共门禁。
+这只验证主节点本地预检，不证明真实原生子 Agent 权限或交付。
+
+原 DB helper 仍绑定 cp00/专用库；其他 worktree 的 backend-test 在调用 helper 前拒绝，
+原 A 线 placeholder helper 同样只允许其原 worktree，避免稳定入口核一棵树却修改另一棵树。
+本次不重写 DB helper。独立工具 worktree 不安装业务依赖。E2E 输出使用报告区唯一目录，
+C 线保留原离线 cargo 路径/环境。固定入口是协作门禁，不能拦截绕入口的编辑或命令。
+
+### §17.3 冻结、审计和集成护栏
+
+新增 `.review/reports/tools/review-stage.py <lane> <stage> <receipt绝对路径>`，stage 为：
+
+- `freeze`：停写声明与批准输入均通过后，持 lane 锁冻结最终源码、manifest、工具/config、
+  runtime-pin 和所列证据 hash。回执状态 `frozen_not_reviewed`，不是 APPROVED。
+- `audit`：评审方新 approval 显式绑定 frozen_receipt 路径/SHA 后，持锁复核同一最终输入。
+- `integration-check`：另有 `approved_for_integration` 才取得 main/lane 双锁复核目标
+  干净、批准 HEAD 及冻结输入；此命令只读，不提交或合并，其退出不构成锁外操作的许可。
+- `integrate-fixture`：仅用于临时合成 Git 仓；worktree 和 Git common-dir 均须在临时根，
+  拒绝真实 EchoTalk 及其 linked worktree。本轮仅在该入口演示受锁 commit + 精确 ff。
+
+全部复用原 `worktree_lock` 与 `/Users/sunpcm/.local/state/review-loop/locks`。canonical
+worktree 路径排序后固定顺序取双锁；高序单锁内申请低序锁会拒绝，避免自锁。可信继承锁
+不由子方释放；冲突、异常、未恢复 mutation journal 均失败关闭，新取锁异常时释放。
+拥有锁的执行方负责硬超时/进程组；继承锁下的检查保留原 bounded helper 的外层控制语义，
+由传入锁的 check_batch/mutate 控制进程组超时，不能脱离外层控制器单独借锁跑长任务。
+正式冻结/验收拒绝非稳定输入；普通静态阅读无需全面串行。锁不代替停写确认，也不阻止
+直接编辑；变异检查仍需批准的输入版本，指纹不匹配必须拒绝，不得把拒绝当 kill。
+
+真实项目的 commit/ff 仍需后续明确授权，并在 `integration_guard` 同一 context 内完成
+复核和动作，禁止先运行 integration-check 再在锁外集成。本轮没有真实集成执行入口。
+
+### §17.4 备份、验证和回退
+
+修改前备份位于本轮报告 `backup/`；`baseline-and-backup.json` 记录原路径、模式和 SHA，
+`new-paths.json` 标明本轮新增项。未复制 dotenv/凭据。先完成代码、文档和 formatter，再冻结
+最终文件 hash，串行运行本轮离线检查。离线验证只证明工具行为，不替代上述15项业务门禁，
+不证明原生权限、真实服务或额度节省。本次这些业务/外部边界均未执行。
+
+回退先停本轮自有操作并核已知 session，确认当前文件仍等于本轮最终 hash、没有其他写者。
+从备份逐文件 `cp -p` 恢复旧 ev/runner 及原模式；旧配置本来未改，核旧 hash 即可。两份
+文档只回退本工具 worktree 的自有修改。新增路径仅在 hash/归属一致时移出活动路径并保留
+证据，不覆盖别人后来的数据；检查备份 hash、旧入口离线兼容和 main/cp00 基线。存在漂移
+则停止回退并报告，不 reset/stash/清理其他现场。
+
+r1 是五份文件的局部增量：review_wiring.py、项目 ev.sh、新 config 与两份文档；r1 备份恢复
+保留 r0 已批准文档修改，不恢复到 Git HEAD。只更新这两个实际变更工具 pin 和经审 shared_head，
+tasks null 槽位、其他 pin、runtime、历史记录不改。r0 上述备份/新路径说明是其历史口径。

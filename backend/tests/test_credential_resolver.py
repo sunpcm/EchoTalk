@@ -602,3 +602,21 @@ def test_resolver_and_errors_module_independence():
     assert "livekit" not in pe_mod.__dict__
     assert "config" not in pe_mod.__dict__
     assert "PluginFactory" not in pe_mod.__dict__
+
+
+def test_decrypt_wrapper_delegates_to_runtime_crypto_module(monkeypatch):
+    """无副作用 wrapper 在实际调用时仍必须触达真实 crypto 实现。"""
+    import utils.crypto as crypto_module
+    from livekit_agent.credential_resolver import decrypt_api_key
+
+    expected = DecryptedCredential(plaintext="synthetic", needs_rotation=False)
+    calls: list[tuple[str, str | None]] = []
+
+    def runtime_decrypt(ciphertext: str, key_version: str | None):
+        calls.append((ciphertext, key_version))
+        return expected
+
+    monkeypatch.setattr(crypto_module, "decrypt_api_key", runtime_decrypt)
+
+    assert decrypt_api_key("ciphertext", "key-v1") is expected
+    assert calls == [("ciphertext", "key-v1")]

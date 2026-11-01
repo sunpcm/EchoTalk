@@ -34,6 +34,13 @@ import {
   updateUserSettings,
   ApiError,
   getBaseUrl,
+  type ApiRequestOptions,
+  type DailyProgressResponse,
+  type SessionListItem,
+  type SessionListResponse,
+  type CallCapabilitiesResponse,
+  type CallLeaseResponse,
+  type CallReleaseResponse,
 } from "./api";
 import {
   setAccessTokenProvider,
@@ -51,6 +58,26 @@ import {
   UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
 } from "./apiRequestTimeout";
 import { zhCN } from "@/i18n/zh-CN";
+
+type Assert<T extends true> = T;
+type IsRequired<T, K extends keyof T> = Pick<T, K> extends Required<Pick<T, K>> ? true : false;
+export type GeneratedContractAssertions = [
+  Assert<IsRequired<DailyProgressResponse, "completed_sessions">>,
+  Assert<IsRequired<DailyProgressResponse, "total_turns">>,
+  Assert<IsRequired<SessionListItem, "ended_at">>,
+  Assert<null extends SessionListItem["ended_at"] ? true : false>,
+  Assert<IsRequired<SessionListResponse, "items">>,
+  Assert<IsRequired<SessionListResponse, "next_cursor">>,
+  Assert<null extends SessionListResponse["next_cursor"] ? true : false>,
+  Assert<IsRequired<CallCapabilitiesResponse, "protocol_version">>,
+  Assert<IsRequired<CallCapabilitiesResponse, "call_lease_mode">>,
+  Assert<CallCapabilitiesResponse["protocol_version"] extends 1 ? true : false>,
+  Assert<
+    CallCapabilitiesResponse["call_lease_mode"] extends "disabled" | "livekit_cloud" ? true : false
+  >,
+  Assert<CallLeaseResponse["state"] extends "held" ? true : false>,
+  Assert<CallReleaseResponse["released"] extends true ? true : false>,
+];
 
 describe("API client", () => {
   const originalFetch = globalThis.fetch;
@@ -1941,6 +1968,310 @@ describe("API client", () => {
           body: JSON.stringify(updateData),
         }),
       );
+    });
+  });
+
+  describe("Public cancellation API (RF-11 A66)", () => {
+    const validSessionId = "550e8400-e29b-41d4-a716-446655440000";
+    const validDeviceId = "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d";
+    const owner: CallLeaseOwner = { device_id: validDeviceId, generation: 3 };
+    const docContext = {
+      content_type: "article",
+      raw_text: "Sample text",
+      prompt: "Discuss this article",
+    };
+
+    const publicCalls: ReadonlyArray<{
+      name: string;
+      invoke: (options: ApiRequestOptions) => Promise<unknown>;
+    }> = [
+      { name: "getCallCapabilities", invoke: (options) => getCallCapabilities(options) },
+      {
+        name: "claimCallLease",
+        invoke: (options) => claimCallLease(validSessionId, validDeviceId, true, options),
+      },
+      {
+        name: "heartbeatCallLease",
+        invoke: (options) => heartbeatCallLease(validSessionId, owner, options),
+      },
+      {
+        name: "releaseCallLease",
+        invoke: (options) => releaseCallLease(validSessionId, owner, options),
+      },
+      { name: "checkHealthReady", invoke: (options) => checkHealthReady(options) },
+      {
+        name: "createSession",
+        invoke: (options) => createSession("doc_chat", docContext, options),
+      },
+      {
+        name: "getSessionToken without owner",
+        invoke: (options) => getSessionToken(validSessionId, undefined, options),
+      },
+      {
+        name: "getSessionToken with owner",
+        invoke: (options) => getSessionToken(validSessionId, owner, options),
+      },
+      {
+        name: "endSession",
+        invoke: (options) => endSession(validSessionId, options),
+      },
+      {
+        name: "dispatchAgent without owner",
+        invoke: (options) => dispatchAgent(validSessionId, undefined, options),
+      },
+      {
+        name: "dispatchAgent with owner",
+        invoke: (options) => dispatchAgent(validSessionId, owner, options),
+      },
+      {
+        name: "listSessions",
+        invoke: (options) => listSessions({ status: "completed", limit: 10 }, options),
+      },
+      {
+        name: "listActiveSessions",
+        invoke: (options) => listActiveSessions({ limit: 10 }, options),
+      },
+      {
+        name: "getDailyProgress",
+        invoke: (options) =>
+          getDailyProgress("2026-11-01T00:00:00Z", "2026-11-01T23:59:59Z", options),
+      },
+      {
+        name: "getSessionDetail",
+        invoke: (options) => getSessionDetail(validSessionId, options),
+      },
+      {
+        name: "getAnalysisStatus",
+        invoke: (options) => getAnalysisStatus(validSessionId, options),
+      },
+      {
+        name: "retryAnalysis",
+        invoke: (options) => retryAnalysis(validSessionId, options),
+      },
+      {
+        name: "getAssessment",
+        invoke: (options) => getAssessment(validSessionId, options),
+      },
+      {
+        name: "getGrammarErrors",
+        invoke: (options) => getGrammarErrors(validSessionId, options),
+      },
+      {
+        name: "getKnowledgeStates",
+        invoke: (options) => getKnowledgeStates(options),
+      },
+      { name: "getSkills", invoke: (options) => getSkills(options) },
+      {
+        name: "getRecommendedCurriculum",
+        invoke: (options) => getRecommendedCurriculum(options),
+      },
+      { name: "getUserSettings", invoke: (options) => getUserSettings(options) },
+      {
+        name: "updateUserSettings",
+        invoke: (options) => updateUserSettings({ theme: "warm" }, options),
+      },
+    ];
+
+    it.each(publicCalls)(
+      "$name short-circuits a pre-cancelled public signal before fetch",
+      async ({ invoke }) => {
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(invoke({ signal: controller.signal })).rejects.toBeInstanceOf(
+          ApiRequestAbortedError,
+        );
+        expect(fetchMock()).not.toHaveBeenCalled();
+      },
+    );
+
+    it("forwards a public signal in flight and isolates a concurrent request", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      let resolveCapabilities!: (response: Response) => void;
+      let capabilitiesSignal: AbortSignal | null | undefined;
+      fetchMock().mockImplementation((url, init) => {
+        const signal = init?.signal;
+        if (!signal) throw new Error("Expected the combined request signal");
+
+        if (String(url).endsWith("/health/ready")) {
+          return new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          });
+        }
+
+        if (String(url).endsWith("/call-capabilities")) {
+          capabilitiesSignal = signal;
+          return new Promise<Response>((resolve) => {
+            resolveCapabilities = resolve;
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${String(url)}`);
+      });
+
+      const healthController = new AbortController();
+      const capabilitiesController = new AbortController();
+      const healthRequest = checkHealthReady({ signal: healthController.signal });
+      const capabilitiesRequest = getCallCapabilities({
+        signal: capabilitiesController.signal,
+      });
+
+      await vi.waitFor(() => expect(fetchMock()).toHaveBeenCalledTimes(2));
+      expect(capabilitiesSignal).toBeInstanceOf(AbortSignal);
+
+      healthController.abort();
+      await expect(healthRequest).rejects.toBeInstanceOf(ApiRequestAbortedError);
+      expect(capabilitiesController.signal.aborted).toBe(false);
+      expect(capabilitiesSignal?.aborted).toBe(false);
+
+      resolveCapabilities({
+        ok: true,
+        json: () => Promise.resolve({ protocol_version: 1, call_lease_mode: "disabled" }),
+      } as unknown as Response);
+      await expect(capabilitiesRequest).resolves.toEqual({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      expect(fetchMock()).toHaveBeenCalledTimes(2);
+    });
+
+    it("preserves write bodies and owner headers with one fetch per request", async () => {
+      const controller = new AbortController();
+      const options = Object.freeze({ signal: controller.signal });
+      const leaseResponse = {
+        session_id: validSessionId,
+        device_id: validDeviceId,
+        generation: 4,
+        state: "held",
+        expires_at: "2026-11-01T10:15:20Z",
+      };
+      fetchMock()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(leaseResponse),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ dispatched: true }),
+        } as unknown as Response);
+
+      await claimCallLease(validSessionId, validDeviceId, true, options);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      const claimOptions = fetchMock().mock.calls[0]?.[1];
+      expect(claimOptions?.body).toBe(JSON.stringify({ device_id: validDeviceId, takeover: true }));
+      expect(claimOptions?.signal).toBeInstanceOf(AbortSignal);
+      const claimHeaders = new Headers(claimOptions?.headers);
+      expect(claimHeaders.has("X-Call-Device-Id")).toBe(false);
+      expect(claimHeaders.get("Authorization")).toBe("Bearer test-access-token");
+
+      await dispatchAgent(validSessionId, owner, options);
+      expect(fetchMock()).toHaveBeenCalledTimes(2);
+      const dispatchOptions = fetchMock().mock.calls[1]?.[1];
+      expect(dispatchOptions?.method).toBe("POST");
+      expect(dispatchOptions?.signal).toBeInstanceOf(AbortSignal);
+      const dispatchHeaders = new Headers(dispatchOptions?.headers);
+      expect(dispatchHeaders.get("X-Call-Device-Id")).toBe(validDeviceId);
+      expect(dispatchHeaders.get("X-Call-Generation")).toBe("3");
+      expect(dispatchHeaders.get("Authorization")).toBe("Bearer test-access-token");
+      expect(options).toEqual({ signal: controller.signal });
+    });
+
+    it("cancels an in-flight public write once without replay", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const controller = new AbortController();
+      fetchMock().mockImplementation(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            const signal = init?.signal;
+            if (!signal) throw new Error("Expected the combined request signal");
+            signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          }),
+      );
+
+      const requestPromise = updateUserSettings({ theme: "warm" }, { signal: controller.signal });
+      await vi.waitFor(() => expect(fetchMock()).toHaveBeenCalledTimes(1));
+      const requestOptions = fetchMock().mock.calls[0]?.[1];
+      expect(requestOptions?.method).toBe("PUT");
+      expect(requestOptions?.body).toBe(JSON.stringify({ theme: "warm" }));
+
+      controller.abort();
+      await expect(requestPromise).rejects.toBeInstanceOf(ApiRequestAbortedError);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats absent and null signals as equivalent without mutation", async () => {
+      const createHandleSpy = vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle");
+      const nullSignalOptions = Object.freeze({ signal: null });
+      fetchMock()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ status: "ready" }),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ protocol_version: 1, call_lease_mode: "disabled" }),
+        } as unknown as Response);
+
+      await checkHealthReady();
+      await getCallCapabilities(nullSignalOptions);
+
+      expect(createHandleSpy).toHaveBeenNthCalledWith(1, undefined, undefined);
+      expect(createHandleSpy).toHaveBeenNthCalledWith(2, null, undefined);
+      expect(nullSignalOptions).toEqual({ signal: null });
+      expect(fetchMock()).toHaveBeenCalledTimes(2);
+    });
+
+    it("preserves HTTP 401 ApiError and auth invalidation when a signal is provided", async () => {
+      const initialRev = getAuthRevision();
+      const controller = new AbortController();
+      const options = Object.freeze({ signal: controller.signal });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: "Unauthorized" }),
+      } as unknown as Response);
+
+      await expect(listSessions(undefined, options)).rejects.toSatisfy((error: unknown) => {
+        expect(error).toBeInstanceOf(ApiError);
+        expect(error).toMatchObject({ status: 401 });
+        return true;
+      });
+      expect(getAuthRevision()).toBeGreaterThan(initialRev);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      expect(controller.signal.aborted).toBe(false);
+    });
+
+    it("keeps the auth revision guard ahead of a pre-cancelled public signal", async () => {
+      const controller = new AbortController();
+      controller.abort();
+      setAccessTokenProvider(async () => {
+        invalidateAuthSession();
+        return "token-1";
+      });
+
+      await expect(checkHealthReady({ signal: controller.signal })).rejects.toThrow(
+        zhCN.auth.sessionChanged,
+      );
+      expect(fetchMock()).not.toHaveBeenCalled();
+    });
+
+    it("keeps the 15s settings budget when a public signal is provided", async () => {
+      const controller = new AbortController();
+      const options = Object.freeze({ signal: controller.signal });
+      const createHandleSpy = vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle");
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ is_custom_mode: false }),
+      } as unknown as Response);
+
+      await updateUserSettings({ theme: "warm" }, options);
+
+      expect(createHandleSpy).toHaveBeenCalledWith(controller.signal, {
+        timeoutMs: UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
+      });
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      expect(options).toEqual({ signal: controller.signal });
     });
   });
 

@@ -1308,6 +1308,34 @@ async def test_sink_entrypoint_registration_failure_asserts_sink_closed_and_task
 
 
 @pytest.mark.asyncio
+async def test_sink_default_writer_reaches_real_service(pg_env):
+    """无 writer 注入时，延迟 wrapper 必须触达真实 transcript service。"""
+    user_id = await pg_env.create_user(email_prefix="sink-default-writer")
+    session_id = await pg_env.create_session(user_id)
+    event_id = uuid.uuid4()
+
+    sink = TranscriptSink(session_id=str(session_id))
+    submit_kwargs = {
+        "event_id": event_id,
+        "timestamp_ms": 1_700_000_000_000,
+    }
+    sink.submit("assistant", "Default writer integration.", **submit_kwargs)
+
+    assert await sink.close() is True
+
+    async with pg_env.session_factory() as db:
+        result = await db.execute(
+            select(Transcript).where(
+                Transcript.session_id == session_id,
+                Transcript.event_id == event_id,
+            )
+        )
+        transcript = result.scalar_one()
+        assert transcript.content == "Default writer integration."
+        assert transcript.timestamp_ms == submit_kwargs["timestamp_ms"]
+
+
+@pytest.mark.asyncio
 async def test_sink_with_real_pg_and_idempotent_commit_ack_retry(pg_env):
     """验证通过真实专用 PostgreSQL 接入 Sink，处理不确定提交确认丢失重发，最终单条记录。"""
     user_id = await pg_env.create_user()

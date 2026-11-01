@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="packages/ui-lib/src/icons/echotalk-app-icon.svg" width="128" height="128" alt="EchoTalk Logo" />
+  <img src="docs/assets/branding/echotalk-app-icon.svg" width="128" height="128" alt="EchoTalk Logo" />
   <h1>EchoTalk — AI 英语口语练习平台</h1>
 </div>
 
@@ -9,22 +9,22 @@
 
 ## 项目当前状态与进度
 
-| Phase | 内容                              | 状态        |
-| ----- | --------------------------------- | ----------- |
-| 1     | 后端基础对话管线                  | ✅ 已完成   |
-| 1     | 前端 Vite 语音 UI                 | ✅ 已完成   |
-| 2     | 发音评估 + 知识追踪（后端）       | ✅ 已完成   |
-| 2     | 发音高亮 + 技能树（前端）         | ✅ 已完成   |
-| 3     | 情绪感知（后端）                  | ✅ 已完成   |
-| 3     | 数字人（前端）                    | 🔲 待开发   |
-| 4     | 自适应 RAG（后端）                | ✅ 已完成   |
-| 4     | 周度学习报告                      | 🚧 仅有骨架 |
-| 4     | 课程推荐 Dashboard（前端）        | ✅ 已完成   |
-| 5     | 双轨制 BYOK — 数据层 + Agent      | ✅ 已完成   |
-| 5     | 双轨制 BYOK — 设置抽屉 + 错误拦截 | ✅ 已完成   |
-| 6     | BYOK 鉴权与连通性验证             | ✅ 已完成   |
-| 7     | DocTalk 文档对话                  | ✅ 已完成   |
-| 8     | 三主题切换（暖色/冷色/黑色）      | ✅ 已完成   |
+| Phase | 内容                              | 状态      |
+| ----- | --------------------------------- | --------- |
+| 1     | 后端基础对话管线                  | ✅ 已完成 |
+| 1     | 前端 Vite 语音 UI                 | ✅ 已完成 |
+| 2     | 发音评估 + 知识追踪（后端）       | ✅ 已完成 |
+| 2     | 发音高亮 + 技能树（前端）         | ✅ 已完成 |
+| 3     | 情绪感知（后端）                  | ✅ 已完成 |
+| 3     | 数字人（前端）                    | 🔲 待开发 |
+| 4     | 自适应课程推荐（后端）            | ✅ 已完成 |
+| 4     | 周度学习报告                      | 🔲 待开发 |
+| 4     | 课程推荐 Dashboard（前端）        | ✅ 已完成 |
+| 5     | 双轨制 BYOK — 数据层 + Agent      | ✅ 已完成 |
+| 5     | 双轨制 BYOK — 设置抽屉 + 错误拦截 | ✅ 已完成 |
+| 6     | BYOK 鉴权与连通性验证             | ✅ 已完成 |
+| 7     | DocTalk 文档对话                  | ✅ 已完成 |
+| 8     | 三主题切换（暖色/冷色/黑色）      | ✅ 已完成 |
 
 ---
 
@@ -50,9 +50,9 @@
 │  ├── 发音评估: Needleman-Wunsch 音素对齐                   │
 │  ├── 知识追踪: BKT 贝叶斯模型                              │
 │  ├── 语法检测: 正则规则引擎                                │
-│  └── 自适应 RAG: ChromaDB 向量检索 + Krashen i+1          │
+│  └── 自适应课程: 版本化语料 + CEFR/技能确定性检索         │
 ├────────────────────────────────────────────────────────┤
-│ 数据层 (PostgreSQL + asyncpg + ChromaDB)                  │
+│ 数据层 (PostgreSQL + asyncpg + 版本化教学语料)            │
 │  └── 9 张表: users, user_profiles, user_settings,         │
 │      sessions, transcripts, skills, knowledge_states,     │
 │      pronunciation_assessments, grammar_errors            │
@@ -73,23 +73,24 @@
 ### 服务架构
 
 ```
-docker-compose.yml 包含 7 个服务：
+docker-compose.yml 包含 5 个服务：
 
-  echotalk-postgres   ── PostgreSQL 15
-  echotalk-redis      ── Redis 7
-  echotalk-chroma     ── ChromaDB 向量数据库
-  echotalk-api        ── FastAPI (uvicorn × 4 workers)
-  echotalk-agent      ── LiveKit 语音 Agent
-  echotalk-worker     ── Celery 异步任务
-  echotalk-web        ── Nginx 静态前端 + API 反向代理
+  echotalk-postgres          ── PostgreSQL 15
+  echotalk-api               ── FastAPI (uvicorn × 4 workers)
+  echotalk-agent             ── LiveKit 语音 Agent
+  echotalk-analysis-worker   ── PostgreSQL 持久化分析任务
+  echotalk-web               ── Nginx 静态前端 + API 反向代理
 ```
+
+`echotalk-web` 使用仓库根作为 Docker build context。根 `.dockerignore` 以允许列表仅放行
+workspace 配置、Vite 构建源码与公开环境文件；`.review/`、Git 元数据、本地 dotenv 覆盖、
+依赖缓存和原生工程不会进入 Web 上下文。真实镜像构建仍由 CI 或独立验收执行。
 
 ### 启动步骤
 
 ```bash
 # 1. 确认 .env 文件已配置（API keys 等敏感信息）
-#    docker-compose 中的 DATABASE_URL / REDIS_URL / CHROMA_HOST
-#    已自动指向容器内部地址，无需手动修改
+#    docker-compose 中的 DATABASE_URL 已自动指向容器内部地址
 
 # 2. 一键构建并启动全部服务（后台运行）
 docker compose up -d --build
@@ -97,8 +98,11 @@ docker compose up -d --build
 # 3. 查看服务状态
 docker compose ps
 
-# 4. 初始化 ChromaDB 语料种子（首次部署时执行）
-docker compose exec echotalk-api python scripts/seed_corpus.py
+# 4. 校验版本化课程语料（从 backend 执行）
+cd backend
+python -m scripts.seed_corpus
+cd ..
+docker compose exec echotalk-api python -m scripts.seed_corpus
 
 # 5. 数据库迁移（首次部署时执行）
 docker compose exec echotalk-api alembic upgrade head
@@ -136,7 +140,7 @@ docker compose down -v
 ### 前置条件
 
 - Python 3.12+ / [uv](https://docs.astral.sh/uv/)
-- Node.js 20+ / pnpm
+- Node.js 22 / Corepack（根 `packageManager` 固定 pnpm 10.26.0）
 - PostgreSQL 15+
 
 ### 后端启动
@@ -163,8 +167,12 @@ uv pip install -r requirements.txt
 # 4. 数据库迁移
 alembic upgrade head
 
-# 5. 启动服务（种子数据自动注入）
+# 5. 启动 API 服务
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# 6. 另开终端启动 LiveKit Agent（提供 dev 或 start）
+python -m livekit_agent dev
+# 直接执行 python livekit_agent/agent.py 不再受支持，导入与启动副作用已分离
 ```
 
 健康检查：
@@ -177,7 +185,8 @@ curl http://localhost:8000/api/health
 ### 前端启动
 
 ```bash
-# 1. 安装依赖
+# 1. 启用 Corepack 并按根 packageManager 选择 pnpm，然后安装依赖
+corepack enable pnpm
 pnpm install
 
 # 2. 启动开发服务器（HTTPS + /api 代理至 localhost:8000 + LiveKit WS 代理）
@@ -215,7 +224,7 @@ pnpm --filter vite-app dev
 - **音素可视化**：逐音素彩色色块渲染（绿=正确、红=替换/缺失、琥珀=多余），Hover 显示错误详情
 - **语法提示**：检测到的语法错误以列表形式展示，含 skill_tag 标签和原文标注
 - **技能掌握度**：BKT 知识状态按发音/语法分组，进度条 + 百分比展示，≥95% 标记「已掌握」
-- **轮询机制**：指数退避轮询兼容未来 Celery 异步分析，404 时自动重试
+- **轮询机制**：指数退避轮询 PostgreSQL 持久化分析状态，失败时提供显式重试入口
 - **评估状态管理**：独立 zustand store，管理 idle/polling/loaded/error 四状态生命周期
 
 ### Phase 2 — LiveKit 连接优化
@@ -233,13 +242,14 @@ pnpm --filter vite-app dev
 - **情绪持久化**：每条用户转录附带 emotion_state JSON（anxiety_level, cognitive_load, hesitation_rate, wpm）
 - **零阻塞设计**：纯文本分析 <0.1ms，通过 Agent.on_user_turn_completed 钩子在 LLM 推理前完成
 
-### Phase 4 — 自适应 RAG（后端）
+### Phase 4 — 离线确定性课程推荐（后端）
 
-- **RAG 语料检索**：ChromaDB 本地向量数据库，10 条教学语料种子（发音/语法/场景对话）
-- **Krashen i+1 过滤**：CEFR 数值化映射（A1=1~C2=6），metadata `$gte/$lte` 硬过滤 + 向量相似度软排序
-- **自适应课程推荐**：读取 BKT 最弱技能 → RAG 检索匹配语料 → 生成定制化 System Prompt 模板
+- **版本化语料目录**：10 条教学材料置于受 Git 管理的 JSON，首次加载时严格校验并缓存只读对象
+- **Krashen i+1 过滤**：CEFR 数值化映射（A1=1~C2=6），仅保留 target 至 target+1 的同范围内语料
+- **确定性排序**：CEFR 范围后按 primary skill、标签交集、显式 priority 和 id 稳定排序
+- **自适应课程推荐**：读取 BKT 最弱技能 → 离线目录检索 → 生成定制化 System Prompt 模板
 - **智能难度定位**：根据最弱技能掌握度自动推断目标 CEFR 等级（<0.3→A2, <0.6→B1, else→B2）
-- **周报尚未实现**：Celery `generate_weekly_report` 当前只返回骨架；具体维度见 [TODO.md](TODO.md)
+- **周报尚未实现**：多维学习周报仍是独立产品功能；具体维度见 [TODO.md](TODO.md)
 
 ### Phase 4 — 课程推荐 Dashboard（前端）
 
@@ -347,22 +357,28 @@ EchoTalk/
 │   ├── models/                        # ORM 模型（9 张表）
 │   ├── schemas/                       # Pydantic 响应模型
 │   ├── routers/                       # API 路由
+│   ├── data/                          # 版本化教学语料
+│   │   └── teaching_materials.json    # 10 条课程材料
 │   ├── services/                      # 业务逻辑
-│   │   ├── llm_service.py             # LLM 调用 + 动态 Prompt 构建
+│   │   ├── agent_prompt.py            # Agent 动态 Prompt 纯函数
+│   │   ├── llm_service.py             # LLM 调用 + Prompt 兼容重导出
 │   │   ├── emotion_analyzer.py        # 情绪分析规则引擎
-│   │   ├── rag_service.py             # RAG 向量检索 + Krashen i+1
+│   │   ├── material_catalog.py        # 离线目录校验与只读缓存
+│   │   ├── rag_service.py             # 确定性课程检索 + Krashen i+1
 │   │   ├── analysis_service.py        # 分析管线编排
 │   │   ├── pronunciation/             # NW 音素对齐
 │   │   └── knowledge/                 # BKT 模型 + 技能映射
 │   ├── utils/                         # 工具模块
 │   │   └── crypto.py                  # Fernet API Key 加解密
 │   ├── livekit_agent/                 # LiveKit 语音 Agent
-│   │   ├── agent.py                   # 双轨路由入口
+│   │   ├── __main__.py                # python -m livekit_agent 模块入口
+│   │   ├── bootstrap.py               # dotenv、配置校验与 SDK CLI 显式启动
+│   │   ├── agent.py                   # 双轨业务路由（导入无启动副作用）
 │   │   └── plugin_factory.py          # PluginFactory 插件工厂
-│   ├── workers/                       # Celery 异步任务
-│   │   └── report_tasks.py            # 周报生成（骨架预留）
+│   ├── workers/                       # PostgreSQL 持久化分析任务
+│   │   └── analysis_worker.py         # 原子领取、重试与超时恢复
 │   └── scripts/                       # 工具脚本
-│       └── seed_corpus.py             # RAG 语料种子写入
+│       └── seed_corpus.py             # 课程语料校验与摘要
 ├── apps/vite-app/                     # Vite React 前端
 │   └── src/
 │       ├── components/
@@ -393,16 +409,17 @@ EchoTalk/
 
 当前所有外部依赖均可 Mock 运行（`.env` 中 `USE_MOCK_*=True`）：
 
-| 服务   | Mock 行为                             | 生产环境接入方式                    |
-| ------ | ------------------------------------- | ----------------------------------- |
-| LLM    | 返回固定回复文本                      | `USE_MOCK_LLM=False` + API Key      |
-| TTS    | 返回 null（无音频）                   | `USE_MOCK_TTS=False` + Cartesia Key |
-| 发音   | letter-by-letter + TH→S 注入          | CMU 词典 / ELSA API                 |
-| 语法   | 正则规则匹配                          | LLM 驱动检测                        |
-| 情绪   | 文本犹豫词 + 语速规则引擎             | Hume EVI 3 原生情绪（Premium）      |
-| Celery | 同步执行，无需 Redis                  | `USE_MOCK_CELERY=False` + Redis     |
-| RAG    | ChromaDB 本地嵌入（all-MiniLM-L6-v2） | sentence-transformers 自定义模型    |
+| 服务 | Mock 行为                    | 生产环境接入方式                     |
+| ---- | ---------------------------- | ------------------------------------ |
+| LLM  | 返回固定回复文本             | `USE_MOCK_LLM=False` + API Key       |
+| TTS  | 返回 null（无音频）          | `USE_MOCK_TTS=False` + Cartesia Key  |
+| 发音 | letter-by-letter + TH→S 注入 | CMU 词典 / ELSA API                  |
+| 语法 | 正则规则匹配                 | LLM 驱动检测                         |
+| 情绪 | 文本犹豫词 + 语速规则引擎    | Hume EVI 3 原生情绪（Premium）       |
+| 课程 | 读取版本化 JSON 并确定性排序 | 应用内离线路径，无模型下载或外部服务 |
 
 ---
 
-_文档状态核对：2026-07-26；未完成事项以 [TODO.md](TODO.md) 为准。_
+_历史全文最后核对：2026-07-26。A71 核对了 Redis/Celery 与分析 Worker 段落；A72 更新了
+离线课程目录、Compose 与依赖说明。其他内容未重新审阅，未完成事项以 [TODO.md](TODO.md)
+为准。_

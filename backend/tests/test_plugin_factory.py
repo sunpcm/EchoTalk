@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -136,6 +137,51 @@ def test_from_system_defaults_unregistered_llm_provider():
         with pytest.raises(PluginInitError) as exc_info:
             PluginFactory.from_system_defaults()
         assert exc_info.value.code == "ERR_SYSTEM_CONFIG"
+
+
+def test_from_system_defaults_reads_runtime_settings_on_each_call():
+    """系统插件配置在调用时读取，不在模块导入时固化。"""
+    settings_by_call = [
+        SimpleNamespace(
+            DEFAULT_LLM_PROVIDER="siliconflow",
+            SILICONFLOW_API_KEY="sf-first",
+            DEFAULT_LLM_MODEL="first-model",
+            DEEPGRAM_API_KEY="dg-first",
+            CARTESIA_API_KEY="ct-first",
+        ),
+        SimpleNamespace(
+            DEFAULT_LLM_PROVIDER="openrouter",
+            OPENROUTER_API_KEY="or-second",
+            DEFAULT_LLM_MODEL="second-model",
+            DEEPGRAM_API_KEY="dg-second",
+            CARTESIA_API_KEY="ct-second",
+        ),
+    ]
+
+    with (
+        patch(
+            "livekit_agent.plugin_factory._get_settings",
+            side_effect=settings_by_call,
+        ) as mock_get_settings,
+        patch("livekit_agent.plugin_factory.PluginFactory.create_stt"),
+        patch("livekit_agent.plugin_factory.PluginFactory.create_llm") as mock_llm,
+        patch("livekit_agent.plugin_factory.PluginFactory.create_tts"),
+        patch("livekit_agent.plugin_factory.PluginFactory.create_vad"),
+    ):
+        PluginFactory.from_system_defaults()
+        PluginFactory.from_system_defaults()
+
+    assert mock_get_settings.call_count == 2
+    assert mock_llm.call_args_list[0].kwargs == {
+        "provider": "siliconflow",
+        "api_key": "sf-first",
+        "model": "first-model",
+    }
+    assert mock_llm.call_args_list[1].kwargs == {
+        "provider": "openrouter",
+        "api_key": "or-second",
+        "model": "second-model",
+    }
 
 
 def test_plugin_init_error_class_identity_and_catch_compatibility():

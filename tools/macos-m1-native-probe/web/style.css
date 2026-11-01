@@ -1,0 +1,37 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #172b3a;
+  background: #f3f6f8;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  padding: 32px;
+}
+
+.eyebrow {
+  color: #42637a;
+  font-size: 14px;
+}
+
+h1 {
+  font-size: 28px;
+  margin: 12px 0;
+}
+
+p {
+  line-height: 1.6;
+}
+
+.status {
+  color: #42637a;
+}
+
+button {
+  padding: 10px 12px;
+  margin-right: 8px;
+  font: inherit;
+}

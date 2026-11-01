@@ -18,11 +18,32 @@ from dataclasses import asdict, dataclass
 from typing import Any, Callable
 
 from livekit_agent.error_mapper import AgentErrorMapper
-from services.transcript_service import save_transcript
 
 logger = logging.getLogger("echotalk-agent")
 
 _SENTINEL = object()
+
+
+def save_transcript(
+    session_id: str,
+    role: str,
+    content: str,
+    timestamp_ms: int | None = None,
+    emotion_state: dict | None = None,
+    *,
+    event_id: uuid.UUID | str | None = None,
+) -> Any:
+    """按需加载转录持久化服务，避免模块导入时构造数据库 engine。"""
+    from services.transcript_service import save_transcript as _save_transcript
+
+    return _save_transcript(
+        session_id,
+        role,
+        content,
+        timestamp_ms=timestamp_ms,
+        emotion_state=emotion_state,
+        event_id=event_id,
+    )
 
 
 @dataclass(frozen=True)

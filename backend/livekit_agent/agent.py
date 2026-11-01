@@ -10,52 +10,57 @@ Phase 5 新增：双轨制路由——根据 is_custom_mode 开关决定使用�
 绝不静默降级。
 
 启动方式:
-    cd backend && python livekit_agent/agent.py dev
+    cd backend && python -m livekit_agent dev|start
 """
 
 import logging
-import sys
 import time
 import uuid
-from pathlib import Path
 from typing import Any
 
-# 确保 backend/ 在 sys.path 中，以复用 config / database / services
-_backend_dir = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_backend_dir))
-
-# 将项目根 .env 加载为环境变量，供 LiveKit SDK 读取 LIVEKIT_URL 等配置
-from dotenv import load_dotenv  # noqa: E402
-
-load_dotenv(_backend_dir.parent / ".env", override=False)
-
-from livekit.agents import (  # noqa: E402
+from livekit.agents import (
     Agent,
     AgentSession,
     ConversationItemAddedEvent,
     JobContext,
-    WorkerOptions,
-    cli,
     llm,
 )
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from config import settings  # noqa: E402
-from database import async_session_maker  # noqa: E402
-from livekit_agent.credential_resolver import CredentialResolver  # noqa: E402
-from livekit_agent.error_delivery import send_error_and_disconnect  # noqa: E402
-from livekit_agent.error_mapper import AgentErrorMapper  # noqa: E402
-from livekit_agent.job_orchestrator import AgentJobOrchestrator  # noqa: E402
-from livekit_agent.plugin_errors import PluginInitError  # noqa: E402
-from livekit_agent.provider_registry import ProviderRegistry  # noqa: E402
-from livekit_agent.transcript_events import derive_transcript_event_id  # noqa: E402
-from livekit_agent.transcript_sink import TranscriptSink  # noqa: E402
-from models.session import Session, SessionContext  # noqa: E402
-from models.user import UserSettings  # noqa: E402
-from services.emotion_analyzer import EmotionAnalyzer  # noqa: E402
-from services.llm_service import build_dynamic_prompt  # noqa: E402
+from livekit_agent.credential_resolver import CredentialResolver
+from livekit_agent.error_delivery import send_error_and_disconnect
+from livekit_agent.error_mapper import AgentErrorMapper
+from livekit_agent.job_orchestrator import AgentJobOrchestrator
+from livekit_agent.plugin_errors import PluginInitError
+from livekit_agent.provider_registry import ProviderRegistry
+from livekit_agent.session_policy import build_session_connect_options
+from livekit_agent.transcript_events import derive_transcript_event_id
+from livekit_agent.transcript_sink import TranscriptSink
+from models.session import Session, SessionContext
+from models.user import UserSettings
+from services.agent_prompt import build_dynamic_prompt
+from services.emotion_analyzer import EmotionAnalyzer
 
 logger = logging.getLogger("echotalk-agent")
+
+
+def _get_async_session_maker() -> Any:
+    """按需加载数据库模块，避免 Agent 模块导入时创建 engine。"""
+    from database import async_session_maker
+
+    return async_session_maker
+
+
+def _get_runtime_settings() -> Any:
+    """按需加载应用配置，避免 Agent 模块导入时读取 dotenv。"""
+    from config import settings
+
+    return settings
+
+
+def _create_agent_session() -> AgentSession:
+    """延迟读取当前 AgentSession 绑定，并为单个 Job 创建独立连接选项。"""
+    return AgentSession(conn_options=build_session_connect_options())
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +81,8 @@ async def _fetch_user_settings(session_id: str) -> UserSettings | None:
     返回:
         UserSettings 行，若任一查询未命中则返回 None。
     """
-    async with async_session_maker() as db:
+    session_factory = _get_async_session_maker()
+    async with session_factory() as db:
         # session_id → user_id
         stmt = select(Session.user_id).where(Session.id == uuid.UUID(session_id))
         result = await db.execute(stmt)
@@ -108,7 +114,8 @@ async def _fetch_session_context(session_id: str) -> SessionContext | None:
         logger.warning("无效的 session_id 格式")
         return None
 
-    async with async_session_maker() as db:
+    session_factory = _get_async_session_maker()
+    async with session_factory() as db:
         stmt = select(SessionContext).where(SessionContext.session_id == sid)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
@@ -134,7 +141,7 @@ def _build_custom_plugins(user_settings: UserSettings) -> dict[str, Any]:
     """
     resolved = CredentialResolver.resolve_custom(
         user_settings,
-        default_llm_model=settings.DEFAULT_LLM_MODEL,
+        default_llm_model=_get_runtime_settings().DEFAULT_LLM_MODEL,
     )
     return ProviderRegistry.from_custom(resolved)
 
@@ -361,18 +368,9 @@ async def entrypoint(ctx: JobContext):
 
     orchestrator = AgentJobOrchestrator(
         ctx,
-        session_factory=AgentSession,
+        session_factory=_create_agent_session,
         sink_factory=TranscriptSink,
         send_error_fn=_send_error_and_disconnect,
         persist_assistant_fn=_persist_assistant_conversation_item,
     )
     await orchestrator.run(_setup_agent)
-
-
-if __name__ == "__main__":
-    cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            num_idle_processes=1,  # 预热一个进程，减少首次任务启动延迟
-        ),
-    )

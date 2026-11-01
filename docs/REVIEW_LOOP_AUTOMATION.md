@@ -2,6 +2,9 @@
 
 本文件维护项目落地约定。通用方法及状态工具由本机 `review-loop` skill 维护，不在项目里复制第二份实现。采用自动模式须有用户对外部实施 Agent、源码外发与执行范围的授权；模式变更不扩大既有授权。
 
+2026-11-01 的局部接线候选见文末与手册 §17；下文各日期记录保留其历史口径，不能作为
+恢复任务、当前预算、模型可用性或原生执行权限的证明。
+
 ## 入口与职责
 
 - 通用入口：`~/.agents/skills/review-loop/SKILL.md`。
@@ -221,3 +224,60 @@ Flash Medium 首轮正常交付，Codex 自行审源码、复跑 7 项 quality/�
 基于 RF-04 与 CP-06 门禁真实性要求，将 `.github/workflows/ci.yml` 的 `test-frontend` 执行步骤对齐本地 8 项质量门禁（format、全 workspace lint、全 workspace typecheck、直接 Vite Vitest、构建脚本测试 `test:build`、Fake API 原生进程测试 `test:fake-api`、全 workspace build、Chromium/WebKit 双浏览器 E2E）。
 
 lint、typecheck 与 build 经 `turbo --force` 避免 CI 缓存回放；直接使用 `--filter vite-app` 排除根 `pnpm run test` 中的空任务占位，使所有步骤均对应真实测试 runner。保持既有依赖冻结安装、Playwright 两浏览器安装步骤与 working-directory、Node 22 与 pnpm 10.26.0、test-backend 与 ci 聚合 job 成功断言不变。不修改旧授权策略，未触发远端 Actions，不把本地通过视为远端 Linux CI 已通过。
+
+## 2026-11-01 局部接线候选（停在 Review）
+
+本次按已批准方案局部适配项目工具，没有恢复 A85/业务、启动模型/子 Agent/服务、安装
+依赖或执行真实 Git 集成。实施验收仍待独立 Review。准确文件/hash、备份与离线退出记录见
+`.review/reports/skill-wiring-20261101-68c0632/implementer/r0/`，不覆盖原评估 review-r0。
+
+r1 增量交付位于 `.review/reports/skill-wiring-20261101-53cb562/implementer/r1/`，仍待独立
+Review。本地复核 68c0632..53cb562 后固定 shared_head 为
+`53cb562160d9a29f0ca560efff765a2c35e98832`；launch_preflight/loop_gate 字节不变，固定
+runtime 不升级。r0 文档修改继续保留，r0 历史报告/日志/指针不改写。
+
+稳定入口保持 `<lane> <step>`，从新的 `tools/review-loop-local-wiring/config.json` 和
+`tasks.json` 消费评审方独立批准的 manifest/approval。a/b/c 槽位均为 null，默认拒绝
+业务动作。旧 `review-loop-launch-baselines.json`、A84 脚本及 runtime 固定快照不改。
+不得为适配新 runner 而修改历史 hash/任务、重置账本或自动补当前 Git 指纹。
+
+接新轮次由评审方依次完成：
+
+1. 核 worktree、批准分支/HEAD、文件归属和暂停记录；用户另行恢复业务后才准备业务任务。
+2. 在新命名空间建立当轮不可变 manifest，绑定文件级修改/formatter 清单、检查集合、
+   通道及报告路径；approval 绑定 manifest 和独立评审依据的 SHA，批准后发布新指针。
+   bool `require_clean=false` 须绑定另行批准的 expected_fingerprint，拒绝自动反填。
+3. 通道分别生成官方预检清单：native 无 CLI 字段，CLI 保留权限/代理检查。主节点预检
+   不能代替实施节点权限验证；受限节点继续由主控代跑，不改报告目录/锁根的权限。
+4. 实施停止写入后，formatter/原生生成全部完成；评审最终 diff，另建最终字节批准。
+   固定 checks 非零即停，零测试/无效摘要不得作为通过或有效 mutation kill。
+   三项生成准备仅允许 api-types-generate、provider-metadata-generate、schema-export 在
+   批准文件范围内写入，保留真实非零和其他门禁；只读步骤写入批准文件也仍拒绝。
+   命令前持久化输入 approval 消费回执，阻止无变化、失败或中断后复用旧批准；不改批准文件、
+   任务指针或反填指纹。评审方审 diff 后另建最终批准，依赖后步/旧冻结才不能越过重批。
+5. 经新 `review-stage.py` 在原锁根保护下 freeze，评审方批准 frozen receipt 后再 audit。
+   独立 Review APPROVED 仍须真实完整验收；frontend10 + backend5 与59%覆盖率合同不变。
+   真实集成将来的动作必须与复核处于同一 `integration_guard`，本轮只有只读 guard 检查
+   和临时仓 `integrate-fixture`，不能先查锁再在锁外 commit/ff。
+
+双锁按 canonical worktree 路径排序，继承锁不由子方释放；冲突、未还原 journal、低序
+嵌套及异常释放均使用原 `worktree_lock`。原锁根始终为
+`/Users/sunpcm/.local/state/review-loop/locks`。锁不能阻止直接编辑，也不代替停写声明；
+普通静态分析不新增全面串行。拥有锁者提供有界进程组；可信继承检查保留外层
+check_batch/mutate 的超时责任，不修改 bounded_step 或 DB helper。
+
+项目 ev 的三参数仍流式并传播命令非零，`--quiet` 才减少回显；完整双流和真实 `# exit`
+均保存。已有路径（含悬空链接）/排他创建失败在命令执行前拒绝，同编号并发只能执行一次，
+日志失败不能成功。共享 legacy 的 tee 返回值与本项目兼容行为不同，不能整文件替换。
+双模式在原始双流字节后额外追加一个 LF，再写独立末行 # exit=N；已有换行/空输出也会多
+一个分隔换行，二进制原始字节保留，逐字节消费方须按此格式核对，历史日志不改写。
+
+后续 prompt/交付报告分列 `execution_mode`、`source_writes_stopped`、`task_processes`、
+`known_session_ids`、`evidence_basis`，细则见手册 §5。节点声明、独立观察和真实工具退出
+分开；unknown/空 session 列表不代表 OS 无进程，合成失败标记不代替实际 exit。
+
+备份/精确回退见手册 §17.4：先核本轮最终 hash 和归属，再 `cp -p` 恢复目标文件/模式；
+旧 pin/指针核原值，新路径仅在仍属本轮时移出活动路径，报告保留。不得 reset/stash 或
+覆盖其他会话变化。离线 suite 运行拟交付实际工具，只用临时仓/进程；它不替代15项业务
+门禁，不证明真实原生权限或额度收益。共享 skill 若再更新，先审差异再改必要 pin，不能
+顺带升级整套 runtime；本次不扩大预算、权限或依赖。

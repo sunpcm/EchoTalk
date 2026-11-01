@@ -2,7 +2,64 @@
 
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Mapping
+from typing import Literal, Mapping
+
+ProviderRole = Literal["stt", "llm", "tts"]
+
+
+@dataclass(frozen=True)
+class LLMClientPolicy:
+    """普通 OpenAI 兼容聊天 HTTP 客户端的不可变超时与重试策略。
+
+    ``default_http_timeout_seconds`` 对应 httpx 未单独指定阶段的默认值，不是完整聊天
+    总 deadline；它不适用于 LiveKit 语音连接或 Provider key 验证请求。
+    """
+
+    default_http_timeout_seconds: float = 600.0
+    connect_timeout_seconds: float = 5.0
+    max_retries: int = 2
+
+
+LLM_CLIENT_POLICY = LLMClientPolicy()
+
+
+@dataclass(frozen=True)
+class SessionConnectRolePolicy:
+    """LiveKit 单个 STT/LLM/TTS role 的不可变连接策略。"""
+
+    timeout: float
+    max_retry: int
+    retry_interval: float
+
+
+@dataclass(frozen=True)
+class SessionConnectPolicy:
+    """LiveKit AgentSession 三个 role 及不可恢复错误阈值的冻结策略。"""
+
+    stt: SessionConnectRolePolicy
+    llm: SessionConnectRolePolicy
+    tts: SessionConnectRolePolicy
+    max_unrecoverable_errors: int
+
+
+SESSION_CONNECT_POLICY = SessionConnectPolicy(
+    stt=SessionConnectRolePolicy(
+        timeout=10.0,
+        max_retry=3,
+        retry_interval=2.0,
+    ),
+    llm=SessionConnectRolePolicy(
+        timeout=10.0,
+        max_retry=3,
+        retry_interval=2.0,
+    ),
+    tts=SessionConnectRolePolicy(
+        timeout=10.0,
+        max_retry=3,
+        retry_interval=2.0,
+    ),
+    max_unrecoverable_errors=3,
+)
 
 
 @dataclass(frozen=True)
@@ -13,6 +70,9 @@ class LLMProviderMetadata:
     base_url: str
     api_key_field: str
     validation_url: str
+    role: ProviderRole = "llm"
+    label: str = ""
+    is_default: bool = False
 
 
 @dataclass(frozen=True)
@@ -25,6 +85,9 @@ class STTProviderMetadata:
     auth_header_name: str = "Authorization"
     auth_header_prefix: str = "Token "
     static_headers: Mapping[str, str] = MappingProxyType({})
+    role: ProviderRole = "stt"
+    label: str = ""
+    is_default: bool = False
 
     def build_validation_headers(self, api_key: str) -> dict[str, str]:
         """生成单次校验所需的独立 Headers，不修改内部状态也不持久化凭据。"""
@@ -45,6 +108,9 @@ class TTSProviderMetadata:
     static_headers: Mapping[str, str] = MappingProxyType(
         {"Cartesia-Version": "2024-06-10"}
     )
+    role: ProviderRole = "tts"
+    label: str = ""
+    is_default: bool = False
 
     def build_validation_headers(self, api_key: str) -> dict[str, str]:
         """生成单次校验所需的独立 Headers，不修改内部状态也不持久化凭据。"""
@@ -59,12 +125,15 @@ _LLM_PROVIDERS: dict[str, LLMProviderMetadata] = {
         base_url="https://api.siliconflow.cn/v1",
         api_key_field="SILICONFLOW_API_KEY",
         validation_url="https://api.siliconflow.cn/v1/user/info",
+        label="SiliconFlow",
+        is_default=True,
     ),
     "openrouter": LLMProviderMetadata(
         id="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_field="OPENROUTER_API_KEY",
         validation_url="https://openrouter.ai/api/v1/auth/key",
+        label="OpenRouter",
     ),
 }
 
@@ -76,6 +145,8 @@ _STT_PROVIDERS: dict[str, STTProviderMetadata] = {
         auth_header_name="Authorization",
         auth_header_prefix="Token ",
         static_headers=MappingProxyType({}),
+        label="Deepgram",
+        is_default=True,
     ),
 }
 
@@ -87,6 +158,8 @@ _TTS_PROVIDERS: dict[str, TTSProviderMetadata] = {
         auth_header_name="X-API-Key",
         auth_header_prefix="",
         static_headers=MappingProxyType({"Cartesia-Version": "2024-06-10"}),
+        label="Cartesia",
+        is_default=True,
     ),
 }
 
@@ -99,6 +172,19 @@ STT_PROVIDER_CATALOG: Mapping[str, STTProviderMetadata] = MappingProxyType(
 )
 TTS_PROVIDER_CATALOG: Mapping[str, TTSProviderMetadata] = MappingProxyType(
     _TTS_PROVIDERS
+)
+PROVIDER_CATALOGS: Mapping[
+    ProviderRole,
+    Mapping[
+        str,
+        LLMProviderMetadata | STTProviderMetadata | TTSProviderMetadata,
+    ],
+] = MappingProxyType(
+    {
+        "stt": STT_PROVIDER_CATALOG,
+        "llm": LLM_PROVIDER_CATALOG,
+        "tts": TTS_PROVIDER_CATALOG,
+    }
 )
 
 

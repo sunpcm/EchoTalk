@@ -6,7 +6,6 @@ from typing import Any
 from livekit.plugins import cartesia, deepgram, silero
 from livekit.plugins import openai as lk_openai
 
-from config import settings
 from provider_catalog import (
     LLM_PROVIDER_CATALOG,
     STT_PROVIDER_CATALOG,
@@ -32,6 +31,13 @@ _SYSTEM_LLM_KEY_FIELD: dict[str, str] = {
 
 # 兼容导出：统一异常定义迁移至 plugin_errors.py
 from livekit_agent.plugin_errors import PluginInitError  # noqa: E402, F401
+
+
+def _get_settings() -> Any:
+    """按需加载应用配置，避免插件模块导入时读取 dotenv 或构造客户端。"""
+    from config import settings as runtime_settings
+
+    return runtime_settings
 
 
 def _validate_api_key(api_key: Any, provider_label: str) -> str:
@@ -170,7 +176,7 @@ class PluginFactory:
     @classmethod
     def from_system_defaults(cls) -> dict[str, Any]:
         """
-        基础轨便捷方法：从系统 .env 配置构建全套插件。
+        基础轨便捷方法：从当前运行期系统配置构建全套插件。
 
         读取 settings.DEFAULT_LLM_PROVIDER 确定 LLM 提供商，
         然后从 settings 获取对应的 API Key。
@@ -182,7 +188,8 @@ class PluginFactory:
         异常:
             PluginInitError: 系统配置缺失或无效
         """
-        provider_name = settings.DEFAULT_LLM_PROVIDER
+        runtime_settings = _get_settings()
+        provider_name = runtime_settings.DEFAULT_LLM_PROVIDER
         llm_key_field = _SYSTEM_LLM_KEY_FIELD.get(provider_name)
         if not llm_key_field:
             raise PluginInitError(
@@ -190,15 +197,15 @@ class PluginFactory:
                 f"系统 LLM provider '{provider_name}' 未在 "
                 f"_SYSTEM_LLM_KEY_FIELD 中注册。",
             )
-        llm_api_key = getattr(settings, llm_key_field, "")
+        llm_api_key = getattr(runtime_settings, llm_key_field, "")
 
         return {
-            "stt": cls.create_stt("deepgram", settings.DEEPGRAM_API_KEY),
+            "stt": cls.create_stt("deepgram", runtime_settings.DEEPGRAM_API_KEY),
             "llm": cls.create_llm(
                 provider=provider_name,
                 api_key=llm_api_key,
-                model=settings.DEFAULT_LLM_MODEL,
+                model=runtime_settings.DEFAULT_LLM_MODEL,
             ),
-            "tts": cls.create_tts("cartesia", settings.CARTESIA_API_KEY),
+            "tts": cls.create_tts("cartesia", runtime_settings.CARTESIA_API_KEY),
             "vad": cls.create_vad(),
         }
