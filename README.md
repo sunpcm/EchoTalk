@@ -3,423 +3,187 @@
   <h1>EchoTalk — AI 英语口语练习平台</h1>
 </div>
 
-基于 LiveKit WebRTC 的实时语音对话系统，集成发音评估、语法检测与 BKT 知识追踪。
+EchoTalk 用实时 AI 对话帮助练习英语口语：选择推荐场景或导入 DocTalk 文本，
+通过 LiveKit 语音练习，结束后查看转录、发音与语法反馈、技能掌握度及学习进度。
+基础轨使用服务端 Provider 配置；自定义轨支持 BYOK（自备密钥），仍受账号权限与配置验证约束。
 
----
+## 当前状态
 
-## 项目当前状态与进度
+文档核对的代码基线为 `e35d89b`（2026-11-01）。功能和验收事实见
+[当前状态与变更决策](docs/PROJECT_STATUS.md)，未完成工作只维护在 [TODO](TODO.md)。
 
-| Phase | 内容                              | 状态      |
-| ----- | --------------------------------- | --------- |
-| 1     | 后端基础对话管线                  | ✅ 已完成 |
-| 1     | 前端 Vite 语音 UI                 | ✅ 已完成 |
-| 2     | 发音评估 + 知识追踪（后端）       | ✅ 已完成 |
-| 2     | 发音高亮 + 技能树（前端）         | ✅ 已完成 |
-| 3     | 情绪感知（后端）                  | ✅ 已完成 |
-| 3     | 数字人（前端）                    | 🔲 待开发 |
-| 4     | 自适应课程推荐（后端）            | ✅ 已完成 |
-| 4     | 周度学习报告                      | 🔲 待开发 |
-| 4     | 课程推荐 Dashboard（前端）        | ✅ 已完成 |
-| 5     | 双轨制 BYOK — 数据层 + Agent      | ✅ 已完成 |
-| 5     | 双轨制 BYOK — 设置抽屉 + 错误拦截 | ✅ 已完成 |
-| 6     | BYOK 鉴权与连通性验证             | ✅ 已完成 |
-| 7     | DocTalk 文档对话                  | ✅ 已完成 |
-| 8     | 三主题切换（暖色/冷色/黑色）      | ✅ 已完成 |
+| 平台              | 当前边界                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Web               | React/Vite 产品客户端，已有本地自动化验证记录；真实 IdP、Provider、完整语音及生产验收单列。                               |
+| iOS               | 同一前端的 Capacitor 工程与构建/同步入口；代码存在不等于真机、媒体或分发通过。                                            |
+| macOS             | `tools/macos-m1-native-probe` 为独立 auth-only 探针，已有安装包真实冷暖登录回跳、取消及迟到回跳拒绝证据；尚非产品客户端。 |
+| Android / Windows | 后续扩展方向，当前无正式交付；平台识别分支不代表平台支持。                                                                |
 
----
+macOS M1 尚欠最小 API/媒体接线、真实 Provider **5 分钟 5 轮**和设备测试；
+正式 `apps/vite-app/src-tauri/` 仍属 M2 计划，不能将原生认证通过写成 M1 整体完成。
+仅面向主流系统、浏览器和工具链；未来具体最低 OS 尚未冻结，不承诺 macOS 14 兼容。
+历史计划中的候选最低版本须以新的支持决策及设备证据为准。
 
-## 技术架构
+## 架构与目录
 
-当前状态与验证边界见 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)，三端目标与交付门禁见 [docs/CROSS_PLATFORM_ARCHITECTURE.md](docs/CROSS_PLATFORM_ARCHITECTURE.md)；[历史架构审计](docs/ARCHITECTURE.md)保留早期设计与风险快照。
+复用业务、UI、API 客户端和状态，通过薄平台适配隔离原生 SDK、登录、安全存储、
+权限、媒体设备与生命周期。未来 Android/Windows 沿此边界扩展；不提前实现新平台或抽大型 shared-core。
+当前适配尚不完整：iOS 有原生生命周期接线，Tauri 仍走 Web 生命周期分支；认证探针尚未接共享 UI。
 
-```
-┌────────────────────────────────────────────────────────┐
-│ 前端 (Vite + React 19 + TypeScript)                      │
-│  ├── Dashboard: 推荐场景卡片 + 每日进度 + 技能树           │
-│  ├── LiveKit WebRTC 语音交互                              │
-│  ├── zustand 状态管理（视图流转 + 连接 + 评估 + 设置）       │
-│  ├── 设置抽屉: 双轨制 Switch + Provider/Key 配置           │
-│  ├── DataChannel 错误拦截 + 自动重连阻止                   │
-│  └── Tailwind CSS v4 样式                                │
-├────────────────────────────────────────────────────────┤
-│ 后端 (FastAPI + SQLAlchemy 2.0 async)                   │
-│  ├── 对话管线: STT → LLM → TTS                           │
-│  ├── 双轨路由: 基础轨(.env) / 自定义轨(BYOK) + Fail-Fast  │
-│  ├── PluginFactory: 插件工厂（动态实例化 STT/LLM/TTS）     │
-│  ├── 情绪感知: 文本犹豫词 + 语速规则引擎                    │
-│  ├── 发音评估: Needleman-Wunsch 音素对齐                   │
-│  ├── 知识追踪: BKT 贝叶斯模型                              │
-│  ├── 语法检测: 正则规则引擎                                │
-│  └── 自适应课程: 版本化语料 + CEFR/技能确定性检索         │
-├────────────────────────────────────────────────────────┤
-│ 数据层 (PostgreSQL + asyncpg + 版本化教学语料)            │
-│  └── 9 张表: users, user_profiles, user_settings,         │
-│      sessions, transcripts, skills, knowledge_states,     │
-│      pronunciation_assessments, grammar_errors            │
-└────────────────────────────────────────────────────────┘
+```text
+apps/vite-app/                  React + TypeScript + Zustand，共享产品 UI
+  src/platform/                平台识别、地址与生命周期适配
+  ios/                         Capacitor iOS 工程
+backend/                       FastAPI + SQLAlchemy / Alembic
+  livekit_agent/               LiveKit Agent：STT → LLM → TTS
+  workers/analysis_worker.py   PostgreSQL 持久化分析任务 Worker
+  services/                   分析、BKT 知识追踪、课程与设置等业务
+  data/                       版本化离线教学语料
+packages/configs/              共享工具配置
+tools/macos-m1-native-probe/    可行性认证探针，非正式桌面工程
+docs/                         架构、契约与验收资料
 ```
 
----
+API、Agent 和分析 Worker 是独立进程，共用 PostgreSQL；当前不依赖 Redis/Celery。
+Provider 支持 Deepgram STT、Cartesia TTS，以及 SiliconFlow / OpenRouter LLM。
+Provider 目录存在、密钥拨测成功或 readiness 返回 200 都不证明真实语音可用。
 
-## Docker Compose 本地集成基线
+## 最小本地开发
 
-> Compose 用于本地集成和单机验证；当前仓库入口仅提供 HTTP，迁移与语料播种须单独执行，生产 TLS、备份及高可用需要另行配置。
+以下步骤用于本机开发；真实服务、设备和分发需单独验收。
+准备 Python **3.12**（`>=3.12,<3.13`）、uv **0.9.18**、Node **22**、pnpm **10.26.0**，
+以及独立本地 PostgreSQL 15 开发实例/空库、可达的 LiveKit 与 Provider 服务。
+不要复用应用、QA、生产、其他 lane 或自动化专用测试库。
 
-### 前置条件
+### 1. 冻结安装与配置
 
-- Docker Engine 20+
-- Docker Compose V2
-
-### 服务架构
-
-```
-docker-compose.yml 包含 5 个服务：
-
-  echotalk-postgres          ── PostgreSQL 15
-  echotalk-api               ── FastAPI (uvicorn × 4 workers)
-  echotalk-agent             ── LiveKit 语音 Agent
-  echotalk-analysis-worker   ── PostgreSQL 持久化分析任务
-  echotalk-web               ── Nginx 静态前端 + API 反向代理
-```
-
-`echotalk-web` 使用仓库根作为 Docker build context。根 `.dockerignore` 以允许列表仅放行
-workspace 配置、Vite 构建源码与公开环境文件；`.review/`、Git 元数据、本地 dotenv 覆盖、
-依赖缓存和原生工程不会进入 Web 上下文。真实镜像构建仍由 CI 或独立验收执行。
-
-### 启动步骤
+从仓库根执行；后续命令中的 `cd backend` 也均相对仓库根。
 
 ```bash
-# 1. 确认 .env 文件已配置（API keys 等敏感信息）
-#    docker-compose 中的 DATABASE_URL 已自动指向容器内部地址
-
-# 2. 一键构建并启动全部服务（后台运行）
-docker compose up -d --build
-
-# 3. 查看服务状态
-docker compose ps
-
-# 4. 校验版本化课程语料（从 backend 执行）
-cd backend
-python -m scripts.seed_corpus
-cd ..
-docker compose exec echotalk-api python -m scripts.seed_corpus
-
-# 5. 数据库迁移（首次部署时执行）
-docker compose exec echotalk-api alembic upgrade head
-```
-
-### 访问地址
-
-| 服务     | 地址                                                 |
-| -------- | ---------------------------------------------------- |
-| 前端     | `http://localhost:3000`                              |
-| API      | `http://localhost:3000/api/` （通过 Nginx 反向代理） |
-| 健康检查 | `http://localhost:3000/api/health`                   |
-
-### 常用运维命令
-
-```bash
-# 查看日志
-docker compose logs -f echotalk-api
-docker compose logs -f echotalk-agent
-
-# 重启单个服务
-docker compose restart echotalk-api
-
-# 停止全部服务
-docker compose down
-
-# 停止并清除数据卷（⚠️ 会丢失数据库数据）
-docker compose down -v
-```
-
----
-
-## 本地开发启动
-
-### 前置条件
-
-- Python 3.12+ / [uv](https://docs.astral.sh/uv/)
-- Node.js 22 / Corepack（根 `packageManager` 固定 pnpm 10.26.0）
-- PostgreSQL 15+
-
-### 后端启动
-
-```bash
-# 1. 进入后端目录
-cd backend
-
-# 2. 创建虚拟环境并安装依赖
-uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
-
-# 3. 配置环境变量
-#    复制 .env.example 为 .env 并填写:
-#    - DATABASE_URL=postgresql://user:pass@localhost:5432/echotalk
-#    - SILICONFLOW_API_KEY 或 OPENROUTER_API_KEY
-#    - DEEPGRAM_API_KEY, CARTESIA_API_KEY（基础轨语音服务）
-#    - 本地：AUTH_MODE=dev + DEV_AUTH_TOKEN（必须显式配置）
-#    - 前端从仓库根目录 .env 读取 VITE_AUTH_MODE=dev 和匹配的 VITE_DEV_AUTH_TOKEN
-#    - 开发服务器默认只监听 127.0.0.1；局域网调试时显式传入 --host 0.0.0.0
-#    - 生产：OIDC_ISSUER / OIDC_AUDIENCE / OIDC_JWKS_URL
-#    - CREDENTIAL_ENCRYPTION_KEYS + ACTIVE_CREDENTIAL_KEY_VERSION
-
-# 4. 数据库迁移
-alembic upgrade head
-
-# 5. 启动 API 服务
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# 6. 另开终端启动 LiveKit Agent（提供 dev 或 start）
-python -m livekit_agent dev
-# 直接执行 python livekit_agent/agent.py 不再受支持，导入与启动副作用已分离
-```
-
-健康检查：
-
-```bash
-curl http://localhost:8000/api/health
-# {"status":"ok","service":"echo-talk"}
-```
-
-### 前端启动
-
-```bash
-# 1. 启用 Corepack 并按根 packageManager 选择 pnpm，然后安装依赖
 corepack enable pnpm
-pnpm install
-
-# 2. 启动开发服务器（HTTPS + /api 代理至 localhost:8000 + LiveKit WS 代理）
-pnpm --filter vite-app dev
-
-# 3. 访问 https://localhost:5173（本机）或 https://<Ubuntu IP>:5173（局域网）
-#    首次访问需接受自签名证书安全警告
-#    注意：必须使用 HTTPS，否则浏览器拒绝麦克风权限（getUserMedia 安全上下文要求）
+pnpm install --frozen-lockfile
+cd backend
+uv sync --frozen --group dev --python 3.12 --no-python-downloads
+cd ..
+# 已有配置先备份；否则从认证骨架开始
+if [ -f .env ]; then
+  cp -p .env ".env.backup.$(date +%Y%m%d%H%M%S)"
+else
+  cp .env.example .env
+fi
 ```
 
----
+后端 `config.py` 与 Agent 启动入口读取**仓库根 `.env`**，不是 `backend/.env`；
+Vite dev 同样读取根目录。`.env.example` 只是认证/加密骨架，不包含全部运行配置。
+编辑根 `.env`，补齐以下值（占位符必须替换）：
 
-## 当前已支持的功能特性
-
-### Phase 1 — 基础对话管线
-
-- **用户认证**：Mock 鉴权（固定测试用户），预留 JWT 接入
-- **会话管理**：创建、列表、详情、结束会话
-- **AI 对话**：多轮上下文对话，LLM 生成回复（支持 SiliconFlow / OpenRouter）
-- **语音交互**：LiveKit WebRTC 实时语音（前端 SDK 集成完成）
-- **转录持久化**：所有对话记录存入 transcripts 表
-
-### Phase 2 — 发音评估与知识追踪
-
-- **发音评估**：Needleman-Wunsch 全局音素对齐，逐词分析替换/缺失/多余错误
-- **评分系统**：正确音素占比 × 100 的发音得分（0-100）
-- **语法检测**：正则规则匹配过去时态错误、主谓一致错误
-- **BKT 知识追踪**：10 个技能（5 语法 + 5 发音）独立追踪掌握概率
-- **自动分析管线**：会话结束时自动触发发音评估 + 语法检测 + BKT 更新
-- **评估查询 API**：发音结果、语法错误、知识状态、技能列表 4 个端点
-
-### Phase 2 — 前端评估可视化
-
-- **发音反馈组件**：对话结束后自动展示发音评分（0-100），颜色编码（绿/黄/红）
-- **音素可视化**：逐音素彩色色块渲染（绿=正确、红=替换/缺失、琥珀=多余），Hover 显示错误详情
-- **语法提示**：检测到的语法错误以列表形式展示，含 skill_tag 标签和原文标注
-- **技能掌握度**：BKT 知识状态按发音/语法分组，进度条 + 百分比展示，≥95% 标记「已掌握」
-- **轮询机制**：指数退避轮询 PostgreSQL 持久化分析状态，失败时提供显式重试入口
-- **评估状态管理**：独立 zustand store，管理 idle/polling/loaded/error 四状态生命周期
-
-### Phase 2 — LiveKit 连接优化
-
-- **开发环境 HTTPS**：`@vitejs/plugin-basic-ssl` 自签名证书，满足 `getUserMedia` 安全上下文要求
-- **LiveKit WebSocket 代理**：Vite dev server 代理 `/livekit-ws` 路径到 LiveKit Cloud，绕过 SDK region routing
-- **延迟 Agent 调度**：前端先连入房间，再通过 `/dispatch` 端点触发 Agent 加入，避免空房间踢出
-
-### Phase 3 — 情绪感知（后端）
-
-- **犹豫词检测**：正则匹配 STT 文本中的 filler words（uh/um/er/ah/hmm 等），计算频率（次/分钟）
-- **语速追踪**：2 分钟滑动窗口统计 WPM（词/分钟），低语速作为焦虑信号
-- **焦虑指数**：规则引擎综合犹豫词频率 + 语速，实时计算 anxiety_level（0~1）
-- **动态 Prompt**：anxiety_level > 0.6 时自动切换鼓励模式（简化语言、增加正向反馈、温和重述）
-- **情绪持久化**：每条用户转录附带 emotion_state JSON（anxiety_level, cognitive_load, hesitation_rate, wpm）
-- **零阻塞设计**：纯文本分析 <0.1ms，通过 Agent.on_user_turn_completed 钩子在 LLM 推理前完成
-
-### Phase 4 — 离线确定性课程推荐（后端）
-
-- **版本化语料目录**：10 条教学材料置于受 Git 管理的 JSON，首次加载时严格校验并缓存只读对象
-- **Krashen i+1 过滤**：CEFR 数值化映射（A1=1~C2=6），仅保留 target 至 target+1 的同范围内语料
-- **确定性排序**：CEFR 范围后按 primary skill、标签交集、显式 priority 和 id 稳定排序
-- **自适应课程推荐**：读取 BKT 最弱技能 → 离线目录检索 → 生成定制化 System Prompt 模板
-- **智能难度定位**：根据最弱技能掌握度自动推断目标 CEFR 等级（<0.3→A2, <0.6→B1, else→B2）
-- **周报尚未实现**：多维学习周报仍是独立产品功能；具体维度见 [TODO.md](TODO.md)
-
-### Phase 4 — 课程推荐 Dashboard（前端）
-
-- **Dashboard 视图**：Zustand `appView` 状态机驱动 Dashboard / Session 双视图切换，无需 react-router
-- **推荐卡片**：消费 `GET /api/curriculum/next`，渲染 1-3 个场景卡片（场景名称 + CEFR 等级色码 + 重点技能标签）
-- **每日进度**：聚合当日完成会话的转录轮次，进度条可视化 turns/20 目标值，达标变绿 + "Goal reached!"
-- **技能树集成**：Dashboard 挂载时自动加载 BKT 知识状态，展示全局技能掌握度
-- **完整流转**：进入练习 → LiveKit 对话 → 评估反馈 → 返回主页（自动刷新数据）
-- **i18n 规范**：新增文案统一提取至 `zhCN.dashboard` 命名空间
-
-### Phase 5 — 双轨制 BYOK 数据层与 Agent 路由（后端）
-
-- **用户设置表**：`user_settings` 一对一关联 `users`，存储双轨制开关 `is_custom_mode` 与加密 API Key
-- **Fernet 对称加密**：独立版本化 keyring 加密用户 API Key；认证材料轮换不影响 BYOK
-- **旧密文迁移**：历史 JWT 派生密文标记为 `legacy-jwt-derived-v1`，配置旧秘密后读取并惰性重加密
-- **设置 API**：`GET/PUT /api/user/settings`，密钥仅返回 `has_xxx_key: bool`，部分更新支持
-- **PluginFactory 插件工厂**：统一实例化 STT/LLM/TTS/VAD 插件，预检 Provider + Key 有效性
-- **双轨路由**：Agent 根据 `is_custom_mode` 选择基础轨（`.env` 系统密钥）或自定义轨（DB 解密密钥）
-- **Fail-Fast 不降级**：自定义轨失败后通过 DataChannel 发送 `agent_error` JSON + 断连，绝不回落到系统默认配置
-- **错误码协议**：`ERR_CUSTOM_KEY_INVALID` / `ERR_UNSUPPORTED_*_PROVIDER`，`reliable=True` TCP 语义保证送达
-- **LLM Provider 映射**：支持 SiliconFlow (`api.siliconflow.cn`) 和 OpenRouter (`openrouter.ai`)
-
-### Phase 5.1 — 设置抽屉与 DataChannel 错误拦截（前端）
-
-- **设置抽屉 (SettingsDrawer)**：右侧滑入式抽屉，Switch 切换双轨模式，Provider 下拉 + API Key 密码输入
-- **已配置徽章**：`has_xxx_key=true` 时显示绿色「已配置」标识，空提交不覆盖已有密钥
-- **设置 Store**：Zustand `useSettingsStore`，应用启动时自动水合（GET），保存时部分更新（PUT）
-- **DataChannel 错误拦截**：`useDataChannel("agent_error")` 监听 Agent 错误消息，解析 JSON 并展示红色错误卡片
-- **自动重连阻止**：`setAgentError()` 将 `connectionState` 切到 `"ended"`，卸载 `<LiveKitRoom>` 根本阻断 WebRTC 重连
-- **onDisconnected 守卫**：检测到 `agentError` 时跳过琥珀色连接警告，避免重叠错误提示
-- **i18n 规范**：新增 `settings` + `agentError` 两个命名空间
-
-### Phase 8 — 三主题切换（暖色/冷色/黑色）（前端）
-
-- **三套可切换主题**：暖色（默认，橙色系）/ 冷色（蓝色系）/ 黑色（深色，金色点缀），运行时即时切换、无需刷新
-- **技术方案**：`data-theme` + CSS 语义变量（`theme-tokens.css`）+ Tailwind v4 `@theme` 桥接，组件写 `bg-surface`/`text-muted`/`bg-accent` 等语义 utility；相比 `dark:` 二值变体可支持任意数量主题，加第 4 套仅需新增一个 `[data-theme]` 块
-- **持久化**：`useSettingsStore.setTheme` 写 `<html data-theme>` + `localStorage`，启动时水合并对齐，避免刷新闪烁（预留接入后端 `user_settings.theme` 的 TODO）
-- **设置抽屉切换器**：「外观主题」色板按钮，预览色块 + 2px `accent` 选中描边
-- **视觉升级**：标题字体 `Baloo 2` + 正文 `Plus Jakarta Sans`，卡片圆角 20px + 语义化阴影；11 个组件从 `indigo-*`/`gray-*` 硬编码色迁移到语义 Token
-- 详见 [PHASE_8_TECH_STACK.md](docs/PHASE_8_TECH_STACK.md) 与 [PHASE_8_MANUAL_TEST.md](docs/PHASE_8_MANUAL_TEST.md)
-
----
-
-## API 端点一览
-
-### 基础接口
-
-| 方法 | 路径                 | 说明         |
-| ---- | -------------------- | ------------ |
-| GET  | `/api/health`        | 健康检查     |
-| POST | `/api/auth/register` | 用户注册     |
-| POST | `/api/auth/login`    | 用户登录     |
-| GET  | `/api/auth/me`       | 当前用户信息 |
-
-### 会话管理
-
-| 方法 | 路径                          | 说明                 |
-| ---- | ----------------------------- | -------------------- |
-| POST | `/api/sessions`               | 创建会话             |
-| GET  | `/api/sessions`               | 会话列表             |
-| GET  | `/api/sessions/{id}`          | 会话详情（含转录）   |
-| POST | `/api/sessions/{id}/end`      | 结束会话（触发分析） |
-| GET  | `/api/sessions/{id}/token`    | LiveKit 令牌         |
-| POST | `/api/sessions/{id}/dispatch` | 调度 Agent 加入房间  |
-
-### 对话
-
-| 方法 | 路径                     | 说明                 |
-| ---- | ------------------------ | -------------------- |
-| POST | `/api/conversation/chat` | 发送消息获取 AI 回复 |
-
-### 评估与知识追踪（Phase 2）
-
-| 方法 | 路径                                    | 说明         |
-| ---- | --------------------------------------- | ------------ |
-| GET  | `/api/assessments/{session_id}`         | 发音评估结果 |
-| GET  | `/api/assessments/{session_id}/grammar` | 语法错误列表 |
-| GET  | `/api/assessments/knowledge/states`     | 用户知识状态 |
-| GET  | `/api/assessments/knowledge/skills`     | 技能定义列表 |
-
-### 自适应课程推荐（Phase 4）
-
-| 方法 | 路径                   | 说明                   |
-| ---- | ---------------------- | ---------------------- |
-| GET  | `/api/curriculum/next` | 获取下一步推荐练习场景 |
-
-### 用户设置（Phase 5）
-
-| 方法 | 路径                 | 说明                                       |
-| ---- | -------------------- | ------------------------------------------ |
-| GET  | `/api/user/settings` | 获取双轨制配置状态，密钥仅返回 has_xxx_key |
-| PUT  | `/api/user/settings` | 部分更新双轨制配置，明文 Key 加密后入库    |
-
----
-
-## 项目结构
-
-```
-EchoTalk/
-├── backend/                           # FastAPI 后端
-│   ├── main.py                        # 应用入口
-│   ├── config.py                      # 环境配置
-│   ├── database.py                    # 异步数据库引擎
-│   ├── dependencies.py                # Mock 鉴权
-│   ├── models/                        # ORM 模型（9 张表）
-│   ├── schemas/                       # Pydantic 响应模型
-│   ├── routers/                       # API 路由
-│   ├── data/                          # 版本化教学语料
-│   │   └── teaching_materials.json    # 10 条课程材料
-│   ├── services/                      # 业务逻辑
-│   │   ├── agent_prompt.py            # Agent 动态 Prompt 纯函数
-│   │   ├── llm_service.py             # LLM 调用 + Prompt 兼容重导出
-│   │   ├── emotion_analyzer.py        # 情绪分析规则引擎
-│   │   ├── material_catalog.py        # 离线目录校验与只读缓存
-│   │   ├── rag_service.py             # 确定性课程检索 + Krashen i+1
-│   │   ├── analysis_service.py        # 分析管线编排
-│   │   ├── pronunciation/             # NW 音素对齐
-│   │   └── knowledge/                 # BKT 模型 + 技能映射
-│   ├── utils/                         # 工具模块
-│   │   └── crypto.py                  # Fernet API Key 加解密
-│   ├── livekit_agent/                 # LiveKit 语音 Agent
-│   │   ├── __main__.py                # python -m livekit_agent 模块入口
-│   │   ├── bootstrap.py               # dotenv、配置校验与 SDK CLI 显式启动
-│   │   ├── agent.py                   # 双轨业务路由（导入无启动副作用）
-│   │   └── plugin_factory.py          # PluginFactory 插件工厂
-│   ├── workers/                       # PostgreSQL 持久化分析任务
-│   │   └── analysis_worker.py         # 原子领取、重试与超时恢复
-│   └── scripts/                       # 工具脚本
-│       └── seed_corpus.py             # 课程语料校验与摘要
-├── apps/vite-app/                     # Vite React 前端
-│   └── src/
-│       ├── components/
-│       │   ├── conversation/          # 语音对话组件 + DataChannel 错误拦截
-│       │   ├── settings/              # 设置抽屉（双轨制配置 UI）
-│       │   ├── pronunciation/         # 发音反馈 + 音素可视化
-│       │   └── learning/              # 技能树 + 推荐卡片 + 每日进度
-│       ├── store/                     # zustand 状态管理（conversation + assessment + settings）
-│       ├── hooks/                     # 自定义 Hook（轮询等）
-│       ├── lib/                       # API 客户端
-│       └── i18n/                      # 中文字符串
-└── docs/                              # 技术文档
+```dotenv
+DATABASE_URL=postgresql://local_user:local_password@127.0.0.1:5432/echotalk_local_dev
+AUTH_MODE=dev
+DEV_AUTH_TOKEN=<随机本地开发token>
+VITE_AUTH_MODE=dev
+VITE_DEV_AUTH_TOKEN=<与DEV_AUTH_TOKEN完全相同>
+CREDENTIAL_ENCRYPTION_KEYS={"local-v1":"<独立生成的Fernet密钥>"}
+ACTIVE_CREDENTIAL_KEY_VERSION=local-v1
+LIVEKIT_URL=wss://<你的LiveKit主机>
+LIVEKIT_API_KEY=<LiveKit服务端key>
+LIVEKIT_API_SECRET=<LiveKit服务端secret>
+DEEPGRAM_API_KEY=<STT密钥>
+CARTESIA_API_KEY=<TTS密钥>
+DEFAULT_LLM_PROVIDER=siliconflow
+SILICONFLOW_API_KEY=<LLM密钥>
+DEFAULT_LLM_MODEL=<该Provider可用的模型ID>
 ```
 
----
+LLM 二选一：使用 OpenRouter 时设 `DEFAULT_LLM_PROVIDER=openrouter`，填写
+`OPENROUTER_API_KEY` 并选择其可用模型。凭据只保存在本地，不写入 Git 或日志。
+可在 `backend` 执行以下命令分别生成 dev token 和独立加密密钥，再安全填入配置；不要复用示例密钥：
 
-## 文档与待办
+```bash
+uv run --frozen python -c "import secrets; print(secrets.token_urlsafe(32))"
+uv run --frozen python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
-- [TODO.md](TODO.md)：唯一待办清单，记录尚未完成的功能、安全与维护工作。
-- [docs/README.md](docs/README.md)：当前技术文档、验收手册及历史资料导航。
-- [AGENTS.md](AGENTS.md)：仓库结构、开发命令、代码规范和贡献要求。
+默认 `CALL_LEASE_MODE=disabled`；Cloud 单端占用尚未完成共享通话接线，不要为试通语音擅自开启。
 
-旧阶段规划、临时 Prompt 和失效操作手册由 Git 历史保存，不再保留重复副本。
+### 2. 初始化隔离开发库
 
----
+先创建归自己所有的空开发库，并确认根 `.env` 的 `DATABASE_URL` 指向它。
+历史初始迁移含 `DROP ... CASCADE`：**不能直接对任意现有库升级**；有数据时先备份、审查迁移并单独制定方案。
+以下仅用于已核实的隔离空库，在 `backend` 执行：
 
-## Mock 模式说明
+```bash
+uv run --frozen alembic upgrade head
+uv run --frozen alembic current
+# 显式写入参考技能；该CLI不读.env，必须单独传入同一开发库URL
+DATABASE_URL='postgresql://local_user:local_password@127.0.0.1:5432/echotalk_local_dev' \
+  uv run --frozen python -m seed_reference_data
+# 只校验离线课程目录并输出摘要，不写数据库
+uv run --frozen python -m scripts.seed_corpus
+```
 
-当前所有外部依赖均可 Mock 运行（`.env` 中 `USE_MOCK_*=True`）：
+### 3. 分终端启动
 
-| 服务 | Mock 行为                    | 生产环境接入方式                     |
-| ---- | ---------------------------- | ------------------------------------ |
-| LLM  | 返回固定回复文本             | `USE_MOCK_LLM=False` + API Key       |
-| TTS  | 返回 null（无音频）          | `USE_MOCK_TTS=False` + Cartesia Key  |
-| 发音 | letter-by-letter + TH→S 注入 | CMU 词典 / ELSA API                  |
-| 语法 | 正则规则匹配                 | LLM 驱动检测                         |
-| 情绪 | 文本犹豫词 + 语速规则引擎    | Hume EVI 3 原生情绪（Premium）       |
-| 课程 | 读取版本化 JSON 并确定性排序 | 应用内离线路径，无模型下载或外部服务 |
+每个新终端先进入仓库根，再执行对应命令；`uv run --frozen` 明确选择后端项目环境。
 
----
+```bash
+# 终端一：API，仅监听本机
+cd backend
+uv run --frozen uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
 
-_历史全文最后核对：2026-07-26。A71 核对了 Redis/Celery 与分析 Worker 段落；A72 更新了
-离线课程目录、Compose 与依赖说明。其他内容未重新审阅，未完成事项以 [TODO.md](TODO.md)
-为准。_
+```bash
+# 终端二：语音 Agent；启动可能涉及模型资源，须先具备相应依赖/网络条件
+cd backend
+uv run --frozen python -m livekit_agent dev
+```
+
+```bash
+# 终端三：持久化分析 Worker，否则结束后的分析任务不会被消费
+cd backend
+uv run --frozen python -m workers.analysis_worker
+```
+
+```bash
+# 终端四：Vite HTTPS 客户端，默认仅监听127.0.0.1:5173
+pnpm dev:vite
+```
+
+访问 `https://localhost:5173`，按本地开发证书配置完成信任并授权麦克风。
+新账号默认免费且使用自定义轨：首次练习前须在设置界面选择 Provider、填写 STT/LLM/TTS 密钥并验证保存；
+免费账号不能关闭自定义模式，仅填写服务端 `.env` 不等于该账号可使用基础轨。
+Vite 将 `/api` 代理至 `http://localhost:8000`，按 `LIVEKIT_URL` 配置 WebSocket 代理；
+真实语音仍依赖 WSS、ICE/TURN 可达性、有效 Provider 与 Agent 注册，不能靠 Mock 开关推定通过。
+若浏览器直接跨源访问 API，需将 `https://localhost:5173` 加入后端 `CORS_ORIGINS` JSON 数组；不要使用通配符。
+
+API 存活探测为 `http://localhost:8000/api/health`；它不检查真实语音。
+接口定义见 [canonical OpenAPI](backend/openapi.json)，运行中的交互文档为 `http://localhost:8000/docs`。
+[Compose 配置](docker-compose.yml)是备选本地集成入口，迁移与参考数据仍需独立处理；不代表一键真实语音或生产部署。
+
+## 验证入口与安全边界
+
+完整测试树、解释器、专用测试库与证据规则见 [Agent 评审手册 §2/§3](docs/agent-review-loop.md)。
+常用入口如下；后端测试必须先绑定获准的独立测试库，禁止回退根 `.env` 的开发/应用库：
+
+```bash
+# 仓库根：前端质量与构建
+pnpm lint && pnpm typecheck && pnpm format:check && pnpm build
+# apps/vite-app：真实Vitest、Fake API浏览器E2E
+pnpm test
+pnpm test:e2e
+# backend：仅在测试环境/数据库已显式隔离后执行
+uv run --frozen python -m pytest --cov=. --cov-report=term-missing
+```
+
+Fake API E2E 不代替真实 IdP、LiveKit/Provider、设备或生产验收；各类验收证据须分别记录。
+开发仅显式 dev token；生产只用 OIDC，校验 issuer/audience/JWKS，失败关闭。
+原生客户端是 public client，不含 client secret；服务端密钥、用户 Token 和 BYOK 密文不得进入前端包或诊断日志。
+构建与 dev 配置隔离：平台构建入口 `pnpm build:web` / `pnpm build:ios` 读取 app 目录配置，
+输出隔离在 `dist/<platform>/<mode>`；根 `.env` 不能直接当发布配置，生产包不得含 dev token。
+
+## 文档导航
+
+- [文档总索引](docs/README.md) · [当前状态](docs/PROJECT_STATUS.md) · [唯一待办清单](TODO.md)
+- [跨平台架构](docs/CROSS_PLATFORM_ARCHITECTURE.md) · [MVP 重构方案](docs/MVP_REFACTORING_REMEDIATION_PLAN.md)
+- [macOS MVP 计划](docs/MACOS_MVP_DEVELOPMENT_PLAN.md) · [原生认证验证及未验边界](docs/verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)
+- [认证生命周期](docs/CROSS_PLATFORM_AUTH_LIFECYCLE.md) · [通话占用契约](docs/CROSS_PLATFORM_CALL_LEASE.md)
