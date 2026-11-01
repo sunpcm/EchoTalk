@@ -115,7 +115,12 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
   01 'git status --porcelain -b && git log --oneline -1'
 ```
 
-脚本从技能副本复制，并修正命令失败时返回相同非零退出码，保留原输出格式与拒绝覆盖行为。
+脚本是项目兼容副本：三参数调用保留流式输出、pipefail 和命令真实退出码，不能用共享
+legacy 的 tee 状态代替。显式 `--quiet` 才只回显日志末尾；完整 stdout/stderr 和真实
+`# exit` 仍落盘。执行前拒绝已有文件、目录、软链接（含悬空链接），同目录同编号只允许
+一个调用执行命令；创建或日志写入失败必须非零。旧调用无须添加 quiet。
+两种模式先保存命令真实退出码，再在原始双流字节后额外写一个 LF 和独立末行 `# exit=N`；
+已有尾换行或空输出会多一个分隔换行。原始二进制字节不删改，旧历史日志保持原样。
 记录 cwd/HEAD/dirty、命令、时间、完整输出与真实退出码；不输出环境全集、凭据或用户内容。
 重跑使用新编号并写明原因。报告可写数字，但每个数字必须指向对应 ev 原文；禁止手填通过数。
 
@@ -123,6 +128,20 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 测试库边界；迁移前后版本；未做/未验证；需要裁决的问题。
 区分既有代码失败、依赖缺失、未授权环境和本轮回归。交付后不再改动，等独立 Review。
 评审结论为 APPROVED 或 CHANGES REQUESTED；缺外部证据时明确保留对应门禁未通过。
+
+后续 prompt 与报告同时列出以下字段；不改历史报告和通用工具 receipt schema：
+
+| 字段                    | 必填内容与证据限制                                                      |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `execution_mode`        | 实际执行方式，例如主节点前台、原生子 Agent 或 CLI；不表示进程是否仍运行 |
+| `source_writes_stopped` | 是 / 否 / 未知，分列实施方声明和独立稳定字节观察                        |
+| `task_processes`        | 本任务范围未发现残留 / 仍运行 / 未知；评审待办不是进程                  |
+| `known_session_ids`     | 已知工具 session/进程身份及状态；不可查询写未知，空列表不是 OS 全量核验 |
+| `evidence_basis`        | 分列节点声明、完成事件、工具退出记录、独立观察及各自证据路径/hash/范围  |
+
+没有实际 OS 退出记录就记未知；合成 failure marker 与超时门禁码不充当真实进程退出码。
+主节点能执行也不能证明原生子节点可执行：派发前分别核固定入口、报告目录和原共享锁根
+的实际权限；受限实施方继续由获授权主控代跑验收，不扩权限或换锁根。
 
 ## §6 并行边界与集成
 
@@ -249,3 +268,107 @@ export_provider_metadata.py`；漂移检查追加 `--check`。父进程只加载
 - 更新流程：修改 catalog 展示字段后，由受控主 Agent 在实施停写后先审查 exporter，再执行
   原生生成、审阅 JSON diff，最后运行 metadata check、Ruff、相关 pytest、前端 typecheck/
   Vitest、完整 frontend10 与 backend 测试树。生成文件提交前不得手写或交给 formatter。
+
+## §17 局部工具接线与批准任务数据（2026-11-01，待独立 Review）
+
+本节只描述本次工具接线候选，不授权恢复 A85 或其他业务。实际交付状态、最终 hash 和
+当前增量交付在主 checkout 的 `.review/reports/skill-wiring-20261101-53cb562/implementer/r1/`；
+已评审 r0 记录仍在 `.review/reports/skill-wiring-20261101-68c0632/implementer/r0/`，保持原样。
+两份仓内文档在独立 `codex/review-loop-local-wiring` worktree 修改，main/cp00 保持只读。
+共享 skill 经本地差异复核后固定于 `53cb562160d9a29f0ca560efff765a2c35e98832`；公共预检及
+loop_gate hash 与 r0 相同，仅接入 ev 分隔格式。固定 runtime 及其
+runtime-pin、bounded_step、DB helpers、旧任务指针和 A84 脚本不升级或改写。
+
+### §17.1 稳定入口和审批链
+
+固定 CLI 仍是 `.review/reports/tools/cross-platform-local-check.py <lane> <step>`。
+稳定入口先校验新 helper hash，再由 helper 校验工具、共享预检及固定 runtime。
+新配置命名空间是 `.review/reports/tools/review-loop-local-wiring/`，由评审方维护：
+
+- `config.json` 固定实际工具 hash、共享 HEAD/预检脚本 hash、原 runtime-pin hash 和
+  新 `tasks.json` 路径；仅更新确有变化的工具 pin，不回写旧 `review-loop-launch-baselines.json`。
+- `tasks.json` 的 a/b/c 初始均为 null：真实入口拒绝执行，不能把旧任务视为自动激活。
+  评审方批准新任务后才发布指针，绑定 task、manifest/approval 的绝对路径及 SHA256。
+- 每轮 manifest 使用独立新文件，绑定 schema/task/lane/worktree、批准 branch/HEAD、
+  `require_clean`、`allowed_files`、`formatter_files`、`allowed_steps`、`quality_ids`、
+  `required_checks`、report_root、launch_mode、source_writes_stopped；按需列
+  expected_fingerprint、带 hash 的 artifacts 与 integration_target。
+- 独立 approval 以 `approved_for_execution` 绑定 manifest SHA、source_fingerprint、
+  评审依据文件路径/SHA；审批不可由 runner 读取当前 Git 状态自动补造。dirty 使用明确 bool
+  false 和独立批准的合法 expected_fingerprint；未填、字符串 false 或不符均拒绝。
+- 检查完成后，新 approval 用 `check_summaries` 显式选择 summary 路径/SHA；不扫描最新成功
+  日志，也不为补证据修改原 manifest。正式 audit 要求15项齐全、逐项真实退出/完整计数、
+  日志 hash 及源码/manifest/config/tool hash 均匹配最终输入；只有字节冻结仍不能通过审计。
+- allowed_files/formatter_files 是文件级相对路径，formatter 范围必须为修改范围子集。
+  Git `-z` 清单保留空格，重命名源/目的分别确认；未跟踪文件也核范围。拒绝路径越界、
+  软链接及解析后越界，不接任意 argv、SQL、环境变量或目录范围扩张。
+
+检查前以及持锁后都核任务、manifest/approval/tool hash、分支/HEAD、dirty 范围和批准指纹，
+失败不启动命令。formatter 仅接批准且实际变更的现存文件，删除文件不传 formatter；
+执行后字节变化会使旧审批失效，必须由评审方审阅最终 diff 后另建批准文件和指针。
+生成产物同样完成原生生成/检查后再冻结，不能用 formatter 前回执验收最终字节。
+生成准备写入只豁免 `api-types-generate`、`provider-metadata-generate`、`schema-export`；
+它们仍核允许范围、配置/hash、分支/HEAD、锁及停写声明，真正非零保持非零，越界仍拒绝。
+其余只读检查即使仅改变 allowed_files 内字节也拒绝，不把整个 EXTRA 列表视为写入许可。
+三项生成准备在命令启动前将输入 approval 的消费回执写入 report_root/preparation-inputs；
+即使无字节变化、非零或中断，旧批准也不能再检查、freeze/audit 或执行依赖后步。该回执
+不改 manifest、approval、指针或 expected_fingerprint，不代表批准输出；由评审方审阅 diff
+后另建最终字节批准才可继续。普通格式化步骤原有的字节变化后重批规则保持。
+
+### §17.2 固定检查与通道
+
+`b quality` 保持 frontend10：format、lint、typecheck、test、build-script-test、
+fake-api-test、api-types-check、api-types-test、build、e2e。完整验收另需 backend5：
+backend-format、backend-lint、backend-test、schema-check、provider-metadata-check。
+baseline 不冒充完整验收；有依赖步骤按真实非零立即停止。有效测试须有非零计数和完整摘要，
+零测试、摘要无效、skip/error/中断不算通过；退出 1 无有效失败摘要时改为门禁 78，不能
+当有效 mutation kill。receipt 分开 command process_exit_code 与门禁 exit_code。
+
+原生预检使用官方 `launch_mode=native`，不携带 CLI 字段；CLI 预检保留既有可执行文件、
+权限文件/条目和代理组检查。清单只由固定配置构造，不借通道切换删掉公共门禁。
+这只验证主节点本地预检，不证明真实原生子 Agent 权限或交付。
+
+原 DB helper 仍绑定 cp00/专用库；其他 worktree 的 backend-test 在调用 helper 前拒绝，
+原 A 线 placeholder helper 同样只允许其原 worktree，避免稳定入口核一棵树却修改另一棵树。
+本次不重写 DB helper。独立工具 worktree 不安装业务依赖。E2E 输出使用报告区唯一目录，
+C 线保留原离线 cargo 路径/环境。固定入口是协作门禁，不能拦截绕入口的编辑或命令。
+
+### §17.3 冻结、审计和集成护栏
+
+新增 `.review/reports/tools/review-stage.py <lane> <stage> <receipt绝对路径>`，stage 为：
+
+- `freeze`：停写声明与批准输入均通过后，持 lane 锁冻结最终源码、manifest、工具/config、
+  runtime-pin 和所列证据 hash。回执状态 `frozen_not_reviewed`，不是 APPROVED。
+- `audit`：评审方新 approval 显式绑定 frozen_receipt 路径/SHA 后，持锁复核同一最终输入。
+- `integration-check`：另有 `approved_for_integration` 才取得 main/lane 双锁复核目标
+  干净、批准 HEAD 及冻结输入；此命令只读，不提交或合并，其退出不构成锁外操作的许可。
+- `integrate-fixture`：仅用于临时合成 Git 仓；worktree 和 Git common-dir 均须在临时根，
+  拒绝真实 EchoTalk 及其 linked worktree。本轮仅在该入口演示受锁 commit + 精确 ff。
+
+全部复用原 `worktree_lock` 与 `/Users/sunpcm/.local/state/review-loop/locks`。canonical
+worktree 路径排序后固定顺序取双锁；高序单锁内申请低序锁会拒绝，避免自锁。可信继承锁
+不由子方释放；冲突、异常、未恢复 mutation journal 均失败关闭，新取锁异常时释放。
+拥有锁的执行方负责硬超时/进程组；继承锁下的检查保留原 bounded helper 的外层控制语义，
+由传入锁的 check_batch/mutate 控制进程组超时，不能脱离外层控制器单独借锁跑长任务。
+正式冻结/验收拒绝非稳定输入；普通静态阅读无需全面串行。锁不代替停写确认，也不阻止
+直接编辑；变异检查仍需批准的输入版本，指纹不匹配必须拒绝，不得把拒绝当 kill。
+
+真实项目的 commit/ff 仍需后续明确授权，并在 `integration_guard` 同一 context 内完成
+复核和动作，禁止先运行 integration-check 再在锁外集成。本轮没有真实集成执行入口。
+
+### §17.4 备份、验证和回退
+
+修改前备份位于本轮报告 `backup/`；`baseline-and-backup.json` 记录原路径、模式和 SHA，
+`new-paths.json` 标明本轮新增项。未复制 dotenv/凭据。先完成代码、文档和 formatter，再冻结
+最终文件 hash，串行运行本轮离线检查。离线验证只证明工具行为，不替代上述15项业务门禁，
+不证明原生权限、真实服务或额度节省。本次这些业务/外部边界均未执行。
+
+回退先停本轮自有操作并核已知 session，确认当前文件仍等于本轮最终 hash、没有其他写者。
+从备份逐文件 `cp -p` 恢复旧 ev/runner 及原模式；旧配置本来未改，核旧 hash 即可。两份
+文档只回退本工具 worktree 的自有修改。新增路径仅在 hash/归属一致时移出活动路径并保留
+证据，不覆盖别人后来的数据；检查备份 hash、旧入口离线兼容和 main/cp00 基线。存在漂移
+则停止回退并报告，不 reset/stash/清理其他现场。
+
+r1 是五份文件的局部增量：review_wiring.py、项目 ev.sh、新 config 与两份文档；r1 备份恢复
+保留 r0 已批准文档修改，不恢复到 Git HEAD。只更新这两个实际变更工具 pin 和经审 shared_head，
+tasks null 槽位、其他 pin、runtime、历史记录不改。r0 上述备份/新路径说明是其历史口径。
