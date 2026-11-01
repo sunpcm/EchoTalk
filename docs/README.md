@@ -20,6 +20,8 @@
 
 - [历史系统架构审计](./ARCHITECTURE.md)：2026-09-20 基线快照；当前状态以 PROJECT_STATUS、TODO 和代码为准。
 - [三端架构与交付门禁](./CROSS_PLATFORM_ARCHITECTURE.md)：Web/iOS/macOS 当前事实与交付目标。
+- [macOS MVP 开发计划](./MACOS_MVP_DEVELOPMENT_PLAN.md)：M1 可行性至 M5 分发的分阶段门禁；正式 `apps/vite-app/src-tauri/` 仍属 M2，旧最低 OS 候选不构成兼容承诺，最新支持口径见当前状态。
+- [macOS M1 原生认证验证](./verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)：auth-only 探针已记录安装包真实冷暖回跳及取消场景；API/媒体、真实 Provider 5 分钟 5 轮与设备测试尚欠，不代表 M1 整体通过。
 
 | 阶段               | 技术说明                                         | 验收手册                                           | 补充设计                                                     |
 | ------------------ | ------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------ |
