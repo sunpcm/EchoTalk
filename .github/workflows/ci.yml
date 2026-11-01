@@ -104,6 +104,10 @@ jobs:
         working-directory: backend
         run: .venv/bin/python export_openapi.py --check
 
+      - name: Check generated Provider display metadata
+        working-directory: backend
+        run: .venv/bin/python export_provider_metadata.py --check
+
       - name: Ruff format
         working-directory: backend
         run: .venv/bin/ruff format --check .

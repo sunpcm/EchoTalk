@@ -195,3 +195,28 @@ Xcode 的 DerivedData、构建输出和音频设备占用同样隔离；真机�
   8 项、Chromium+WebKit E2E 148 项）；专用 PostgreSQL 全 pytest 为 540 passed/3 warnings、
   79.41%，子进程 coverage 未合并、59% 门禁保持；两项 stale 变异被 killed 并完整还原源码。
   未 push/部署，远端 CI、真实 IdP/Provider/LiveKit 与设备仍未验证。
+
+## §16 RF-10 Provider 展示元数据生成门禁（2026-11-01）
+
+- 单一来源：`backend/provider_catalog.py` 是不可变 Provider 展示元数据来源。`role`、
+  `label` 和默认标记随对应 Provider 条目维护，展示字段必须有默认值以保持既有 dataclass
+  构造兼容；禁止在 exporter、adapter 或组件中再维护 id、label、默认选择映射。
+- canonical 产物：`apps/vite-app/src/lib/providers.generated.json` 只能由
+  `backend/export_provider_metadata.py` 从真实 catalog 生成，禁止手改。投影白名单仅包含
+  `role`、`id`、`label` 及每个 role 的一个默认 id；不得透出 URL、凭据字段、Headers、
+  校验配置或其他内部运行字段。`.prettierignore` 精确排除该产物，由生成器字节检查守护。
+- 生成命令：`cd backend && ../.review/rf07-a37-dev-venv/bin/python
+export_provider_metadata.py`；漂移检查追加 `--check`。父进程只加载标准库，真实 catalog
+  导入、投影与序列化在带有限 timeout 和网络失败关闭屏障的隔离子进程中完成；输出采用
+  UTF-8、排序 key、2 空格缩进、末尾换行并通过同目录临时文件原子替换。
+- `--check` 只比较完整字节，缺产物或 stale 均非零且不写文件或目录；生成、超时、子进程
+  异常和替换失败不得破坏已有产物，异常输出只允许阶段与异常类型。后端回归覆盖真实 CLI、
+  稳定字节、缺失/stale、原子失败、导入纯净和敏感字段零透出。
+- CI 接线：`test-backend` 在既有 OpenAPI schema 检查后显式运行
+  `.venv/bin/python export_provider_metadata.py --check`。`test-frontend` 不安装 Python；
+  前端通过 `providerMetadata.ts` 消费 tracked JSON，不新增 fetch、缓存或 session 支线。
+- 本地固定 runner 在实施停写后新增独立 `provider-metadata-check`；现有 frontend10 与
+  OpenAPI schema 门禁保持原项，不能把本轮 metadata check 追溯写成旧轮已执行。
+- 更新流程：修改 catalog 展示字段后，由受控主 Agent 在实施停写后先审查 exporter，再执行
+  原生生成、审阅 JSON diff，最后运行 metadata check、Ruff、相关 pytest、前端 typecheck/
+  Vitest、完整 frontend10 与 backend 测试树。生成文件提交前不得手写或交给 formatter。

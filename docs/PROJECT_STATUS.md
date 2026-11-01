@@ -43,6 +43,28 @@
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-11-01 RF-10 Provider 前端展示元数据单一来源（A78 b/r0）
+
+Provider 下拉框与设置表单 fallback 的 id、品牌 label 和默认选择已收敛到后端不可变
+`provider_catalog.py`。STT、LLM、TTS 条目新增带默认值的 `role`、`label` 与默认标记，旧
+dataclass 构造方式保持兼容；公开 JSON 由新 exporter 从真实 catalog 投影，仅包含每个
+Provider 的 role/id/label 及每个 role 的一个默认 id。
+
+- `backend/export_provider_metadata.py` 使用纯标准库，在有限 timeout、最小环境和网络失败
+  关闭屏障中导入 catalog；canonical JSON 采用排序 key、2 空格缩进和末尾换行，经同目录
+  临时文件原子替换。`--check` 只比较字节，缺产物或 stale 非零且不写文件。
+- `apps/vite-app/src/lib/providers.generated.json` 是待主 Agent 在实施停写后受控生成的
+  tracked 产物；`.prettierignore` 仅排除该路径。前端 `providerMetadata.ts` 直接消费 JSON，
+  `SettingsProviderFields` 与 `useSettingsForm` 保持 Deepgram → SiliconFlow → OpenRouter /
+  Cartesia 的既有顺序、label、默认和 LLM 自由文本模型，不新增请求或运行时加载支线。
+- 后端新增真实生成 CLI、确定性、缺失/stale、原子替换失败、timeout/异常输出、导入纯净与
+  敏感字段零透出回归；真实设置组件回归覆盖 label/顺序、空值默认和后端对象引用水合。CI
+  只在 backend job 显式运行 metadata `--check`，不要求 frontend job 安装 Python。
+- 当前 b/r0 停在 Review：生成 JSON、本地固定 runner 的独立 `provider-metadata-check`、
+  formatter、相关与完整测试、Ruff、CI、Review 和集成均未由本轮实施方执行。真实外部
+  Provider 仍未验证，RF-10 整体不完成，契约与命令见
+  [RF-10 Provider 前端展示元数据单一来源](./verification/cross-platform/RF-10-FRONTEND-METADATA.md)。
+
 ## 2026-11-01 本地 RF-06 前端模板清理（A73）
 
 基于 `b2b02b3` 对全部 tracked import、workspace、Turbo、CI、Docker、README 与脚本引用完成

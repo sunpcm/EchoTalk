@@ -109,6 +109,12 @@ Agent 的普通业务模块导入不读取 dotenv、不加载应用配置或数�
 `.env`（`override=False`），再验证配置并启动 LiveKit SDK CLI。直接执行
 `python livekit_agent/agent.py` 依赖隐式 `sys.path` 注入，已不再支持。
 
+Provider 的公开展示元数据由不可变 `backend/provider_catalog.py` 提供单一来源。受控离线
+exporter 只投影 role、id、label 与默认选择到 tracked
+`apps/vite-app/src/lib/providers.generated.json`；Vite 设置视图和表单 fallback 直接消费该
+产物，不因展示元数据额外请求设置 API、Provider 服务或 SDK。生成文件由后端字节漂移门禁
+保护，前端 CI job 不安装 Python。
+
 ### 3.4 PostgreSQL Analysis Worker
 
 会话结束事务创建唯一分析 Job 后立即返回。独立 Worker 通过 PostgreSQL

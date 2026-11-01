@@ -1,0 +1,29 @@
+{
+  "defaults": {
+    "llm": "siliconflow",
+    "stt": "deepgram",
+    "tts": "cartesia"
+  },
+  "providers": [
+    {
+      "id": "deepgram",
+      "label": "Deepgram",
+      "role": "stt"
+    },
+    {
+      "id": "siliconflow",
+      "label": "SiliconFlow",
+      "role": "llm"
+    },
+    {
+      "id": "openrouter",
+      "label": "OpenRouter",
+      "role": "llm"
+    },
+    {
+      "id": "cartesia",
+      "label": "Cartesia",
+      "role": "tts"
+    }
+  ]
+}

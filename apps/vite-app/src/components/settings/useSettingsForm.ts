@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { UserSettingsResponse, UserSettingsUpdate } from "@/lib/api";
 import { beginLogout } from "@/lib/auth";
 import { zhCN } from "@/i18n/zh-CN";
+import { DEFAULT_PROVIDER_IDS } from "@/lib/providerMetadata";
 import { buildSettingsUpdate } from "./settingsPayload";
 
 const t = zhCN.settings;
@@ -23,10 +24,10 @@ interface SettingsFormDraft {
 
 const INITIAL_DRAFT: SettingsFormDraft = {
   isCustomMode: false,
-  sttProvider: "deepgram",
-  llmProvider: "siliconflow",
+  sttProvider: DEFAULT_PROVIDER_IDS.stt,
+  llmProvider: DEFAULT_PROVIDER_IDS.llm,
   llmModel: "",
-  ttsProvider: "cartesia",
+  ttsProvider: DEFAULT_PROVIDER_IDS.tts,
   sttKey: "",
   llmKey: "",
   ttsKey: "",
@@ -101,10 +102,10 @@ export function useSettingsForm({ open, settings, updateSettings }: UseSettingsF
 
     setDraft({
       isCustomMode: settings.is_custom_mode,
-      sttProvider: settings.stt_provider || "deepgram",
-      llmProvider: settings.llm_provider || "siliconflow",
+      sttProvider: settings.stt_provider || DEFAULT_PROVIDER_IDS.stt,
+      llmProvider: settings.llm_provider || DEFAULT_PROVIDER_IDS.llm,
       llmModel: settings.llm_model || "",
-      ttsProvider: settings.tts_provider || "cartesia",
+      ttsProvider: settings.tts_provider || DEFAULT_PROVIDER_IDS.tts,
       sttKey: "",
       llmKey: "",
       ttsKey: "",

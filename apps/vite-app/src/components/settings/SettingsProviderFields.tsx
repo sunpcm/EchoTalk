@@ -1,15 +1,13 @@
 import type { ReactNode } from "react";
 import type { UserSettingsResponse } from "@/lib/api";
 import { zhCN } from "@/i18n/zh-CN";
+import {
+  LLM_PROVIDER_OPTIONS,
+  STT_PROVIDER_OPTIONS,
+  TTS_PROVIDER_OPTIONS,
+} from "@/lib/providerMetadata";
 
 const t = zhCN.settings;
-
-const STT_OPTIONS = [{ value: "deepgram", label: "Deepgram" }] as const;
-const LLM_OPTIONS = [
-  { value: "siliconflow", label: "SiliconFlow" },
-  { value: "openrouter", label: "OpenRouter" },
-] as const;
-const TTS_OPTIONS = [{ value: "cartesia", label: "Cartesia" }] as const;
 
 interface SettingsProviderFieldsProps {
   disabled: boolean;
@@ -55,7 +53,7 @@ export function SettingsProviderFields({
         <ProviderGroup
           idPrefix="stt"
           label={t.sttProvider}
-          options={STT_OPTIONS}
+          options={STT_PROVIDER_OPTIONS}
           value={sttProvider}
           onChange={onSttProviderChange}
           apiKey={sttKey}
@@ -67,7 +65,7 @@ export function SettingsProviderFields({
         <ProviderGroup
           idPrefix="llm"
           label={t.llmProvider}
-          options={LLM_OPTIONS}
+          options={LLM_PROVIDER_OPTIONS}
           value={llmProvider}
           onChange={onLlmProviderChange}
           apiKey={llmKey}
@@ -96,7 +94,7 @@ export function SettingsProviderFields({
         <ProviderGroup
           idPrefix="tts"
           label={t.ttsProvider}
-          options={TTS_OPTIONS}
+          options={TTS_PROVIDER_OPTIONS}
           value={ttsProvider}
           onChange={onTtsProviderChange}
           apiKey={ttsKey}

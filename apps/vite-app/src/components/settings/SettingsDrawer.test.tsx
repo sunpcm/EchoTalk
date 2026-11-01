@@ -237,9 +237,25 @@ describe("SettingsDrawer Component", () => {
     expect(sttSelect).toHaveValue("deepgram");
     expect(llmSelect).toHaveValue("openrouter");
     expect(ttsSelect).toHaveValue("cartesia");
+    expect(Array.from(sttSelect.querySelectorAll("option")).map((option) => option.value)).toEqual([
+      "deepgram",
+    ]);
+    expect(Array.from(sttSelect.querySelectorAll("option")).map((option) => option.text)).toEqual([
+      "Deepgram",
+    ]);
     expect(Array.from(llmSelect.querySelectorAll("option")).map((option) => option.value)).toEqual([
       "siliconflow",
       "openrouter",
+    ]);
+    expect(Array.from(llmSelect.querySelectorAll("option")).map((option) => option.text)).toEqual([
+      "SiliconFlow",
+      "OpenRouter",
+    ]);
+    expect(Array.from(ttsSelect.querySelectorAll("option")).map((option) => option.value)).toEqual([
+      "cartesia",
+    ]);
+    expect(Array.from(ttsSelect.querySelectorAll("option")).map((option) => option.text)).toEqual([
+      "Cartesia",
     ]);
     expect(screen.getByText(t.statusVerified)).toBeInTheDocument();
     expect(screen.getByText(t.statusError)).toBeInTheDocument();
@@ -257,6 +273,35 @@ describe("SettingsDrawer Component", () => {
     expect(screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` })).toBeChecked();
     expect(useSettingsStore.getState().theme).toBe("cool");
     expect(updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("hydrates provider and free-text model values when the settings reference changes", () => {
+    installStore(
+      makeSettings({
+        stt_provider: null,
+        llm_provider: null,
+        llm_model: null,
+        tts_provider: null,
+      }),
+    );
+    const { rerender } = render(<SettingsDrawer open={true} onClose={vi.fn()} />);
+
+    act(() => {
+      useSettingsStore.setState({
+        settings: makeSettings({
+          stt_provider: "deepgram",
+          llm_provider: "openrouter",
+          llm_model: "custom/user-model",
+          tts_provider: "cartesia",
+        }),
+      });
+    });
+    rerender(<SettingsDrawer open={true} onClose={vi.fn()} />);
+
+    expect(screen.getByLabelText(t.sttProvider)).toHaveValue("deepgram");
+    expect(screen.getByLabelText(t.llmProvider)).toHaveValue("openrouter");
+    expect(screen.getByLabelText(t.ttsProvider)).toHaveValue("cartesia");
+    expect(screen.getByLabelText(t.llmModel)).toHaveValue("custom/user-model");
   });
 
   it("uses buildSettingsUpdate and passes the exact custom-mode payload", async () => {

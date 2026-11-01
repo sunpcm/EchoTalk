@@ -20,6 +20,7 @@ from livekit_agent.plugin_factory import (
 )
 from provider_catalog import (
     LLM_PROVIDER_CATALOG,
+    PROVIDER_CATALOGS,
     STT_PROVIDER_CATALOG,
     TTS_PROVIDER_CATALOG,
     LLMProviderMetadata,
@@ -32,6 +33,8 @@ from provider_catalog import (
 from services.llm_service import PROVIDER_CONFIG
 from services.validation_service import ProviderValidationService
 
+TEST_PROCESS_TIMEOUT_SECONDS = 45.0
+
 
 def test_catalog_structure_and_exact_values():
     """验证 Catalog 包含精确的 Provider 集合、顺序及各常量值。"""
@@ -43,12 +46,18 @@ def test_catalog_structure_and_exact_values():
     assert sf.base_url == "https://api.siliconflow.cn/v1"
     assert sf.api_key_field == "SILICONFLOW_API_KEY"
     assert sf.validation_url == "https://api.siliconflow.cn/v1/user/info"
+    assert sf.role == "llm"
+    assert sf.label == "SiliconFlow"
+    assert sf.is_default is True
 
     or_meta = LLM_PROVIDER_CATALOG["openrouter"]
     assert or_meta.id == "openrouter"
     assert or_meta.base_url == "https://openrouter.ai/api/v1"
     assert or_meta.api_key_field == "OPENROUTER_API_KEY"
     assert or_meta.validation_url == "https://openrouter.ai/api/v1/auth/key"
+    assert or_meta.role == "llm"
+    assert or_meta.label == "OpenRouter"
+    assert or_meta.is_default is False
 
     assert get_llm_provider("siliconflow") == sf
     assert get_llm_provider("openrouter") == or_meta
@@ -63,6 +72,9 @@ def test_catalog_structure_and_exact_values():
     assert dg.auth_header_name == "Authorization"
     assert dg.auth_header_prefix == "Token "
     assert dg.static_headers == MappingProxyType({})
+    assert dg.role == "stt"
+    assert dg.label == "Deepgram"
+    assert dg.is_default is True
     assert get_stt_provider("deepgram") == dg
     assert get_stt_provider("unsupported_stt") is None
 
@@ -75,8 +87,40 @@ def test_catalog_structure_and_exact_values():
     assert car.auth_header_name == "X-API-Key"
     assert car.auth_header_prefix == ""
     assert dict(car.static_headers) == {"Cartesia-Version": "2024-06-10"}
+    assert car.role == "tts"
+    assert car.label == "Cartesia"
+    assert car.is_default is True
     assert get_tts_provider("cartesia") == car
     assert get_tts_provider("unsupported_tts") is None
+
+    assert list(PROVIDER_CATALOGS) == ["stt", "llm", "tts"]
+    assert PROVIDER_CATALOGS["stt"] is STT_PROVIDER_CATALOG
+    assert PROVIDER_CATALOGS["llm"] is LLM_PROVIDER_CATALOG
+    assert PROVIDER_CATALOGS["tts"] is TTS_PROVIDER_CATALOG
+
+
+def test_display_fields_preserve_original_constructor_compatibility():
+    """新增展示字段必须有默认值，旧构造调用无需提前触发 TypeError。"""
+    llm = LLMProviderMetadata(
+        id="legacy-llm",
+        base_url="https://example.com/v1",
+        api_key_field="LEGACY_LLM_KEY",
+        validation_url="https://example.com/v1/validate",
+    )
+    stt = STTProviderMetadata(
+        id="legacy-stt",
+        api_key_field="LEGACY_STT_KEY",
+        validation_url="https://example.com/stt",
+    )
+    tts = TTSProviderMetadata(
+        id="legacy-tts",
+        api_key_field="LEGACY_TTS_KEY",
+        validation_url="https://example.com/tts",
+    )
+
+    assert (llm.role, llm.label, llm.is_default) == ("llm", "", False)
+    assert (stt.role, stt.label, stt.is_default) == ("stt", "", False)
+    assert (tts.role, tts.label, tts.is_default) == ("tts", "", False)
 
 
 def test_catalog_immutability():
@@ -113,10 +157,15 @@ def test_catalog_immutability():
     with pytest.raises(TypeError):
         del TTS_PROVIDER_CATALOG["cartesia"]  # type: ignore
 
+    with pytest.raises(TypeError):
+        PROVIDER_CATALOGS["new_role"] = {}  # type: ignore
+
     # 2. 条目本身不可篡改 (frozen dataclass)
     sf = LLM_PROVIDER_CATALOG["siliconflow"]
     with pytest.raises((FrozenInstanceError, AttributeError)):
         sf.base_url = "https://mutated.com"  # type: ignore
+    with pytest.raises((FrozenInstanceError, AttributeError)):
+        sf.label = "Mutated"  # type: ignore
 
     dg = STT_PROVIDER_CATALOG["deepgram"]
     with pytest.raises((FrozenInstanceError, AttributeError)):
@@ -357,6 +406,8 @@ def test_pure_stdlib_isolated_subprocess_import():
     # 构建最小无凭据环境
     clean_env = {
         "PATH": os.environ.get("PATH", ""),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "0",
         "PYTHONPATH": backend_dir,
         "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),  # Windows 兼容
     }
@@ -366,6 +417,7 @@ def test_pure_stdlib_isolated_subprocess_import():
         "import provider_catalog\n"
         "from provider_catalog import (\n"
         "    LLM_PROVIDER_CATALOG,\n"
+        "    PROVIDER_CATALOGS,\n"
         "    STT_PROVIDER_CATALOG,\n"
         "    TTS_PROVIDER_CATALOG,\n"
         "    get_llm_provider,\n"
@@ -374,11 +426,13 @@ def test_pure_stdlib_isolated_subprocess_import():
         ")\n"
         "assert len(LLM_PROVIDER_CATALOG) == 2\n"
         "assert get_llm_provider('siliconflow').id == 'siliconflow'\n"
+        "assert get_llm_provider('siliconflow').label == 'SiliconFlow'\n"
         "assert get_llm_provider('openrouter').id == 'openrouter'\n"
         "assert len(STT_PROVIDER_CATALOG) == 1\n"
         "assert get_stt_provider('deepgram').id == 'deepgram'\n"
         "assert len(TTS_PROVIDER_CATALOG) == 1\n"
         "assert get_tts_provider('cartesia').id == 'cartesia'\n"
+        "assert list(PROVIDER_CATALOGS) == ['stt', 'llm', 'tts']\n"
         "# 确保未导入 SDK / 业务模块\n"
         "forbidden = ['livekit', 'openai', 'aiohttp', 'config', 'sqlalchemy', 'deepgram', 'cartesia']\n"
         "for mod in forbidden:\n"
@@ -392,6 +446,7 @@ def test_pure_stdlib_isolated_subprocess_import():
         capture_output=True,
         text=True,
         check=False,
+        timeout=TEST_PROCESS_TIMEOUT_SECONDS,
     )
 
     assert result.returncode == 0, f"Subprocess failed:\n{result.stderr}"
