@@ -3,6 +3,20 @@
 > 审计基线：`main@1f9a1b0`，2026-09-20。
 >
 > 本文保留 `main@1f9a1b0` 的历史审计，不代表当前实现。其 Mock 鉴权、密钥耦合等结论已由后续认证与凭据改造更新；不得据此判断当前发布状态。当前事实见 [PROJECT_STATUS.md](./PROJECT_STATUS.md)、[TODO.md](../TODO.md) 与 [三端门禁](./CROSS_PLATFORM_ARCHITECTURE.md)，以下为原审计内容。
+>
+> **当前边界补充（2026-11-01，A76）**：`VoiceInterface` 已拆为 Room 资源/调度层与
+> 对话 UI 层；`agent_error` 只由实际 Room 的 `sessionId/sessionGen` 和当前认证
+> principal/revision 收取，runtime payload 在进入 store 前严格收窄。旧 callback、身份变化、
+> 卸载与终态迟到消息不得写入新会话。详细边界见
+> [CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
+>
+> **同 principal 认证刷新补充（2026-11-01，A77 b/r2）**：Room 首次绑定的 principal 与
+> 物理 lifecycle adapter 保持稳定；每次已验证的同 principal 认证通知都建立新的业务监听
+> 归属，旧 SDK/lifecycle/business callback 永久失效。刷新不替换 Room、不停止健康轨或
+> 重发 dispatch。Web 订阅后 hidden/offline 立即失败；native pending 的占位 hidden 只表示
+> 未就绪，必须等 `whenReady` 后重新读取 snapshot 与能力，并按原 10 秒 deadline 结算。
+> 超时、可信 inactive 或能力失效均安全关闭，旧 timer callback 不能清空新句柄。详细边界见
+> [CP-06 Room 同 principal 认证刷新验证](./verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)。
 
 ## 1. 架构结论
 
@@ -12,7 +26,6 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 ┌──────────────────────────────────────────────────────────────────────┐
 │ 客户端                                                               │
 │  Vite React Web（主客户端） | Capacitor iOS 壳（基础已接入）           │
-│  Webpack React（备用打包器，不是移动端/生产交付基线）                  │
 └──────────────┬─────────────────────┬─────────────────────────────────┘
                │ HTTPS / REST        │ WebRTC / DataChannel
                ▼                     ▼
@@ -29,13 +42,13 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 └──────┬─────────┬───────────┘           └──────────────┬──────────────┘
        │         │                                      │
        ▼         ▼                                      ▼
- PostgreSQL    ChromaDB                           外部 AI Provider
- 事实数据       教学语料向量检索                  Deepgram/LLM/Cartesia
+ PostgreSQL    版本化教学语料                    外部 AI Provider
+ 事实数据       离线确定性课程检索                Deepgram/LLM/Cartesia
 
- Redis ◀──── Celery Worker（当前仅承载未完成的周报骨架，不在核心链路）
+ PostgreSQL ◀──── Analysis Worker（Job 原子领取、有限重试、超时恢复与幂等）
 ```
 
-这个边界适合当前体量：业务事务留在一个 FastAPI 服务内，低延迟音频处理交给 LiveKit Agent，只有真正需要脱离请求生命周期的任务才进入 Celery。现阶段继续拆分业务微服务会增加分布式事务、部署和可观测性成本，没有足够收益。
+这个边界适合当前体量：业务事务留在一个 FastAPI 服务内，低延迟音频处理交给 LiveKit Agent，持久化会话分析交给独立的 PostgreSQL Job Worker。现阶段继续拆分业务微服务会增加分布式事务、部署和可观测性成本，没有足够收益。
 
 ## 2. 能力状态
 
@@ -48,9 +61,9 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 | 实时语音          | 已实现                 | LiveKit Cloud + 独立 Agent；依赖外部 STT/LLM/TTS Provider                           |
 | 鉴权              | 仅 Mock                | 所有 Bearer Token 当前都映射到同一个固定用户，不能用于多用户或公网生产              |
 | BYOK              | 已实现但受鉴权边界限制 | Key 用 Fernet 加密入库；密钥由 `JWT_SECRET_KEY` 派生                                |
-| 评估 / BKT        | 已实现                 | 会话结束请求内同步计算，失败只记录 warning，不会重试                                |
-| RAG               | 已实现                 | 课程推荐读取 ChromaDB；语料需单独播种                                               |
-| Celery 周报       | 骨架                   | Worker 可启动，但任务只返回 `status: skeleton`，核心流程不会投递它                  |
+| 评估 / BKT        | 已实现                 | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态                  |
+| 课程检索          | 已实现                 | 推荐读取版本化 JSON，按 CEFR、技能、priority 与 id 确定性排序                       |
+| 周报              | 未实现                 | 多维学习报告仍是独立产品功能，当前没有任务骨架或业务入口                            |
 
 ## 3. 运行时与职责
 
@@ -61,7 +74,6 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 - `assessment` store：结束会话后轮询发音、语法和知识状态。
 - `settings` store：BYOK 配置从 API 水合；主题只保存在 `localStorage`。
 - `VoiceInterface`：选择 Web 代理或原生直连的 LiveKit URL，并监听 `agent_error` DataChannel。
-- `apps/webpack-app`：备用构建实现。它不应被当作与 Vite 客户端功能等价的第二生产前端。
 
 前端 API 路径由 `getApiBaseUrl()` 惰性解析。Web 默认使用同源 `/api`；原生端必须提供 `VITE_API_BASE_URL`，并自动补齐 `/api`。
 
@@ -75,7 +87,7 @@ FastAPI 保持模块化单体边界，路由只做鉴权、输入输出和流程
 | 会话     | `/api/sessions...`                 | 会话生命周期、LiveKit Token、Agent dispatch |
 | 对话     | `/api/conversation/chat`           | 非实时文本对话                              |
 | 评估     | `/api/assessments...`              | 发音、语法、BKT 状态查询                    |
-| 课程     | `/api/curriculum/next`             | 最弱技能 + ChromaDB 检索推荐                |
+| 课程     | `/api/curriculum/next`             | 最弱技能 + 离线目录确定性推荐               |
 | 用户设置 | `/api/user/settings`               | 双轨模式、Provider 与加密 Key 的读写/拨测   |
 
 `database.get_db()` 在请求成功后提交、异常时回滚。业务服务复用同一个 `AsyncSession`，因此单请求内的关系数据库写入仍处于同一事务边界。
@@ -90,11 +102,29 @@ Agent 是独立进程，不通过 FastAPI 依赖注入访问数据库。它以�
 4. 把用户与 Assistant 转录写回 PostgreSQL；
 5. 自定义轨失败时通过 `agent_error` DataChannel fail-fast，不静默回退到系统密钥。
 
-Agent 与 API 共享数据库模型和配置，这是有意的代码复用，但也意味着两者必须使用相同版本的迁移和 `JWT_SECRET_KEY`。
+Agent 与 API 共享数据库模型、迁移和版本化凭据 keyring，这是有意的代码复用；API 认证独立配置。
 
-### 3.4 Celery Worker
+Agent 的普通业务模块导入不读取 dotenv、不加载应用配置或数据库 engine。官方启动入口是
+`cd backend && python -m livekit_agent dev|start`：`livekit_agent.bootstrap` 先加载仓库根
+`.env`（`override=False`），再验证配置并启动 LiveKit SDK CLI。直接执行
+`python livekit_agent/agent.py` 依赖隐式 `sys.path` 注入，已不再支持。
 
-Celery 使用 Redis 同时作为 broker 和 result backend。当前只有 `generate_weekly_report` 骨架，尚未被核心业务投递。因此 Compose 中存在 Worker 并不等于周报功能已完成，也不代表评估已经异步化。
+Provider 的公开展示元数据由不可变 `backend/provider_catalog.py` 提供单一来源。受控离线
+exporter 只投影 role、id、label 与默认选择到 tracked
+`apps/vite-app/src/lib/providers.generated.json`；Vite 设置视图和表单 fallback 直接消费该
+产物，不因展示元数据额外请求设置 API、Provider 服务或 SDK。生成文件由后端字节漂移门禁
+保护，前端 CI job 不安装 Python。
+
+A80 的回归边界要求真实 `SettingsDrawer` 先验证现行固定契约，再由 `useSettingsForm`
+验证 null/空字符串 fallback、合法自定义值、同引用重渲染和打开周期保持，以及新对象水合。
+另有隔离测试以合法替代 metadata 默认值调用真实 Hook，证明初始草稿和空值水合确实消费
+adapter 来源；该验证不改生产源码或 tracked 生成 JSON。
+
+### 3.4 PostgreSQL Analysis Worker
+
+会话结束事务创建唯一分析 Job 后立即返回。独立 Worker 通过 PostgreSQL
+`FOR UPDATE SKIP LOCKED` 领取任务，复用现有事务执行分析、知识状态更新、有限重试与
+陈旧运行任务恢复；Compose 中的 `echotalk-analysis-worker` 与 API 使用同一数据库。
 
 ## 4. 核心数据与所有权
 
@@ -113,8 +143,7 @@ users
 ```
 
 - PostgreSQL 是用户、会话、设置、转录与学习状态的事实源。
-- ChromaDB 只保存可重建的教学语料向量，不拥有用户事务数据。
-- Redis 当前只服务 Celery，不是会话状态或事实数据来源。
+- `backend/data/teaching_materials.json` 是受 Git 管理的教学语料事实源，不拥有用户事务数据。
 - Schema 通过 Alembic 管理；应用启动不会自动执行迁移。
 
 ## 5. 关键业务链路
@@ -140,12 +169,15 @@ Web 默认经 Nginx/Vite 的 `/livekit-ws` 代理连接；原生默认使用后�
 ```text
 POST /sessions/{id}/end
   → session 标记 completed
-  → 请求内同步 analyze_session
-  → 请求内同步 update_knowledge
-  → 前端轮询 /assessments/{id}
+  → 同事务创建唯一 AnalysisJob，随后立即返回
+  → PostgreSQL Analysis Worker 原子领取并标记 running
+  → analyze_session + update_knowledge
+  → succeeded；可重试失败回到 pending，耗尽后进入 failed
+  → 前端轮询分析状态与 /assessments/{id}
 ```
 
-当前失败语义不够可靠：分析异常会被捕获并只写 warning，接口仍返回已完成会话；没有任务状态、重试或补偿器。结果是“会话完成但评估永久不存在”，前端只能轮询超时。
+分析失败会持久化稳定错误码，按有界策略重试；Worker 中断后的陈旧任务会在启动循环中恢复。
+达到尝试上限后 Job 进入 `failed`，前端可依据状态提供显式重试或返回主页。
 
 ### 5.3 DocTalk
 
@@ -155,17 +187,31 @@ POST /sessions/{id}/end
 
 根目录 Compose 是**本地集成/单机基线**，不是完整生产拓扑：
 
-| 服务              | 数量/命令          | 持久化或依赖                      |
-| ----------------- | ------------------ | --------------------------------- |
-| `echotalk-web`    | Nginx 1 个         | 静态文件；反代 API 与 LiveKit WSS |
-| `echotalk-api`    | Uvicorn 4 workers  | PostgreSQL、Redis、ChromaDB       |
-| `echotalk-agent`  | LiveKit Agent 1 个 | PostgreSQL、Redis、外部 Provider  |
-| `echotalk-worker` | Celery 1 个        | Redis、PostgreSQL                 |
-| PostgreSQL 15     | 1 个               | named volume                      |
-| Redis 7           | 1 个               | named volume                      |
-| ChromaDB `latest` | 1 个               | named volume                      |
+| 服务                       | 数量/命令          | 持久化或依赖                      |
+| -------------------------- | ------------------ | --------------------------------- |
+| `echotalk-web`             | Nginx 1 个         | 静态文件；反代 API 与 LiveKit WSS |
+| `echotalk-api`             | Uvicorn 4 workers  | PostgreSQL                        |
+| `echotalk-agent`           | LiveKit Agent 1 个 | PostgreSQL、外部 Provider         |
+| `echotalk-analysis-worker` | Python 1 个        | PostgreSQL Job                    |
+| PostgreSQL 15              | 1 个               | named volume                      |
 
-部署前必须单独执行 `alembic upgrade head` 与语料播种。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
+三个 Python 服务共用 `backend/Dockerfile`，构建时只接受显式
+`BACKEND_ROLE=api|agent`。API 与 analysis-worker 使用 `api` 组
+（FastAPI、uvicorn、Alembic、python-jose），语音 Agent 使用 `agent` 组
+（LiveKit RTC/Agents 与现有四个插件）；SQLAlchemy、asyncpg、Pydantic、dotenv、OpenAI、
+LiveKit API、cryptography 与 httpx 等共用依赖保留在项目公共依赖。无 flag 的本地开发默认
+安装 `api/agent/dev` 三组，镜像使用 `--no-default-groups` 只安装所选运行组。
+
+A79 的当前验收事实绑定本地单提交
+`eaac89d0f4f008e77ba51b26a590412a03541acb`：独立 Review APPROVED、main 精确快进及完整
+15 项门禁通过；受控安装分布为 dev 104、API 55、Agent 83，最终恢复 merged runtime 97。
+lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死依赖 `passlib` 及其
+`bcrypt` extra 子树，七个 LiveKit exact SDK pins 不变。该结果不代表真实 Linux/Docker
+镜像、Compose 服务、远端 CI、Provider/LiveKit、设备或部署已验收。
+
+部署前必须单独执行 `alembic upgrade head`；课程语料由镜像内的版本化 JSON 提供，可用
+`python -m scripts.seed_corpus` 校验。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、
+资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
 
 ## 7. 已确认的架构风险
 
@@ -177,7 +223,8 @@ POST /sessions/{id}/end
 
 ### P1：可靠性
 
-1. **分析无持久任务状态**：同步分析失败被吞掉，没有 retry、幂等任务或人工补偿入口。
+1. **分析可观测性仍不足**：持久化 Job 已具备重试、超时恢复与幂等，但队列积压、执行延迟和
+   重试耗尽尚未形成集中告警。
 2. **多 worker 启动竞态**：4 个 Uvicorn worker 都执行测试用户与技能播种；“先查后插”缺少数据库级 upsert，冷启动时可能发生唯一键竞争。
 3. **迁移与启动未编排**：服务可能在旧 Schema 上启动；应由单独的一次性迁移 Job 串行执行，而不是让每个 API worker 自动迁移。
 4. **外部服务单点**：LiveKit Cloud、STT、LLM、TTS 任一不可用都会中断语音链路；当前缺少统一超时预算、熔断指标和降级说明。
@@ -185,16 +232,19 @@ POST /sessions/{id}/end
 
 ### P2：维护与交付
 
-1. ChromaDB 使用 `latest`，升级不可复现；应固定版本并验证数据兼容性。
-2. CI 的 Node 版本是 22，而前端 Docker builder 是 Node 20；应统一到同一受支持版本。
-3. CI 没有验证 Alembic 从空库升级、Docker 镜像构建或 iOS 构建。
+1. 教学语料目录变更仍需人工维护版本化数据与优先级；当前没有管理工作台或自动质量评测。
+2. Web Docker 配方已静态统一到 Node 22、Corepack 精确 pnpm 与根 context 允许列表；
+   后端也已按 API/Agent 运行角色分流。CI 尚未构建这些真实镜像，基础镜像 Corepack 签名链、
+   后端角色安装分布、实际 COPY 与服务启动仍未验证。
+3. CI 没有验证 Alembic 从空库升级或 iOS 构建。
 4. 前端 API、状态与页面仍耦合在单一 SPA；在引入更多页面前再评估 Router，不需要现在为“未来可能”抽共享核心。
 
 ## 8. 推荐演进顺序
 
 1. **先封安全边界**：真实认证、稳定的加密主密钥策略、HTTPS/WSS、生产配置 fail-fast。
 2. **再补交付可靠性**：一次性迁移 Job、幂等播种、API/Agent/Provider 健康与结构化日志。
-3. **持久化分析任务**：为会话分析增加明确状态、幂等 Job、有限重试和补偿入口；可继续使用现有 Celery，无需新服务。
+3. **补齐分析任务可观测性**：PostgreSQL Job、幂等、有限重试与补偿入口已完成；继续补队列积压、
+   延迟和失败率告警，并记录课程目录改造后的镜像/冷启动对比。
 4. **完成 iOS 真机闭环**：在真实认证与网络边界上验证，不把模拟器启动等同于可发布。
 5. **按需求扩展 Android/Desktop**：先做平台 Spike，再决定是否维护原生工程；不要提前创建空壳或抽取 `shared-core`。
 

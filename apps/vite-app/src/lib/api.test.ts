@@ -19,6 +19,9 @@ import {
   dispatchAgent,
   listSessions,
   listActiveSessions,
+  getDailyProgress,
+  parseSessionListResponse,
+  parseDailyProgressResponse,
   getSessionDetail,
   getAnalysisStatus,
   retryAnalysis,
@@ -31,6 +34,13 @@ import {
   updateUserSettings,
   ApiError,
   getBaseUrl,
+  type ApiRequestOptions,
+  type DailyProgressResponse,
+  type SessionListItem,
+  type SessionListResponse,
+  type CallCapabilitiesResponse,
+  type CallLeaseResponse,
+  type CallReleaseResponse,
 } from "./api";
 import {
   setAccessTokenProvider,
@@ -38,7 +48,36 @@ import {
   invalidateAuthSession,
   _resetAuthForTesting,
 } from "./auth";
+import * as apiErrorMessageModule from "./apiErrorMessage";
+import * as apiRequestHeadersModule from "./apiRequestHeaders";
+import * as apiRequestTimeoutModule from "./apiRequestTimeout";
+import {
+  ApiRequestAbortedError,
+  ApiRequestTimeoutError,
+  DEFAULT_API_REQUEST_TIMEOUT_MS,
+  UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
+} from "./apiRequestTimeout";
 import { zhCN } from "@/i18n/zh-CN";
+
+type Assert<T extends true> = T;
+type IsRequired<T, K extends keyof T> = Pick<T, K> extends Required<Pick<T, K>> ? true : false;
+export type GeneratedContractAssertions = [
+  Assert<IsRequired<DailyProgressResponse, "completed_sessions">>,
+  Assert<IsRequired<DailyProgressResponse, "total_turns">>,
+  Assert<IsRequired<SessionListItem, "ended_at">>,
+  Assert<null extends SessionListItem["ended_at"] ? true : false>,
+  Assert<IsRequired<SessionListResponse, "items">>,
+  Assert<IsRequired<SessionListResponse, "next_cursor">>,
+  Assert<null extends SessionListResponse["next_cursor"] ? true : false>,
+  Assert<IsRequired<CallCapabilitiesResponse, "protocol_version">>,
+  Assert<IsRequired<CallCapabilitiesResponse, "call_lease_mode">>,
+  Assert<CallCapabilitiesResponse["protocol_version"] extends 1 ? true : false>,
+  Assert<
+    CallCapabilitiesResponse["call_lease_mode"] extends "disabled" | "livekit_cloud" ? true : false
+  >,
+  Assert<CallLeaseResponse["state"] extends "held" ? true : false>,
+  Assert<CallReleaseResponse["released"] extends true ? true : false>,
+];
 
 describe("API client", () => {
   const originalFetch = globalThis.fetch;
@@ -160,6 +199,430 @@ describe("API client", () => {
           expect(e.message).toBe('{"someField":"someValue"}');
         }
       }
+    });
+
+    describe("Robust error body guards (RF-11)", () => {
+      interface ErrorBodyTestCase {
+        name: string;
+        status: number;
+        body: unknown;
+        expectedMessage: string;
+        expectedData?: unknown;
+      }
+
+      const testCases: ErrorBodyTestCase[] = [
+        // 422 验证异常异常结构回归
+        {
+          name: "detail as array with null (detail: [null])",
+          status: 422,
+          body: { detail: [null] },
+          expectedMessage: "请求失败: 422",
+          expectedData: { detail: [null] },
+        },
+        {
+          name: "detail as empty array",
+          status: 422,
+          body: { detail: [] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with non-object element",
+          status: 422,
+          body: { detail: [123] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with invalid string loc (loc: string)",
+          status: 422,
+          body: { detail: [{ loc: "invalid_loc_string", msg: "field error" }] },
+          expectedMessage: "数据验证失败 (Unknown): field error",
+        },
+        {
+          name: "detail with invalid object loc (loc: {})",
+          status: 422,
+          body: { detail: [{ loc: {}, msg: "field error" }] },
+          expectedMessage: "数据验证失败 (Unknown): field error",
+        },
+        {
+          name: "detail with invalid loc element (loc: [null])",
+          status: 422,
+          body: { detail: [{ loc: [null], msg: "field error" }] },
+          expectedMessage: "数据验证失败 (Unknown): field error",
+        },
+        {
+          name: "detail with omitted loc (missing loc key)",
+          status: 422,
+          body: { detail: [{ msg: "missing loc field" }] },
+          expectedMessage: "数据验证失败 (Unknown): missing loc field",
+        },
+        {
+          name: "detail with numeric loc index",
+          status: 422,
+          body: { detail: [{ loc: ["items", 0, "name"], msg: "must be string" }] },
+          expectedMessage: "数据验证失败 (items.0.name): must be string",
+        },
+        {
+          name: "detail with non-string msg (msg: null)",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: null }] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with non-string msg (msg: number)",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: 400 }] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with non-string msg (msg: object)",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: { nested: true } }] },
+          expectedMessage: "请求失败: 422",
+        },
+        {
+          name: "detail with missing msg",
+          status: 422,
+          body: { detail: [{ loc: ["body"] }] },
+          expectedMessage: "请求失败: 422",
+        },
+        // r1 回归：已知有效空字符串/空loc数组分支保持
+        {
+          name: "detail validation error with empty string msg",
+          status: 422,
+          body: { detail: [{ loc: ["body"], msg: "" }] },
+          expectedMessage: "数据验证失败 (body): ",
+          expectedData: { detail: [{ loc: ["body"], msg: "" }] },
+        },
+        {
+          name: "detail validation error with empty loc array",
+          status: 422,
+          body: { detail: [{ loc: [], msg: "root error" }] },
+          expectedMessage: "数据验证失败 (): root error",
+          expectedData: { detail: [{ loc: [], msg: "root error" }] },
+        },
+        {
+          name: "empty detail string takes precedence over fallback message",
+          status: 400,
+          body: { detail: "", message: "fallback" },
+          expectedMessage: "",
+          expectedData: { detail: "", message: "fallback" },
+        },
+        // 异常 errors 字段
+        {
+          name: "errors as primitive string",
+          status: 400,
+          body: { errors: "not_a_record" },
+          expectedMessage: "请求失败: 400",
+        },
+        {
+          name: "errors with non-string first value (number)",
+          status: 400,
+          body: { errors: { code: 12345 } },
+          expectedMessage: "请求失败: 400",
+        },
+        {
+          name: "errors with non-string first value (object)",
+          status: 400,
+          body: { errors: { code: { nested: true } } },
+          expectedMessage: "请求失败: 400",
+        },
+        {
+          name: "errors with valid string first value",
+          status: 400,
+          body: { errors: { field: "参数错误" } },
+          expectedMessage: "参数错误",
+        },
+        {
+          name: "errors with empty string first value falls back to default",
+          status: 400,
+          body: { errors: { field: "" } },
+          expectedMessage: "请求失败: 400",
+        },
+        // detail 对象嵌套错误
+        {
+          name: "detail.errors is null",
+          status: 503,
+          body: { detail: { errors: null } },
+          expectedMessage: "请求失败: 503",
+        },
+        {
+          name: "detail.errors with empty string falls back to default",
+          status: 503,
+          body: { detail: { errors: { config: "" } } },
+          expectedMessage: "请求失败: 503",
+        },
+        {
+          name: "detail.errors with non-string value",
+          status: 503,
+          body: { detail: { errors: { db: 999 } } },
+          expectedMessage: "请求失败: 503",
+        },
+        {
+          name: "detail.errors with valid string",
+          status: 503,
+          body: { detail: { errors: { redis: "连接失败" } } },
+          expectedMessage: "连接失败",
+        },
+        {
+          name: "detail.message is non-string (number)",
+          status: 500,
+          body: { detail: { message: 123 } },
+          expectedMessage: "请求失败: 500",
+        },
+        {
+          name: "detail.message is valid string",
+          status: 500,
+          body: { detail: { message: "数据库连接超时" } },
+          expectedMessage: "数据库连接超时",
+        },
+        {
+          name: "detail.message is empty string (falls back to JSON stringify)",
+          status: 500,
+          body: { detail: { message: "" } },
+          expectedMessage: '{"message":""}',
+        },
+        {
+          name: "detail.message is empty string with other fields preserves full object in JSON fallback",
+          status: 500,
+          body: { detail: { message: "", code: "ERR_CUSTOM", retryable: false } },
+          expectedMessage: '{"message":"","code":"ERR_CUSTOM","retryable":false}',
+        },
+        // 顶层 message 字段
+        {
+          name: "top-level message is non-string (object)",
+          status: 500,
+          body: { message: { text: "err" } },
+          expectedMessage: "请求失败: 500",
+        },
+        {
+          name: "top-level message is valid string",
+          status: 500,
+          body: { message: "服务器内部异常" },
+          expectedMessage: "服务器内部异常",
+        },
+        {
+          name: "empty top-level message yields empty message",
+          status: 500,
+          body: { message: "" },
+          expectedMessage: "",
+          expectedData: { message: "" },
+        },
+        // 顶层原始非 Record body
+        {
+          name: "body is null",
+          status: 500,
+          body: null,
+          expectedMessage: "请求失败: 500",
+          expectedData: null,
+        },
+        {
+          name: "body is number",
+          status: 500,
+          body: 12345,
+          expectedMessage: "请求失败: 500",
+          expectedData: 12345,
+        },
+        {
+          name: "body is array of primitives",
+          status: 500,
+          body: [1, 2, 3],
+          expectedMessage: "请求失败: 500",
+          expectedData: [1, 2, 3],
+        },
+        {
+          name: "body is boolean",
+          status: 500,
+          body: false,
+          expectedMessage: "请求失败: 500",
+          expectedData: false,
+        },
+      ];
+
+      it.each(testCases)(
+        "table-driven error parsing: $name",
+        async ({ status, body, expectedMessage, expectedData }) => {
+          fetchMock().mockResolvedValue({
+            ok: false,
+            status,
+            json: () => Promise.resolve(body),
+          } as unknown as Response);
+
+          try {
+            await checkHealthReady();
+            expect.fail("Should have thrown ApiError");
+          } catch (e: unknown) {
+            expect(e).toBeInstanceOf(ApiError);
+            if (e instanceof ApiError) {
+              expect(e.status).toBe(status);
+              expect(e.message).toBe(expectedMessage);
+              if (expectedData !== undefined) {
+                expect(e.data).toEqual(expectedData);
+              }
+            }
+          }
+          expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        },
+      );
+
+      it("handles non-JSON response when res.json rejects", async () => {
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 502,
+          json: () => Promise.reject(new Error("Unexpected token < in JSON at position 0")),
+        } as unknown as Response);
+
+        try {
+          await checkHealthReady();
+          expect.fail("Should have thrown ApiError");
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ApiError);
+          if (e instanceof ApiError) {
+            expect(e.status).toBe(502);
+            expect(e.message).toBe("请求失败: 502");
+            expect(e.data).toEqual({});
+          }
+        }
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("invalidates auth session on 401 even with abnormal body and preserves ApiError", async () => {
+        const initialRev = getAuthRevision();
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ detail: [null] }),
+        } as unknown as Response);
+
+        try {
+          await checkHealthReady();
+          expect.fail("Should have thrown ApiError");
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ApiError);
+          if (e instanceof ApiError) {
+            expect(e.status).toBe(401);
+            expect(e.message).toBe("请求失败: 401");
+            expect(e.data).toEqual({ detail: [null] });
+          }
+        }
+        expect(getAuthRevision()).toBeGreaterThan(initialRev);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("protects new auth session from late 401 response (revision guard)", async () => {
+        let resolveFetch!: (res: Response) => void;
+        const fetchPromise = new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        });
+
+        const initialRev = getAuthRevision();
+        fetchMock().mockImplementation(async () => {
+          // 在 fetch 已经在途期间，发生外部重新认证使代际递增
+          invalidateAuthSession();
+          return fetchPromise;
+        });
+
+        const requestPromise = checkHealthReady();
+        // 等待微任务使 fetch 被调用，此时 session 已被 invalidateAuthSession 递增
+        await Promise.resolve();
+
+        const updatedRev = getAuthRevision();
+        expect(updatedRev).toBeGreaterThan(initialRev);
+
+        // 迟到的 401 响应返回
+        resolveFetch({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ detail: "Session expired" }),
+        } as unknown as Response);
+
+        await expect(requestPromise).rejects.toThrow(ApiError);
+
+        // 确认迟到的 401 没有再次使更新的 session 失效
+        expect(getAuthRevision()).toBe(updatedRev);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("never replays write requests on error and calls fetch exactly once", async () => {
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 422,
+          json: () => Promise.resolve({ detail: [{ loc: "string", msg: "Invalid" }] }),
+        } as unknown as Response);
+
+        await expect(createSession("chat")).rejects.toThrow(ApiError);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("proves request delegates header construction with final headers and one fetch", async () => {
+        const validSessionId = "123e4567-e89b-12d3-a456-426614174000";
+        const validDeviceId = "123e4567-e89b-12d3-a456-426614174001";
+        const owner: CallLeaseOwner = { device_id: validDeviceId, generation: 7 };
+        const delegatedHeaders = new Headers({
+          "Content-Type": "application/problem+json",
+          Authorization: "Bearer test-access-token",
+          "X-Call-Device-Id": validDeviceId,
+          "X-Call-Generation": "7",
+          "X-Delegated": "true",
+        });
+        const spy = vi
+          .spyOn(apiRequestHeadersModule, "buildApiRequestHeaders")
+          .mockReturnValue(delegatedHeaders);
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({ token: "token-1", ws_url: "wss://example.com" }),
+        } as unknown as Response);
+
+        try {
+          await getSessionToken(validSessionId, owner);
+
+          expect(spy).toHaveBeenCalledTimes(1);
+          const [inputHeaders, accessToken] = spy.mock.calls[0]!;
+          expect(new Headers(inputHeaders).get("X-Call-Device-Id")).toBe(validDeviceId);
+          expect(new Headers(inputHeaders).get("X-Call-Generation")).toBe("7");
+          expect(accessToken).toBe("test-access-token");
+
+          const options = fetchMock().mock.calls[0]?.[1];
+          expect(options?.headers).toBe(delegatedHeaders);
+          const headers = new Headers(options?.headers);
+          expect(headers.get("Content-Type")).toBe("application/problem+json");
+          expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+          expect(headers.get("X-Call-Device-Id")).toBe(validDeviceId);
+          expect(headers.get("X-Call-Generation")).toBe("7");
+          expect(headers.get("X-Delegated")).toBe("true");
+          expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        } finally {
+          spy.mockRestore();
+        }
+      });
+
+      it("proves request delegates to getApiErrorMessage on HTTP error with falsifiable test double", async () => {
+        const spy = vi
+          .spyOn(apiErrorMessageModule, "getApiErrorMessage")
+          .mockReturnValue("falsifiable delegated error message");
+        const mockBody = { detail: "original detail" };
+        fetchMock().mockResolvedValue({
+          ok: false,
+          status: 422,
+          json: () => Promise.resolve(mockBody),
+        } as unknown as Response);
+
+        try {
+          await checkHealthReady();
+          expect.fail("Should have thrown ApiError");
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ApiError);
+          if (e instanceof ApiError) {
+            expect(e.status).toBe(422);
+            expect(e.message).toBe("falsifiable delegated error message");
+            expect(e.data).toEqual(mockBody);
+          }
+          expect(spy).toHaveBeenCalledTimes(1);
+          expect(spy).toHaveBeenCalledWith(422, mockBody);
+          expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        } finally {
+          spy.mockRestore();
+        }
+      });
     });
   });
 
@@ -569,6 +1032,116 @@ describe("API client", () => {
       });
     });
 
+    describe("Request timeout and cancellation", () => {
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("consumes the timeout module and classifies internal timeout exactly once", async () => {
+        vi.useFakeTimers();
+        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const originalCreateHandle = apiRequestTimeoutModule.createApiRequestAbortHandle;
+        let combinedSignal: AbortSignal | undefined;
+        const createHandleSpy = vi
+          .spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle")
+          .mockImplementation((externalSignal, options) => {
+            const handle = originalCreateHandle(externalSignal, options);
+            combinedSignal = handle.signal;
+            return handle;
+          });
+        fetchMock().mockImplementation(
+          (_url, init) =>
+            new Promise<Response>((_resolve, reject) => {
+              const signal = init?.signal;
+              expect(signal).toBeInstanceOf(AbortSignal);
+              if (!signal) throw new Error("Expected the request abort signal");
+              signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+            }),
+        );
+
+        const requestPromise = checkHealthReady();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        const fetchOptions = fetchMock().mock.calls[0]?.[1];
+        expect(fetchOptions?.signal).toBeInstanceOf(AbortSignal);
+        expect(fetchOptions?.signal).toBe(combinedSignal);
+        expect(createHandleSpy).toHaveBeenCalledWith(undefined, undefined);
+
+        vi.advanceTimersByTime(DEFAULT_API_REQUEST_TIMEOUT_MS);
+
+        await expect(requestPromise).rejects.toSatisfy((error: unknown) => {
+          expect(error).toBeInstanceOf(ApiRequestTimeoutError);
+          expect(error).not.toBeInstanceOf(ApiError);
+          expect(error).toMatchObject({ kind: "timeout" });
+          return true;
+        });
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy.mock.calls[0]?.[1]).toMatchObject({
+          event: "api_request_timeout",
+        });
+      });
+
+      it("classifies caller cancellation as a distinct error exactly once", async () => {
+        const combinedController = new AbortController();
+        const disposeSpy = vi.fn();
+        let currentFailure: ApiRequestAbortedError | null = null;
+        vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle").mockReturnValue({
+          signal: combinedController.signal,
+          getFailure: () => currentFailure,
+          dispose: disposeSpy,
+        });
+        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        fetchMock().mockImplementation(
+          (_url, init) =>
+            new Promise<Response>((_resolve, reject) => {
+              const signal = init?.signal;
+              if (!signal) throw new Error("Expected the request abort signal");
+              signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+            }),
+        );
+
+        const requestPromise = checkHealthReady();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        expect(fetchMock().mock.calls[0]?.[1]?.signal).toBe(combinedController.signal);
+
+        const cancellation = new ApiRequestAbortedError();
+        currentFailure = cancellation;
+        combinedController.abort(cancellation);
+
+        await expect(requestPromise).rejects.toBe(cancellation);
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+        expect(disposeSpy).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy.mock.calls[0]?.[1]).toMatchObject({
+          event: "api_request_aborted",
+        });
+      });
+
+      it("uses a longer explicit timeout budget for user settings updates", async () => {
+        const createHandleSpy = vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle");
+        fetchMock().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({ is_custom_mode: false }),
+        } as unknown as Response);
+
+        await updateUserSettings({ theme: "warm" });
+
+        expect(createHandleSpy).toHaveBeenCalledWith(undefined, {
+          timeoutMs: UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
+        });
+        expect(UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS).toBeGreaterThan(
+          DEFAULT_API_REQUEST_TIMEOUT_MS,
+        );
+        expect(fetchMock()).toHaveBeenCalledTimes(1);
+      });
+    });
+
     describe("Response parsing and failure closure", () => {
       it("accepts valid lease response with case-insensitive UUID matching", () => {
         const uppercaseSession = validSessionId.toUpperCase();
@@ -961,52 +1534,67 @@ describe("API client", () => {
       );
     });
 
-    it("lists sessions", async () => {
-      const mockList = [
-        {
-          id: "sess-1",
-          mode: "free_talk",
-          status: "ended",
-          started_at: "2025-01-01T00:00:00Z",
-          ended_at: "2025-01-01T00:10:00Z",
-        },
-      ];
+    it("lists sessions with pagination envelope and query params", async () => {
+      const mockResponse = {
+        items: [
+          {
+            id: "38752299-15c9-4423-8920-dea740cc4801",
+            mode: "free_talk",
+            status: "completed",
+            started_at: "2025-01-01T00:00:00Z",
+            ended_at: "2025-01-01T00:10:00Z",
+          },
+        ],
+        next_cursor: "next-cursor-123",
+      };
       fetchMock().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockList),
+        json: () => Promise.resolve(mockResponse),
       } as unknown as Response);
 
-      const res = await listSessions();
-      expect(res).toEqual(mockList);
-      expect(globalThis.fetch).toHaveBeenCalledWith(`${getBaseUrl()}/sessions`, expect.anything());
+      const res = await listSessions({
+        status: "completed",
+        start: "2025-01-01T00:00:00Z",
+        end: "2025-01-01T12:00:00Z",
+        limit: 10,
+        cursor: "prev-cursor",
+      });
+      expect(res).toEqual(mockResponse);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions?status=completed&start=2025-01-01T00%3A00%3A00Z&end=2025-01-01T12%3A00%3A00Z&limit=10&cursor=prev-cursor`,
+        expect.anything(),
+      );
     });
 
     it("lists active sessions preserving backend order and passing auth token", async () => {
-      const mockActiveSessions = [
-        {
-          id: "sess-2",
-          mode: "doc_chat",
-          status: "active",
-          started_at: "2025-01-01T01:00:00Z",
-          ended_at: null,
-        },
-        {
-          id: "sess-1",
-          mode: "free_talk",
-          status: "active",
-          started_at: "2025-01-01T00:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockActiveResponse = {
+        items: [
+          {
+            id: "8f7e6d5c-4b3a-4210-9876-543210fedcba",
+            mode: "doc_chat",
+            status: "active",
+            started_at: "2025-01-01T01:00:00Z",
+            ended_at: null,
+          },
+          {
+            id: "38752299-15c9-4423-8920-dea740cc4801",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2025-01-01T00:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
       fetchMock().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockActiveSessions),
+        json: () => Promise.resolve(mockActiveResponse),
       } as unknown as Response);
 
       const res = await listActiveSessions();
-      expect(res).toEqual(mockActiveSessions);
-      expect(res[0].id).toBe("sess-2");
-      expect(res[1].id).toBe("sess-1");
+      expect(res).toEqual(mockActiveResponse);
+      expect(res.items[0].id).toBe("8f7e6d5c-4b3a-4210-9876-543210fedcba");
+      expect(res.items[1].id).toBe("38752299-15c9-4423-8920-dea740cc4801");
       expect(globalThis.fetch).toHaveBeenCalledWith(
         `${getBaseUrl()}/sessions/active`,
         expect.objectContaining({
@@ -1016,6 +1604,97 @@ describe("API client", () => {
       const options = fetchMock().mock.calls[0]?.[1];
       const headers = new Headers(options?.headers);
       expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+    });
+
+    it("gets daily progress aggregation", async () => {
+      const mockDaily = {
+        completed_sessions: 3,
+        total_turns: 18,
+      };
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockDaily),
+      } as unknown as Response);
+
+      const res = await getDailyProgress("2025-01-01T00:00:00Z", "2025-01-01T23:59:59Z");
+      expect(res).toEqual(mockDaily);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${getBaseUrl()}/sessions/daily-progress?start=2025-01-01T00%3A00%3A00Z&end=2025-01-01T23%3A59%3A59Z`,
+        expect.anything(),
+      );
+    });
+
+    it("parses valid and rejects invalid session list envelopes fail-closed", () => {
+      // 成功用例
+      const validEnvelope = {
+        items: [
+          {
+            id: "38752299-15c9-4423-8920-dea740cc4801",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cur-1",
+      };
+      expect(parseSessionListResponse(validEnvelope)).toEqual(validEnvelope);
+
+      // 非对象
+      expect(() => parseSessionListResponse(null)).toThrow();
+      expect(() => parseSessionListResponse([])).toThrow();
+      // items 不是数组
+      expect(() => parseSessionListResponse({ items: "not-array" })).toThrow();
+      // next_cursor 类型错误
+      expect(() => parseSessionListResponse({ items: [], next_cursor: 123 })).toThrow();
+      // item 中 id 非合法 UUID
+      expect(() =>
+        parseSessionListResponse({
+          items: [
+            {
+              id: "invalid-uuid",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25T10:00:00Z",
+            },
+          ],
+        }),
+      ).toThrow();
+      // started_at 非时区 ISO 时间戳
+      expect(() =>
+        parseSessionListResponse({
+          items: [
+            {
+              id: "38752299-15c9-4423-8920-dea740cc4801",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25 10:00:00",
+            },
+          ],
+        }),
+      ).toThrow();
+    });
+
+    it("parses valid and rejects invalid daily progress envelopes fail-closed", () => {
+      // 成功用例
+      const valid = { completed_sessions: 5, total_turns: 20 };
+      expect(parseDailyProgressResponse(valid)).toEqual(valid);
+
+      // 负数
+      expect(() =>
+        parseDailyProgressResponse({ completed_sessions: -1, total_turns: 0 }),
+      ).toThrow();
+      expect(() =>
+        parseDailyProgressResponse({ completed_sessions: 0, total_turns: -5 }),
+      ).toThrow();
+      // 浮点数
+      expect(() =>
+        parseDailyProgressResponse({ completed_sessions: 1.5, total_turns: 0 }),
+      ).toThrow();
+      // 缺少字段
+      expect(() => parseDailyProgressResponse({ completed_sessions: 1 })).toThrow();
+      // 非对象
+      expect(() => parseDailyProgressResponse("not-object")).toThrow();
     });
 
     it("gets session detail", async () => {
@@ -1292,6 +1971,310 @@ describe("API client", () => {
     });
   });
 
+  describe("Public cancellation API (RF-11 A66)", () => {
+    const validSessionId = "550e8400-e29b-41d4-a716-446655440000";
+    const validDeviceId = "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d";
+    const owner: CallLeaseOwner = { device_id: validDeviceId, generation: 3 };
+    const docContext = {
+      content_type: "article",
+      raw_text: "Sample text",
+      prompt: "Discuss this article",
+    };
+
+    const publicCalls: ReadonlyArray<{
+      name: string;
+      invoke: (options: ApiRequestOptions) => Promise<unknown>;
+    }> = [
+      { name: "getCallCapabilities", invoke: (options) => getCallCapabilities(options) },
+      {
+        name: "claimCallLease",
+        invoke: (options) => claimCallLease(validSessionId, validDeviceId, true, options),
+      },
+      {
+        name: "heartbeatCallLease",
+        invoke: (options) => heartbeatCallLease(validSessionId, owner, options),
+      },
+      {
+        name: "releaseCallLease",
+        invoke: (options) => releaseCallLease(validSessionId, owner, options),
+      },
+      { name: "checkHealthReady", invoke: (options) => checkHealthReady(options) },
+      {
+        name: "createSession",
+        invoke: (options) => createSession("doc_chat", docContext, options),
+      },
+      {
+        name: "getSessionToken without owner",
+        invoke: (options) => getSessionToken(validSessionId, undefined, options),
+      },
+      {
+        name: "getSessionToken with owner",
+        invoke: (options) => getSessionToken(validSessionId, owner, options),
+      },
+      {
+        name: "endSession",
+        invoke: (options) => endSession(validSessionId, options),
+      },
+      {
+        name: "dispatchAgent without owner",
+        invoke: (options) => dispatchAgent(validSessionId, undefined, options),
+      },
+      {
+        name: "dispatchAgent with owner",
+        invoke: (options) => dispatchAgent(validSessionId, owner, options),
+      },
+      {
+        name: "listSessions",
+        invoke: (options) => listSessions({ status: "completed", limit: 10 }, options),
+      },
+      {
+        name: "listActiveSessions",
+        invoke: (options) => listActiveSessions({ limit: 10 }, options),
+      },
+      {
+        name: "getDailyProgress",
+        invoke: (options) =>
+          getDailyProgress("2026-11-01T00:00:00Z", "2026-11-01T23:59:59Z", options),
+      },
+      {
+        name: "getSessionDetail",
+        invoke: (options) => getSessionDetail(validSessionId, options),
+      },
+      {
+        name: "getAnalysisStatus",
+        invoke: (options) => getAnalysisStatus(validSessionId, options),
+      },
+      {
+        name: "retryAnalysis",
+        invoke: (options) => retryAnalysis(validSessionId, options),
+      },
+      {
+        name: "getAssessment",
+        invoke: (options) => getAssessment(validSessionId, options),
+      },
+      {
+        name: "getGrammarErrors",
+        invoke: (options) => getGrammarErrors(validSessionId, options),
+      },
+      {
+        name: "getKnowledgeStates",
+        invoke: (options) => getKnowledgeStates(options),
+      },
+      { name: "getSkills", invoke: (options) => getSkills(options) },
+      {
+        name: "getRecommendedCurriculum",
+        invoke: (options) => getRecommendedCurriculum(options),
+      },
+      { name: "getUserSettings", invoke: (options) => getUserSettings(options) },
+      {
+        name: "updateUserSettings",
+        invoke: (options) => updateUserSettings({ theme: "warm" }, options),
+      },
+    ];
+
+    it.each(publicCalls)(
+      "$name short-circuits a pre-cancelled public signal before fetch",
+      async ({ invoke }) => {
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(invoke({ signal: controller.signal })).rejects.toBeInstanceOf(
+          ApiRequestAbortedError,
+        );
+        expect(fetchMock()).not.toHaveBeenCalled();
+      },
+    );
+
+    it("forwards a public signal in flight and isolates a concurrent request", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      let resolveCapabilities!: (response: Response) => void;
+      let capabilitiesSignal: AbortSignal | null | undefined;
+      fetchMock().mockImplementation((url, init) => {
+        const signal = init?.signal;
+        if (!signal) throw new Error("Expected the combined request signal");
+
+        if (String(url).endsWith("/health/ready")) {
+          return new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          });
+        }
+
+        if (String(url).endsWith("/call-capabilities")) {
+          capabilitiesSignal = signal;
+          return new Promise<Response>((resolve) => {
+            resolveCapabilities = resolve;
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${String(url)}`);
+      });
+
+      const healthController = new AbortController();
+      const capabilitiesController = new AbortController();
+      const healthRequest = checkHealthReady({ signal: healthController.signal });
+      const capabilitiesRequest = getCallCapabilities({
+        signal: capabilitiesController.signal,
+      });
+
+      await vi.waitFor(() => expect(fetchMock()).toHaveBeenCalledTimes(2));
+      expect(capabilitiesSignal).toBeInstanceOf(AbortSignal);
+
+      healthController.abort();
+      await expect(healthRequest).rejects.toBeInstanceOf(ApiRequestAbortedError);
+      expect(capabilitiesController.signal.aborted).toBe(false);
+      expect(capabilitiesSignal?.aborted).toBe(false);
+
+      resolveCapabilities({
+        ok: true,
+        json: () => Promise.resolve({ protocol_version: 1, call_lease_mode: "disabled" }),
+      } as unknown as Response);
+      await expect(capabilitiesRequest).resolves.toEqual({
+        protocol_version: 1,
+        call_lease_mode: "disabled",
+      });
+      expect(fetchMock()).toHaveBeenCalledTimes(2);
+    });
+
+    it("preserves write bodies and owner headers with one fetch per request", async () => {
+      const controller = new AbortController();
+      const options = Object.freeze({ signal: controller.signal });
+      const leaseResponse = {
+        session_id: validSessionId,
+        device_id: validDeviceId,
+        generation: 4,
+        state: "held",
+        expires_at: "2026-11-01T10:15:20Z",
+      };
+      fetchMock()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(leaseResponse),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ dispatched: true }),
+        } as unknown as Response);
+
+      await claimCallLease(validSessionId, validDeviceId, true, options);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      const claimOptions = fetchMock().mock.calls[0]?.[1];
+      expect(claimOptions?.body).toBe(JSON.stringify({ device_id: validDeviceId, takeover: true }));
+      expect(claimOptions?.signal).toBeInstanceOf(AbortSignal);
+      const claimHeaders = new Headers(claimOptions?.headers);
+      expect(claimHeaders.has("X-Call-Device-Id")).toBe(false);
+      expect(claimHeaders.get("Authorization")).toBe("Bearer test-access-token");
+
+      await dispatchAgent(validSessionId, owner, options);
+      expect(fetchMock()).toHaveBeenCalledTimes(2);
+      const dispatchOptions = fetchMock().mock.calls[1]?.[1];
+      expect(dispatchOptions?.method).toBe("POST");
+      expect(dispatchOptions?.signal).toBeInstanceOf(AbortSignal);
+      const dispatchHeaders = new Headers(dispatchOptions?.headers);
+      expect(dispatchHeaders.get("X-Call-Device-Id")).toBe(validDeviceId);
+      expect(dispatchHeaders.get("X-Call-Generation")).toBe("3");
+      expect(dispatchHeaders.get("Authorization")).toBe("Bearer test-access-token");
+      expect(options).toEqual({ signal: controller.signal });
+    });
+
+    it("cancels an in-flight public write once without replay", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const controller = new AbortController();
+      fetchMock().mockImplementation(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            const signal = init?.signal;
+            if (!signal) throw new Error("Expected the combined request signal");
+            signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          }),
+      );
+
+      const requestPromise = updateUserSettings({ theme: "warm" }, { signal: controller.signal });
+      await vi.waitFor(() => expect(fetchMock()).toHaveBeenCalledTimes(1));
+      const requestOptions = fetchMock().mock.calls[0]?.[1];
+      expect(requestOptions?.method).toBe("PUT");
+      expect(requestOptions?.body).toBe(JSON.stringify({ theme: "warm" }));
+
+      controller.abort();
+      await expect(requestPromise).rejects.toBeInstanceOf(ApiRequestAbortedError);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats absent and null signals as equivalent without mutation", async () => {
+      const createHandleSpy = vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle");
+      const nullSignalOptions = Object.freeze({ signal: null });
+      fetchMock()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ status: "ready" }),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ protocol_version: 1, call_lease_mode: "disabled" }),
+        } as unknown as Response);
+
+      await checkHealthReady();
+      await getCallCapabilities(nullSignalOptions);
+
+      expect(createHandleSpy).toHaveBeenNthCalledWith(1, undefined, undefined);
+      expect(createHandleSpy).toHaveBeenNthCalledWith(2, null, undefined);
+      expect(nullSignalOptions).toEqual({ signal: null });
+      expect(fetchMock()).toHaveBeenCalledTimes(2);
+    });
+
+    it("preserves HTTP 401 ApiError and auth invalidation when a signal is provided", async () => {
+      const initialRev = getAuthRevision();
+      const controller = new AbortController();
+      const options = Object.freeze({ signal: controller.signal });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: "Unauthorized" }),
+      } as unknown as Response);
+
+      await expect(listSessions(undefined, options)).rejects.toSatisfy((error: unknown) => {
+        expect(error).toBeInstanceOf(ApiError);
+        expect(error).toMatchObject({ status: 401 });
+        return true;
+      });
+      expect(getAuthRevision()).toBeGreaterThan(initialRev);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      expect(controller.signal.aborted).toBe(false);
+    });
+
+    it("keeps the auth revision guard ahead of a pre-cancelled public signal", async () => {
+      const controller = new AbortController();
+      controller.abort();
+      setAccessTokenProvider(async () => {
+        invalidateAuthSession();
+        return "token-1";
+      });
+
+      await expect(checkHealthReady({ signal: controller.signal })).rejects.toThrow(
+        zhCN.auth.sessionChanged,
+      );
+      expect(fetchMock()).not.toHaveBeenCalled();
+    });
+
+    it("keeps the 15s settings budget when a public signal is provided", async () => {
+      const controller = new AbortController();
+      const options = Object.freeze({ signal: controller.signal });
+      const createHandleSpy = vi.spyOn(apiRequestTimeoutModule, "createApiRequestAbortHandle");
+      fetchMock().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ is_custom_mode: false }),
+      } as unknown as Response);
+
+      await updateUserSettings({ theme: "warm" }, options);
+
+      expect(createHandleSpy).toHaveBeenCalledWith(controller.signal, {
+        timeoutMs: UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
+      });
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      expect(options).toEqual({ signal: controller.signal });
+    });
+  });
+
   describe("Auth revision and 401 handling", () => {
     it("aborts before fetch if auth revision changes during token acquisition", async () => {
       fetchMock().mockResolvedValue({
@@ -1369,6 +2352,261 @@ describe("API client", () => {
       await expect(requestPromise).rejects.toThrow(ApiError);
       // 当前较新的 revision 绝不应被旧 401 冲掉！
       expect(getAuthRevision()).toBe(currentRev);
+    });
+  });
+
+  describe("Safe Local Diagnostics Instrumentation (CP-06)", () => {
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    it("emits zero diagnostic logs on successful API request", async () => {
+      fetchMock().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ status: "ready" }),
+      } as unknown as Response);
+
+      const res = await checkHealthReady();
+      expect(res).toEqual({ status: "ready" });
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+    });
+
+    it("emits sanitized api_http_failed on HTTP 503 and preserves original ApiError & data", async () => {
+      const sensitiveCanaryBody = {
+        detail: "Database connection failed",
+        secret_jwt: "canary-super-secret-jwt-token",
+        internal_doc: "confidential student analysis transcript",
+      };
+
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve(sensitiveCanaryBody),
+      } as unknown as Response);
+
+      await expect(checkHealthReady()).rejects.toSatisfy((err: unknown) => {
+        expect(err).toBeInstanceOf(ApiError);
+        const apiErr = err as ApiError;
+        expect(apiErr.status).toBe(503);
+        expect(apiErr.message).toBe("Database connection failed");
+        expect(apiErr.data).toEqual(sensitiveCanaryBody);
+        return true;
+      });
+
+      // 验证控制台日志仅有前缀与纯净白名单 record
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      const [prefix, record] = consoleErrorSpy.mock.calls[0];
+      expect(prefix).toBe("[diagnostic]");
+      expect(record).toEqual({
+        schema_version: 1,
+        app_version: expect.any(String),
+        platform: expect.any(String),
+        event: "api_http_failed",
+        status: 503,
+      });
+
+      // 序列化后断言绝无敏感 canary 泄漏
+      const serialized = JSON.stringify(record);
+      expect(serialized).not.toContain("canary-super-secret-jwt-token");
+      expect(serialized).not.toContain("confidential student analysis transcript");
+      expect(serialized).not.toContain("Database connection failed");
+      expect(serialized).not.toContain("Authorization");
+      expect(serialized).not.toContain("/health/ready");
+    });
+
+    it("emits sanitized api_http_failed on 401 and preserves auth invalidation semantics", async () => {
+      const initialRev = getAuthRevision();
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () =>
+          Promise.resolve({
+            detail: "Token expired",
+            canary_leak: "secret-bearer-token-12345",
+          }),
+      } as unknown as Response);
+
+      await expect(listSessions()).rejects.toThrow(ApiError);
+
+      // 原认证失效逻辑与代际递增保持不变
+      expect(getAuthRevision()).toBeGreaterThan(initialRev);
+
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      const [prefix, record] = consoleErrorSpy.mock.calls[0];
+      expect(prefix).toBe("[diagnostic]");
+      expect(record).toEqual({
+        schema_version: 1,
+        app_version: expect.any(String),
+        platform: expect.any(String),
+        event: "api_http_failed",
+        status: 401,
+      });
+
+      const serialized = JSON.stringify(record);
+      expect(serialized).not.toContain("secret-bearer-token-12345");
+      expect(serialized).not.toContain("Token expired");
+      expect(serialized).not.toContain("/sessions");
+    });
+
+    it("rethrows exact network error on fetch reject and emits api_network_failed once", async () => {
+      const networkError = new TypeError("Failed to fetch: net::ERR_CONNECTION_REFUSED");
+      fetchMock().mockRejectedValue(networkError);
+
+      let thrownError: unknown = null;
+      try {
+        await checkHealthReady();
+      } catch (err) {
+        thrownError = err;
+      }
+
+      // 严格全等：原对象原样 rethrow
+      expect(thrownError).toBe(networkError);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      const [prefix, record] = consoleErrorSpy.mock.calls[0];
+      expect(prefix).toBe("[diagnostic]");
+      expect(record).toEqual({
+        schema_version: 1,
+        app_version: expect.any(String),
+        platform: expect.any(String),
+        event: "api_network_failed",
+      });
+
+      const serialized = JSON.stringify(record);
+      expect(serialized).not.toContain("ERR_CONNECTION_REFUSED");
+      expect(serialized).not.toContain("/health/ready");
+    });
+
+    it("does not classify auth provider error as api_network_failed", async () => {
+      setAccessTokenProvider(() => {
+        throw new Error("Local auth storage corrupted");
+      });
+
+      await expect(checkHealthReady()).rejects.toThrow("Local auth storage corrupted");
+      expect(fetchMock()).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it("preserves response.json parsing error without emitting inaccurate events", async () => {
+      const jsonParseError = new SyntaxError("Unexpected token < in JSON at position 0");
+      fetchMock().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.reject(jsonParseError),
+      } as unknown as Response);
+
+      await expect(checkHealthReady()).rejects.toBe(jsonParseError);
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not disrupt API request or response if console.error throws", async () => {
+      consoleErrorSpy.mockImplementation(() => {
+        throw new Error("Console pipe broken");
+      });
+
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({ detail: "Unavailable" }),
+      } as unknown as Response);
+
+      // 控制台 sink 失败绝不影响原有的 ApiError 抛出和处理
+      await expect(checkHealthReady()).rejects.toSatisfy((err: unknown) => {
+        expect(err).toBeInstanceOf(ApiError);
+        expect((err as ApiError).status).toBe(503);
+        return true;
+      });
+    });
+  });
+
+  describe("parseSessionListResponse strict schema validation", () => {
+    const validItem = {
+      id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      mode: "free_talk",
+      status: "completed",
+      started_at: "2026-10-25T10:00:00Z",
+      ended_at: "2026-10-25T10:10:00Z",
+    };
+
+    it("accepts valid list response with null or valid next_cursor", () => {
+      const res1 = parseSessionListResponse({
+        items: [validItem],
+        next_cursor: null,
+      });
+      expect(res1.items).toHaveLength(1);
+      expect(res1.next_cursor).toBeNull();
+
+      const res2 = parseSessionListResponse({
+        items: [{ ...validItem, ended_at: null }],
+        next_cursor: "valid-cursor-token",
+      });
+      expect(res2.items[0].ended_at).toBeNull();
+      expect(res2.next_cursor).toBe("valid-cursor-token");
+    });
+
+    it("rejects empty string next_cursor", () => {
+      expect(() =>
+        parseSessionListResponse({
+          items: [validItem],
+          next_cursor: "",
+        }),
+      ).toThrow("next_cursor cannot be an empty string");
+    });
+
+    it("rejects next_cursor exceeding 1024 chars", () => {
+      expect(() =>
+        parseSessionListResponse({
+          items: [validItem],
+          next_cursor: "a".repeat(1025),
+        }),
+      ).toThrow("next_cursor length exceeds 1024");
+    });
+
+    it("rejects items exceeding maximum limit of 100", () => {
+      const items = Array.from({ length: 101 }, (_, i) => ({
+        ...validItem,
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      }));
+      expect(() =>
+        parseSessionListResponse({
+          items,
+          next_cursor: null,
+        }),
+      ).toThrow("items length exceeds maximum limit of 100");
+    });
+
+    it("rejects session item missing ended_at property", () => {
+      const itemWithoutEndedAt = {
+        id: validItem.id,
+        mode: validItem.mode,
+        status: validItem.status,
+        started_at: validItem.started_at,
+      };
+      expect(() =>
+        parseSessionListResponse({
+          items: [itemWithoutEndedAt],
+          next_cursor: null,
+        }),
+      ).toThrow("ended_at is required");
+    });
+
+    it("rejects invalid ended_at format", () => {
+      expect(() =>
+        parseSessionListResponse({
+          items: [{ ...validItem, ended_at: "not-a-timestamp" }],
+          next_cursor: null,
+        }),
+      ).toThrow("ended_at must be null or an ISO calendar timestamp with timezone");
     });
   });
 });

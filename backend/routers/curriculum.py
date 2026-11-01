@@ -1,4 +1,4 @@
-"""自适应课程推荐路由：基于 BKT 弱项 + RAG 检索生成定制化练习场景。"""
+"""自适应课程推荐路由：基于 BKT 弱项和离线语料目录生成练习场景。"""
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -94,7 +94,7 @@ async def get_next_curriculum(
     else:
         target_level = "B2"
 
-    # ── 3. RAG 检索 ──────────────────────────────────────────
+    # ── 3. 确定性离线检索 ────────────────────────────────────
     materials = retrieve_materials(
         weak_skills=weak_skill_ids,
         target_level=target_level,

@@ -1,0 +1,49 @@
+{
+  "productName": "EchoTalk M1 Native Probe",
+  "version": "0.0.0",
+  "identifier": "org.echotalk.m1nativeprobe",
+  "build": {
+    "frontendDist": "../web"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "EchoTalk M1 原生登录探针",
+        "width": 480,
+        "height": 400,
+        "resizable": false,
+        "devtools": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'none'; style-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'",
+      "capabilities": [
+        {
+          "identifier": "native-auth",
+          "local": true,
+          "windows": ["main"],
+          "permissions": ["allow-auth-begin", "allow-auth-cancel", "allow-auth-status"]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "infoPlist": "Info.plist"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["echotalk-m1"]
+      }
+    }
+  }
+}

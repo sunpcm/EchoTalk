@@ -66,7 +66,7 @@ export default defineConfig(({ command, mode }) => {
       },
     },
 
-    //构建 - 对应 Webpack 的 output
+    // 构建
     build: {
       outDir: "dist",
       minify: "esbuild", // 默认使用 esbuild，速度快
@@ -79,7 +79,7 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     optimizeDeps: {
-      include: ["react", "react-dom", "@biu/ui-lib"],
+      include: ["react", "react-dom"],
     },
   };
 });

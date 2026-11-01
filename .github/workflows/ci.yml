@@ -24,20 +24,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check generated API types
+        run: pnpm --filter vite-app check:api-types
+
+      - name: Test API type generation
+        run: pnpm --filter vite-app test:api-types
+
       - name: Format
         run: pnpm run format:check
 
       - name: Lint
-        run: pnpm run lint
+        run: pnpm exec turbo run lint --force
 
       - name: Typecheck
-        run: pnpm run typecheck
-
-      - name: Build
-        run: pnpm run build
+        run: pnpm exec turbo run typecheck --force
 
       - name: Test (Vitest)
-        run: pnpm run test
+        run: pnpm --filter vite-app test
+
+      - name: Test (Build Scripts)
+        run: pnpm --filter vite-app test:build
+
+      - name: Test (Fake API)
+        run: pnpm --filter vite-app test:fake-api
+
+      - name: Build
+        run: pnpm exec turbo run build --force
 
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium webkit
@@ -78,13 +90,23 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
-          version: "latest"
+          version: "0.9.18"
 
       - name: Install dependencies
         working-directory: backend
         run: |
-          uv venv
-          uv pip install -r requirements.txt
+          uv lock --check
+          uv export --frozen --no-dev --no-emit-project --no-header --no-annotate --output-file /tmp/exported-requirements.txt
+          cmp requirements.txt /tmp/exported-requirements.txt
+          uv sync --frozen --group dev --no-python-downloads
+
+      - name: Check tracked OpenAPI schema
+        working-directory: backend
+        run: .venv/bin/python export_openapi.py --check
+
+      - name: Check generated Provider display metadata
+        working-directory: backend
+        run: .venv/bin/python export_provider_metadata.py --check
 
       - name: Ruff format
         working-directory: backend

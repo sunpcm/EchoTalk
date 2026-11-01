@@ -23,3 +23,23 @@ SDK onError、断开全部原因、offline/pagehide/hidden及初始hidden/offlin
 ## 5. 连续推进规则
 
 用户2026-10-22要求顺利时直接衔接下一里程碑，不逐里程碑汇报；更新日志/文档留待集中查看。沿用agy实施、Codex独立评审，发现新产品/权限/模型决策或无法继续的阻塞才交互。每独立任务仍新账本10次，不限时、保留无进展2及所有交付门禁；通过不自动授予push/远端merge/deploy权限。连续推进不减少独立验收，不自动修改全局skill。
+
+## 6. 同 principal 认证刷新后的当前中断
+
+认证刷新与媒体资源生命周期分开处理。同一 Room 的 `sessionId/sessionGen` 和精确
+principal 不变时，已交付的同 principal 认证通知只更新新 callback 可用的 revision；
+刷新本身不得替换 Room、停止健康本地音轨或重发 dispatch。通知到达前，旧 revision 已捕获的
+SDK callback 继续拒绝；通知到达后，新的 `onConnected/onError/onDisconnected` 与
+Web suspend/offline 使用新 ownership。物理生命周期 adapter 可以保持稳定，但每次认证
+通知交付都必须建立新的业务监听归属；通知前保存的旧业务监听函数永久失效，不能因同一
+principal 的新 revision 已交付而重新获得停轨或失败关闭权限。
+
+当前 SDK 错误/断连及当前后台/离线事件仍按 §2 立即停止本 Room 全部本地音轨、清除
+Token/URL、卸载 Room 并进入 `connection_failed`。旧 revision、旧会话、身份变化、结束、
+取消、返回主页或卸载后的迟到事件仍零状态改写、零跨 Room 停轨和零网络写请求；恢复
+在线/前台仍不得自动连接、dispatch、取 Token 或结束会话。
+
+Web 的订阅后 hidden/offline 快照是立即失败事实。native 初始 adapter 在监听注册或
+`getState` 尚未完成时会保守返回 hidden，该值是“尚未就绪”门禁，不是真实后台；业务订阅
+后不能据此提前关闭。只有 native 能力就绪或 `whenReady` 后复核到真实 hidden/offline 才
+停止音轨；pending 仍由原 10 秒预算和真实 lifecycle event 安全关闭。

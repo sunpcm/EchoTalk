@@ -27,8 +27,6 @@
   --accent-shadow: rgba(247, 107, 74, 0.45);
   --card-shadow: rgba(80, 50, 20, 0.18);
   --panel-gradient: linear-gradient(105deg, #fdebe3 0%, #fce3d6 55%, #fbefd6 100%);
-  --scrollbar-thumb: #e7dccb;
-  --header-bg: rgba(251, 247, 241, 0.82);
   --success: #37a56e;
   --success-bg: #e4f3ea;
   --success-border: #bee3cd;
@@ -67,8 +65,6 @@
   --accent-shadow: rgba(61, 111, 224, 0.45);
   --card-shadow: rgba(40, 70, 120, 0.16);
   --panel-gradient: linear-gradient(105deg, #e7eefb 0%, #dce7fa 55%, #e1eafb 100%);
-  --scrollbar-thumb: #d7e2ef;
-  --header-bg: rgba(241, 245, 251, 0.82);
   /* 语义色沿用暖色数值：两套浅色主题共享成功/警告/危险色 */
   --success: #37a56e;
   --success-bg: #e4f3ea;
@@ -108,8 +104,6 @@
   --accent-shadow: rgba(232, 162, 61, 0.45);
   --card-shadow: rgba(0, 0, 0, 0.55);
   --panel-gradient: linear-gradient(105deg, #2a2313 0%, #332815 55%, #241f14 100%);
-  --scrollbar-thumb: #3a3c43;
-  --header-bg: rgba(23, 24, 27, 0.82);
   --success: #45b37f;
   --success-bg: #17301f;
   --success-border: #26492f;

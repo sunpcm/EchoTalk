@@ -1,7 +1,8 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { VoiceInterface } from "./VoiceInterface";
+import { VoiceInterface, stopRoomLocalTracks } from "./VoiceInterface";
+import * as roomAudio from "./roomAudio";
 import { useConversationStore } from "@/store/conversation";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import * as api from "@/lib/api";
@@ -59,6 +60,12 @@ const capturedRoomCallbacks = new Map<
     trackStopMock: ReturnType<typeof vi.fn>;
   }
 >();
+
+const capturedDataChannelListeners: Array<{
+  topic: string;
+  callback: (msg: { payload: Uint8Array }) => void;
+}> = [];
+const capturedAuthSnapshotListeners = new Set<(snapshot: auth.AuthSnapshot) => void>();
 
 // Mock LiveKit react components
 vi.mock("@livekit/components-react", () => ({
@@ -156,7 +163,9 @@ vi.mock("@livekit/components-react", () => ({
     state: "idle",
     audioTrack: { track: {} },
   }),
-  useDataChannel: vi.fn(),
+  useDataChannel: vi.fn((topic: string, callback: (msg: { payload: Uint8Array }) => void) => {
+    capturedDataChannelListeners.push({ topic, callback });
+  }),
   BarVisualizer: () => <div data-testid="bar-visualizer" />,
   VoiceAssistantControlBar: () => <div data-testid="control-bar" />,
 }));
@@ -201,7 +210,12 @@ vi.mock("@/lib/auth", () => ({
   arePrincipalsEqual: vi.fn(
     (a: any, b: any) => a === b || (a && b && a.issuer === b.issuer && a.subject === b.subject),
   ),
-  subscribeAuthSnapshot: vi.fn(() => () => {}),
+  subscribeAuthSnapshot: vi.fn((listener: (snapshot: auth.AuthSnapshot) => void) => {
+    capturedAuthSnapshotListeners.add(listener);
+    return () => {
+      capturedAuthSnapshotListeners.delete(listener);
+    };
+  }),
 }));
 
 function createFakeApp(initialActive = true) {
@@ -258,25 +272,35 @@ let mockCurrentSnapshot = {
 };
 const mockLifecycleDispose = vi.fn();
 
+function createHealthyWebLifecycleAdapter(): platform.WebLifecycleAdapter {
+  const ownedListeners = new Set<(event: any) => void>();
+  return {
+    capabilities: { webEvents: true, nativeAppState: false },
+    getSnapshot: () => ({ ...mockCurrentSnapshot }),
+    subscribe: (listener: (event: any) => void) => {
+      ownedListeners.add(listener);
+      mockWebLifecycleListeners.add(listener);
+      return () => {
+        ownedListeners.delete(listener);
+        mockWebLifecycleListeners.delete(listener);
+      };
+    },
+    dispose: vi.fn(() => {
+      mockLifecycleDispose();
+      for (const listener of ownedListeners) {
+        mockWebLifecycleListeners.delete(listener);
+      }
+      ownedListeners.clear();
+    }),
+  };
+}
+
 vi.mock("@/platform", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/platform")>();
   return {
     ...actual,
     getLiveKitWsUrl: vi.fn(({ tokenWsUrl }) => tokenWsUrl || "wss://test.livekit.io"),
-    createWebLifecycleAdapter: vi.fn(() => ({
-      capabilities: { webEvents: true, nativeAppState: false },
-      getSnapshot: () => ({ ...mockCurrentSnapshot }),
-      subscribe: (listener: (event: any) => void) => {
-        mockWebLifecycleListeners.add(listener);
-        return () => {
-          mockWebLifecycleListeners.delete(listener);
-        };
-      },
-      dispose: vi.fn(() => {
-        mockLifecycleDispose();
-        mockWebLifecycleListeners.clear();
-      }),
-    })),
+    createWebLifecycleAdapter: vi.fn(createHealthyWebLifecycleAdapter),
     createLifecycleAdapter: vi.fn((options?: any) => {
       const resolvedPlatform = options?.platform ?? actual.detectPlatform();
       if (resolvedPlatform === "ios") {
@@ -300,6 +324,9 @@ vi.mock("@/platform", async (importOriginal) => {
 describe("VoiceInterface - CP-02 client end release & generation protection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(platform.createWebLifecycleAdapter)
+      .mockReset()
+      .mockImplementation(createHealthyWebLifecycleAdapter);
     delete (window as any).Capacitor;
     currentFakeApp = null;
     onLiveKitRoomLayoutEffect = null;
@@ -308,6 +335,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     mockLifecycleDispose.mockClear();
     roomInstanceCounter = 0;
     capturedRoomCallbacks.clear();
+    capturedDataChannelListeners.length = 0;
+    capturedAuthSnapshotListeners.clear();
     currentMockRoom = createMockRoom();
     useConversationStore.getState().goHome();
     vi.mocked(api.dispatchAgent).mockResolvedValue({ dispatched: true });
@@ -320,6 +349,10 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("preserves the stopRoomLocalTracks export from the pure roomAudio boundary", () => {
+    expect(stopRoomLocalTracks).toBe(roomAudio.stopRoomLocalTracks);
   });
 
   it("actively stops owned local tracks synchronously when user ends session even if disconnect never completes", async () => {
@@ -467,6 +500,33 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     });
     expect(api.dispatchAgent).toHaveBeenCalledWith("sess-2");
     expect(useConversationStore.getState().connectionState).toBe("active");
+  });
+
+  it("renders the idle fallback and mounts a room for credentials-ready connecting", () => {
+    useConversationStore.setState({
+      connectionState: "idle",
+      appView: "session",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+      error: "idle safeguard",
+    });
+    const { rerender } = render(<VoiceInterface />);
+
+    expect(screen.getByText("idle safeguard")).toBeInTheDocument();
+    expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+    useConversationStore.setState({
+      connectionState: "connecting",
+      appView: "session",
+      sessionId: "sess-ready",
+      token: "tok-ready",
+      wsUrl: "wss://lk.test",
+      error: null,
+    });
+    rerender(<VoiceInterface />);
+
+    expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
   });
 
   it("renders end_failed view on rejection with stopped audio and allows retry for the same session", async () => {
@@ -1248,10 +1308,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 收到 agent_error
       act(() => {
-        useConversationStore.getState().setAgentError({
-          code: "PROVIDER_ERROR",
-          message: "Custom key failed",
-        });
+        useConversationStore.getState().setAgentError(
+          {
+            code: "PROVIDER_ERROR",
+            message: "Custom key failed",
+          },
+          { sessionId: "sess-agent-err", sessionGen: 1 },
+        );
       });
 
       expect(useConversationStore.getState().connectionState).toBe("ended");
@@ -1618,31 +1681,39 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     });
 
     it("detects hidden or offline environment in post-subscribe snapshot check and fails closed immediately (CON-04)", () => {
-      let callCount = 0;
+      let snapshotReadCount = 0;
       mockCurrentSnapshot = { visibility: "visible", online: true };
 
-      // 第一次 getSnapshot（VoiceInterface 渲染初始判定）返回 visible
-      // 第二次 getSnapshot（RoomLifecycleWatcher 订阅挂载后立即复查）返回 hidden
-      vi.mocked(platform.createWebLifecycleAdapter).mockImplementation(() => ({
-        capabilities: { webEvents: true, nativeAppState: false },
-        getSnapshot: () => {
-          callCount += 1;
-          if (callCount === 1) {
-            return { visibility: "visible", online: true };
-          }
-          return { visibility: "hidden", online: true };
-        },
-        subscribe: (listener: (event: any) => void) => {
-          mockWebLifecycleListeners.add(listener);
-          return () => {
-            mockWebLifecycleListeners.delete(listener);
-          };
-        },
-        dispose: vi.fn(() => {
-          mockLifecycleDispose();
-          mockWebLifecycleListeners.clear();
-        }),
-      }));
+      // 初次渲染与订阅生效会各自创建 adapter，计数必须跨 adapter 实例共享：
+      // 第一次 snapshot 读取返回 visible，订阅后的第二次读取返回 hidden。
+      vi.mocked(platform.createWebLifecycleAdapter).mockImplementation(() => {
+        const ownedListeners = new Set<(event: any) => void>();
+        return {
+          capabilities: { webEvents: true, nativeAppState: false },
+          getSnapshot: () => {
+            snapshotReadCount += 1;
+            if (snapshotReadCount === 1) {
+              return { visibility: "visible", online: true };
+            }
+            return { visibility: "hidden", online: true };
+          },
+          subscribe: (listener: (event: any) => void) => {
+            ownedListeners.add(listener);
+            mockWebLifecycleListeners.add(listener);
+            return () => {
+              ownedListeners.delete(listener);
+              mockWebLifecycleListeners.delete(listener);
+            };
+          },
+          dispose: vi.fn(() => {
+            mockLifecycleDispose();
+            for (const listener of ownedListeners) {
+              mockWebLifecycleListeners.delete(listener);
+            }
+            ownedListeners.clear();
+          }),
+        };
+      });
 
       useConversationStore.setState({
         sessionGen: 1,
@@ -1693,6 +1764,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       // 2. 处于连接等待中
       expect(screen.getByText(zhCN.conversation.connecting)).toBeInTheDocument();
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().token).not.toBeNull();
+      expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
       // 3. 零 dispatchAgent
       expect(api.dispatchAgent).not.toHaveBeenCalled();
 
@@ -1971,7 +2045,12 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       const roomEl = screen.getByTestId("livekit-room");
       const instanceId = roomEl.getAttribute("data-instance-id")!;
-      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+      const callbacks = await waitFor(() => {
+        const captured = capturedRoomCallbacks.get(instanceId);
+        expect(captured).toBeDefined();
+        expect(captured?.trackStopMock).toBeDefined();
+        return captured!;
+      });
 
       expect(mockTrackStop).not.toHaveBeenCalled();
 
@@ -2359,6 +2438,1341 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         unmount();
         expect(mockTrackStop).toHaveBeenCalled();
       });
+    });
+
+    describe("VoiceInterface Safe Diagnostics (CP-06)", () => {
+      let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+      let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+      let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+      beforeEach(() => {
+        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+        currentFakeApp = createFakeApp(true);
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+        capturedDataChannelListeners.length = 0;
+      });
+
+      afterEach(() => {
+        delete (window as any).Capacitor;
+        currentFakeApp = null;
+        vi.restoreAllMocks();
+      });
+
+      it("captures DataChannel agent_error, emits safe whitelist record without leaking parsed object, and updates UI & store", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-data-channel",
+          token: "tok-diag-dc",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        // 找到注册的 agent_error callback
+        const agentErrorListener = capturedDataChannelListeners.find(
+          (l) => l.topic === "agent_error",
+        );
+        expect(agentErrorListener).toBeDefined();
+
+        // 构造包含恶意 canary 与超限私有字段的真实 payload
+        const sensitivePayload = {
+          type: "agent_error",
+          code: "ERR_CUSTOM_KEY_INVALID",
+          message: "自定义密钥配置无效，请重新检查",
+          canary_secret_token: "leaked-token-xyz-12345",
+          canary_document_context: "confidential user exam text",
+          canary_account_id: "user-private-uuid-999",
+        };
+
+        const encoded = new TextEncoder().encode(JSON.stringify(sensitivePayload));
+
+        act(() => {
+          agentErrorListener!.callback({ payload: encoded });
+        });
+
+        // 1. 验证诊断记录发出且完全脱敏
+        expect(consoleErrorSpy).toHaveBeenCalled();
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+
+        const record = diagnosticCalls[0][1] as any;
+        expect(record).toEqual({
+          schema_version: 1,
+          app_version: expect.any(String),
+          platform: expect.any(String),
+          event: "agent_error_received",
+          agent_code: "ERR_CUSTOM_KEY_INVALID",
+        });
+
+        // 序列化断言：控制台绝无 parsed 对象或 canary 泄漏
+        const serialized = JSON.stringify(record);
+        expect(serialized).not.toContain("leaked-token-xyz-12345");
+        expect(serialized).not.toContain("confidential user exam text");
+        expect(serialized).not.toContain("user-private-uuid-999");
+        expect(serialized).not.toContain("自定义密钥配置无效");
+
+        // 2. 验证原有 store 与 UI 终态行为按原行为正确保持
+        expect(useConversationStore.getState().agentError).toEqual({
+          code: "ERR_CUSTOM_KEY_INVALID",
+          message: "自定义密钥配置无效，请重新检查",
+        });
+
+        // 验证 UI 渲染出了错误卡片提示
+        expect(screen.getByText("自定义密钥配置无效，请重新检查")).toBeInTheDocument();
+      });
+
+      it("sanitizes unknown or secret-like agent_code to 'unknown' in DataChannel error event", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-unknown-code",
+          token: "tok-diag-unknown",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const agentErrorListener = capturedDataChannelListeners.find(
+          (l) => l.topic === "agent_error",
+        );
+        expect(agentErrorListener).toBeDefined();
+
+        const sensitivePayload = {
+          type: "agent_error",
+          code: "SECRET_LEAK_TOKEN_KEY_999",
+          message: "发生未知错误",
+        };
+
+        act(() => {
+          agentErrorListener!.callback({
+            payload: new TextEncoder().encode(JSON.stringify(sensitivePayload)),
+          });
+        });
+
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+
+        expect(record.agent_code).toBe("unknown");
+        expect(JSON.stringify(record)).not.toContain("SECRET_LEAK_TOKEN_KEY_999");
+      });
+
+      it("emits agent_dispatch_failed on dispatchAgent failure", async () => {
+        vi.mocked(api.dispatchAgent).mockRejectedValue(new Error("Agent offline"));
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-dispatch-fail",
+          token: "tok-diag-dispatch",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const triggerConnectedBtn = screen.getByTestId("trigger-connected");
+        await act(async () => {
+          fireEvent.click(triggerConnectedBtn);
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+        });
+
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("agent_dispatch_failed");
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
+
+      it("emits livekit_connection_failed on LiveKitRoom onError", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-lk-error",
+          token: "tok-diag-lk-err",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const triggerErrorBtn = screen.getByTestId("trigger-error");
+        act(() => {
+          fireEvent.click(triggerErrorBtn);
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+
+        const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("livekit_connection_failed");
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
+
+      it("emits livekit_disconnected on LiveKitRoom onDisconnected", async () => {
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-lk-disconnected",
+          token: "tok-diag-lk-disc",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        const triggerDisconnectBtn = screen.getByTestId("trigger-disconnected");
+        act(() => {
+          fireEvent.click(triggerDisconnectBtn);
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+
+        const diagnosticCalls = consoleLogSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("livekit_disconnected");
+        expect(mockTrackStop).toHaveBeenCalled();
+      });
+
+      it("emits lifecycle_audio_interrupted on native lifecycle inactive", async () => {
+        currentFakeApp = createFakeApp(true);
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-diag-interrupted",
+          token: "tok-diag-interrupted",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+        });
+
+        act(() => {
+          currentFakeApp!.triggerAppStateChange({ isActive: false });
+        });
+
+        await waitFor(() => {
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        });
+
+        const diagnosticCalls = consoleWarnSpy.mock.calls.filter(
+          (call: any[]) => call[0] === "[diagnostic]",
+        );
+        expect(diagnosticCalls.length).toBe(1);
+        const record = diagnosticCalls[0][1] as any;
+        expect(record.event).toBe("lifecycle_audio_interrupted");
+      });
+
+      it("emits native_lifecycle_ready_timeout when native pending exceeds 10s", async () => {
+        vi.useFakeTimers();
+        try {
+          currentFakeApp = createFakeApp(true);
+          currentFakeApp.getState.mockImplementation(
+            () => new Promise(() => {}), // 永久 pending
+          );
+          (window as any).Capacitor = {
+            isNativePlatform: () => true,
+            getPlatform: () => "ios",
+          };
+
+          useConversationStore.setState({
+            sessionGen: 1,
+            sessionId: "sess-diag-timeout",
+            token: "tok-diag-timeout",
+            wsUrl: "wss://lk.test",
+            connectionState: "connecting",
+            appView: "session",
+          });
+
+          render(<VoiceInterface />);
+
+          act(() => {
+            vi.advanceTimersByTime(10001);
+          });
+
+          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+
+          const diagnosticCalls = consoleWarnSpy.mock.calls.filter(
+            (call: any[]) => call[0] === "[diagnostic]",
+          );
+          expect(diagnosticCalls.length).toBe(1);
+          const record = diagnosticCalls[0][1] as any;
+          expect(record.event).toBe("native_lifecycle_ready_timeout");
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+    });
+  });
+
+  describe("A77 same-principal Room auth ownership refresh", () => {
+    const principal = {
+      issuer: "https://auth.example.com",
+      subject: "user-1",
+    };
+    const refreshedSnapshot = {
+      state: "authenticated" as const,
+      principal,
+    };
+
+    function stageAuthRefresh(revision: number) {
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue(refreshedSnapshot);
+      vi.mocked(auth.getAuthRevision).mockReturnValue(revision);
+    }
+
+    function notifyAuthRefresh(revision: number) {
+      stageAuthRefresh(revision);
+      act(() => {
+        for (const listener of capturedAuthSnapshotListeners) {
+          listener(refreshedSnapshot);
+        }
+      });
+    }
+
+    it.each(["onError", "onDisconnected"] as const)(
+      "rejects old %s after refresh and lets the new callback fail closed",
+      async (callbackName) => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-sdk",
+          token: "auth-refresh-sdk-token",
+          wsUrl: "wss://lk.test",
+          connectionState: "active",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const oldCallbacks = capturedRoomCallbacks.get(instanceId)!;
+        const oldCallback =
+          callbackName === "onError" ? oldCallbacks.onError : oldCallbacks.onDisconnected;
+
+        notifyAuthRefresh(2);
+        await waitFor(() => {
+          expect(capturedRoomCallbacks.get(instanceId)?.[callbackName]).not.toBe(oldCallback);
+        });
+
+        expect(screen.getByTestId("livekit-room").getAttribute("data-instance-id")).toBe(
+          instanceId,
+        );
+        expect(mockTrackStop).not.toHaveBeenCalled();
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+
+        act(() => {
+          oldCallback?.(new Error("old revision"));
+        });
+        expect(useConversationStore.getState().connectionState).toBe("active");
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        const currentCallbacks = capturedRoomCallbacks.get(instanceId)!;
+        const currentCallback =
+          callbackName === "onError" ? currentCallbacks.onError : currentCallbacks.onDisconnected;
+        act(() => {
+          currentCallback?.(new Error("current revision"));
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(mockTrackStop).toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      {
+        label: "suspend",
+        event: {
+          type: "suspend",
+          snapshot: { visibility: "hidden" as const, online: true },
+        },
+      },
+      {
+        label: "offline",
+        event: {
+          type: "connectivity",
+          snapshot: { visibility: "visible" as const, online: false },
+        },
+      },
+    ])(
+      "keeps an old Web $label listener inert and rotates to the refreshed listener",
+      async ({ event }) => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-suspend",
+          token: "auth-refresh-suspend-token",
+          wsUrl: "wss://lk.test",
+          connectionState: "active",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        const roomEl = screen.getByTestId("livekit-room");
+        const instanceId = roomEl.getAttribute("data-instance-id")!;
+        const [oldLifecycleListener] = Array.from(mockWebLifecycleListeners);
+        expect(oldLifecycleListener).toBeDefined();
+
+        stageAuthRefresh(2);
+        act(() => {
+          oldLifecycleListener(event);
+        });
+        expect(mockTrackStop).not.toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("active");
+
+        notifyAuthRefresh(2);
+        let currentLifecycleListener!: (event: any) => void;
+        await waitFor(() => {
+          const lifecycleListeners = Array.from(mockWebLifecycleListeners);
+          expect(lifecycleListeners).toHaveLength(1);
+          expect(lifecycleListeners[0]).not.toBe(oldLifecycleListener);
+          currentLifecycleListener = lifecycleListeners[0];
+          expect(screen.getByTestId("livekit-room").getAttribute("data-instance-id")).toBe(
+            instanceId,
+          );
+        });
+
+        expect(mockLifecycleDispose).not.toHaveBeenCalled();
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        act(() => {
+          oldLifecycleListener(event);
+        });
+        expect(mockTrackStop).not.toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("active");
+
+        act(() => {
+          currentLifecycleListener(event);
+        });
+
+        expect(mockTrackStop).toHaveBeenCalled();
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+      },
+    );
+
+    it("keeps the rotated native business listener able to stop current tracks", async () => {
+      currentFakeApp = createFakeApp(true);
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native-listener",
+        token: "{{SECRET_u2n5r8fk}}",
+        wsUrl: "wss://lk.test",
+        connectionState: "active",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+      });
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const oldCallbacks = await waitFor(() => {
+        const captured = capturedRoomCallbacks.get(instanceId);
+        expect(captured).toBeDefined();
+        expect(captured?.onDisconnected).toBeDefined();
+        return captured!;
+      });
+      const oldDisconnected = oldCallbacks.onDisconnected;
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(capturedRoomCallbacks.get(instanceId)?.onDisconnected).not.toBe(oldDisconnected);
+      });
+      expect(screen.getByTestId("livekit-room").getAttribute("data-instance-id")).toBe(instanceId);
+      expect(mockLifecycleDispose).not.toHaveBeenCalled();
+
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: false });
+      });
+
+      expect(mockTrackStop).toHaveBeenCalled();
+      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+    });
+
+    it("keeps a saved onConnected inert after refresh while the current callback dispatches", async () => {
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-connected",
+        token: "tok-auth-refresh-connected",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const oldCallbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(capturedRoomCallbacks.get(instanceId)?.onConnected).not.toBe(
+          oldCallbacks.onConnected,
+        );
+      });
+
+      act(() => {
+        oldCallbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+
+      await act(async () => {
+        capturedRoomCallbacks.get(instanceId)!.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+      expect(api.dispatchAgent).toHaveBeenCalledWith("sess-auth-refresh-connected");
+    });
+
+    it("keeps session/gen dispatch deduplication and drops its stale in-flight result after refresh", async () => {
+      let rejectDispatch!: (err: Error) => void;
+      vi.mocked(api.dispatchAgent).mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectDispatch = reject;
+          }),
+      );
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-dispatch",
+        token: "auth-refresh-dispatch-token",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+
+      const roomEl = screen.getByTestId("livekit-room");
+      const instanceId = roomEl.getAttribute("data-instance-id")!;
+      const oldCallbacks = capturedRoomCallbacks.get(instanceId)!;
+
+      act(() => {
+        oldCallbacks.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(capturedRoomCallbacks.get(instanceId)?.onConnected).not.toBe(
+          oldCallbacks.onConnected,
+        );
+      });
+
+      act(() => {
+        capturedRoomCallbacks.get(instanceId)!.onConnected?.();
+      });
+      expect(api.dispatchAgent).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        rejectDispatch(new Error("stale refresh result"));
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(useConversationStore.getState().token).toBe("auth-refresh-dispatch-token");
+      expect(screen.queryByTestId("dispatch-failed-view")).not.toBeInTheDocument();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+    });
+
+    it("waits for the same-principal notification before mounting a native ready Room", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native",
+        token: "auth-refresh-native-token",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue(refreshedSnapshot);
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+      await act(async () => {
+        resolveGetState({ isActive: true });
+      });
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      act(() => {
+        for (const listener of capturedAuthSnapshotListeners) {
+          listener(refreshedSnapshot);
+        }
+      });
+      await waitFor(() => {
+        expect(screen.getAllByTestId("livekit-room")).toHaveLength(1);
+      });
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+    });
+
+    it("defers a notification-gap inactive ready result until the refreshed receipt fails safely", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(false);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native-inactive",
+        token: "{{SECRET_zzf3t7rc}}",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      stageAuthRefresh(2);
+      await act(async () => {
+        resolveGetState({ isActive: false });
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(api.endSession).not.toHaveBeenCalled();
+    });
+
+    it("re-reads the current snapshot before a notification-gap active ready result mounts audio", async () => {
+      let resolveGetState!: (state: { isActive: boolean }) => void;
+      currentFakeApp = createFakeApp(true);
+      currentFakeApp.getState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGetState = resolve;
+          }),
+      );
+      (window as any).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios",
+      };
+
+      useConversationStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-auth-refresh-native-background",
+        token: "{{SECRET_76w7xbbo}}",
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      await waitFor(() => {
+        expect(currentFakeApp!.getState).toHaveBeenCalled();
+      });
+
+      stageAuthRefresh(2);
+      await act(async () => {
+        resolveGetState({ isActive: true });
+      });
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      act(() => {
+        currentFakeApp!.triggerAppStateChange({ isActive: false });
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+
+      notifyAuthRefresh(2);
+      await waitFor(() => {
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(useConversationStore.getState().token).toBeNull();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+    });
+
+    it("keeps the original native 10s budget across same-principal refreshes", () => {
+      vi.useFakeTimers();
+      try {
+        currentFakeApp = createFakeApp(true);
+        currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-budget",
+          token: "auth-refresh-budget-token",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        act(() => {
+          vi.advanceTimersByTime(9000);
+        });
+        notifyAuthRefresh(2);
+        act(() => {
+          vi.advanceTimersByTime(999);
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+
+        notifyAuthRefresh(3);
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
+
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not let a stale native timer callback clear the refreshed timer handle", () => {
+      vi.useFakeTimers();
+      const pendingToken = ["tok", "auth", "refresh", "stale", "timer"].join("-");
+      const fakeSetTimeout = globalThis.setTimeout;
+      const originalSetTimeout = fakeSetTimeout.bind(globalThis);
+      const queuedCallbacks = new Map<
+        ReturnType<typeof setTimeout>,
+        { callback: () => void; delay: number }
+      >();
+      const timerCountBeforeRender = vi.getTimerCount();
+      const captureSetTimeout = ((handler: TimerHandler, timeout?: number, ...args: any[]) => {
+        const handle = originalSetTimeout(handler, timeout, ...args);
+        if ((timeout === 10000 || timeout === 1000) && typeof handler === "function") {
+          queuedCallbacks.set(handle, {
+            callback: () => {
+              if (typeof handler === "function") {
+                handler(...args);
+              }
+            },
+            delay: timeout,
+          });
+        }
+        return handle;
+      }) as typeof setTimeout;
+
+      try {
+        // Directly wrap the fake function instead of registering another spy restore. The outer
+        // restoreAllMocks() must not be able to reinstall a fake clock after useRealTimers().
+        globalThis.setTimeout = captureSetTimeout;
+        currentFakeApp = createFakeApp(true);
+        currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-stale-timer",
+          token: pendingToken,
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        const { unmount } = render(<VoiceInterface />);
+        expect(queuedCallbacks.size).toBe(1);
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+
+        act(() => {
+          vi.advanceTimersByTime(9000);
+        });
+        notifyAuthRefresh(2);
+        expect(queuedCallbacks.size).toBe(2);
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+        const [, staleTimer] = Array.from(queuedCallbacks.entries())[0];
+        const [, currentTimer] = Array.from(queuedCallbacks.entries())[1];
+        expect(Array.from(queuedCallbacks.values()).map(({ delay }) => delay)).toEqual([
+          10000, 1000,
+        ]);
+
+        act(() => {
+          staleTimer.callback();
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useConversationStore.getState().token).toBe(pendingToken);
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+
+        act(() => {
+          vi.advanceTimersByTime(999);
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
+
+        unmount();
+        expect(vi.getTimerCount()).toBe(timerCountBeforeRender);
+
+        // Clearing the current handle must make even a saved callback inert after unmount.
+        act(() => {
+          staleTimer.callback();
+          currentTimer.callback();
+        });
+        const retiredState = useConversationStore.getState();
+        expect(retiredState.sessionGen).toBe(1);
+        expect(retiredState.sessionId).toBe("sess-auth-refresh-stale-timer");
+        expect(retiredState.connectionState).toBe("connecting");
+        expect(retiredState.token).toBe(pendingToken);
+        expect(retiredState.wsUrl).toBe("wss://lk.test");
+        expect(retiredState.appView).toBe("session");
+        expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+        expect(api.endSession).not.toHaveBeenCalled();
+        expect(mockTrackStop).not.toHaveBeenCalled();
+
+        act(() => {
+          vi.advanceTimersByTime(10001);
+        });
+        const advancedState = useConversationStore.getState();
+        expect(advancedState.connectionState).toBe("connecting");
+        expect(advancedState.token).toBe(pendingToken);
+        expect(advancedState.sessionId).toBe("sess-auth-refresh-stale-timer");
+        expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+        expect(api.dispatchAgent).not.toHaveBeenCalled();
+        expect(api.endSession).not.toHaveBeenCalled();
+        expect(mockTrackStop).not.toHaveBeenCalled();
+      } finally {
+        // Restore the fake function first, then let Vitest atomically install the real clock.
+        globalThis.setTimeout = fakeSetTimeout;
+        vi.useRealTimers();
+      }
+    });
+
+    it("reconciles an elapsed native deadline after a notification gap without another 10s window", () => {
+      vi.useFakeTimers();
+      try {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        currentFakeApp = createFakeApp(true);
+        currentFakeApp.getState.mockImplementation(() => new Promise(() => {}));
+        (window as any).Capacitor = {
+          isNativePlatform: () => true,
+          getPlatform: () => "ios",
+        };
+
+        useConversationStore.setState({
+          sessionGen: 1,
+          sessionId: "sess-auth-refresh-expired-gap",
+          token: "{{SECRET_bq2elzxa}}",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+        });
+
+        render(<VoiceInterface />);
+
+        act(() => {
+          vi.advanceTimersByTime(9999);
+        });
+        stageAuthRefresh(2);
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
+        expect(useConversationStore.getState().connectionState).toBe("connecting");
+
+        notifyAuthRefresh(2);
+        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useConversationStore.getState().token).toBeNull();
+
+        const timeoutDiagnostics = vi
+          .mocked(console.warn)
+          .mock.calls.filter(
+            (call) =>
+              call[0] === "[diagnostic]" &&
+              (call[1] as { event?: string } | undefined)?.event ===
+                "native_lifecycle_ready_timeout",
+          );
+        expect(timeoutDiagnostics).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe("A76 Agent error ownership and payload boundary", () => {
+    const principal = {
+      issuer: "https://auth.example.com",
+      subject: "user-1",
+    };
+
+    function agentErrorListeners() {
+      return capturedDataChannelListeners.filter((listener) => listener.topic === "agent_error");
+    }
+
+    function seedRoom(sessionId: string, sessionGen = 1) {
+      useConversationStore.setState({
+        sessionGen,
+        sessionId,
+        token: `tok-${sessionGen}`,
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+        agentError: null,
+      });
+    }
+
+    function encodeAgentError(value: unknown): Uint8Array {
+      return new TextEncoder().encode(JSON.stringify(value));
+    }
+
+    it("silently rejects malformed and incorrectly typed payloads before any state write", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      seedRoom("sess-invalid-payload");
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+      const invalidPayloads = [
+        new TextEncoder().encode("{"),
+        encodeAgentError(null),
+        encodeAgentError([]),
+        encodeAgentError({ type: "other", code: "CODE", message: "message" }),
+        encodeAgentError({ type: "agent_error", code: null, message: "message" }),
+        encodeAgentError({ type: "agent_error", code: 42, message: "message" }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: null }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: false }),
+        encodeAgentError({ type: "agent_error", code: {}, message: "message" }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: [] }),
+        encodeAgentError({ type: "agent_error", code: "   ", message: "message" }),
+        encodeAgentError({ type: "agent_error", code: "CODE", message: "\n\t" }),
+      ];
+
+      act(() => {
+        for (const payload of invalidPayloads) {
+          listener.callback({ payload });
+        }
+      });
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("connecting");
+      expect(state.sessionId).toBe("sess-invalid-payload");
+      expect(state.token).toBe("tok-1");
+      expect(state.agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("rejects a saved old-generation callback and lets the replacement Room receive errors", async () => {
+      seedRoom("sess-generation-old", 4);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const oldListener = agentErrorListeners()[0];
+
+      act(() => {
+        useConversationStore.setState({
+          sessionGen: 5,
+          sessionId: "sess-generation-new",
+          token: "tok-generation-new",
+          wsUrl: "wss://lk.test",
+          connectionState: "connecting",
+          appView: "session",
+          agentError: null,
+        });
+      });
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(1);
+      });
+      const newListener = agentErrorListeners().at(-1)!;
+
+      act(() => {
+        oldListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "OLD_ROOM",
+            message: "old",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().sessionId).toBe("sess-generation-new");
+      expect(useConversationStore.getState().sessionGen).toBe(5);
+      expect(useConversationStore.getState().agentError).toBeNull();
+
+      act(() => {
+        newListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "NEW_ROOM",
+            message: "new",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().agentError).toEqual({
+        code: "NEW_ROOM",
+        message: "new",
+      });
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        1,
+      );
+    });
+
+    it("rejects an old callback when the principal changes before its auth subscription is notified", async () => {
+      seedRoom("sess-principal-gap");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "authenticated",
+        principal: { ...principal, subject: "user-2" },
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      act(() => {
+        listener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "STALE_PRINCIPAL",
+            message: "stale",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("rejects an old callback after logout before the component receives the auth notification", async () => {
+      seedRoom("sess-logout-gap");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "anonymous",
+        principal: null,
+      });
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      act(() => {
+        listener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "STALE_LOGOUT",
+            message: "stale",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("rejects the old revision during the notification gap and adopts a same-principal event for new callbacks", async () => {
+      seedRoom("sess-revision");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+        expect(capturedAuthSnapshotListeners.size).toBeGreaterThanOrEqual(2);
+      });
+      const oldListener = agentErrorListeners()[0];
+      const initialListenerCount = agentErrorListeners().length;
+      const refreshedSnapshot = { state: "authenticated" as const, principal };
+
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue(refreshedSnapshot);
+      vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+
+      // Revision has advanced, but React/auth listeners have not observed it yet.
+      act(() => {
+        oldListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "GAP_REVISION",
+            message: "stale revision",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+
+      act(() => {
+        for (const listener of capturedAuthSnapshotListeners) {
+          listener(refreshedSnapshot);
+        }
+      });
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(initialListenerCount);
+      });
+      const currentListener = agentErrorListeners().at(-1)!;
+
+      act(() => {
+        oldListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "OLD_REVISION",
+            message: "old revision",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(mockTrackStop).not.toHaveBeenCalled();
+      expect(api.dispatchAgent).not.toHaveBeenCalled();
+      expect(api.endSession).not.toHaveBeenCalled();
+
+      act(() => {
+        currentListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "REFRESHED_REVISION",
+            message: "current revision",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().agentError).toEqual({
+        code: "REFRESHED_REVISION",
+        message: "current revision",
+      });
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        1,
+      );
+    });
+
+    it("keeps the active callback valid across an unrelated render without stopping tracks", async () => {
+      seedRoom("sess-unrelated-render");
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const initialListener = agentErrorListeners()[0];
+
+      act(() => {
+        useConversationStore.setState({ error: "transient warning" });
+      });
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(1);
+      });
+
+      expect(agentErrorListeners().at(-1)!.callback).toBe(initialListener.callback);
+      expect(mockTrackStop).not.toHaveBeenCalled();
+
+      act(() => {
+        initialListener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "CURRENT_ERROR",
+            message: "current",
+          }),
+        });
+      });
+      expect(useConversationStore.getState().agentError?.code).toBe("CURRENT_ERROR");
+    });
+
+    it("does not modify state or emit diagnostics when an old callback fires after unmount", async () => {
+      seedRoom("sess-unmounted");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { unmount } = render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+      unmount();
+
+      act(() => {
+        listener.callback({
+          payload: encodeAgentError({
+            type: "agent_error",
+            code: "AFTER_UNMOUNT",
+            message: "late",
+          }),
+        });
+      });
+
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        0,
+      );
+    });
+
+    it("silently ignores a terminal callback replay after the first valid error", async () => {
+      seedRoom("sess-terminal");
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<VoiceInterface />);
+
+      await waitFor(() => {
+        expect(agentErrorListeners()).toHaveLength(1);
+      });
+      const listener = agentErrorListeners()[0];
+      const payload = encodeAgentError({
+        type: "agent_error",
+        code: "TERMINAL_ERROR",
+        message: "terminal",
+      });
+
+      act(() => {
+        listener.callback({ payload });
+      });
+      const endedState = useConversationStore.getState();
+      await waitFor(() => {
+        expect(screen.getByText("terminal")).toBeInTheDocument();
+      });
+      expect(mockTrackStop).toHaveBeenCalled();
+      expect(endedState.token).toBeNull();
+
+      act(() => {
+        listener.callback({ payload });
+      });
+
+      const replayedState = useConversationStore.getState();
+      expect(replayedState.sessionGen).toBe(endedState.sessionGen);
+      expect(replayedState.agentError).toEqual(endedState.agentError);
+      expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
+        1,
+      );
+    });
+
+    it("recovers a current listener after StrictMode effect re-entry", async () => {
+      seedRoom("sess-strict");
+      render(
+        <React.StrictMode>
+          <VoiceInterface />
+        </React.StrictMode>,
+      );
+
+      await waitFor(() => {
+        expect(agentErrorListeners().length).toBeGreaterThan(0);
+      });
+      act(() => {
+        agentErrorListeners()
+          .at(-1)!
+          .callback({
+            payload: encodeAgentError({
+              type: "agent_error",
+              code: "STRICT_MODE_ERROR",
+              message: "current",
+            }),
+          });
+      });
+
+      expect(useConversationStore.getState().agentError?.code).toBe("STRICT_MODE_ERROR");
     });
   });
 });

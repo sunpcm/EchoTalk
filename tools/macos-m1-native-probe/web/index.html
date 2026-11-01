@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./style.css" />
+    <title>EchoTalk M1 原生登录探针</title>
+    <script type="module" src="./main.mjs"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">EchoTalk · M1</p>
+      <h1>原生登录探针</h1>
+      <p>通过系统浏览器登录，回到此窗口查看结果。</p>
+      <p id="auth-status" class="status" role="status">正在检查登录状态</p>
+      <p id="auth-detail" aria-live="polite"></p>
+      <button id="login" type="button" disabled>系统浏览器登录</button>
+      <button id="cancel" type="button" disabled>取消 / 退出登录</button>
+      <p>本探针暂未接入语音。</p>
+    </main>
+  </body>
+</html>

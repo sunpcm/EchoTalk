@@ -1,6 +1,6 @@
 """用户设置路由：双轨制配置读写。"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,14 +8,13 @@ from auth import CurrentUser
 from database import get_db
 from dependencies import get_current_user
 from models.user import (
-    LLMProvider,
-    STTProvider,
-    SubscriptionTier,
-    TTSProvider,
     User,
     UserSettings,
 )
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
+from services.user_settings_service import (
+    UserSettingsService,
+)
 from services.validation_service import (
     ProviderValidationResult,
     ProviderValidationService,
@@ -26,152 +25,52 @@ router = APIRouter()
 
 
 def get_key_status(has_key: bool, is_valid: bool | None) -> str:
-    if not has_key:
-        return "unconfigured"
-    if is_valid is False:
-        return "error"
-    if is_valid is True:
-        return "verified"
-    return "unconfigured"
+    """薄兼容委托：获取密钥状态。"""
+    return UserSettingsService.get_key_status(has_key, is_valid)
 
 
 def _decrypt_and_rotate(row: UserSettings, prefix: str) -> str | None:
-    """读取某个凭据；旧版本被使用时立即改写为 active key。"""
-    ciphertext = getattr(row, f"encrypted_{prefix}_key")
-    if not ciphertext:
-        return None
-    decrypted = decrypt_api_key(ciphertext, getattr(row, f"{prefix}_key_version"))
-    if decrypted.needs_rotation:
-        encrypted = encrypt_api_key(decrypted.plaintext)
-        setattr(row, f"encrypted_{prefix}_key", encrypted.ciphertext)
-        setattr(row, f"{prefix}_key_version", encrypted.key_version)
-    return decrypted.plaintext
+    """薄兼容委托：读取某个凭据；旧版本被使用时立即改写为 active key。"""
+    return UserSettingsService.decrypt_and_rotate(
+        row,
+        prefix,
+        decrypt_fn=decrypt_api_key,
+        encrypt_fn=encrypt_api_key,
+    )
 
 
 def _as_validation_result(
     result: ProviderValidationResult | bool,
 ) -> ProviderValidationResult:
-    """兼容测试替身，生产实现始终返回分类结果。"""
-    if isinstance(result, ProviderValidationResult):
-        return result
-    return ProviderValidationResult(
-        bool(result), "verified" if result else "provider_error"
-    )
+    """薄兼容委托：兼容测试替身，生产实现始终返回分类结果。"""
+    return UserSettingsService.as_validation_result(result)
 
 
 def _build_user_settings_response(
     row: UserSettings | None, tier: str
 ) -> UserSettingsResponse:
-    """从数据库 UserSettings 对象与订阅等级构建 UserSettingsResponse 响应结构"""
-    if row is None:
-        return UserSettingsResponse(subscription_tier=tier)
-
-    has_stt = row.encrypted_stt_key is not None
-    has_llm = row.encrypted_llm_key is not None
-    has_tts = row.encrypted_tts_key is not None
-
-    return UserSettingsResponse(
-        is_custom_mode=row.is_custom_mode,
-        is_custom_verified=row.is_custom_verified,
-        subscription_tier=tier,
-        theme=row.theme if getattr(row, "theme", None) else "warm",
-        stt_provider=row.stt_provider.value if row.stt_provider else None,
-        llm_provider=row.llm_provider.value if row.llm_provider else None,
-        llm_model=row.llm_model,
-        tts_provider=row.tts_provider.value if row.tts_provider else None,
-        has_stt_key=has_stt,
-        has_llm_key=has_llm,
-        has_tts_key=has_tts,
-        stt_status=get_key_status(has_stt, getattr(row, "stt_is_valid", None)),
-        llm_status=get_key_status(has_llm, getattr(row, "llm_is_valid", None)),
-        tts_status=get_key_status(has_tts, getattr(row, "tts_is_valid", None)),
-    )
+    """薄兼容委托：从数据库 UserSettings 对象与订阅等级构建 UserSettingsResponse 响应结构。"""
+    return UserSettingsService.build_user_settings_response(row, tier)
 
 
 def _validate_custom_mode_permission(
     user_obj: User | None, is_custom_mode: bool | None
 ) -> None:
-    """鉴权：只有非 free 用户才能关闭 is_custom_mode"""
-    if is_custom_mode is False:
-        if user_obj and user_obj.subscription_tier == SubscriptionTier.free:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Free tier users cannot disable custom mode.",
-            )
+    """薄兼容委托：鉴权：只有非 free 用户才能关闭 is_custom_mode。"""
+    UserSettingsService.validate_custom_mode_permission(user_obj, is_custom_mode)
 
 
 async def _validate_provider_keys(
     row: UserSettings, body: UserSettingsUpdate
 ) -> tuple[bool, bool, bool]:
-    """校验各种 provider key 是否有效。如有不合法的 provider key，抛出 422 异常。
-    返回 tuple: (stt_valid, llm_valid, tts_valid)
-    """
-    stt_p = body.stt_provider or (row.stt_provider.value if row.stt_provider else None)
-    llm_p = body.llm_provider or (row.llm_provider.value if row.llm_provider else None)
-    tts_p = body.tts_provider or (row.tts_provider.value if row.tts_provider else None)
-
-    stt_k = (
-        body.stt_key if body.stt_key is not None else _decrypt_and_rotate(row, "stt")
+    """薄兼容委托：校验各种 provider key 是否有效。如有不合法 key 抛出 422 异常。"""
+    return await UserSettingsService.validate_provider_keys(
+        row,
+        body,
+        decrypt_fn=decrypt_api_key,
+        encrypt_fn=encrypt_api_key,
+        validation_service=ProviderValidationService,
     )
-    llm_k = (
-        body.llm_key if body.llm_key is not None else _decrypt_and_rotate(row, "llm")
-    )
-    tts_k = (
-        body.tts_key if body.tts_key is not None else _decrypt_and_rotate(row, "tts")
-    )
-
-    stt_p_old = row.stt_provider.value if row.stt_provider else None
-    llm_p_old = row.llm_provider.value if row.llm_provider else None
-    tts_p_old = row.tts_provider.value if row.tts_provider else None
-
-    stt_changed = (
-        body.stt_provider is not None and body.stt_provider != stt_p_old
-    ) or (body.stt_key is not None)
-    llm_changed = (
-        body.llm_provider is not None and body.llm_provider != llm_p_old
-    ) or (body.llm_key is not None)
-    tts_changed = (
-        body.tts_provider is not None and body.tts_provider != tts_p_old
-    ) or (body.tts_key is not None)
-
-    stt_valid = getattr(row, "stt_is_valid", False) if not stt_changed else False
-    validation_failures: dict[str, str] = {}
-    if stt_changed and stt_p and stt_k:
-        stt_result = _as_validation_result(
-            await ProviderValidationService.validate_stt_key(stt_p, stt_k)
-        )
-        stt_valid = stt_result.ok
-        if not stt_result.ok:
-            validation_failures["stt"] = stt_result.code
-
-    llm_valid = getattr(row, "llm_is_valid", False) if not llm_changed else False
-    if llm_changed and llm_p and llm_k:
-        llm_result = _as_validation_result(
-            await ProviderValidationService.validate_llm_key(llm_p, llm_k)
-        )
-        llm_valid = llm_result.ok
-        if not llm_result.ok:
-            validation_failures["llm"] = llm_result.code
-
-    tts_valid = getattr(row, "tts_is_valid", False) if not tts_changed else False
-    if tts_changed and tts_p and tts_k:
-        tts_result = _as_validation_result(
-            await ProviderValidationService.validate_tts_key(tts_p, tts_k)
-        )
-        tts_valid = tts_result.ok
-        if not tts_result.ok:
-            validation_failures["tts"] = tts_result.code
-
-    if validation_failures:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "provider_key_validation_failed",
-                "providers": validation_failures,
-            },
-        )
-
-    return bool(stt_valid), bool(llm_valid), bool(tts_valid)
 
 
 def _apply_settings_update(
@@ -181,40 +80,15 @@ def _apply_settings_update(
     llm_valid: bool,
     tts_valid: bool,
 ) -> None:
-    """按请求更新 UserSettings 行属性并加密存放 API key"""
-    row.stt_is_valid = stt_valid
-    row.llm_is_valid = llm_valid
-    row.tts_is_valid = tts_valid
-
-    row.is_custom_verified = bool(
-        row.stt_is_valid and row.llm_is_valid and row.tts_is_valid
+    """薄兼容委托：按请求更新 UserSettings 行属性并加密存放 API key。"""
+    UserSettingsService.apply_settings_update(
+        row,
+        body,
+        stt_valid,
+        llm_valid,
+        tts_valid,
+        encrypt_fn=encrypt_api_key,
     )
-
-    if body.is_custom_mode is not None:
-        row.is_custom_mode = body.is_custom_mode
-    if body.theme is not None:
-        row.theme = body.theme
-    if body.stt_provider is not None:
-        row.stt_provider = STTProvider(body.stt_provider)
-    if body.llm_provider is not None:
-        row.llm_provider = LLMProvider(body.llm_provider)
-    if body.llm_model is not None:
-        row.llm_model = body.llm_model
-    if body.tts_provider is not None:
-        row.tts_provider = TTSProvider(body.tts_provider)
-
-    if body.stt_key is not None:
-        encrypted = encrypt_api_key(body.stt_key)
-        row.encrypted_stt_key = encrypted.ciphertext
-        row.stt_key_version = encrypted.key_version
-    if body.llm_key is not None:
-        encrypted = encrypt_api_key(body.llm_key)
-        row.encrypted_llm_key = encrypted.ciphertext
-        row.llm_key_version = encrypted.key_version
-    if body.tts_key is not None:
-        encrypted = encrypt_api_key(body.tts_key)
-        row.encrypted_tts_key = encrypted.ciphertext
-        row.tts_key_version = encrypted.key_version
 
 
 @router.get("/user/settings", response_model=UserSettingsResponse)
@@ -234,7 +108,7 @@ async def get_user_settings(
     result = await db.execute(stmt)
     row = result.scalar_one_or_none()
 
-    return _build_user_settings_response(row, tier)
+    return UserSettingsService.build_user_settings_response(row, tier)
 
 
 @router.put("/user/settings", response_model=UserSettingsResponse)
@@ -249,7 +123,7 @@ async def update_user_settings(
     user_stmt = select(User).where(User.id == user_id)
     user_result = await db.execute(user_stmt)
     user_obj = user_result.scalar_one_or_none()
-    _validate_custom_mode_permission(user_obj, body.is_custom_mode)
+    UserSettingsService.validate_custom_mode_permission(user_obj, body.is_custom_mode)
     tier = user_obj.subscription_tier.value if user_obj else "free"
 
     stmt = select(UserSettings).where(UserSettings.user_id == user_id)
@@ -260,11 +134,24 @@ async def update_user_settings(
         row = UserSettings(user_id=user_id)
         db.add(row)
 
-    stt_valid, llm_valid, tts_valid = await _validate_provider_keys(row, body)
+    stt_valid, llm_valid, tts_valid = await UserSettingsService.validate_provider_keys(
+        row,
+        body,
+        decrypt_fn=decrypt_api_key,
+        encrypt_fn=encrypt_api_key,
+        validation_service=ProviderValidationService,
+    )
 
-    _apply_settings_update(row, body, stt_valid, llm_valid, tts_valid)
+    UserSettingsService.apply_settings_update(
+        row,
+        body,
+        stt_valid,
+        llm_valid,
+        tts_valid,
+        encrypt_fn=encrypt_api_key,
+    )
 
     await db.flush()
     await db.refresh(row)
 
-    return _build_user_settings_response(row, tier)
+    return UserSettingsService.build_user_settings_response(row, tier)

@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.json",
-  "scripts": {
-    "test": "echo \"(@biu/tsconfig) no tests\""
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",

@@ -6,35 +6,38 @@ from typing import Any
 from livekit.plugins import cartesia, deepgram, silero
 from livekit.plugins import openai as lk_openai
 
-from config import settings
+from provider_catalog import (
+    LLM_PROVIDER_CATALOG,
+    STT_PROVIDER_CATALOG,
+    TTS_PROVIDER_CATALOG,
+)
 
 logger = logging.getLogger("echotalk-agent")
 
-# LLM provider → base_url 映射（自包含，不依赖 llm_service.py）
+# LLM provider → base_url 映射（派生自不可变 catalog，保持导出变量名、类型与顺序）
 LLM_PROVIDER_BASE_URL: dict[str, str] = {
-    "siliconflow": "https://api.siliconflow.cn/v1",
-    "openrouter": "https://openrouter.ai/api/v1",
+    k: v.base_url for k, v in LLM_PROVIDER_CATALOG.items()
 }
 
-# 支持的 provider 集合（用于预检校验）
-SUPPORTED_STT_PROVIDERS: set[str] = {"deepgram"}
+# 支持的 provider 集合（用于预检校验，派生自不可变 catalog）
+SUPPORTED_STT_PROVIDERS: set[str] = set(STT_PROVIDER_CATALOG.keys())
 SUPPORTED_LLM_PROVIDERS: set[str] = set(LLM_PROVIDER_BASE_URL.keys())
-SUPPORTED_TTS_PROVIDERS: set[str] = {"cartesia"}
+SUPPORTED_TTS_PROVIDERS: set[str] = set(TTS_PROVIDER_CATALOG.keys())
 
-# 系统 LLM provider 名 → settings 字段名的映射（仅基础轨使用）
+# 系统 LLM provider 名 → settings 字段名的映射（派生自不可变 catalog，仅基础轨使用）
 _SYSTEM_LLM_KEY_FIELD: dict[str, str] = {
-    "siliconflow": "SILICONFLOW_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
+    k: v.api_key_field for k, v in LLM_PROVIDER_CATALOG.items()
 }
 
+# 兼容导出：统一异常定义迁移至 plugin_errors.py
+from livekit_agent.plugin_errors import PluginInitError  # noqa: E402, F401
 
-class PluginInitError(Exception):
-    """插件初始化失败异常。用于自定义轨模式下的 fail-fast 报错。"""
 
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        self.message = message
-        super().__init__(f"[{code}] {message}")
+def _get_settings() -> Any:
+    """按需加载应用配置，避免插件模块导入时读取 dotenv 或构造客户端。"""
+    from config import settings as runtime_settings
+
+    return runtime_settings
 
 
 def _validate_api_key(api_key: Any, provider_label: str) -> str:
@@ -173,7 +176,7 @@ class PluginFactory:
     @classmethod
     def from_system_defaults(cls) -> dict[str, Any]:
         """
-        基础轨便捷方法：从系统 .env 配置构建全套插件。
+        基础轨便捷方法：从当前运行期系统配置构建全套插件。
 
         读取 settings.DEFAULT_LLM_PROVIDER 确定 LLM 提供商，
         然后从 settings 获取对应的 API Key。
@@ -185,7 +188,8 @@ class PluginFactory:
         异常:
             PluginInitError: 系统配置缺失或无效
         """
-        provider_name = settings.DEFAULT_LLM_PROVIDER
+        runtime_settings = _get_settings()
+        provider_name = runtime_settings.DEFAULT_LLM_PROVIDER
         llm_key_field = _SYSTEM_LLM_KEY_FIELD.get(provider_name)
         if not llm_key_field:
             raise PluginInitError(
@@ -193,15 +197,15 @@ class PluginFactory:
                 f"系统 LLM provider '{provider_name}' 未在 "
                 f"_SYSTEM_LLM_KEY_FIELD 中注册。",
             )
-        llm_api_key = getattr(settings, llm_key_field, "")
+        llm_api_key = getattr(runtime_settings, llm_key_field, "")
 
         return {
-            "stt": cls.create_stt("deepgram", settings.DEEPGRAM_API_KEY),
+            "stt": cls.create_stt("deepgram", runtime_settings.DEEPGRAM_API_KEY),
             "llm": cls.create_llm(
                 provider=provider_name,
                 api_key=llm_api_key,
-                model=settings.DEFAULT_LLM_MODEL,
+                model=runtime_settings.DEFAULT_LLM_MODEL,
             ),
-            "tts": cls.create_tts("cartesia", settings.CARTESIA_API_KEY),
+            "tts": cls.create_tts("cartesia", runtime_settings.CARTESIA_API_KEY),
             "vad": cls.create_vad(),
         }
