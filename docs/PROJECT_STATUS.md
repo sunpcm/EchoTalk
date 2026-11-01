@@ -6,21 +6,24 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A79 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A80 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@eaac89d0f4f008e77ba51b26a590412a03541acb`（A79）。A77 已以单提交
+  `main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`（A80）。A77 已以单提交
   `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成，main 复验为 967 Vitest/
   33 files、576 backend/80.09% coverage；A78 随后在同一本地 main 完成 Review、
   单提交 fast-forward 与 15 项 main 门禁：969 Vitest/34 files、18 build-script、
   61 Fake API、8 类型生成器、148 E2E、586 backend/76.98% coverage，以及 OpenAPI/
   Provider metadata schema、Ruff 等相关门禁通过；A79 再以单个本地提交完成 Review、
-  main 精确快进和完整 15 项 main 门禁。私有探针和变异只在对应 lane 验证，main 未冒认
-  重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
+  main 精确快进和完整 15 项 main 门禁；A80 已通过正常 hook 单提交、本地 main 精确快进
+  与完整 15 项门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、
+  148 E2E、586 backend/76.98% coverage，以及 schema/Ruff 等相关检查。私有探针和变异
+  只在对应 lane 验证，main 未冒认重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker
+  镜像、远端 CI 与部署仍未验证。
 - 本地 tracking reference `origin/main` 当前指向
   `c704925bc9150d153fc951c2727e7472dad00d78`；文内具名已验代码基线
-  `main@eaac89d0f4f008e77ba51b26a590412a03541acb`（A79）相对它领先 15 个提交。
+  `main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`（A80）相对它领先 16 个提交。
   该计数只对应这个具名基线，不是提交后必变的实时 lane HEAD 事实；比较也只读本地 Git
   引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
@@ -99,8 +102,34 @@ TTS 初始值分别为 Deepgram、SiliconFlow、Cartesia，LLM 模型初始为�
 `useSettingsForm`，分别验证初始草稿和空值水合消费该来源。测试没有修改生产源码、tracked
 generated JSON、后端 catalog、依赖或认证/生命周期行为，也没有使用全局 fake timer。
 
-该 lane 已停在 Review，主 Agent 的受控 formatter、完整测试树、实际消费变异与独立评审尚未
-在本记录中冒认通过；真实 Provider、设备、Linux/Docker、远端 CI 与部署边界不变。
+该轮已由独立 Review APPROVED，并以正常 hook 单提交精确 fast-forward 本地
+`main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`。完整 15 项 main 门禁为 972 Vitest/
+36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、586 backend/76.98%
+coverage，以及 schema/Ruff 等相关检查。实际消费变异保留在对应 lane 的私有证据中，main
+未冒认重复。真实 Provider、设备、Linux/Docker、远端 CI 与部署边界不变。
+
+## 2026-11-01 旧 LLM/dispatch 对外输出安全边界（A81 b/r0）
+
+独立合成复现确认四个应用侧出口仍可能透出不可信正文：LLM 成功日志记录回复前缀、SDK
+`APIError` 原文进入错误日志、同一错误正文进入 conversation 502 detail，以及
+`CALL_LEASE_MODE=disabled` 的 dispatch 日志格式化异常对象。
+
+- LLM 服务日志改为固定事件、经 catalog 校验的 provider 名称、消息条数、回复字符数和异常
+  类型名；不再记录 provider 返回正文、用户消息、任意模型配置文本、SDK 异常 message/body/
+  request/URL/header，也不附加异常或堆栈信息。
+- conversation 的 502 保持字符串 detail 形状与“LLM 服务调用失败”前缀，内容固定为可操作
+  的重试提示；服务层仍抛出原 `APIError` 对象。两种 dispatch 分支保持原 success/
+  `dispatched`、归属与租约顺序、去重、cloud 3 秒与 disabled 无 timeout 包装语义，只把
+  异常日志改为固定 mode 与异常类型名，既有固定 502 文案不变。
+- 新增真实 service/ASGI router 合成 canary 回归，覆盖 SDK 成功回复、`None`、`APIError`，
+  以及 dispatch list/create/context-manager 异常和 cloud 固定 502；测试同时扫描日志全字段、
+  异常信息/堆栈与公开响应，并明确断言生产传参、正常回复、原异常对象和单次调用。
+- 本轮实施只写文件并停在 Review。因固定共享锁权限限制，实施方没有运行 formatter、测试、
+  build、安装、数据库或服务；主 Agent 的完整 frontend10/backend 专用 PG/schema/metadata/
+  Ruff、实际消费变异和独立 Review 尚未在本条中冒认通过。真实 Provider、Linux/Docker、
+  设备、远端 CI 与部署仍未验证。
+- 契约见
+  [RF-03 旧 LLM/dispatch 对外输出安全边界](./verification/cross-platform/RF-03-EXTERNAL-OUTPUT-SAFETY.md)。
 
 ## 2026-11-01 本地 RF-06 前端模板清理（A73）
 

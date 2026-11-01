@@ -63,10 +63,10 @@ async def chat_completion(messages: list[dict]) -> str:
     """
     client = _get_client()
 
+    provider_name = settings.DEFAULT_LLM_PROVIDER
     logger.info(
-        "调用 LLM: provider=%s, model=%s, messages=%d条",
-        settings.DEFAULT_LLM_PROVIDER,
-        settings.DEFAULT_LLM_MODEL,
+        "调用 LLM: provider=%s, messages=%d条",
+        provider_name,
         len(messages),
     )
 
@@ -77,10 +77,18 @@ async def chat_completion(messages: list[dict]) -> str:
             temperature=0.7,
             max_tokens=256,
         )
-    except APIError as e:
-        logger.error("LLM 调用失败: %s", e)
+    except APIError as exc:
+        logger.error(
+            "LLM 调用失败: provider=%s, error_type=%s",
+            provider_name,
+            type(exc).__name__,
+        )
         raise
 
     reply = response.choices[0].message.content or ""
-    logger.info("LLM 回复: %s...", reply[:80])
+    logger.info(
+        "LLM 回复完成: provider=%s, chars=%d",
+        provider_name,
+        len(reply),
+    )
     return reply

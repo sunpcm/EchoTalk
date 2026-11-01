@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -176,10 +177,12 @@ def test_get_client_success(
 
 
 @pytest.mark.asyncio
-async def test_chat_completion_success(monkeypatch):
+async def test_chat_completion_success(monkeypatch, caplog):
+    message_canary = "SYNTHETIC_USER_MESSAGE_CANARY_4f58"
+    reply_canary = "SYNTHETIC_LLM_REPLY_CANARY_91d2"
     mock_client = MagicMock()
     mock_choice = MagicMock()
-    mock_choice.message.content = "This is a response from AI."
+    mock_choice.message.content = reply_canary
     mock_response = MagicMock()
     mock_response.choices = [mock_choice]
 
@@ -187,19 +190,26 @@ async def test_chat_completion_success(monkeypatch):
     mock_client.chat.completions.create = mock_create
     monkeypatch.setattr("services.llm_service._get_client", lambda: mock_client)
 
-    messages = [{"role": "user", "content": "Hello"}]
-    reply = await chat_completion(messages)
+    messages = [{"role": "user", "content": message_canary}]
+    with caplog.at_level(logging.INFO, logger="services.llm_service"):
+        reply = await chat_completion(messages)
 
-    assert reply == "This is a response from AI."
+    assert reply == reply_canary
     mock_create.assert_awaited_once()
     kwargs = mock_create.call_args.kwargs
     assert kwargs["messages"] == messages
     assert kwargs["temperature"] == 0.7
     assert kwargs["max_tokens"] == 256
+    assert "LLM 回复完成" in caplog.text
+    assert message_canary not in caplog.text
+    assert reply_canary not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
+    assert all(getattr(record, "stack_info", None) is None for record in caplog.records)
 
 
 @pytest.mark.asyncio
-async def test_chat_completion_none_content(monkeypatch):
+async def test_chat_completion_none_content(monkeypatch, caplog):
+    message_canary = "SYNTHETIC_NONE_MESSAGE_CANARY_a5e3"
     mock_client = MagicMock()
     mock_choice = MagicMock()
     mock_choice.message.content = None
@@ -210,22 +220,43 @@ async def test_chat_completion_none_content(monkeypatch):
     mock_client.chat.completions.create = mock_create
     monkeypatch.setattr("services.llm_service._get_client", lambda: mock_client)
 
-    reply = await chat_completion([{"role": "user", "content": "Test"}])
+    with caplog.at_level(logging.INFO, logger="services.llm_service"):
+        reply = await chat_completion([{"role": "user", "content": message_canary}])
     assert reply == ""
+    assert message_canary not in caplog.text
+    assert "LLM 回复完成" in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
+    assert all(getattr(record, "stack_info", None) is None for record in caplog.records)
 
 
 @pytest.mark.asyncio
-async def test_chat_completion_api_error(monkeypatch):
+async def test_chat_completion_api_error(monkeypatch, caplog):
+    error_canary = "SYNTHETIC_API_ERROR_CANARY_f257"
+    authorization_canary = "SYNTHETIC_AUTHORIZATION_CANARY_5c9b"
     mock_client = MagicMock()
     api_error = APIError(
-        message="API rate limit exceeded", request=MagicMock(), body=None
+        message=f"API rate limit exceeded: {error_canary}",
+        request=MagicMock(),
+        body={"Authorization": f"Bearer {authorization_canary}"},
     )
     mock_create = AsyncMock(side_effect=api_error)
     mock_client.chat.completions.create = mock_create
     monkeypatch.setattr("services.llm_service._get_client", lambda: mock_client)
 
-    with pytest.raises(APIError, match="API rate limit exceeded"):
+    with (
+        caplog.at_level(logging.ERROR, logger="services.llm_service"),
+        pytest.raises(APIError) as exc_info,
+    ):
         await chat_completion([{"role": "user", "content": "Hello"}])
+
+    assert exc_info.value is api_error
+    mock_create.assert_awaited_once()
+    assert "LLM 调用失败" in caplog.text
+    assert "error_type=APIError" in caplog.text
+    assert error_canary not in caplog.text
+    assert authorization_canary not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
+    assert all(getattr(record, "stack_info", None) is None for record in caplog.records)
 
 
 def test_provider_config_derived_from_catalog():

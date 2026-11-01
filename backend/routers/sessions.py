@@ -696,11 +696,14 @@ async def dispatch_agent(
                         await lk_api.agent_dispatch.create_dispatch(
                             CreateAgentDispatchRequest(room=room_name, agent_name="")
                         )
-        except Exception as e:
-            logger.error("Agent 调度失败: %s", type(e).__name__)
+        except Exception as exc:
+            logger.error(
+                "Agent 调度失败: mode=livekit_cloud, error_type=%s",
+                type(exc).__name__,
+            )
             raise HTTPException(
                 status_code=502, detail="语音服务暂时不可用，请稍后重试"
-            )
+            ) from None
 
         return {"dispatched": True}
 
@@ -730,8 +733,13 @@ async def dispatch_agent(
                 await lk_api.agent_dispatch.create_dispatch(
                     CreateAgentDispatchRequest(room=room_name, agent_name="")
                 )
-    except Exception as e:
-        logger.error("Agent 调度失败: %s", e)
-        raise HTTPException(status_code=502, detail="语音服务暂时不可用，请稍后重试")
+    except Exception as exc:
+        logger.error(
+            "Agent 调度失败: mode=disabled, error_type=%s",
+            type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=502, detail="语音服务暂时不可用，请稍后重试"
+        ) from None
 
     return {"dispatched": True}

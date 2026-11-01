@@ -12,13 +12,15 @@
 ### 执行基线
 
 - 当前已验收维护基线：
-  `main@eaac89d0f4f008e77ba51b26a590412a03541acb`（A79）。A77 已以
+  `main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`（A80）。A77 已以
   `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成与
   967 Vitest/576 backend/80.09% coverage 等 main 复验；A78 随后以 15 项 main 门禁完成
   969 Vitest/34 files、586 backend/76.98% coverage、18 build-script、61 Fake API、
   8 类型生成器和 148 E2E 等复验；A79 再以单提交完成 Review、本地 main 精确快进及完整
-  15 项 main 门禁。该具名基线相对本地 tracking reference 领先 15 个提交，不表示未来
-  lane HEAD 或远端当前状态。
+  15 项 main 门禁；A80 已以正常 hook 单提交精确快进本地 main，并通过完整 15 项门禁：
+  972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、586 backend/
+  76.98% coverage。该具名基线相对本地 tracking reference 领先 16 个提交，不表示未来 lane
+  HEAD 或远端当前状态。
 - 基线：`origin/main@30f51f3175de20bc827ebdf29789ad934096133d`
 - 分支：`codex/mvp-remediation`
 - Worktree：
@@ -64,6 +66,10 @@
 - [x] **RF-03 真实鉴权和版本化密钥**：采用单一明确的 AuthProvider 方案；移除生产
       Mock 用户和固定 Token；资源归属、过期/伪造 Token、认证密钥与凭据加密密钥分离、
       旧密文读取/重加密、Provider 错误分类和日志脱敏均有测试。
+      2026-11-01 A81 b/r0 对该已完成项补漏：停止在 LLM 成功日志记录回复正文、停止把
+      SDK `APIError` 原文写入日志或 502，停止在 disabled dispatch 日志格式化异常对象；
+      为真实 service/router 增加合成 canary 回归。本轮停在 Review，主 Agent 门禁与独立
+      评审尚未在本条中冒认通过。
 
 ### Phase 4：架构减法
 
