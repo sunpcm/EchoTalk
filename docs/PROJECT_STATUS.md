@@ -6,11 +6,11 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；当前状态以本节的本地基线、
-> `TODO.md` 勾选状态和 A65–A80 的验收结论为准。
+> `TODO.md` 勾选状态和 A65–A81 的验收结论为准。
 
 - 最近本地核对日期：2026-11-01。
 - 当前本地已验收代码基线：
-  `main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`（A80）。A77 已以单提交
+  `main@bbde1ff20ea961375401c714d36a65ffc268b1d7`（A81）。A77 已以单提交
   `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成，main 复验为 967 Vitest/
   33 files、576 backend/80.09% coverage；A78 随后在同一本地 main 完成 Review、
   单提交 fast-forward 与 15 项 main 门禁：969 Vitest/34 files、18 build-script、
@@ -18,12 +18,14 @@
   Provider metadata schema、Ruff 等相关门禁通过；A79 再以单个本地提交完成 Review、
   main 精确快进和完整 15 项 main 门禁；A80 已通过正常 hook 单提交、本地 main 精确快进
   与完整 15 项门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、
-  148 E2E、586 backend/76.98% coverage，以及 schema/Ruff 等相关检查。私有探针和变异
-  只在对应 lane 验证，main 未冒认重复。真实 IdP、LiveKit/Provider、设备、Linux/Docker
-  镜像、远端 CI 与部署仍未验证。
+  148 E2E、586 backend/76.98% coverage；A81 随后由独立 Review APPROVED，通过正常 hook
+  单提交与本地 main 精确 fast-forward，完整 15 项门禁为 972 Vitest/36 files、
+  18 build-script、61 Fake API、8 类型生成器、148 E2E、594 backend/78.10% coverage，
+  以及 schema/Ruff 等相关检查。私有探针和变异只在对应 lane 验证，main 未冒认重复。
+  真实 IdP、LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
 - 本地 tracking reference `origin/main` 当前指向
   `c704925bc9150d153fc951c2727e7472dad00d78`；文内具名已验代码基线
-  `main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`（A80）相对它领先 16 个提交。
+  `main@bbde1ff20ea961375401c714d36a65ffc268b1d7`（A81）相对它领先 17 个提交。
   该计数只对应这个具名基线，不是提交后必变的实时 lane HEAD 事实；比较也只读本地 Git
   引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
 - 最近已有远端运行证据：PR
@@ -124,12 +126,30 @@ coverage，以及 schema/Ruff 等相关检查。实际消费变异保留在对�
 - 新增真实 service/ASGI router 合成 canary 回归，覆盖 SDK 成功回复、`None`、`APIError`，
   以及 dispatch list/create/context-manager 异常和 cloud 固定 502；测试同时扫描日志全字段、
   异常信息/堆栈与公开响应，并明确断言生产传参、正常回复、原异常对象和单次调用。
-- 本轮实施只写文件并停在 Review。因固定共享锁权限限制，实施方没有运行 formatter、测试、
-  build、安装、数据库或服务；主 Agent 的完整 frontend10/backend 专用 PG/schema/metadata/
-  Ruff、实际消费变异和独立 Review 尚未在本条中冒认通过。真实 Provider、Linux/Docker、
-  设备、远端 CI 与部署仍未验证。
+- 实施交付时按授权只写文件并停在 Review，未运行 formatter、测试、build、安装、数据库或
+  服务。主 Agent 随后独立确认四类合成边界在修复后不再复现，四类实际输出变异均被新增回归
+  杀死并精确还原；独立 Review APPROVED 后以正常 hook 单提交
+  `bbde1ff20ea961375401c714d36a65ffc268b1d7` 精确 fast-forward 本地 main，并通过完整
+  15 项门禁，backend 为 594 passed/78.10% coverage。
+- 真实 Provider、Linux/Docker、设备、远端 CI 与部署仍未验证。
 - 契约见
   [RF-03 旧 LLM/dispatch 对外输出安全边界](./verification/cross-platform/RF-03-EXTERNAL-OUTPUT-SAFETY.md)。
+
+## 2026-11-01 Native Room 回归夹具就绪边界（A82 b/r0）
+
+A80 曾出现一次 native 同步停轨用例在 Room DOM 已出现、但被动 effect 尚未写入
+`capturedRoomCallbacks` 时读取 callback 的夹具失败。该失败不构成产品停轨缺陷，也不计入
+目标 Hook 变异效果。
+
+本轮只修现有测试夹具的跨异步就绪判断：先从当前 DOM 保存 `data-instance-id`，再等待同一
+实例的 callback 登记。目标 native event 回调返回前的同步停轨断言保持原位；未改产品源码、
+被动 effect 时序、callback 注入、重试包装、timeout 或 assertion。
+
+A82 b/r0 实施交付时停在 Review，未运行 formatter、测试、build、安装、数据库、服务或 Git
+写；主 Agent 完整 frontend10/backend 专用 PostgreSQL、schema/metadata、Ruff、独立 Review
+与 main 复验尚未在本条中冒认。真实 Provider、Linux/Docker、设备、远端 CI 与部署边界不变，
+契约见
+[CP-06 Native Room 回归夹具就绪](./verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
 
 ## 2026-11-01 本地 RF-06 前端模板清理（A73）
 

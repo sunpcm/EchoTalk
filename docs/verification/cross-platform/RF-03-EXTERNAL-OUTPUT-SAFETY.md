@@ -1,7 +1,7 @@
 # RF-03 旧 LLM/dispatch 对外输出安全边界
 
-> 状态：A81 b/r0 已完成文件实施，停在 Review；主 Agent 门禁、实际消费变异与独立评审
-> 尚未执行。
+> 状态：A81 b/r0 已由独立 Review APPROVED，以单提交精确 fast-forward 本地 main，并通过
+> 完整 15 项 main 门禁。
 > 日期：2026-11-01。
 > 基线：`codex/external-output-safety@cbe252492f6997e2bba1f1eac1edcdc576d41c36`。
 
@@ -77,12 +77,14 @@ Provider、数据库秘密或网络。
 
 ## 4. 验证状态
 
-- 实施方按授权只写文件，未执行 formatter、测试、build、安装、数据库、服务或 Git 写操作。
-- 主 Agent 仍需在实施停写后通过固定入口执行完整 frontend10、backend 专用 PostgreSQL、
-  schema/metadata 与 Ruff，并执行独立消费变异：恢复任一原不安全格式化必须使回归实际失败，
-  随后精确还原源码并复验。
-- 只有 Review APPROVED 后才进入正常 hook 单 commit、本地 main 精确 fast-forward 与 main
-  全门禁复验；本文件不预判 commit、push、部署或外部验收结果。
+- 实施交付时的历史边界是：实施方按授权只写文件，停写时未执行 formatter、测试、build、
+  安装、数据库、服务或 Git 写操作。
+- 实施停写后，主 Agent 独立确认四类合成边界在修复后不再复现；四类实际输出变异均被新增
+  回归杀死并精确还原，私有探针只在 lane 留证，main 未冒认重复。
+- 独立 Review APPROVED 后，A81 以正常 hook 单提交
+  `bbde1ff20ea961375401c714d36a65ffc268b1d7` 精确 fast-forward 本地 main，并通过完整
+  15 项门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、
+  594 backend/78.10% coverage，以及 schema/Ruff 等相关检查。
 
 ## 5. 外部边界
 

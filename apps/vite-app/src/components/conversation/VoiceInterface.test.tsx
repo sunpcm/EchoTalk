@@ -2045,7 +2045,12 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       const roomEl = screen.getByTestId("livekit-room");
       const instanceId = roomEl.getAttribute("data-instance-id")!;
-      const callbacks = capturedRoomCallbacks.get(instanceId)!;
+      const callbacks = await waitFor(() => {
+        const captured = capturedRoomCallbacks.get(instanceId);
+        expect(captured).toBeDefined();
+        expect(captured?.trackStopMock).toBeDefined();
+        return captured!;
+      });
 
       expect(mockTrackStop).not.toHaveBeenCalled();
 
@@ -2925,7 +2930,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       const roomEl = screen.getByTestId("livekit-room");
       const instanceId = roomEl.getAttribute("data-instance-id")!;
-      const oldDisconnected = capturedRoomCallbacks.get(instanceId)?.onDisconnected;
+      const oldCallbacks = await waitFor(() => {
+        const captured = capturedRoomCallbacks.get(instanceId);
+        expect(captured).toBeDefined();
+        expect(captured?.onDisconnected).toBeDefined();
+        return captured!;
+      });
+      const oldDisconnected = oldCallbacks.onDisconnected;
 
       notifyAuthRefresh(2);
       await waitFor(() => {

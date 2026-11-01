@@ -12,15 +12,18 @@
 ### 执行基线
 
 - 当前已验收维护基线：
-  `main@cbe252492f6997e2bba1f1eac1edcdc576d41c36`（A80）。A77 已以
+  `main@bbde1ff20ea961375401c714d36a65ffc268b1d7`（A81）。A77 已以
   `b97b82475d71e5f634bdcce58d25ace1085ddbbe` 完成本地集成与
   967 Vitest/576 backend/80.09% coverage 等 main 复验；A78 随后以 15 项 main 门禁完成
   969 Vitest/34 files、586 backend/76.98% coverage、18 build-script、61 Fake API、
   8 类型生成器和 148 E2E 等复验；A79 再以单提交完成 Review、本地 main 精确快进及完整
-  15 项 main 门禁；A80 已以正常 hook 单提交精确快进本地 main，并通过完整 15 项门禁：
+  15 项 main 门禁；A80 随后以正常 hook 单提交精确快进本地 main，并通过完整 15 项门禁：
   972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、586 backend/
-  76.98% coverage。该具名基线相对本地 tracking reference 领先 16 个提交，不表示未来 lane
-  HEAD 或远端当前状态。
+  76.98% coverage；A81 已由独立 Review APPROVED，以正常 hook 单提交
+  `bbde1ff20ea961375401c714d36a65ffc268b1d7` 精确 fast-forward 本地 main，并通过完整
+  15 项门禁：972 Vitest/36 files、18 build-script、61 Fake API、8 类型生成器、148 E2E、
+  594 backend/78.10% coverage 及 schema/Ruff 等相关检查。该具名基线相对本地 tracking
+  reference 领先 17 个提交，不表示未来 lane HEAD 或远端当前状态。
 - 基线：`origin/main@30f51f3175de20bc827ebdf29789ad934096133d`
 - 分支：`codex/mvp-remediation`
 - Worktree：
@@ -68,8 +71,9 @@
       旧密文读取/重加密、Provider 错误分类和日志脱敏均有测试。
       2026-11-01 A81 b/r0 对该已完成项补漏：停止在 LLM 成功日志记录回复正文、停止把
       SDK `APIError` 原文写入日志或 502，停止在 disabled dispatch 日志格式化异常对象；
-      为真实 service/router 增加合成 canary 回归。本轮停在 Review，主 Agent 门禁与独立
-      评审尚未在本条中冒认通过。
+      为真实 service/router 增加合成 canary 回归。A81 已独立 Review APPROVED，以正常
+      hook 单提交 `bbde1ff20ea961375401c714d36a65ffc268b1d7` 精确 fast-forward 本地 main，
+      完成完整 15 项门禁；四类实际输出变异均由新增回归杀死并精确还原。
 
 ### Phase 4：架构减法
 
@@ -377,6 +381,10 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 已 Review APPROVED、以单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 精确 fast-forward 本地 main，并完成 main 完整门禁；lane 独立消费探针与 3 项有效变异未在 main 重复。A77 已把 Room 物理 adapter/Room 与认证业务监听归属分离；r1 产品 Vitest 为 940 passed/25 failed/965 total，r2 已修复 native pending 占位 hidden 被误判为真实 inactive，并把 Web 订阅后快照与 native pending 分开：Web 立即失败，native 等 `whenReady` 后重读 snapshot/能力并按原 10 秒 deadline 对账；旧 timer 不得清空新句柄，刷新后当前 native 业务监听仍可停轨。r2 独立 9 项时序与 A76 compat 5 项在 formatter 前通过，随后 format/lint/typecheck 通过，完整 Vitest 为 958 passed/9 failed/967 total，失败均由 stale timer fixture 残留 fake 全局时钟导致后续 A76 异步等待超时；r3 已清理该 fixture，并通过 967 Vitest/33 files、18 build-script、61 Fake API、8 type generator、148 双浏览器 E2E、576 backend/80.09% coverage、schema 与 Ruff。auth revision、原 deadline、ready snapshot 三个产品变异产生 11/6/4 项失败并精确还原；第四项 timer-handle 变异未被原 967 测试杀死，但实际 timer 队列确认卸载后残留本 Room timer，因此 r4 已补真实队列与卸载清理回归，产品逻辑不变。r1 只执行官方返修 native 预检，baseline3 是历史 r0 实测，当前 r4 仍待主 Agent 停写后完整代跑、复验第四项变异必被杀死并由独立 Review 判定，见 [A76 冻结实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md) 与 [A77 本地实施记录](./docs/verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)；三端真实异常联动仍待外部验收，本计划不要求新增遥测上报，整项保持未勾选。
+- [ ] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再
+      等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；主 Agent 门禁与
+      独立 Review 尚未执行，见
+      [CP-06 Native Room 回归夹具就绪](./docs/verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
 
 ### CP-07：发布候选与交付
 
