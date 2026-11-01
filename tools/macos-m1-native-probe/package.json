@@ -1,0 +1,15 @@
+{
+  "name": "echotalk-macos-m1-native-probe",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "probe:test": "node --test --test-timeout=5000 scripts/build.test.mjs",
+    "probe:build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}

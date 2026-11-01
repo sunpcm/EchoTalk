@@ -1,0 +1,22 @@
+[package]
+name = "echotalk-m1-native-probe"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.90"
+
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.5", default-features = false, features = ["wry"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.dev]
+debug = 0
+incremental = false
+split-debuginfo = "off"

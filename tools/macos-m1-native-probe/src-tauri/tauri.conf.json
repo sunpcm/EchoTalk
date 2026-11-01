@@ -1,0 +1,29 @@
+{
+  "productName": "EchoTalk M1 Native Probe",
+  "version": "0.0.0",
+  "identifier": "org.echotalk.m1nativeprobe",
+  "build": { "frontendDist": "../web" },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "EchoTalk M1 构建探针",
+        "width": 480,
+        "height": 260,
+        "resizable": false,
+        "devtools": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'none'; style-src 'self'; script-src 'none'; connect-src 'none'; img-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'",
+      "capabilities": [{ "identifier": "build-probe", "windows": ["main"], "permissions": [] }]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "createUpdaterArtifacts": false,
+    "macOS": { "minimumSystemVersion": "14.0" }
+  }
+}
