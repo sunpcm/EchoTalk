@@ -66,7 +66,12 @@ function ScenarioCard({
       <button
         onClick={() => onEnter(scenario)}
         disabled={isChecking}
-        className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
+        aria-label={
+          isChecking
+            ? `正在检测 ${formatTitle(scenario.scenario_name)} 服务...`
+            : `进入练习：${formatTitle(scenario.scenario_name)}`
+        }
+        className="btn-primary focus-visible:ring-accent flex w-full items-center justify-center focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isChecking ? (
           <>
