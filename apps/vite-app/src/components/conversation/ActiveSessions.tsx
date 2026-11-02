@@ -65,6 +65,9 @@ export function ActiveSessions() {
     revision: number;
   } | null>(null);
 
+  const hasReadinessFeedback = useConversationStore(
+    (s) => s.readinessIssue !== null || s.recheckingReadiness || s.readinessNotice,
+  );
   const resumeSession = useConversationStore((s) => s.resumeSession);
   const isStarting = useConversationStore((s) => isStartingConversationSession(s));
 
@@ -1061,7 +1064,7 @@ export function ActiveSessions() {
                         </p>
                       </div>
 
-                      {resumeError && (
+                      {resumeError && !hasReadinessFeedback && (
                         <div
                           role="alert"
                           data-testid={`resume-error-${session.id}`}

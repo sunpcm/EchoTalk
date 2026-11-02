@@ -26,7 +26,6 @@ import {
   COMMANDS,
   SDK_SHA256,
   INFO_PLIST,
-  NODE,
   createPlan,
   validateInputs,
   permissionText,
@@ -37,6 +36,8 @@ import { prepareAssets } from "./assets.mjs";
 import { executeAuthTests } from "./auth-test.mjs";
 
 import {
+  testNode as NODE,
+  fixtureBuildArgs,
   source,
   temporary,
   host,
@@ -427,13 +428,13 @@ test("real runner bounds a Node-only timeout and records the signal rather than 
   assert.equal(result.errorCode, "ETIMEDOUT");
 });
 
-test("real entry in an isolated fixture with missing locks fails closed, never executing its throwing CLI substitute", (t) => {
+test("real build pipeline in an isolated fixture with missing locks fails closed, never executing its throwing CLI substitute", (t) => {
   const f = fixture(t);
   mkdirSync(join(f.project, "scripts"), { recursive: true });
   for (const name of ["build.mjs", "policy.mjs"])
     cpSync(join(source, "scripts", name), join(f.project, "scripts", name));
   rmSync(join(f.project, "package-lock.json"));
-  const child = spawnSync(NODE, [join(f.project, "scripts/build.mjs")], {
+  const child = spawnSync(NODE, fixtureBuildArgs(f), {
     env: { HOME: env.HOME, PATH: "/usr/bin:/bin" },
     encoding: "utf8",
     timeout: 2000,
@@ -464,7 +465,7 @@ test("r1 real build branch preserves both complete large streams and exit37, wit
     }
   `,
   );
-  const child = spawnSync(NODE, [join(f.project, "scripts/build.mjs")], {
+  const child = spawnSync(NODE, fixtureBuildArgs(f), {
     env: { HOME: env.HOME, PATH: "/usr/bin:/bin" },
     encoding: "utf8",
     timeout: 3000,
@@ -543,7 +544,7 @@ for (const stage of ["version", "help"]) {
       else { process.stdout.write(${JSON.stringify(stdout)}); process.stderr.write(${JSON.stringify(stderr)}); process.exitCode = 29; }
     `,
     );
-    const child = spawnSync(NODE, [join(f.project, "scripts/build.mjs")], {
+    const child = spawnSync(NODE, fixtureBuildArgs(f), {
       env: { HOME: env.HOME, PATH: "/usr/bin:/bin" },
       encoding: "utf8",
       timeout: 3000,
@@ -573,7 +574,7 @@ test("r1 a malformed successful version response still has complete local diagno
     f.plan.cli,
     "process.stdout.write('R1_MALFORMED_VERSION'); process.stderr.write('R1_VERSION_WARNING');",
   );
-  const child = spawnSync(NODE, [join(f.project, "scripts/build.mjs")], {
+  const child = spawnSync(NODE, fixtureBuildArgs(f), {
     env: { HOME: env.HOME, PATH: "/usr/bin:/bin" },
     encoding: "utf8",
     timeout: 3000,

@@ -11,6 +11,8 @@ export const INPUTS = Object.freeze([
   "package.json",
   "scripts/assets.mjs",
   "scripts/test-support.mjs",
+  "scripts/ci.mjs",
+  "scripts/ci.test.mjs",
   "scripts/media-build.test.mjs",
   "scripts/build.test.mjs",
   "scripts/auth-ui.test.mjs",
@@ -168,11 +170,40 @@ export function jsonFile(path) {
 // An internal test seam; the CLI always derives projectDir from its own file.
 // No argv/env input can choose any of these locations or child commands.
 export function createPlan(projectDir, parentEnv, host = process) {
+  return planFor(projectDir, parentEnv, host, "local");
+}
+
+// Only the explicit CI entry calls this profile. CI=true never switches local policy.
+export function createCiPlan(projectDir, parentEnv, host = process) {
+  return planFor(projectDir, parentEnv, host, "github");
+}
+
+function planFor(projectDir, parentEnv, host, profile) {
+  let node = NODE;
+  let rustBin = RUST_BIN;
+  if (profile === "github") {
+    const toolCache = "/Users/runner/hostedtoolcache";
+    node = `${toolCache}/node/22.13.1/arm64/bin/node`;
+    rustBin = "/Users/runner/.rustup/toolchains/1.93.1-aarch64-apple-darwin/bin";
+    const workspace = resolve(projectDir, "../..");
+    if (
+      parentEnv.GITHUB_ACTIONS !== "true" ||
+      parentEnv.RUNNER_ENVIRONMENT !== "github-hosted" ||
+      parentEnv.RUNNER_OS !== "macOS" ||
+      parentEnv.RUNNER_ARCH !== "ARM64" ||
+      parentEnv.RUNNER_TOOL_CACHE !== toolCache ||
+      parentEnv.HOME !== "/Users/runner" ||
+      parentEnv.GITHUB_WORKSPACE !== workspace ||
+      !/^\/Users\/runner\/work\/([A-Za-z0-9_.-]+)\/\1$/u.test(workspace) ||
+      host.version !== "v22.13.1"
+    )
+      throw new BuildFailure("CI_RUNNER_UNSUPPORTED");
+  }
   if (
     host.platform !== "darwin" ||
     host.arch !== "arm64" ||
     !host.version.startsWith("v22.") ||
-    host.execPath !== NODE
+    host.execPath !== node
   ) {
     throw new BuildFailure("HOST_UNSUPPORTED");
   }
@@ -221,7 +252,7 @@ export function createPlan(projectDir, parentEnv, host = process) {
     throw new BuildFailure("CARGO_CONFIG_FORBIDDEN");
   const env = Object.freeze({
     HOME: parentEnv.HOME,
-    PATH: `${dirname(NODE)}:${RUST_BIN}:/usr/bin:/bin:/usr/sbin:/sbin`,
+    PATH: `${dirname(node)}:${rustBin}:/usr/bin:/bin:/usr/sbin:/sbin`,
     CARGO_HOME: join(cache, "cargo-home"),
     CARGO_TARGET_DIR: target,
     CARGO_NET_OFFLINE: "true",
@@ -240,6 +271,9 @@ export function createPlan(projectDir, parentEnv, host = process) {
   });
   return Object.freeze({
     projectDir,
+    profile,
+    node,
+    rustBin,
     cache,
     target,
     env,
@@ -485,10 +519,12 @@ export const COMMANDS = Object.freeze([
 ]);
 export const PROBE_SCRIPTS = Object.freeze({
   "probe:test":
-    "node --test --test-timeout=5000 scripts/build.test.mjs scripts/media-build.test.mjs scripts/auth-ui.test.mjs scripts/media.test.mjs scripts/livekit-media.test.mjs scripts/media-ui.test.mjs scripts/main.test.mjs",
+    "node --test --test-timeout=5000 scripts/build.test.mjs scripts/media-build.test.mjs scripts/auth-ui.test.mjs scripts/media.test.mjs scripts/livekit-media.test.mjs scripts/media-ui.test.mjs scripts/main.test.mjs scripts/ci.test.mjs",
   "probe:build": "node scripts/build.mjs",
   "probe:auth-test": "node scripts/auth-test.mjs",
   "probe:assets": "node scripts/assets.mjs",
+  "probe:ci:prepare": "node scripts/ci.mjs prepare",
+  "probe:ci": "node scripts/ci.mjs",
 });
 export const SDK_SHA256 = "800b013b0a0c9f8b8194d76225bf3dc9837028739fa641215068b112627edd15";
 export const LICENSE_SHA256 = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b";

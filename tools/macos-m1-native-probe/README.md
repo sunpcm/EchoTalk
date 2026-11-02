@@ -4,6 +4,8 @@
 
 本轮状态与步骤见 [离线媒体验证记录](../../docs/verification/cross-platform/MACOS-M1-OFFLINE-MEDIA.md)。媒体默认未配置，开始按钮禁用；不会自动采音。真实 Provider 5 分钟 5 轮、WKWebView/TCC、耳机、休眠、close/quit 和当前新包的构建结果以独立回执为准，设备场景仍须各自验收。
 
+当前 CI 入口与最终组合结果见 [macOS M1 探针 CI 门禁](../../docs/verification/cross-platform/MACOS-PROBE-CI.md)。
+
 ## 固定接口与安全边界
 
 - 单一 `main` 本地窗口：只接纳 `tauri://localhost`、尾斜线根路径或 `/index.html`，同时拒绝其他窗口、外部 URL、userinfo/port/query/fragment。导航与所有 IPC 使用同一生产 guard。
@@ -51,7 +53,8 @@ TMPDIR="$PWD/.review/m1-native-host/tmp/node-tests" \
   tools/macos-m1-native-probe/scripts/media.test.mjs \
   tools/macos-m1-native-probe/scripts/livekit-media.test.mjs \
   tools/macos-m1-native-probe/scripts/media-ui.test.mjs \
-  tools/macos-m1-native-probe/scripts/main.test.mjs
+  tools/macos-m1-native-probe/scripts/main.test.mjs \
+  tools/macos-m1-native-probe/scripts/ci.test.mjs
 ```
 
 等价 package 入口为 `probe:test`。fixture 使用本次 TMPDIR 下每测试唯一目录，退出时只删除自身目录，不再写历史 implementer/r3。
@@ -73,4 +76,4 @@ env -i HOME="$HOME" PATH=/Users/sunpcm/.nvm/versions/node/v22.13.1/bin:/usr/bin:
 
 SDK 原始 UMD 必须为 479042 bytes、SHA256 `800b013b0a0c9f8b8194d76225bf3dc9837028739fa641215068b112627edd15`。入口在任何生成/子进程之前核独立 node_modules 的版本、SDK 和许可证字节；仅补缺失生成文件，已有错误输出拒绝覆盖，不能通过下载或 fake SDK 回退。生成的 `web/vendor/` 和七项 permissions 是 ignored 输出，参与构建输入 hash；入口用 SRI 加载本地 UMD，并实际检查 SDK 导出的版本/API。最终回执同时绑定两锁、所有编译与静态输入、SDK 源/生成字节和 `.app` 二进制/plist，构建后变化或麦克风说明缺失均失败。
 
-本轮业务 Vitest/Playwright/backend pytest/frontend10/backend5 均未执行，原合同不变。离线测试、静态格式或构建成功都不等于真实登录/媒体/设备通过。
+历史离线媒体增量当时未执行业务 Vitest/Playwright/backend pytest/frontend10/backend5；本节离线入口不代替业务 15 项验收。当前已验最终组合结果见上方 CI 门禁记录。离线测试、静态格式或构建成功都不等于真实登录/媒体/设备通过。

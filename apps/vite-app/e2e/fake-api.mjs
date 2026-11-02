@@ -193,6 +193,40 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  // Per-request fixtures avoid global mutable state across browser workers.
+  if (method === "GET" && pathname === "/api/health/ready") {
+    const fixture = request.headers["x-e2e-readiness"];
+    const codes = new Set([
+      "database_unavailable",
+      "user_unavailable",
+      "settings_required",
+      "custom_unverified",
+      "custom_incomplete",
+      "permission_denied",
+      "livekit_unconfigured",
+      "provider_unconfigured",
+    ]);
+    if (fixture === "html") {
+      response.writeHead(503, { "Content-Type": "text/html; charset=utf-8" });
+      response.end("<html>synthetic-readiness-canary</html>");
+      return;
+    }
+    if (codes.has(fixture) || fixture === "unknown" || fixture === "legacy") {
+      sendJson(response, 503, {
+        detail: {
+          status: "not_ready",
+          ...(fixture === "legacy" ? {} : { code: fixture }),
+          errors: { config: "synthetic-readiness-canary" },
+        },
+      });
+      return;
+    }
+    if (fixture === "ready") {
+      sendJson(response, 200, { status: "ready" });
+      return;
+    }
+  }
+
   if (method === "GET" && (pathname === "/api/health" || pathname === "/api/health/ready")) {
     sendJson(response, 200, { status: "ok", service: "echotalk-e2e-fake" });
     return;

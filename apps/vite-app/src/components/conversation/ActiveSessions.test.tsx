@@ -3667,7 +3667,7 @@ describe("ActiveSessions Component", () => {
       expect(tokenSpy).not.toHaveBeenCalled();
     });
 
-    it("preceding failure: checkHealthReady rejection shows dedicated resumeError and sends zero token request", async () => {
+    it("preceding failure: checkHealthReady rejection defers to shared readiness guidance and sends zero token request", async () => {
       vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
       vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
         call_lease_mode: "disabled",
@@ -3695,8 +3695,18 @@ describe("ActiveSessions Component", () => {
         fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
       });
 
-      expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
+      expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
+      expect(useConversationStore.getState().readinessIssue).toMatchObject({
+        code: "unknown",
+        message: zhCN.practiceReadiness.fallback,
+        canOpenSettings: false,
+      });
       expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
+      act(() => {
+        useConversationStore.setState({ readinessIssue: null, readinessNotice: true });
+      });
+      expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
       expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
       expect(tokenSpy).not.toHaveBeenCalled();
     });

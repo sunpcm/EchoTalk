@@ -1,5 +1,8 @@
 /backend/openapi.json
 /apps/vite-app/src/lib/providers.generated.json
 
+# Preserve the version/size/SHA256-pinned generated SDK bytes
+/tools/macos-m1-native-probe/web/vendor/livekit-client.umd.js
+
 # Local review-loop prompts, reports and isolated worktrees
 .review/
