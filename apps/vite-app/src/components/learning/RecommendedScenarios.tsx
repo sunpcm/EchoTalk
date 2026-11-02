@@ -33,14 +33,15 @@ function ScenarioCard({
 }) {
   const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-surface-alt text-text-muted";
 
+  const title = formatTitle(scenario.scenario_name);
+
   return (
     <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-colors transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
-        <h3 className="text-text-default leading-tight font-semibold">
-          {formatTitle(scenario.scenario_name)}
-        </h3>
+        <h3 className="text-text-default leading-tight font-semibold">{title}</h3>
         <span
+          aria-label={`${t.difficulty}: ${scenario.difficulty_cefr}`}
           className={`ml-2 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cefrColor}`}
         >
           {scenario.difficulty_cefr}
@@ -66,11 +67,14 @@ function ScenarioCard({
       <button
         onClick={() => onEnter(scenario)}
         disabled={isChecking}
-        className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
+        aria-busy={isChecking}
+        aria-label={`${t.enterPractice}：${title}`}
+        className="btn-primary focus-visible:ring-accent flex min-h-[44px] w-full items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isChecking ? (
           <>
             <svg
+              aria-hidden="true"
               className="text-accent-contrast mr-2 h-4 w-4 animate-spin"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -134,8 +138,11 @@ export function RecommendedScenarios() {
 
   if (loading) {
     return (
-      <div className="text-text-faint py-8 text-center">
-        <div className="border-border-default mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
+      <div role="status" aria-live="polite" className="text-text-faint py-8 text-center">
+        <div
+          aria-hidden="true"
+          className="border-border-default mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-t-transparent"
+        />
         {t.loading}
       </div>
     );

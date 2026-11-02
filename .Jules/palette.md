@@ -14,3 +14,8 @@
 
 **Learning:** Custom progress bar components (such as daily conversation turn counters and skill mastery levels) rendered as styled `<div>` elements are completely invisible to screen readers without `role="progressbar"` and standard ARIA progress attributes.
 **Action:** Always wrap visual progress indicators in `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`, and `aria-label`.
+
+## 2025-03-03 - Contextual Action Labels and Focus States in Repeated Card Grids
+
+**Learning:** When multiple scenario or course cards display identical generic call-to-action buttons (e.g. "进入练习" / "Enter Practice"), screen reader users navigating by interactive controls hear repeated ambiguous labels without context on which item will activate. Additionally, cards often omit visible keyboard focus rings and minimum touch targets.
+**Action:** Provide disambiguated contextual `aria-label`s on repeated card action buttons (`aria-label={`${t.enterPractice}：${title}`}`), ensure `min-h-[44px]` touch target sizing, add visible focus rings (`focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2`), and convey loading/checking state with `aria-busy`.
