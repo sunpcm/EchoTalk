@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, isAbsolute, join, parse, resolve } from "node:path";
 
@@ -8,6 +9,23 @@ export const PRODUCT = "EchoTalk M1 Native Probe";
 export const IDENTIFIER = "org.echotalk.m1nativeprobe";
 export const INPUTS = Object.freeze([
   "package.json",
+  "scripts/assets.mjs",
+  "scripts/test-support.mjs",
+  "scripts/media-build.test.mjs",
+  "scripts/build.test.mjs",
+  "scripts/auth-ui.test.mjs",
+  "scripts/media.test.mjs",
+  "scripts/livekit-media.test.mjs",
+  "scripts/media-ui.test.mjs",
+  "scripts/main.test.mjs",
+  "src-tauri/media-config.json",
+  "src-tauri/src/media_api.rs",
+  "src-tauri/src/media_api_tests.rs",
+  "web/media-controller.mjs",
+  "web/livekit-media.mjs",
+  "web/media-ui.mjs",
+  "web/sdk.mjs",
+
   "scripts/build.mjs",
   "scripts/policy.mjs",
   "scripts/auth-test.mjs",
@@ -34,12 +52,22 @@ export const AUTH_CAPABILITY = Object.freeze({
   identifier: "native-auth",
   local: true,
   windows: ["main"],
-  permissions: ["allow-auth-begin", "allow-auth-cancel", "allow-auth-status"],
+  permissions: [
+    "allow-auth-begin",
+    "allow-auth-cancel",
+    "allow-auth-status",
+    "allow-media-prepare",
+    "allow-media-dispatch",
+    "allow-media-stop",
+    "allow-media-status",
+  ],
 });
 export const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>仅在您点击开始语音后，使用麦克风进行隔离语音验证。</string>
     <key>CFBundleURLTypes</key>
     <array>
       <dict>
@@ -242,12 +270,14 @@ export function validateInputs(plan) {
     requireSafePath(full);
     if (!existsSync(full) || !lstatSync(full).isFile()) throw new BuildFailure("INPUT_INVALID");
   }
-  for (const dir of ["src-tauri/src", "web"]) {
+  for (const dir of ["src-tauri/src", "web", "scripts"]) {
     for (const name of readdirSync(join(projectDir, dir))) {
-      if (!INPUTS.includes(`${dir}/${name}`)) throw new BuildFailure("INPUT_FORBIDDEN");
+      if (!(dir === "web" && name === "vendor") && !INPUTS.includes(`${dir}/${name}`))
+        throw new BuildFailure("INPUT_FORBIDDEN");
     }
   }
   validatePublicConfig(join(projectDir, "src-tauri/public-config.json"));
+  const media = validateMediaConfig(join(projectDir, "src-tauri/media-config.json"));
   for (const path of ["package-lock.json", "src-tauri/Cargo.lock"]) {
     const full = join(projectDir, path);
     requireSafePath(full);
@@ -259,22 +289,28 @@ export function validateInputs(plan) {
   if (
     pkg.private !== true ||
     pkg.devDependencies?.["@tauri-apps/cli"] !== "2.12.4" ||
-    lock.packages?.["node_modules/@tauri-apps/cli"]?.version !== "2.12.4"
+    pkg.dependencies?.["livekit-client"] !== "2.17.2" ||
+    lock.packages?.["node_modules/@tauri-apps/cli"]?.version !== "2.12.4" ||
+    lock.packages?.["node_modules/livekit-client"]?.version !== "2.17.2" ||
+    lock.packages?.[""]?.dependencies?.["livekit-client"] !== "2.17.2"
   )
     throw new BuildFailure("DEPENDENCY_INVALID");
   if (
     Object.keys(pkg).some(
       (key) =>
-        !["name", "version", "private", "engines", "scripts", "devDependencies"].includes(key),
+        ![
+          "name",
+          "version",
+          "private",
+          "engines",
+          "scripts",
+          "devDependencies",
+          "dependencies",
+        ].includes(key),
     ) ||
     JSON.stringify(pkg.devDependencies) !== JSON.stringify({ "@tauri-apps/cli": "2.12.4" }) ||
-    JSON.stringify(pkg.scripts) !==
-      JSON.stringify({
-        "probe:test":
-          "node --test --test-timeout=5000 scripts/build.test.mjs scripts/auth-ui.test.mjs",
-        "probe:build": "node scripts/build.mjs",
-        "probe:auth-test": "node scripts/auth-test.mjs",
-      })
+    JSON.stringify(pkg.dependencies) !== JSON.stringify({ "livekit-client": "2.17.2" }) ||
+    JSON.stringify(pkg.scripts) !== JSON.stringify(PROBE_SCRIPTS)
   )
     throw new BuildFailure("COMMAND_FORBIDDEN");
   requireSafePath(plan.cli);
@@ -282,6 +318,8 @@ export function validateInputs(plan) {
   const installed = jsonFile(join(projectDir, "node_modules/@tauri-apps/cli/package.json"));
   if (installed.name !== "@tauri-apps/cli" || installed.version !== "2.12.4")
     throw new BuildFailure("DEPENDENCY_INVALID");
+  sdkSources(plan);
+  validateGenerated(plan);
   const config = jsonFile(join(projectDir, "src-tauri/tauri.conf.json"));
   const allowedKeys = (object, keys) =>
     object && Object.keys(object).every((key) => keys.includes(key));
@@ -360,8 +398,10 @@ export function validateInputs(plan) {
           (["style-src", "script-src"].includes(key)
             ? "'self'"
             : key === "connect-src"
-              ? "ipc: http://ipc.localhost"
-              : "'none'"),
+              ? mediaConnectSources(media).join(" ")
+              : key === "media-src"
+                ? "'self' blob:"
+                : "'none'"),
     )
   )
     throw new BuildFailure("CONFIG_FORBIDDEN");
@@ -385,7 +425,7 @@ export function validateInputs(plan) {
     requireSafePath(generated);
     if (existsSync(generated))
       for (const name of readdirSync(generated)) {
-        if (!["auth_begin.toml", "auth_cancel.toml", "auth_status.toml"].includes(name))
+        if (!COMMANDS.map((command) => `${command}.toml`).includes(name))
           throw new BuildFailure("CONFIG_OVERLAY_FORBIDDEN");
         requireSafePath(join(generated, name));
       }
@@ -432,4 +472,145 @@ export function validateInputs(plan) {
     )
   )
     throw new BuildFailure("DEPENDENCY_INVALID");
+}
+
+export const COMMANDS = Object.freeze([
+  "auth_begin",
+  "auth_cancel",
+  "auth_status",
+  "media_prepare",
+  "media_dispatch",
+  "media_stop",
+  "media_status",
+]);
+export const PROBE_SCRIPTS = Object.freeze({
+  "probe:test":
+    "node --test --test-timeout=5000 scripts/build.test.mjs scripts/media-build.test.mjs scripts/auth-ui.test.mjs scripts/media.test.mjs scripts/livekit-media.test.mjs scripts/media-ui.test.mjs scripts/main.test.mjs",
+  "probe:build": "node scripts/build.mjs",
+  "probe:auth-test": "node scripts/auth-test.mjs",
+  "probe:assets": "node scripts/assets.mjs",
+});
+export const SDK_SHA256 = "800b013b0a0c9f8b8194d76225bf3dc9837028739fa641215068b112627edd15";
+export const LICENSE_SHA256 = "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b";
+export const SDK_INPUTS = Object.freeze([
+  "node_modules/livekit-client/package.json",
+  "node_modules/livekit-client/dist/livekit-client.umd.js",
+  "node_modules/livekit-client/LICENSE",
+]);
+export const GENERATED = Object.freeze([
+  "web/vendor/livekit-client.umd.js",
+  "web/vendor/LICENSE.livekit-client",
+  ...COMMANDS.map((command) => `src-tauri/permissions/autogenerated/${command}.toml`),
+]);
+const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+export function validateMediaConfig(path) {
+  const config = jsonFile(path);
+  const raw = readFileSync(path, "utf8");
+  // Ignore formatting whitespace only outside JSON strings. This keeps duplicate
+  // keys/noncanonical escapes rejected while accepting Prettier's compact arrays.
+  const compact = raw.replace(/"(?:[^"\\]|\\.)*"|\s+/gu, (part) =>
+    part.startsWith('"') ? part : "",
+  );
+  const exact =
+    config &&
+    !Array.isArray(config) &&
+    Object.keys(config).sort().join() === "api_origin,media_origins,version";
+  if (
+    Buffer.byteLength(raw) > 16384 ||
+    compact !== JSON.stringify(config) ||
+    !exact ||
+    config.version !== 1 ||
+    !Array.isArray(config.media_origins) ||
+    config.media_origins.length > 8 ||
+    new Set(config.media_origins).size !== config.media_origins.length
+  )
+    throw new BuildFailure("MEDIA_CONFIG_INVALID");
+  const validOrigin = (raw, scheme) => {
+    try {
+      if (typeof raw !== "string" || raw.length > 2048 || /[^\x21-\x7e]|[%\\]/u.test(raw))
+        return false;
+      const url = new URL(raw);
+      return (
+        url.protocol === scheme &&
+        !!url.hostname &&
+        !url.username &&
+        !url.password &&
+        url.origin === raw
+      );
+    } catch {
+      return false;
+    }
+  };
+  if (
+    !config.media_origins.every((raw) => validOrigin(raw, "wss:")) ||
+    (config.api_origin === null
+      ? config.media_origins.length !== 0
+      : !validOrigin(config.api_origin, "https:") || config.media_origins.length === 0)
+  )
+    throw new BuildFailure("MEDIA_CONFIG_INVALID");
+  return config;
+}
+
+export function mediaConnectSources(config) {
+  return [
+    "ipc:",
+    "http://ipc.localhost",
+    ...config.media_origins,
+    ...config.media_origins.map((raw) => raw.replace(/^wss:/u, "https:")),
+  ];
+}
+
+export function sdkSources(plan) {
+  const paths = SDK_INPUTS.map((path) => join(plan.projectDir, path));
+  for (const path of paths) {
+    requireSafePath(path);
+    if (!existsSync(path) || !lstatSync(path).isFile()) throw new BuildFailure("SDK_MISSING");
+  }
+  const pkg = jsonFile(paths[0]);
+  if (pkg.name !== "livekit-client" || pkg.version !== "2.17.2" || pkg.license !== "Apache-2.0")
+    throw new BuildFailure("SDK_VERSION_INVALID");
+  const sdk = readFileSync(paths[1]),
+    license = readFileSync(paths[2]);
+  if (sdk.length !== 479042 || digest(sdk) !== SDK_SHA256 || digest(license) !== LICENSE_SHA256)
+    throw new BuildFailure("SDK_INTEGRITY_INVALID");
+  return { sdk, license };
+}
+
+// Exact tauri-utils 2.10.2 / tauri-build 2.7.4 auto-command template, no schema/header.
+export function permissionText(command) {
+  const slug = command.replaceAll("_", "-");
+  return `# Automatically generated - DO NOT EDIT!\n\n[[permission]]\nidentifier = "allow-${slug}"\ndescription = "Enables the ${command} command without any pre-configured scope."\ncommands.allow = ["${command}"]\n\n[[permission]]\nidentifier = "deny-${slug}"\ndescription = "Denies the ${command} command without any pre-configured scope."\ncommands.deny = ["${command}"]\n`;
+}
+
+export function generatedBytes(plan) {
+  const { sdk, license } = sdkSources(plan);
+  return new Map([
+    [GENERATED[0], sdk],
+    [GENERATED[1], license],
+    ...COMMANDS.map((command) => [
+      `src-tauri/permissions/autogenerated/${command}.toml`,
+      Buffer.from(permissionText(command)),
+    ]),
+  ]);
+}
+
+export function validateGenerated(plan) {
+  const expected = generatedBytes(plan);
+  for (const [path, bytes] of expected) {
+    const full = join(plan.projectDir, path);
+    requireSafePath(full);
+    if (existsSync(full) && (!lstatSync(full).isFile() || !readFileSync(full).equals(bytes)))
+      throw new BuildFailure("GENERATED_INVALID");
+  }
+  const vendor = join(plan.projectDir, "web/vendor");
+  requireSafePath(vendor);
+  if (
+    existsSync(vendor) &&
+    (!lstatSync(vendor).isDirectory() ||
+      readdirSync(vendor).some(
+        (name) => !["livekit-client.umd.js", "LICENSE.livekit-client"].includes(name),
+      ))
+  )
+    throw new BuildFailure("INPUT_FORBIDDEN");
 }

@@ -64,6 +64,21 @@ pub struct Session {
     pub expires_at: u64,
 }
 
+// Native-only, short-lived copy for one media operation and its owned cleanup.
+// Deliberately no Debug/Serialize: an OIDC bearer must never cross IPC.
+#[derive(Clone)]
+pub struct Lease {
+    access_token: Zeroizing<String>,
+    generation: u64,
+    pub expires_at: u64,
+}
+
+impl Lease {
+    pub(crate) fn bearer(&self) -> &str {
+        &self.access_token
+    }
+}
+
 pub trait Store: Send + Sync {
     fn load(&self) -> Result<Option<Transaction>, Error>;
     fn save(&self, tx: &Transaction) -> Result<(), Error>;
@@ -170,6 +185,64 @@ impl Auth {
             expires_at: state.session.as_ref().map(|s| s.expires_at),
             error: state.error,
         })
+    }
+
+    pub fn lease(&self) -> Result<Lease, Error> {
+        let mut state = self.lock()?;
+        self.expire(&mut state)?;
+        let session = state.session.as_ref().ok_or("AUTH_REQUIRED")?;
+        Ok(Lease {
+            access_token: session.access_token.clone(),
+            generation: state.generation,
+            expires_at: session.expires_at,
+        })
+    }
+
+    pub fn lease_current(&self, lease: &Lease) -> Result<bool, Error> {
+        let mut state = self.lock()?;
+        self.expire(&mut state)?;
+        Ok(state.generation == lease.generation
+            && state.session.as_ref().is_some_and(|session| {
+                session.expires_at == lease.expires_at
+                    && session.access_token.as_str() == lease.bearer()
+                    && self.clock.now() < lease.expires_at
+            }))
+    }
+
+    // Serialize final in-memory publication against cancel/new login. The closure
+    // may only publish local state: no I/O, executor calls, or recursive Auth access.
+    pub(crate) fn publish_if_current(
+        &self,
+        lease: &Lease,
+        publish: impl FnOnce() -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let mut state = self.lock()?;
+        self.expire(&mut state)?;
+        if state.generation != lease.generation
+            || !state.session.as_ref().is_some_and(|session| {
+                session.expires_at == lease.expires_at
+                    && session.access_token.as_str() == lease.bearer()
+                    && self.clock.now() < lease.expires_at
+            })
+        {
+            return Err("AUTH_REQUIRED");
+        }
+        publish()
+    }
+
+    // A late API 401 must not log out a subsequent login (even the same subject).
+    pub fn invalidate_lease(&self, lease: &Lease) -> Result<(), Error> {
+        let mut state = self.lock()?;
+        if state.generation == lease.generation
+            && state.session.as_ref().is_some_and(|session| {
+                session.expires_at == lease.expires_at
+                    && session.access_token.as_str() == lease.bearer()
+            })
+        {
+            Self::next(&mut state)?;
+            Self::failure(&mut state, "AUTH_EXPIRED");
+        }
+        Ok(())
     }
 
     fn expire(&self, state: &mut State) -> Result<(), Error> {
@@ -448,4 +521,4 @@ impl Callback {
 
 #[cfg(test)]
 #[path = "auth_tests.rs"]
-mod tests;
+pub(crate) mod tests;

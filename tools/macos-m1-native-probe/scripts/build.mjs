@@ -8,20 +8,24 @@ import {
   BuildFailure,
   IDENTIFIER,
   INPUTS,
+  GENERATED,
+  SDK_INPUTS,
+  INFO_PLIST,
   NODE,
   createPlan,
   requireSafePath,
   validateInputs,
 } from "./policy.mjs";
 
+import { prepareAssets } from "./assets.mjs";
+
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 export function inputHashes(plan) {
   return Object.fromEntries(
-    [...INPUTS, "package-lock.json", "src-tauri/Cargo.lock"].map((path) => [
-      path,
-      sha(readFileSync(join(plan.projectDir, path))),
-    ]),
+    [...INPUTS, ...GENERATED, ...SDK_INPUTS, "package-lock.json", "src-tauri/Cargo.lock"].map(
+      (path) => [path, sha(readFileSync(join(plan.projectDir, path)))],
+    ),
   );
 }
 
@@ -98,6 +102,7 @@ export function executeBuild(
     return result.stdout;
   }
   validateInputs(plan);
+  prepareAssets(plan);
   const inputs = inputHashes(plan);
   const version = step("cli-version", NODE, [plan.cli, "--version"], 10000).trim();
   if (!/^(?:tauri-cli|tauri) 2\.12\.4$/u.test(version))
@@ -145,6 +150,10 @@ export function executeBuild(
     throw new BuildFailure("ARTIFACT_INVALID");
   }
   if (
+    metadata.NSMicrophoneUsageDescription !==
+      INFO_PLIST.match(
+        /<key>NSMicrophoneUsageDescription<\/key>\s*<string>([^<]+)<\/string>/u,
+      )?.[1] ||
     metadata.CFBundleIdentifier !== IDENTIFIER ||
     metadata.CFBundleExecutable !== BINARY ||
     metadata.CFBundleShortVersionString !== "0.0.0" ||
