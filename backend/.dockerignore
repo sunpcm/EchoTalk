@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 .chromadb/
 .git/
+.env
+.env.*
+.review/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/

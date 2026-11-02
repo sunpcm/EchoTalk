@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "oidc": {
+    "issuer": "https://localhost:19444/realms/echotalk-m1",
+    "client_id": "echotalk-m1-native",
+    "redirect_uri": "echotalk-m1://oauth/callback",
+    "authorization_endpoint": "https://localhost:19444/realms/echotalk-m1/protocol/openid-connect/auth",
+    "token_endpoint": "https://localhost:19444/realms/echotalk-m1/protocol/openid-connect/token",
+    "jwks_uri": "https://localhost:19444/realms/echotalk-m1/protocol/openid-connect/certs"
+  }
+}

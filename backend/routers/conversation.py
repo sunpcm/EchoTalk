@@ -72,11 +72,11 @@ async def send_message(
     # 5. 调用 LLM 获取回复
     try:
         reply_text = await chat_completion(messages)
-    except APIError as e:
+    except APIError:
         raise HTTPException(
             status_code=502,
-            detail=f"LLM 服务调用失败: {e.message}",
-        )
+            detail="LLM 服务调用失败: 请稍后重试",
+        ) from None
 
     # 6. 保存 AI 回复到 transcripts
     reply_ms = int(time.time() * 1000)

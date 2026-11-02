@@ -34,13 +34,15 @@ function ScenarioCard({
   const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-surface-alt text-text-muted";
 
   return (
-    <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
+    <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-colors transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
         <h3 className="text-text-default leading-tight font-semibold">
           {formatTitle(scenario.scenario_name)}
         </h3>
         <span
+          title={`${t.difficulty}：${scenario.difficulty_cefr}`}
+          aria-label={`${t.difficulty}：${scenario.difficulty_cefr}`}
           className={`ml-2 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cefrColor}`}
         >
           {scenario.difficulty_cefr}
@@ -64,9 +66,12 @@ function ScenarioCard({
 
       {/* Enter button */}
       <button
+        type="button"
         onClick={() => onEnter(scenario)}
         disabled={isChecking}
-        className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
+        aria-busy={isChecking ? true : undefined}
+        aria-label={`${t.enterPractice}：${formatTitle(scenario.scenario_name)}`}
+        className="btn-primary focus-visible:ring-accent flex min-h-[44px] w-full items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isChecking ? (
           <>

@@ -132,7 +132,6 @@ def test_unit_call_lease_runtime_configuration():
         AUTH_MODE="dev",
         DEV_AUTH_TOKEN="test_dev_token",
         DATABASE_URL="postgresql+asyncpg://dummy:dummy@localhost:5432/dummy",
-        REDIS_URL="redis://localhost:6379/0",
         LIVEKIT_URL="https://myproj.livekit.cloud",
         LIVEKIT_API_KEY="test_api_key",
         LIVEKIT_API_SECRET="test_api_secret",
@@ -298,7 +297,7 @@ async def pg_env():
             user_id=user_id,
             mode=SessionMode.free_talk,
             status=status,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         async with session_factory() as db, db.begin():
             db.add(session)

@@ -1,0 +1,57 @@
+{
+  "productName": "EchoTalk M1 Native Probe",
+  "version": "0.0.0",
+  "identifier": "org.echotalk.m1nativeprobe",
+  "build": {
+    "frontendDist": "../web"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "EchoTalk M1 隔离媒体探针",
+        "width": 620,
+        "height": 620,
+        "resizable": true,
+        "devtools": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'none'; style-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'none'; font-src 'none'; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'",
+      "capabilities": [
+        {
+          "identifier": "native-auth",
+          "local": true,
+          "windows": ["main"],
+          "permissions": [
+            "allow-auth-begin",
+            "allow-auth-cancel",
+            "allow-auth-status",
+            "allow-media-prepare",
+            "allow-media-dispatch",
+            "allow-media-stop",
+            "allow-media-status"
+          ]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "infoPlist": "Info.plist"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["echotalk-m1"]
+      }
+    }
+  }
+}

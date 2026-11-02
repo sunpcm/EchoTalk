@@ -17,35 +17,12 @@ services:
       timeout: 5s
       retries: 5
 
-  echotalk-redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    networks:
-      - echotalk-net
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  echotalk-chroma:
-    image: chromadb/chroma:1.5.9
-    restart: unless-stopped
-    volumes:
-      - chroma-data:/data
-    networks:
-      - echotalk-net
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8000'"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   # ── 后端服务 ────────────────────────────────────────────────
   echotalk-api:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        BACKEND_ROLE: api
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
     restart: unless-stopped
     env_file:
@@ -53,67 +30,41 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
-      REDIS_URL: redis://echotalk-redis:6379/0
-      CHROMA_HOST: echotalk-chroma
-      CHROMA_PORT: 8000
     dns:
       - 8.8.8.8
       - 223.5.5.5
     depends_on:
       echotalk-postgres:
-        condition: service_healthy
-      echotalk-redis:
-        condition: service_healthy
-      echotalk-chroma:
         condition: service_healthy
     networks:
       - echotalk-net
 
   echotalk-agent:
-    build: ./backend
-    command: python livekit_agent/agent.py start
+    build:
+      context: ./backend
+      args:
+        BACKEND_ROLE: agent
+    command: python -m livekit_agent start
     restart: unless-stopped
     env_file:
       - path: .env
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
-      REDIS_URL: redis://echotalk-redis:6379/0
-      CHROMA_HOST: echotalk-chroma
-      CHROMA_PORT: 8000
     dns:
       - 8.8.8.8
       - 223.5.5.5
     depends_on:
       echotalk-postgres:
         condition: service_healthy
-      echotalk-redis:
-        condition: service_healthy
-    networks:
-      - echotalk-net
-
-  echotalk-worker:
-    build: ./backend
-    command: celery -A workers.celery_app worker --loglevel=info
-    restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
-      REDIS_URL: redis://echotalk-redis:6379/0
-      CHROMA_HOST: echotalk-chroma
-      CHROMA_PORT: 8000
-    depends_on:
-      echotalk-postgres:
-        condition: service_healthy
-      echotalk-redis:
-        condition: service_healthy
     networks:
       - echotalk-net
 
   echotalk-analysis-worker:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        BACKEND_ROLE: api
     command: python -m workers.analysis_worker
     restart: unless-stopped
     env_file:
@@ -157,5 +108,3 @@ networks:
 
 volumes:
   postgres-data:
-  redis-data:
-  chroma-data:

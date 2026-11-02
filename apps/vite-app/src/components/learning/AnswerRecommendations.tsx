@@ -124,10 +124,11 @@ export function AnswerRecommendations() {
   }, [latestQuestion]);
 
   // 问题身份覆盖影响推荐内容的全部已提交输入（包含 segment id 与转录文本），
+  // 采用无歧义二元组编码（JSON 序列化元组），防止冒号等分隔符边界碰撞，
   // 兼顾同文不同 segment id 隔离、同 segment id 更新文本隔离与健康重渲染
   const currentScopeKey = useMemo(() => {
     if (isWaiting || !latestQuestionSegment) return null;
-    return `${latestQuestionSegment.id ?? ""}:${latestQuestionSegment.text.trim()}`;
+    return JSON.stringify([latestQuestionSegment.id ?? "", latestQuestionSegment.text.trim()]);
   }, [isWaiting, latestQuestionSegment]);
 
   // 操作序列与已提交作用域追踪

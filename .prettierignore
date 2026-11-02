@@ -1,4 +1,5 @@
-plop-templates/**/*.hbs
+/backend/openapi.json
+/apps/vite-app/src/lib/providers.generated.json
 
 # Local review-loop prompts, reports and isolated worktrees
 .review/

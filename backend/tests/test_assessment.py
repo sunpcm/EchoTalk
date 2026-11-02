@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from database import get_db
 from dependencies import MOCK_USER_ID
 from main import app
+from time_utils import utc_now
 
 
 class MockSession:
@@ -36,7 +36,7 @@ class MockPronunciationAssessment:
         self.is_synthetic = True
         self.confidence = 0.0
         self.provider_response_ref = None
-        self.created_at = datetime.utcnow()
+        self.created_at = utc_now()
 
 
 class MockGrammarError:
@@ -54,7 +54,7 @@ class MockGrammarError:
         self.model_version = "demo-grammar-rules-v1"
         self.is_synthetic = True
         self.confidence = 0.5
-        self.created_at = datetime.utcnow()
+        self.created_at = utc_now()
 
 
 class MockSkill:
@@ -71,7 +71,7 @@ class MockKnowledgeState:
         self.user_id = user_id
         self.skill_id = skill_id
         self.p_mastery = p_mastery
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utc_now()
 
 
 @pytest.mark.asyncio

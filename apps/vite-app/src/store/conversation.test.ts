@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useConversationStore, _setLifecycleOptionsForTesting } from "./conversation";
+import type { ConversationSessionProjection, ConversationSessionState } from "./conversationState";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
 import type { AppStateSource } from "@/platform";
@@ -60,6 +61,7 @@ describe("useConversationStore", () => {
 
   it("has correct initial state", () => {
     const state = useConversationStore.getState();
+    expect(state._sessionState).toEqual({ phase: "idle" });
     expect(state.connectionState).toBe("idle");
     expect(state.appView).toBe("dashboard");
     expect(state.sessionId).toBeNull();
@@ -71,7 +73,343 @@ describe("useConversationStore", () => {
     expect(state.sessionGen).toBeGreaterThanOrEqual(0);
   });
 
+  it("normalizes public setState fixtures into one internal session truth", () => {
+    useConversationStore.setState({
+      connectionState: "connecting",
+      sessionId: "sess-fixture",
+      token: "tok-fixture",
+      wsUrl: "wss://lk.test",
+    });
+    expect(useConversationStore.getState()._sessionState).toEqual({
+      phase: "credentials_ready",
+      sessionId: "sess-fixture",
+      token: "tok-fixture",
+      wsUrl: "wss://lk.test",
+    });
+
+    useConversationStore.setState({ token: null });
+    expect(useConversationStore.getState()._sessionState).toEqual({
+      phase: "fetching_token",
+      sessionId: "sess-fixture",
+    });
+    expect(useConversationStore.getState()).toMatchObject({
+      connectionState: "connecting",
+      sessionId: "sess-fixture",
+      token: null,
+      wsUrl: null,
+    });
+
+    useConversationStore.setState({ connectionState: "idle", token: "residual" });
+    expect(useConversationStore.getState()._sessionState).toEqual({ phase: "idle" });
+    expect(useConversationStore.getState()).toMatchObject({
+      connectionState: "idle",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+  });
+
+  it("lets function patch fields win over the old model reference carried by a snapshot", () => {
+    useConversationStore.setState({
+      connectionState: "connecting",
+      sessionId: "sess-function",
+      token: "tok-fixture",
+      wsUrl: "wss://lk.test",
+    });
+
+    useConversationStore.setState((state) => ({ ...state, token: null }));
+
+    expect(useConversationStore.getState()).toMatchObject({
+      _sessionState: { phase: "fetching_token", sessionId: "sess-function" },
+      connectionState: "connecting",
+      sessionId: "sess-function",
+      token: null,
+      wsUrl: null,
+    });
+  });
+
+  it("normalizes full object snapshots for merge and replace setState calls", () => {
+    useConversationStore.setState({
+      connectionState: "connecting",
+      sessionId: "sess-snapshot",
+      token: "tok-fixture",
+      wsUrl: "wss://lk.test",
+    });
+
+    useConversationStore.setState({
+      ...useConversationStore.getState(),
+      connectionState: "idle",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+    expect(useConversationStore.getState()).toMatchObject({
+      _sessionState: { phase: "idle" },
+      connectionState: "idle",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+
+    useConversationStore.setState({
+      connectionState: "connecting",
+      sessionId: "sess-replace",
+      token: "tok-fixture",
+      wsUrl: "wss://lk.test",
+    });
+    useConversationStore.setState(
+      {
+        ...useConversationStore.getState(),
+        connectionState: "idle",
+        sessionId: null,
+        token: null,
+        wsUrl: null,
+      },
+      true,
+    );
+    expect(useConversationStore.getState()).toMatchObject({
+      _sessionState: { phase: "idle" },
+      connectionState: "idle",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+  });
+
+  it("keeps the session model and projection stable for non-session patches", () => {
+    useConversationStore.setState({
+      connectionState: "connecting",
+      sessionId: "sess-view",
+      token: "tok-fixture",
+      wsUrl: "wss://lk.test",
+    });
+    const before = useConversationStore.getState();
+
+    useConversationStore.setState({ appView: "session" });
+
+    const after = useConversationStore.getState();
+    expect(after.appView).toBe("session");
+    expect(after._sessionState).toBe(before._sessionState);
+    expect(after).toMatchObject({
+      connectionState: before.connectionState,
+      sessionId: before.sessionId,
+      token: before.token,
+      wsUrl: before.wsUrl,
+    });
+  });
+
+  it("uses a new explicit internal model and projects it in the same update", () => {
+    useConversationStore.setState({
+      _sessionState: {
+        phase: "active",
+        sessionId: "sess-explicit",
+        token: "tok-fixture",
+        wsUrl: "wss://explicit.test",
+      },
+      connectionState: "idle",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+
+    expect(useConversationStore.getState()).toMatchObject({
+      _sessionState: {
+        phase: "active",
+        sessionId: "sess-explicit",
+        token: "tok-fixture",
+        wsUrl: "wss://explicit.test",
+      },
+      connectionState: "active",
+      sessionId: "sess-explicit",
+      token: "tok-fixture",
+      wsUrl: "wss://explicit.test",
+    });
+  });
+
+  it("publishes consistent internal and flat session values to synchronous subscribers", () => {
+    const observations: Array<{
+      sessionState: ConversationSessionState;
+      flat: ConversationSessionProjection;
+    }> = [];
+    const unsubscribe = useConversationStore.subscribe((state) => {
+      observations.push({
+        sessionState: state._sessionState,
+        flat: {
+          connectionState: state.connectionState,
+          sessionId: state.sessionId,
+          token: state.token,
+          wsUrl: state.wsUrl,
+        },
+      });
+    });
+
+    try {
+      useConversationStore.setState({
+        connectionState: "connecting",
+        sessionId: "sess-sync",
+        token: "tok-fixture",
+        wsUrl: "wss://lk.test",
+      });
+      useConversationStore.setState((state) => ({ ...state, token: null }));
+    } finally {
+      unsubscribe();
+    }
+
+    expect(observations).toEqual([
+      {
+        sessionState: {
+          phase: "credentials_ready",
+          sessionId: "sess-sync",
+          token: "tok-fixture",
+          wsUrl: "wss://lk.test",
+        },
+        flat: {
+          connectionState: "connecting",
+          sessionId: "sess-sync",
+          token: "tok-fixture",
+          wsUrl: "wss://lk.test",
+        },
+      },
+      {
+        sessionState: {
+          phase: "fetching_token",
+          sessionId: "sess-sync",
+        },
+        flat: {
+          connectionState: "connecting",
+          sessionId: "sess-sync",
+          token: null,
+          wsUrl: null,
+        },
+      },
+    ]);
+  });
+
+  it("preserves Zustand no-op state and notification semantics", () => {
+    const before = useConversationStore.getState();
+    let notifications = 0;
+    const unsubscribe = useConversationStore.subscribe(() => {
+      notifications += 1;
+    });
+
+    try {
+      useConversationStore.setState((state) => state);
+      useConversationStore.setState((state) => state, true);
+    } finally {
+      unsubscribe();
+    }
+
+    expect(notifications).toBe(0);
+    expect(useConversationStore.getState()).toBe(before);
+    expect(useConversationStore.getState()._sessionState).toBe(before._sessionState);
+  });
+
+  it("reset and goHome clear both the internal model and compatibility projection", () => {
+    useConversationStore.setState({
+      connectionState: "active",
+      appView: "session",
+      sessionId: "sess-reset",
+      token: "tok-reset",
+      wsUrl: "wss://lk.test",
+    });
+
+    useConversationStore.getState().reset();
+    expect(useConversationStore.getState()).toMatchObject({
+      _sessionState: { phase: "idle" },
+      connectionState: "idle",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+
+    useConversationStore.setState({
+      connectionState: "active",
+      appView: "session",
+      sessionId: "sess-home",
+      token: "tok-home",
+      wsUrl: "wss://lk.test",
+    });
+    useConversationStore.getState().goHome();
+    expect(useConversationStore.getState()).toMatchObject({
+      _sessionState: { phase: "idle" },
+      connectionState: "idle",
+      appView: "dashboard",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+  });
+
   describe("startSession", () => {
+    it("expresses create and token-wait phases before atomically publishing room credentials", async () => {
+      let resolveCreate!: (session: api.Session) => void;
+      let resolveToken!: (token: { token: string; ws_url: string }) => void;
+      vi.mocked(api.createSession).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveCreate = resolve;
+          }),
+      );
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.getSessionToken).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveToken = resolve;
+          }),
+      );
+
+      const startPromise = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledTimes(1));
+
+      expect(useConversationStore.getState()._sessionState).toEqual({
+        phase: "creating_session",
+      });
+      expect(useConversationStore.getState()).toMatchObject({
+        connectionState: "connecting",
+        sessionId: null,
+        token: null,
+        wsUrl: null,
+      });
+
+      resolveCreate({
+        id: "sess-phase",
+        user_id: "u-1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      await vi.waitFor(() => expect(api.getSessionToken).toHaveBeenCalledTimes(1));
+
+      expect(useConversationStore.getState()._sessionState).toEqual({
+        phase: "fetching_token",
+        sessionId: "sess-phase",
+      });
+      expect(useConversationStore.getState()).toMatchObject({
+        connectionState: "connecting",
+        sessionId: "sess-phase",
+        token: null,
+        wsUrl: null,
+      });
+
+      resolveToken({ token: "tok-phase", ws_url: "wss://lk.test" });
+      await startPromise;
+
+      expect(useConversationStore.getState()._sessionState).toEqual({
+        phase: "credentials_ready",
+        sessionId: "sess-phase",
+        token: "tok-phase",
+        wsUrl: "wss://lk.test",
+      });
+      expect(useConversationStore.getState()).toMatchObject({
+        connectionState: "connecting",
+        sessionId: "sess-phase",
+        token: "tok-phase",
+        wsUrl: "wss://lk.test",
+      });
+    });
+
     it("successfully starts a session with mode and docContext", async () => {
       const mockSession: api.Session = {
         id: "sess-123",
@@ -852,6 +1190,10 @@ describe("useConversationStore", () => {
 
       // 在 API resolve 前观察：token/wsUrl 立即清空，进入 ending 状态
       const pendingState = useConversationStore.getState();
+      expect(pendingState._sessionState).toEqual({
+        phase: "ending",
+        sessionId: "sess-456",
+      });
       expect(pendingState.connectionState).toBe("ending");
       expect(pendingState.token).toBeNull();
       expect(pendingState.wsUrl).toBeNull();
@@ -870,6 +1212,10 @@ describe("useConversationStore", () => {
       await promise;
 
       expect(api.endSession).toHaveBeenCalledWith("sess-456");
+      expect(useConversationStore.getState()._sessionState).toEqual({
+        phase: "ended",
+        sessionId: "sess-456",
+      });
       expect(useConversationStore.getState().connectionState).toBe("ended");
       expect(useConversationStore.getState().error).toBeNull();
     });
@@ -915,6 +1261,10 @@ describe("useConversationStore", () => {
       await useConversationStore.getState().endSession();
 
       const state = useConversationStore.getState();
+      expect(state._sessionState).toEqual({
+        phase: "end_failed",
+        sessionId: "sess-fail",
+      });
       expect(state.connectionState).toBe("end_failed");
       expect(state.error).toBe("Network timeout");
       expect(state.sessionId).toBe("sess-fail");
@@ -1142,6 +1492,7 @@ describe("useConversationStore", () => {
         connectionState: "connecting",
         sessionId: "sess-1",
         token: "valid-tok",
+        wsUrl: "wss://lk.test",
       });
       useConversationStore.getState().setActive();
 
@@ -1157,6 +1508,24 @@ describe("useConversationStore", () => {
       useConversationStore.getState().setActive();
 
       expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("does not change state to active when the WebSocket URL is missing", () => {
+      useConversationStore.setState({
+        connectionState: "connecting",
+        sessionId: "sess-1",
+        token: "tok-1",
+        wsUrl: null,
+      });
+
+      useConversationStore.getState().setActive();
+
+      expect(useConversationStore.getState()).toMatchObject({
+        connectionState: "connecting",
+        token: null,
+        wsUrl: null,
+      });
+      expect(useConversationStore.getState()._sessionState.phase).toBe("fetching_token");
     });
 
     it("does not revive ended or ending or end_failed states", () => {
@@ -1178,6 +1547,7 @@ describe("useConversationStore", () => {
         sessionId: "sess-actual",
         sessionGen: 5,
         token: "tok-1",
+        wsUrl: "wss://lk.test",
       });
 
       // 不同的 sessionId
@@ -1218,12 +1588,19 @@ describe("useConversationStore", () => {
     it("sets agent error, clears tokens, and updates connectionState to ended", () => {
       useConversationStore.setState({
         connectionState: "active",
+        appView: "session",
+        sessionId: "sess-agent-error",
+        sessionGen: 3,
         token: "tok-x",
         wsUrl: "wss://lk.test",
       });
       const error = { code: "CUSTOM_TRACK_FAILED", message: "Audio track error" };
 
-      useConversationStore.getState().setAgentError(error);
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(error, { sessionId: "sess-agent-error", sessionGen: 3 }),
+      ).toBe(true);
 
       const state = useConversationStore.getState();
       expect(state.agentError).toEqual(error);
@@ -1232,7 +1609,164 @@ describe("useConversationStore", () => {
       expect(state.wsUrl).toBeNull();
     });
 
-    it("cancels in-flight startup generation when agent error occurs", async () => {
+    it("rejects a non-owning callback without writing state", () => {
+      useConversationStore.setState({
+        connectionState: "active",
+        appView: "session",
+        sessionId: "sess-current",
+        sessionGen: 7,
+        token: "tok-current",
+        wsUrl: "wss://lk.test",
+      });
+      const before = useConversationStore.getState();
+
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "STALE", message: "stale error" },
+            { sessionId: "sess-old", sessionGen: 7 },
+          ),
+      ).toBe(false);
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "STALE", message: "stale error" },
+            { sessionId: "sess-current", sessionGen: 6 },
+          ),
+      ).toBe(false);
+
+      const after = useConversationStore.getState();
+      expect(after.sessionGen).toBe(before.sessionGen);
+      expect(after.sessionId).toBe("sess-current");
+      expect(after.token).toBe("tok-current");
+      expect(after.agentError).toBeNull();
+      expect(after.connectionState).toBe("active");
+    });
+
+    it("accepts an owning callback only while its Room can still receive errors", () => {
+      useConversationStore.setState({
+        connectionState: "connecting",
+        appView: "session",
+        sessionId: "sess-current",
+        sessionGen: 7,
+        token: "tok-current",
+        wsUrl: "wss://lk.test",
+      });
+
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "CONNECTING_ERROR", message: "while connecting" },
+            { sessionId: "sess-current", sessionGen: 7 },
+          ),
+      ).toBe(true);
+      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().token).toBeNull();
+
+      const endedGen = useConversationStore.getState().sessionGen;
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "LATE", message: "too late" },
+            { sessionId: "sess-current", sessionGen: endedGen },
+          ),
+      ).toBe(false);
+      expect(useConversationStore.getState().agentError?.code).toBe("CONNECTING_ERROR");
+    });
+
+    it("does not let a synchronous observer's replacement session be affected by the old error", () => {
+      useConversationStore.setState({
+        connectionState: "active",
+        appView: "session",
+        sessionId: "sess-old",
+        sessionGen: 4,
+        token: "tok-old",
+        wsUrl: "wss://lk.test",
+      });
+      let replaced = false;
+      const unsubscribe = useConversationStore.subscribe((state) => {
+        if (replaced || state.agentError?.code !== "OLD_ERROR") return;
+        replaced = true;
+        useConversationStore.getState().goHome();
+        useConversationStore.setState({
+          connectionState: "connecting",
+          appView: "session",
+          sessionId: "sess-new",
+          sessionGen: 9,
+          token: "tok-new",
+          wsUrl: "wss://lk.test",
+          agentError: null,
+        });
+      });
+
+      const accepted = useConversationStore
+        .getState()
+        .setAgentError(
+          { code: "OLD_ERROR", message: "old room" },
+          { sessionId: "sess-old", sessionGen: 4 },
+        );
+      unsubscribe();
+
+      expect(accepted).toBe(true);
+      const state = useConversationStore.getState();
+      expect(state.sessionId).toBe("sess-new");
+      expect(state.sessionGen).toBe(9);
+      expect(state.connectionState).toBe("connecting");
+      expect(state.agentError).toBeNull();
+      expect(state.token).toBe("tok-new");
+    });
+
+    it("does not cancel a new startup tracker for a stale Room callback", async () => {
+      let resolveHealth!: (value: api.HealthReadyResponse) => void;
+      vi.mocked(api.checkHealthReady).mockReturnValue(
+        new Promise((resolve) => {
+          resolveHealth = resolve;
+        }),
+      );
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "sess-new-startup",
+        user_id: "u1",
+        mode: "free_talk",
+        status: "active",
+        started_at: "2025-01-01T00:00:00Z",
+        ended_at: null,
+        transcripts: [],
+      });
+      vi.mocked(api.getSessionToken).mockResolvedValue({
+        token: "tok-new-startup",
+        ws_url: "wss://lk.test",
+      });
+
+      const startPromise = useConversationStore.getState().startSession("free_talk");
+      await vi.waitFor(() => {
+        expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+        expect(useConversationStore.getState()._sessionState.phase).toBe("checking_health");
+      });
+      const startupGen = useConversationStore.getState().sessionGen;
+
+      expect(
+        useConversationStore
+          .getState()
+          .setAgentError(
+            { code: "STALE_ROOM", message: "old room" },
+            { sessionId: "sess-old", sessionGen: startupGen - 1 },
+          ),
+      ).toBe(false);
+      expect(useConversationStore.getState()._sessionState.phase).toBe("checking_health");
+      expect(useConversationStore.getState().sessionGen).toBe(startupGen);
+
+      resolveHealth({ status: "ready" });
+      await startPromise;
+
+      expect(useConversationStore.getState().sessionId).toBe("sess-new-startup");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
+    });
+
+    it("does not accept an error before a Room exists or cancel the startup", async () => {
       let resolveToken!: (val: { token: string; ws_url: string }) => void;
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockResolvedValue({
@@ -1255,20 +1789,26 @@ describe("useConversationStore", () => {
       await vi.waitFor(() => {
         expect(useConversationStore.getState().sessionId).toBe("sess-error-flight");
       });
+      const startupState = useConversationStore.getState();
 
-      // 发生 Agent 错误终止会话
-      useConversationStore
-        .getState()
-        .setAgentError({ code: "AUDIO_ERR", message: "Microphone error" });
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      // Token 尚未返回，没有可收取 DataChannel 错误的 Room。
+      expect(
+        useConversationStore.getState().setAgentError(
+          { code: "AUDIO_ERR", message: "Microphone error" },
+          {
+            sessionId: startupState.sessionId!,
+            sessionGen: startupState.sessionGen,
+          },
+        ),
+      ).toBe(false);
+      expect(useConversationStore.getState()._sessionState.phase).toBe("fetching_token");
 
       // 迟到的 Token 返回
-      resolveToken({ token: "tok-late-err", ws_url: "wss://late.com" });
+      resolveToken({ token: "tok-late-returned", ws_url: "wss://late.com" });
       await startPromise;
 
-      // 状态依然是 ended，未被 token 复活
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useConversationStore.getState().token).toBe("tok-late-returned");
+      expect(useConversationStore.getState().connectionState).toBe("connecting");
     });
   });
 
@@ -1422,19 +1962,30 @@ describe("useConversationStore", () => {
       });
 
       // Token 在途期间：sessionId 绝不能提前写入！
-      expect(useConversationStore.getState().sessionId).toBeNull();
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useConversationStore.getState()).toMatchObject({
+        _sessionState: { phase: "checking_health" },
+        sessionId: null,
+        token: null,
+        connectionState: "checking_health",
+        appView: "dashboard",
+      });
 
       resolveToken({ token: "tok-1", ws_url: "wss://lk.test" });
       await promise;
 
       // Token 成功后原子发布
-      expect(useConversationStore.getState().sessionId).toBe(validUuid);
-      expect(useConversationStore.getState().token).toBe("tok-1");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().appView).toBe("session");
+      expect(useConversationStore.getState()).toMatchObject({
+        _sessionState: {
+          phase: "credentials_ready",
+          sessionId: validUuid,
+          token: "tok-1",
+          wsUrl: "wss://lk.test",
+        },
+        sessionId: validUuid,
+        token: "tok-1",
+        connectionState: "connecting",
+        appView: "session",
+      });
     });
 
     it("REC-01 regression: checks attribution and drops call if synchronous store subscriber cancels/resets on checking_health set", async () => {

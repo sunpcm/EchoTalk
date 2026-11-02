@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth";
 import { createLifecycleAdapter, type LifecycleAdapter, type WebLifecycleEvent } from "@/platform";
 import { useConversationStore } from "@/store/conversation";
+import { isStartingConversationSession } from "@/store/conversationState";
 import { zhCN } from "@/i18n/zh-CN";
 
 const t = zhCN.activeSessions;
@@ -65,10 +66,7 @@ export function ActiveSessions() {
   } | null>(null);
 
   const resumeSession = useConversationStore((s) => s.resumeSession);
-  const connectionState = useConversationStore((s) => s.connectionState);
-  const token = useConversationStore((s) => s.token);
-  const isStarting =
-    connectionState === "checking_health" || (connectionState === "connecting" && !token);
+  const isStarting = useConversationStore((s) => isStartingConversationSession(s));
 
   // 结束活动记录操作状态
   const [confirmingSessionId, setConfirmingSessionId] = useState<string | null>(null);
@@ -80,9 +78,18 @@ export function ActiveSessions() {
   const [isResuming, setIsResuming] = useState<boolean>(false);
   const [resumeError, setResumeError] = useState<boolean>(false);
 
+  // 分页状态
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [loadMoreError, setLoadMoreError] = useState<boolean>(false);
+
   // 跟踪在途请求与并发门禁
   const activeRequestIdRef = useRef<number>(0);
   const inFlightRef = useRef<boolean>(false);
+  const loadMoreRequestIdRef = useRef<number>(0);
+  const loadMoreInFlightRef = useRef<boolean>(false);
+  const nextCursorRef = useRef<string | null>(null);
+  nextCursorRef.current = nextCursor;
   const endRequestIdRef = useRef<number>(0);
   const endInFlightRef = useRef<boolean>(false);
   const resumeRequestIdRef = useRef<number>(0);
@@ -113,9 +120,7 @@ export function ActiveSessions() {
   const fetchActiveSessions = useCallback(() => {
     // 结束在途或启动/恢复在途暂停列表刷新且不排队
     const currentConvState = useConversationStore.getState();
-    const isStartingNow =
-      currentConvState.connectionState === "checking_health" ||
-      (currentConvState.connectionState === "connecting" && !currentConvState.token);
+    const isStartingNow = isStartingConversationSession(currentConvState);
 
     if (endInFlightRef.current || resumeInFlightRef.current || isStartingNow) {
       return;
@@ -148,6 +153,12 @@ export function ActiveSessions() {
       return;
     }
 
+    loadMoreRequestIdRef.current++;
+    loadMoreInFlightRef.current = false;
+    setLoadingMore(false);
+    setLoadMoreError(false);
+    setNextCursor(null);
+
     inFlightRef.current = true;
     const reqId = ++activeRequestIdRef.current;
     const reqPrincipal = currentSnap.principal;
@@ -172,9 +183,17 @@ export function ActiveSessions() {
           return;
         }
 
-        // 后端已按 started_at/id 降序；客户端保留顺序，且防旧列表迟到复活已结束记录
-        const filtered = data.filter((s) => !endedSessionIdsRef.current.has(s.id));
-        setSessions(filtered);
+        // 后端已按 started_at/id 降序；客户端保留顺序，单页去重且防旧列表迟到复活已结束记录
+        const seenIds = new Set<string>();
+        const uniqueItems: SessionListItem[] = [];
+        for (const s of data.items) {
+          if (!endedSessionIdsRef.current.has(s.id) && !seenIds.has(s.id)) {
+            seenIds.add(s.id);
+            uniqueItems.push(s);
+          }
+        }
+        setSessions(uniqueItems);
+        setNextCursor(data.next_cursor);
         setError(false);
         setQueriedIdentity({ principal: reqPrincipal, revision: reqRevision });
       })
@@ -214,6 +233,109 @@ export function ActiveSessions() {
         }
       });
   }, []);
+
+  const handleLoadMore = () => {
+    const currentConvState = useConversationStore.getState();
+    const isStartingNow = isStartingConversationSession(currentConvState);
+
+    if (
+      endInFlightRef.current ||
+      resumeInFlightRef.current ||
+      isStartingNow ||
+      inFlightRef.current ||
+      loadMoreInFlightRef.current ||
+      !nextCursorRef.current
+    ) {
+      return;
+    }
+
+    const currentSnap = getAuthSnapshot();
+    const currentRev = getAuthRevision();
+    if (currentSnap.state !== "authenticated" || !currentSnap.principal) {
+      return;
+    }
+
+    const adapter = lifecycleAdapterRef.current;
+    if (adapter) {
+      const lifeSnap = adapter.getSnapshot();
+      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) {
+        return;
+      }
+    }
+
+    loadMoreInFlightRef.current = true;
+    const reqId = ++loadMoreRequestIdRef.current;
+    const reqPrincipal = currentSnap.principal;
+    const reqRevision = currentRev;
+    const cursor = nextCursorRef.current;
+
+    setLoadingMore(true);
+    setLoadMoreError(false);
+
+    listActiveSessions({ cursor })
+      .then((data) => {
+        const latestSnap = getAuthSnapshot();
+        const latestRev = getAuthRevision();
+
+        if (
+          !isMountedRef.current ||
+          reqId !== loadMoreRequestIdRef.current ||
+          latestSnap.state !== "authenticated" ||
+          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
+          latestRev !== reqRevision
+        ) {
+          return;
+        }
+
+        setSessions((prev) => {
+          const existingIds = new Set(prev.map((s) => s.id));
+          const newUnique: SessionListItem[] = [];
+          for (const s of data.items) {
+            if (!existingIds.has(s.id) && !endedSessionIdsRef.current.has(s.id)) {
+              existingIds.add(s.id);
+              newUnique.push(s);
+            }
+          }
+          return [...prev, ...newUnique];
+        });
+        setNextCursor(data.next_cursor);
+        setLoadMoreError(false);
+      })
+      .catch(() => {
+        const latestSnap = getAuthSnapshot();
+        const latestRev = getAuthRevision();
+
+        if (
+          !isMountedRef.current ||
+          reqId !== loadMoreRequestIdRef.current ||
+          latestSnap.state !== "authenticated" ||
+          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
+          latestRev !== reqRevision
+        ) {
+          return;
+        }
+
+        setLoadMoreError(true);
+      })
+      .finally(() => {
+        if (reqId === loadMoreRequestIdRef.current) {
+          loadMoreInFlightRef.current = false;
+        }
+
+        const latestSnap = getAuthSnapshot();
+        const latestRev = getAuthRevision();
+
+        if (
+          isMountedRef.current &&
+          reqId === loadMoreRequestIdRef.current &&
+          latestSnap.state === "authenticated" &&
+          arePrincipalsEqual(latestSnap.principal, reqPrincipal) &&
+          latestRev === reqRevision
+        ) {
+          setLoadingMore(false);
+        }
+      });
+  };
 
   const handleStartConfirm = (sessionId: string) => {
     // 结束在途、恢复/新建启动在途时禁重复或替换在途目标
@@ -317,11 +439,16 @@ export function ActiveSessions() {
       }
     }
 
-    // 6. 恢复前作废当前列表请求
+    // 6. 恢复前作废当前列表请求与更多页请求
     if (inFlightRef.current) {
       activeRequestIdRef.current++;
       inFlightRef.current = false;
       setLoading(false);
+    }
+    if (loadMoreInFlightRef.current) {
+      loadMoreRequestIdRef.current++;
+      loadMoreInFlightRef.current = false;
+      setLoadingMore(false);
     }
 
     // 7. 标记恢复在途并绑定操作代际
@@ -440,11 +567,16 @@ export function ActiveSessions() {
       }
     }
 
-    // 6. 结束前作废当前列表请求
+    // 6. 结束前作废当前列表请求与更多页请求
     if (inFlightRef.current) {
       activeRequestIdRef.current++;
       inFlightRef.current = false;
       setLoading(false);
+    }
+    if (loadMoreInFlightRef.current) {
+      loadMoreRequestIdRef.current++;
+      loadMoreInFlightRef.current = false;
+      setLoadingMore(false);
     }
 
     // 7. 标记结束请求在途并推进
@@ -545,6 +677,12 @@ export function ActiveSessions() {
           inFlightRef.current = false;
           setLoading(false);
         }
+        loadMoreRequestIdRef.current++;
+        loadMoreInFlightRef.current = false;
+        setLoadingMore(false);
+        setLoadMoreError(false);
+        setNextCursor(null);
+        nextCursorRef.current = null;
         if (resumeInFlightRef.current) {
           resumeRequestIdRef.current++;
           resumeInFlightRef.current = false;
@@ -593,6 +731,8 @@ export function ActiveSessions() {
         // 认证失效/退出：立即清除确认和结束/恢复错误、作废旧操作及列表请求
         activeRequestIdRef.current++;
         inFlightRef.current = false;
+        loadMoreRequestIdRef.current++;
+        loadMoreInFlightRef.current = false;
         endRequestIdRef.current++;
         endInFlightRef.current = false;
         resumeRequestIdRef.current++;
@@ -609,6 +749,9 @@ export function ActiveSessions() {
         setEndError(false);
         setResumeError(false);
         setSessions([]);
+        setNextCursor(null);
+        setLoadingMore(false);
+        setLoadMoreError(false);
         setError(false);
         setLoading(false);
         setQueriedIdentity(null);
@@ -619,6 +762,8 @@ export function ActiveSessions() {
       if (principalChanged || revisionChanged) {
         activeRequestIdRef.current++;
         inFlightRef.current = false;
+        loadMoreRequestIdRef.current++;
+        loadMoreInFlightRef.current = false;
         endRequestIdRef.current++;
         endInFlightRef.current = false;
         resumeRequestIdRef.current++;
@@ -635,6 +780,9 @@ export function ActiveSessions() {
         setEndError(false);
         setResumeError(false);
         setSessions([]);
+        setNextCursor(null);
+        setLoadingMore(false);
+        setLoadMoreError(false);
         setError(false);
         setLoading(false);
         setQueriedIdentity(null);
@@ -691,6 +839,8 @@ export function ActiveSessions() {
       // 卸载时作废在途请求与操作，消除 StrictMode 下的残留阻断
       activeRequestIdRef.current++;
       inFlightRef.current = false;
+      loadMoreRequestIdRef.current++;
+      loadMoreInFlightRef.current = false;
       endRequestIdRef.current++;
       endInFlightRef.current = false;
       resumeRequestIdRef.current++;
@@ -754,213 +904,239 @@ export function ActiveSessions() {
         ))}
 
       {sessions.length > 0 && (
-        <ul className="space-y-2" data-testid="active-sessions-list">
-          {sessions.map((session) => {
-            const modeLabel = resolveModeLabel(session.mode);
-            const isConfirmingEnd = confirmingSessionId === session.id;
-            const isConfirmingResume = resumingConfirmId === session.id;
-            const isActionInFlight = isEnding || isResuming || isStarting;
+        <>
+          <ul className="space-y-2" data-testid="active-sessions-list">
+            {sessions.map((session) => {
+              const modeLabel = resolveModeLabel(session.mode);
+              const isConfirmingEnd = confirmingSessionId === session.id;
+              const isConfirmingResume = resumingConfirmId === session.id;
+              const isActionInFlight = isEnding || isResuming || isStarting;
 
-            return (
-              <li
-                key={session.id}
-                data-testid={`active-session-item-${session.id}`}
-                className="bg-surface-alt flex flex-col gap-2.5 rounded-[12px] p-3 text-sm"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        data-testid={`session-mode-${session.id}`}
-                        className="text-accent bg-accent-soft-bg shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
+              return (
+                <li
+                  key={session.id}
+                  data-testid={`active-session-item-${session.id}`}
+                  className="bg-surface-alt flex flex-col gap-2.5 rounded-[12px] p-3 text-sm"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          data-testid={`session-mode-${session.id}`}
+                          className="text-accent bg-accent-soft-bg shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
+                        >
+                          {modeLabel}
+                        </span>
+                        <span
+                          data-testid={`session-id-${session.id}`}
+                          className="text-text-muted font-mono text-xs break-all"
+                          title={session.id}
+                        >
+                          {session.id}
+                        </span>
+                      </div>
+                      <time
+                        dateTime={session.started_at}
+                        data-testid={`session-started-at-${session.id}`}
+                        className="text-text-faint text-xs"
                       >
-                        {modeLabel}
-                      </span>
-                      <span
-                        data-testid={`session-id-${session.id}`}
-                        className="text-text-muted font-mono text-xs break-all"
-                        title={session.id}
-                      >
-                        {session.id}
-                      </span>
+                        {formatStartedAt(session.started_at)}
+                      </time>
                     </div>
-                    <time
-                      dateTime={session.started_at}
-                      data-testid={`session-started-at-${session.id}`}
-                      className="text-text-faint text-xs"
-                    >
-                      {formatStartedAt(session.started_at)}
-                    </time>
+                    {!isConfirmingEnd && !isConfirmingResume && (
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          tabIndex={0}
+                          data-testid={`resume-session-button-${session.id}`}
+                          onClick={() => handleStartResumeConfirm(session.id)}
+                          disabled={isActionInFlight}
+                          className="text-accent hover:text-accent-hover bg-accent-soft-bg hover:bg-accent-soft-bg/80 focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                        >
+                          {t.resumeRecord}
+                        </button>
+                        <button
+                          type="button"
+                          tabIndex={0}
+                          data-testid={`end-session-button-${session.id}`}
+                          onClick={() => handleStartConfirm(session.id)}
+                          disabled={isActionInFlight}
+                          className="text-danger hover:text-danger-hover bg-danger-bg hover:bg-danger-bg/80 focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                        >
+                          {t.endRecord}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {!isConfirmingEnd && !isConfirmingResume && (
-                    <div className="flex shrink-0 flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        tabIndex={0}
-                        data-testid={`resume-session-button-${session.id}`}
-                        onClick={() => handleStartResumeConfirm(session.id)}
-                        disabled={isActionInFlight}
-                        className="text-accent hover:text-accent-hover bg-accent-soft-bg hover:bg-accent-soft-bg/80 focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                      >
-                        {t.resumeRecord}
-                      </button>
-                      <button
-                        type="button"
-                        tabIndex={0}
-                        data-testid={`end-session-button-${session.id}`}
-                        onClick={() => handleStartConfirm(session.id)}
-                        disabled={isActionInFlight}
-                        className="text-danger hover:text-danger-hover bg-danger-bg hover:bg-danger-bg/80 focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                      >
-                        {t.endRecord}
-                      </button>
+
+                  {isConfirmingEnd && (
+                    <div
+                      data-testid={`end-confirm-panel-${session.id}`}
+                      className="bg-surface-alt border-border-soft mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap items-baseline gap-1.5">
+                          <span className="text-text-muted shrink-0 font-medium">
+                            {t.targetIdLabel}
+                          </span>
+                          <span
+                            data-testid={`confirm-session-id-${session.id}`}
+                            className="text-text-default font-mono font-semibold break-all"
+                          >
+                            {session.id}
+                          </span>
+                        </div>
+                        <p className="text-text-muted leading-relaxed break-words">
+                          {t.endConfirmDisclaimer}
+                        </p>
+                      </div>
+
+                      {endError && (
+                        <div
+                          role="alert"
+                          data-testid={`end-error-${session.id}`}
+                          className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
+                        >
+                          {t.endError}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
+                        <button
+                          type="button"
+                          tabIndex={0}
+                          data-testid={`cancel-end-button-${session.id}`}
+                          onClick={handleCancelConfirm}
+                          disabled={isEnding}
+                          className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                        >
+                          {t.cancelEnd}
+                        </button>
+                        {endError ? (
+                          <button
+                            type="button"
+                            tabIndex={0}
+                            data-testid={`retry-end-button-${session.id}`}
+                            onClick={() => handleConfirmEnd(session.id)}
+                            disabled={isEnding}
+                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                          >
+                            {isEnding ? t.ending : t.retryEnd}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            tabIndex={0}
+                            data-testid={`confirm-end-button-${session.id}`}
+                            onClick={() => handleConfirmEnd(session.id)}
+                            disabled={isEnding}
+                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                          >
+                            {isEnding ? t.ending : t.confirmEnd}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
+
+                  {isConfirmingResume && (
+                    <div
+                      data-testid={`resume-confirm-panel-${session.id}`}
+                      className="bg-surface-alt border-border-soft mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap items-baseline gap-1.5">
+                          <span className="text-text-muted shrink-0 font-medium">
+                            {t.targetIdLabel}
+                          </span>
+                          <span
+                            data-testid={`confirm-resume-session-id-${session.id}`}
+                            className="text-text-default font-mono font-semibold break-all"
+                          >
+                            {session.id}
+                          </span>
+                        </div>
+                        <p className="text-text-muted leading-relaxed break-words">
+                          {t.resumeConfirmDisclaimer}
+                        </p>
+                      </div>
+
+                      {resumeError && (
+                        <div
+                          role="alert"
+                          data-testid={`resume-error-${session.id}`}
+                          className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
+                        >
+                          {t.resumeError}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
+                        <button
+                          type="button"
+                          tabIndex={0}
+                          data-testid={`cancel-resume-button-${session.id}`}
+                          onClick={handleCancelResume}
+                          disabled={isResuming}
+                          className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                        >
+                          {t.cancelResume}
+                        </button>
+                        {resumeError ? (
+                          <button
+                            type="button"
+                            tabIndex={0}
+                            data-testid={`retry-resume-button-${session.id}`}
+                            onClick={() => handleConfirmResume(session.id)}
+                            disabled={isResuming}
+                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                          >
+                            {isResuming ? t.resuming : t.retryResume}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            tabIndex={0}
+                            data-testid={`confirm-resume-button-${session.id}`}
+                            onClick={() => handleConfirmResume(session.id)}
+                            disabled={isResuming}
+                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                          >
+                            {isResuming ? t.resuming : t.confirmResume}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {nextCursor !== null && (
+            <div className="mt-3 flex flex-col items-center gap-2">
+              {loadMoreError && (
+                <div
+                  role="alert"
+                  data-testid="load-more-active-error"
+                  className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 text-xs font-medium"
+                >
+                  {t.loadMoreError}
                 </div>
-
-                {isConfirmingEnd && (
-                  <div
-                    data-testid={`end-confirm-panel-${session.id}`}
-                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
-                  >
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex flex-wrap items-baseline gap-1.5">
-                        <span className="text-text-muted shrink-0 font-medium">
-                          {t.targetIdLabel}
-                        </span>
-                        <span
-                          data-testid={`confirm-session-id-${session.id}`}
-                          className="text-text-default font-mono font-semibold break-all"
-                        >
-                          {session.id}
-                        </span>
-                      </div>
-                      <p className="text-text-muted leading-relaxed break-words">
-                        {t.endConfirmDisclaimer}
-                      </p>
-                    </div>
-
-                    {endError && (
-                      <div
-                        role="alert"
-                        data-testid={`end-error-${session.id}`}
-                        className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
-                      >
-                        {t.endError}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
-                      <button
-                        type="button"
-                        tabIndex={0}
-                        data-testid={`cancel-end-button-${session.id}`}
-                        onClick={handleCancelConfirm}
-                        disabled={isEnding}
-                        className="text-text-muted hover:text-text-default border-border-subtle focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                      >
-                        {t.cancelEnd}
-                      </button>
-                      {endError ? (
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`retry-end-button-${session.id}`}
-                          onClick={() => handleConfirmEnd(session.id)}
-                          disabled={isEnding}
-                          className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {isEnding ? t.ending : t.retryEnd}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`confirm-end-button-${session.id}`}
-                          onClick={() => handleConfirmEnd(session.id)}
-                          disabled={isEnding}
-                          className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {isEnding ? t.ending : t.confirmEnd}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {isConfirmingResume && (
-                  <div
-                    data-testid={`resume-confirm-panel-${session.id}`}
-                    className="bg-surface-subtle border-border-subtle mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
-                  >
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex flex-wrap items-baseline gap-1.5">
-                        <span className="text-text-muted shrink-0 font-medium">
-                          {t.targetIdLabel}
-                        </span>
-                        <span
-                          data-testid={`confirm-resume-session-id-${session.id}`}
-                          className="text-text-default font-mono font-semibold break-all"
-                        >
-                          {session.id}
-                        </span>
-                      </div>
-                      <p className="text-text-muted leading-relaxed break-words">
-                        {t.resumeConfirmDisclaimer}
-                      </p>
-                    </div>
-
-                    {resumeError && (
-                      <div
-                        role="alert"
-                        data-testid={`resume-error-${session.id}`}
-                        className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
-                      >
-                        {t.resumeError}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
-                      <button
-                        type="button"
-                        tabIndex={0}
-                        data-testid={`cancel-resume-button-${session.id}`}
-                        onClick={handleCancelResume}
-                        disabled={isResuming}
-                        className="text-text-muted hover:text-text-default border-border-subtle focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                      >
-                        {t.cancelResume}
-                      </button>
-                      {resumeError ? (
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`retry-resume-button-${session.id}`}
-                          onClick={() => handleConfirmResume(session.id)}
-                          disabled={isResuming}
-                          className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {isResuming ? t.resuming : t.retryResume}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`confirm-resume-button-${session.id}`}
-                          onClick={() => handleConfirmResume(session.id)}
-                          disabled={isResuming}
-                          className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {isResuming ? t.resuming : t.confirmResume}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+              )}
+              <button
+                type="button"
+                tabIndex={0}
+                data-testid="load-more-active-button"
+                onClick={handleLoadMore}
+                disabled={loadingMore || isEnding || isResuming || isStarting}
+                className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-4 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+              >
+                {loadingMore ? t.loadingMore : loadMoreError ? t.retryLoadMore : t.loadMore}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

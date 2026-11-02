@@ -16,6 +16,7 @@ describe("clearUserSessionData", () => {
     useConversationStore.setState({
       sessionId: "session-123",
       token: "livekit-token-abc",
+      wsUrl: "wss://lk.test",
       appView: "session",
       connectionState: "active",
     });

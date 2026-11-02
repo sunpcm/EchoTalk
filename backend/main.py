@@ -7,11 +7,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
 
 from config import settings
-from database import async_session_maker
-from models.knowledge import SEED_SKILLS, Skill
 from routers import (
     assessment,
     call_capabilities,
@@ -25,20 +22,8 @@ from routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期：验证安全配置并写入幂等参考数据。"""
+    """应用生命周期：验证安全配置。不再自动写库播种参考技能。"""
     settings.validate_runtime()
-    async with async_session_maker() as session:
-        # 种子技能数据（Phase 2）
-        if SEED_SKILLS:
-            seed_ids = [s["id"] for s in SEED_SKILLS]
-            stmt = select(Skill.id).where(Skill.id.in_(seed_ids))
-            result = await session.execute(stmt)
-            existing_ids = set(result.scalars().all())
-
-            for skill_data in SEED_SKILLS:
-                if skill_data["id"] not in existing_ids:
-                    session.add(Skill(**skill_data))
-            await session.commit()
     yield
 
 

@@ -322,4 +322,216 @@ test.describe("回答推荐键盘交互、完整复制与时序隔离 (A26 / CP-
     await expect(section.getByRole("button")).toHaveCount(3);
     await expect(section.getByText("已复制")).not.toBeVisible();
   });
+
+  test("冒号边界碰撞切题即时清除提示，且新题可再次复制成功 (A33 / CP-05)", async ({ page }) => {
+    // 监控页面异常：0 pageerror
+    const pageErrors: Error[] = [];
+    page.on("pageerror", (err) => pageErrors.push(err));
+
+    // 监控零隐式写：夹具渲染与交互期间不得发起任何后端会话/令牌/租约/调度写请求
+    const sessionPostRequests: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" || req.method() === "PUT") {
+        const url = req.url();
+        if (
+          url.includes("/api/sessions") ||
+          url.includes("/dispatch") ||
+          url.includes("/lease") ||
+          url.includes("/token")
+        ) {
+          sessionPostRequests.push(`${req.method()} ${url}`);
+        }
+      }
+    });
+
+    await page.goto("/e2e/fixtures/answer-recommendations.html");
+
+    const section = page.getByRole("region", { name: "回答推荐" });
+    await expect(section).toBeVisible();
+
+    // 1. 设置题目 A: id="seg", text="What:is your hobby?"
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent("voice-assistant-update", {
+          detail: {
+            agentTranscriptions: [
+              {
+                id: "seg",
+                text: "What:is your hobby?",
+                final: true,
+                firstReceivedTime: Date.now(),
+              },
+            ],
+            state: "listening",
+          },
+        }),
+      );
+    });
+
+    const buttons = section.getByRole("button");
+    await expect(buttons.first()).toBeVisible();
+    await buttons.nth(0).click();
+    await expect(buttons.nth(0).getByText("已复制")).toBeVisible();
+
+    const writes1 = await page.evaluate(() => window.__clipboardWrites || []);
+    expect(writes1.length).toBeGreaterThan(0);
+    const textA = writes1[writes1.length - 1];
+
+    // 2. 切换至存在冒号拼接碰撞风险的题目 B: id="seg:What", text="is your hobby?"
+    // 旧冒号直接拼接会生成相同 scopeKey ("seg:What:is your hobby?") 导致反馈残留；
+    // 无歧义元组编码下两者严格隔离，切题后旧提示立即清除
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent("voice-assistant-update", {
+          detail: {
+            agentTranscriptions: [
+              {
+                id: "seg:What",
+                text: "is your hobby?",
+                final: true,
+                firstReceivedTime: Date.now(),
+              },
+            ],
+            state: "listening",
+          },
+        }),
+      );
+    });
+
+    // 立即断言已复制提示消失
+    await expect(section.getByText("已复制")).not.toBeVisible();
+
+    // 3. 在新题目上再次点击复制，断言复制成功显示并写入新剪贴板内容
+    const newButtons = section.getByRole("button");
+    await newButtons.nth(0).click();
+    await expect(newButtons.nth(0).getByText("已复制")).toBeVisible();
+
+    const writes2 = await page.evaluate(() => window.__clipboardWrites || []);
+    expect(writes2.length).toBe(writes1.length + 1);
+    expect(writes2[writes2.length - 1]).not.toBe(textA);
+
+    // 4. 断言 0 pageerror 与零隐式写
+    expect(pageErrors).toHaveLength(0);
+    expect(sessionPostRequests).toHaveLength(0);
+  });
+
+  test("冒号碰撞题目间迟到 clipboard 完成不污染新题目，且新题目复制成功 (A33 / CP-05)", async ({
+    page,
+  }) => {
+    const pageErrors: Error[] = [];
+    page.on("pageerror", (err) => pageErrors.push(err));
+
+    const sessionPostRequests: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" || req.method() === "PUT") {
+        const url = req.url();
+        if (
+          url.includes("/api/sessions") ||
+          url.includes("/dispatch") ||
+          url.includes("/lease") ||
+          url.includes("/token")
+        ) {
+          sessionPostRequests.push(`${req.method()} ${url}`);
+        }
+      }
+    });
+
+    await page.goto("/e2e/fixtures/answer-recommendations.html");
+
+    const section = page.getByRole("region", { name: "回答推荐" });
+    await expect(section).toBeVisible();
+
+    // 注入受控 clipboard 延迟桩
+    await page.evaluate(() => {
+      window.__delayedResolvers = [];
+      Object.defineProperty(navigator, "clipboard", {
+        value: {
+          writeText: (text: string) => {
+            window.__clipboardWrites = window.__clipboardWrites || [];
+            window.__clipboardWrites.push(text);
+            return new Promise<void>((resolve) => {
+              window.__delayedResolvers.push(resolve);
+            });
+          },
+        },
+        configurable: true,
+      });
+    });
+
+    // 1. 设置题目 A: id="seg", text="What:is your hobby?"
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent("voice-assistant-update", {
+          detail: {
+            agentTranscriptions: [
+              {
+                id: "seg",
+                text: "What:is your hobby?",
+                final: true,
+                firstReceivedTime: Date.now(),
+              },
+            ],
+            state: "listening",
+          },
+        }),
+      );
+    });
+
+    const buttons = section.getByRole("button");
+    await expect(buttons.first()).toBeVisible();
+
+    // 点击题目 A 按钮，处于 pending 状态
+    await buttons.nth(0).click();
+    await expect(section.getByText("已复制")).not.toBeVisible();
+
+    // 2. 在 pending 期间切换至冒号碰撞题目 B: id="seg:What", text="is your hobby?"
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent("voice-assistant-update", {
+          detail: {
+            agentTranscriptions: [
+              {
+                id: "seg:What",
+                text: "is your hobby?",
+                final: true,
+                firstReceivedTime: Date.now(),
+              },
+            ],
+            state: "listening",
+          },
+        }),
+      );
+    });
+
+    // 3. 释放题目 A 的剪贴板 Promise
+    await page.evaluate(() => {
+      if (window.__delayedResolvers.length > 0) {
+        const resolve = window.__delayedResolvers.shift();
+        resolve();
+      }
+    });
+
+    // 关键断言：题目 A 的迟到写入完成绝不能污染题目 B，面板上不得出现“已复制”
+    await expect(section.getByText("已复制")).not.toBeVisible();
+
+    // 4. 在题目 B 上发起复制并完成
+    const newButtons = section.getByRole("button");
+    await newButtons.nth(0).click();
+
+    await page.evaluate(() => {
+      if (window.__delayedResolvers.length > 0) {
+        const resolve = window.__delayedResolvers.shift();
+        resolve();
+      }
+    });
+
+    // 题目 B 正常显示已复制
+    await expect(newButtons.nth(0).getByText("已复制")).toBeVisible();
+
+    const writes = await page.evaluate(() => window.__clipboardWrites || []);
+    expect(writes.length).toBeGreaterThanOrEqual(2);
+
+    expect(pageErrors).toHaveLength(0);
+    expect(sessionPostRequests).toHaveLength(0);
+  });
 });

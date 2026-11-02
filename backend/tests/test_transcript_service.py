@@ -149,3 +149,41 @@ async def test_save_transcript_db_exception():
         )
 
         assert result is None
+
+
+@pytest.mark.asyncio
+async def test_save_transcript_invalid_event_id():
+    """验证传入非法 event_id (非 UUID 格式或空字符串) 时，直接返回 None 零写，不降级为 legacy。"""
+    session_id_str = str(uuid.uuid4())
+    mock_session = AsyncMock()
+    mock_maker = create_mock_session_maker(mock_session)
+
+    with patch("services.transcript_service.async_session_maker", mock_maker):
+        # 1. 坏 UUID 字符串
+        res_bad = await save_transcript(
+            session_id=session_id_str,
+            role="user",
+            content="Hello",
+            event_id="not-a-valid-uuid",
+        )
+        assert res_bad is None
+
+        # 2. 空字符串
+        res_empty = await save_transcript(
+            session_id=session_id_str,
+            role="user",
+            content="Hello",
+            event_id="   ",
+        )
+        assert res_empty is None
+
+        # 3. 非法类型
+        res_type = await save_transcript(
+            session_id=session_id_str,
+            role="user",
+            content="Hello",
+            event_id=12345,  # type: ignore
+        )
+        assert res_type is None
+
+        mock_maker.assert_not_called()

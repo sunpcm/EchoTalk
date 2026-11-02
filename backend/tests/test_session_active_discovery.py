@@ -13,7 +13,7 @@
 
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -34,6 +34,7 @@ from models.session import (
     Transcript,
 )
 from models.user import User
+from time_utils import utc_now
 
 
 def _test_database_url() -> str | None:
@@ -141,7 +142,7 @@ async def pg_env():
         with_doc_context: bool = False,
     ) -> Session:
         s_id = session_id or uuid.uuid4()
-        s_time = started_at or datetime.utcnow()
+        s_time = started_at or utc_now()
         session = Session(
             id=s_id,
             user_id=user_id,
@@ -234,8 +235,9 @@ async def test_active_sessions_multi_user_isolation(pg_env):
         resp = await client.get("/api/sessions/active")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 2
-        returned_ids = {item["id"] for item in data}
+        assert "items" in data
+        assert len(data["items"]) == 2
+        returned_ids = {item["id"] for item in data["items"]}
         assert returned_ids == {str(s_a1.id), str(s_a2.id)}
 
     # User B 查询：只看到 B 的 1 个活跃会话
@@ -243,14 +245,14 @@ async def test_active_sessions_multi_user_isolation(pg_env):
         resp = await client.get("/api/sessions/active")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        assert data[0]["id"] == str(s_b1.id)
+        assert len(data["items"]) == 1
+        assert data["items"][0]["id"] == str(s_b1.id)
 
     # User C 查询：无任何会话，返回空列表 200
     async with pg_env.make_client(user_id=user_c.id) as client:
         resp = await client.get("/api/sessions/active")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.json()["items"] == []
 
 
 @pytest.mark.asyncio
@@ -258,7 +260,7 @@ async def test_active_sessions_filter_completed_and_cancelled(pg_env):
     """验证 GET /api/sessions/active 严格过滤 status=active，排除 completed 与 cancelled。"""
     user = await pg_env.create_test_user()
 
-    now = datetime.utcnow()
+    now = utc_now()
     # 创建三种状态的会话
     s_active = await pg_env.create_test_session(
         user.id,
@@ -285,9 +287,9 @@ async def test_active_sessions_filter_completed_and_cancelled(pg_env):
         resp = await client.get("/api/sessions/active")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        assert data[0]["id"] == str(s_active.id)
-        assert data[0]["status"] == "active"
+        assert len(data["items"]) == 1
+        assert data["items"][0]["id"] == str(s_active.id)
+        assert data["items"][0]["status"] == "active"
 
 
 @pytest.mark.asyncio
@@ -296,7 +298,7 @@ async def test_active_sessions_empty_list_returns_200(pg_env):
     user = await pg_env.create_test_user()
 
     # 仅存在 completed 会话
-    now = datetime.utcnow()
+    now = utc_now()
     await pg_env.create_test_session(
         user.id,
         SessionMode.free_talk,
@@ -308,7 +310,7 @@ async def test_active_sessions_empty_list_returns_200(pg_env):
     async with pg_env.make_client(user_id=user.id) as client:
         resp = await client.get("/api/sessions/active")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.json()["items"] == []
 
 
 @pytest.mark.asyncio
@@ -316,7 +318,7 @@ async def test_active_sessions_deterministic_ordering_with_same_timestamp(pg_env
     """验证按 started_at desc, id desc 确定性排序，包括时间戳完全相同时按 UUID 降序。"""
     user = await pg_env.create_test_user()
 
-    base_time = datetime(2026, 10, 21, 10, 0, 0)
+    base_time = datetime(2026, 10, 21, 10, 0, 0, tzinfo=timezone.utc)
     t_early = base_time
     t_same = base_time + timedelta(hours=1)
     t_late = base_time + timedelta(hours=2)
@@ -356,7 +358,7 @@ async def test_active_sessions_deterministic_ordering_with_same_timestamp(pg_env
         resp = await client.get("/api/sessions/active")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 4
+        assert len(data["items"]) == 4
 
         # 预期顺序：
         # 1. s_late (started_at 最大)
@@ -369,7 +371,7 @@ async def test_active_sessions_deterministic_ordering_with_same_timestamp(pg_env
             str(s_same_low.id),
             str(s_early.id),
         ]
-        actual_ids = [item["id"] for item in data]
+        actual_ids = [item["id"] for item in data["items"]]
         assert actual_ids == expected_ids
 
 
@@ -389,8 +391,8 @@ async def test_active_sessions_response_fields_minimized(pg_env):
         resp = await client.get("/api/sessions/active")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        item = data[0]
+        assert len(data["items"]) == 1
+        item = data["items"][0]
 
         # 仅允许的公共字段集合
         allowed_fields = {"id", "mode", "status", "started_at", "ended_at"}
@@ -439,7 +441,7 @@ async def test_active_sessions_preserves_dynamic_detail_and_history_routes(pg_en
     """验证 GET /api/sessions/active 置于 GET /api/sessions/{session_id} 之前，二者互不干扰。"""
     user = await pg_env.create_test_user()
 
-    now = datetime.utcnow()
+    now = utc_now()
     s_active = await pg_env.create_test_session(
         user.id,
         SessionMode.free_talk,
@@ -458,14 +460,14 @@ async def test_active_sessions_preserves_dynamic_detail_and_history_routes(pg_en
         # 1. 活跃发现接口：返回 active
         resp_active = await client.get("/api/sessions/active")
         assert resp_active.status_code == 200
-        active_items = resp_active.json()
+        active_items = resp_active.json()["items"]
         assert len(active_items) == 1
         assert active_items[0]["id"] == str(s_active.id)
 
         # 2. 完整历史接口：返回 active 与 completed
         resp_history = await client.get("/api/sessions")
         assert resp_history.status_code == 200
-        history_items = resp_history.json()
+        history_items = resp_history.json()["items"]
         assert len(history_items) == 2
         history_ids = [item["id"] for item in history_items]
         assert str(s_active.id) in history_ids
@@ -520,7 +522,7 @@ async def test_active_sessions_read_only_does_not_modify_database(pg_env):
         for _ in range(3):
             resp = await client.get("/api/sessions/active")
             assert resp.status_code == 200
-            assert len(resp.json()) == 1
+            assert len(resp.json()["items"]) == 1
 
     # 读后快照对比
     async with pg_env.session_factory() as db:

@@ -1,0 +1,12 @@
+{
+  "name": "echotalk-macos-m1-offline-probe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "probe:test": "node --test --test-timeout=5000 test/*.test.mjs"
+  }
+}

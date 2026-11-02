@@ -71,7 +71,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
         <button
           onClick={() => useConversationStore.setState({ appView: "doc-chat-setup" })}
           style={{ background: "var(--panel-gradient)" }}
-          className="border-accent-soft-border focus-visible:ring-accent flex w-full items-center gap-4 rounded-[20px] border p-5 text-left shadow-[0_8px_26px_-14px_var(--accent-shadow)] transition-shadow hover:shadow-[0_12px_30px_-12px_var(--accent-shadow)] focus-visible:ring-2 focus-visible:outline-none"
+          className="border-accent-soft-border focus-visible:ring-accent flex w-full items-center gap-4 rounded-[20px] border p-5 text-left shadow-[0_8px_26px_-14px_var(--accent-shadow)] transition-colors transition-shadow hover:shadow-[0_12px_30px_-12px_var(--accent-shadow)] focus-visible:ring-2 focus-visible:outline-none"
         >
           <div className="bg-surface flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] shadow-[0_4px_10px_-4px_var(--accent-shadow)]">
             <svg

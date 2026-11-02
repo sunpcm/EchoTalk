@@ -6,6 +6,7 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -17,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
+from time_utils import utc_now
 
 
 class PronunciationAssessment(Base):
@@ -52,7 +54,9 @@ class PronunciationAssessment(Base):
         String(500), nullable=True
     )
     elsa_response = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
 
     # 关系
     session: Mapped["Session"] = relationship()  # noqa: F821
@@ -72,6 +76,11 @@ class GrammarError(Base):
             "session_id",
             postgresql_where=text("is_synthetic = false"),
         ),
+        Index(
+            "ix_grammar_errors_session_created",
+            "session_id",
+            "created_at",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -89,7 +98,9 @@ class GrammarError(Base):
     model_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_synthetic: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
 
     # 关系
     session: Mapped["Session"] = relationship()  # noqa: F821

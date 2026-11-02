@@ -1,9 +1,10 @@
 """会话相关 Pydantic 请求/响应模型。"""
 
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
+
+from schemas.time import UtcDatetime
 
 
 class DocContext(BaseModel):
@@ -42,8 +43,8 @@ class SessionResponse(BaseModel):
     user_id: UUID
     mode: str
     status: str
-    started_at: datetime
-    ended_at: datetime | None = None
+    started_at: UtcDatetime
+    ended_at: UtcDatetime | None = None
     transcripts: list[TranscriptResponse] = []
 
     model_config = {"from_attributes": True}
@@ -55,10 +56,24 @@ class SessionListItem(BaseModel):
     id: UUID
     mode: str
     status: str
-    started_at: datetime
-    ended_at: datetime | None = None
+    started_at: UtcDatetime
+    ended_at: UtcDatetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class SessionListResponse(BaseModel):
+    """会话分页列表响应。"""
+
+    items: list[SessionListItem]
+    next_cursor: str | None = None
+
+
+class DailyProgressResponse(BaseModel):
+    """每日进度聚合统计响应。"""
+
+    completed_sessions: int
+    total_turns: int
 
 
 class AnalysisStatusResponse(BaseModel):
@@ -69,6 +84,6 @@ class AnalysisStatusResponse(BaseModel):
     attempt_count: int
     error_code: str | None = None
     retryable: bool
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    updated_at: datetime
+    started_at: UtcDatetime | None = None
+    finished_at: UtcDatetime | None = None
+    updated_at: UtcDatetime

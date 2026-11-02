@@ -1,6 +1,6 @@
 import React, { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { ActiveSessions } from "./ActiveSessions";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
@@ -132,7 +132,7 @@ describe("ActiveSessions Component", () => {
 
   describe("Basic rendering & modes", () => {
     it("renders loading initially, disclaimer, title, and then active sessions list", async () => {
-      const deferred = createDeferred<api.SessionListItem[]>();
+      const deferred = createDeferred<api.SessionListResponse>();
       vi.spyOn(api, "listActiveSessions").mockReturnValue(deferred.promise);
 
       render(<ActiveSessions />);
@@ -141,15 +141,18 @@ describe("ActiveSessions Component", () => {
       expect(screen.getByText(t.disclaimer)).toBeInTheDocument();
       expect(screen.getByText(t.loading)).toBeInTheDocument();
 
-      const mockData: api.SessionListItem[] = [
-        {
-          id: "session-abc-123",
-          mode: "free_talk",
-          status: "active",
-          started_at: "2026-10-21T10:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockData: api.SessionListResponse = {
+        items: [
+          {
+            id: "session-abc-123",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
 
       await act(async () => {
         deferred.resolve(mockData);
@@ -173,7 +176,7 @@ describe("ActiveSessions Component", () => {
     });
 
     it("renders empty state when session list is empty", async () => {
-      vi.spyOn(api, "listActiveSessions").mockResolvedValue([]);
+      vi.spyOn(api, "listActiveSessions").mockResolvedValue({ items: [], next_cursor: null });
 
       render(<ActiveSessions />);
 
@@ -186,15 +189,18 @@ describe("ActiveSessions Component", () => {
     });
 
     it("renders generic label for unknown modes", async () => {
-      const mockData: api.SessionListItem[] = [
-        {
-          id: "sess-unknown",
-          mode: "custom_unsupported_mode",
-          status: "active",
-          started_at: "2026-10-21T10:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockData: api.SessionListResponse = {
+        items: [
+          {
+            id: "sess-unknown",
+            mode: "custom_unsupported_mode",
+            status: "active",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
       vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockData);
 
       render(<ActiveSessions />);
@@ -209,15 +215,18 @@ describe("ActiveSessions Component", () => {
     it.each(["constructor", "toString", "__proto__", "valueOf", "isPrototypeOf"])(
       "safely renders generic unknownMode label when session mode matches Object prototype property '%s'",
       async (specialMode) => {
-        const mockData: api.SessionListItem[] = [
-          {
-            id: `sess-${specialMode}`,
-            mode: specialMode,
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ];
+        const mockData: api.SessionListResponse = {
+          items: [
+            {
+              id: `sess-${specialMode}`,
+              mode: specialMode,
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        };
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockData);
 
         render(<ActiveSessions />);
@@ -239,15 +248,18 @@ describe("ActiveSessions Component", () => {
       ["scenario", t.modes.scenario],
       ["exam_prep", t.modes.exam_prep],
     ])("renders correct localized label for known mode '%s'", async (mode, expectedLabel) => {
-      const mockData: api.SessionListItem[] = [
-        {
-          id: `sess-${mode}`,
-          mode,
-          status: "active",
-          started_at: "2026-10-21T10:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockData: api.SessionListResponse = {
+        items: [
+          {
+            id: `sess-${mode}`,
+            mode,
+            status: "active",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
       vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockData);
 
       render(<ActiveSessions />);
@@ -260,22 +272,25 @@ describe("ActiveSessions Component", () => {
     });
 
     it("preserves backend order in rendering", async () => {
-      const mockData: api.SessionListItem[] = [
-        {
-          id: "sess-2",
-          mode: "doc_chat",
-          status: "active",
-          started_at: "2026-10-21T11:00:00Z",
-          ended_at: null,
-        },
-        {
-          id: "sess-1",
-          mode: "scenario",
-          status: "active",
-          started_at: "2026-10-21T09:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockData: api.SessionListResponse = {
+        items: [
+          {
+            id: "sess-2",
+            mode: "doc_chat",
+            status: "active",
+            started_at: "2026-10-21T11:00:00Z",
+            ended_at: null,
+          },
+          {
+            id: "sess-1",
+            mode: "scenario",
+            status: "active",
+            started_at: "2026-10-21T09:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
       vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockData);
 
       render(<ActiveSessions />);
@@ -293,7 +308,7 @@ describe("ActiveSessions Component", () => {
   describe("Error handling and retry", () => {
     it("shows generic error message without leaking server error details and supports retry", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise);
 
       render(<ActiveSessions />);
@@ -313,22 +328,25 @@ describe("ActiveSessions Component", () => {
       expect(retryBtn).not.toBeDisabled();
 
       // 点击重试
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred2.promise);
 
       fireEvent.click(retryBtn);
       expect(listSpy).toHaveBeenCalledTimes(2);
 
       await act(async () => {
-        deferred2.resolve([
-          {
-            id: "sess-recovered",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred2.resolve({
+          items: [
+            {
+              id: "sess-recovered",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
 
       expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
@@ -346,7 +364,7 @@ describe("ActiveSessions Component", () => {
       });
 
       const retryBtn = screen.getByRole("button", { name: t.retry });
-      const deferred = createDeferred<api.SessionListItem[]>();
+      const deferred = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred.promise);
 
       fireEvent.click(retryBtn);
@@ -357,7 +375,7 @@ describe("ActiveSessions Component", () => {
       expect(listSpy).toHaveBeenCalledTimes(2); // 初次 + 单次重试
 
       await act(async () => {
-        deferred.resolve([]);
+        deferred.resolve({ items: [], next_cursor: null });
       });
     });
   });
@@ -381,7 +399,7 @@ describe("ActiveSessions Component", () => {
     );
 
     it("clears data immediately upon logout and ignores stale in-flight response", async () => {
-      const deferred = createDeferred<api.SessionListItem[]>();
+      const deferred = createDeferred<api.SessionListResponse>();
       vi.spyOn(api, "listActiveSessions").mockReturnValue(deferred.promise);
 
       const { container } = render(<ActiveSessions />);
@@ -398,15 +416,18 @@ describe("ActiveSessions Component", () => {
 
       // 旧请求迟到成功
       await act(async () => {
-        deferred.resolve([
-          {
-            id: "stale-session-id",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred.resolve({
+          items: [
+            {
+              id: "stale-session-id",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
 
       // 依然为空，不被旧数据回填污染
@@ -416,13 +437,13 @@ describe("ActiveSessions Component", () => {
 
     it("clears data upon account switch and fetches for the new account", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise);
 
       render(<ActiveSessions />);
 
       // 换号到 user-2
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred2.promise);
 
       await act(async () => {
@@ -436,15 +457,18 @@ describe("ActiveSessions Component", () => {
 
       // 旧 user-1 的请求迟到返回
       await act(async () => {
-        deferred1.resolve([
-          {
-            id: "user-1-session",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred1.resolve({
+          items: [
+            {
+              id: "user-1-session",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
 
       // 不应展示 user-1 的数据
@@ -452,15 +476,18 @@ describe("ActiveSessions Component", () => {
 
       // 新 user-2 请求返回
       await act(async () => {
-        deferred2.resolve([
-          {
-            id: "user-2-session",
-            mode: "doc_chat",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred2.resolve({
+          items: [
+            {
+              id: "user-2-session",
+              mode: "doc_chat",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
 
       expect(screen.getByText("user-2-session")).toBeInTheDocument();
@@ -469,13 +496,13 @@ describe("ActiveSessions Component", () => {
 
     it("ignores old request when same principal logs out and logs in again with new revision", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise);
 
       render(<ActiveSessions />);
 
       // 同账号登出再登入，生成新 revision
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred2.promise);
 
       await act(async () => {
@@ -506,15 +533,18 @@ describe("ActiveSessions Component", () => {
 
       // 第二次请求成功返回
       await act(async () => {
-        deferred2.resolve([
-          {
-            id: "relogin-fresh-session",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred2.resolve({
+          items: [
+            {
+              id: "relogin-fresh-session",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
 
       expect(screen.getByText("relogin-fresh-session")).toBeInTheDocument();
@@ -524,13 +554,13 @@ describe("ActiveSessions Component", () => {
   describe("Deferred timing, race conditions & StrictMode", () => {
     it("handles out-of-order responses by discarding older request", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise);
 
       render(<ActiveSessions />);
 
       // 触发新请求（例如 revision 更新）
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred2.promise);
 
       await act(async () => {
@@ -545,30 +575,36 @@ describe("ActiveSessions Component", () => {
 
       // 第二个请求先返回
       await act(async () => {
-        deferred2.resolve([
-          {
-            id: "newer-session-data",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred2.resolve({
+          items: [
+            {
+              id: "newer-session-data",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
 
       expect(screen.getByText("newer-session-data")).toBeInTheDocument();
 
       // 第一个请求迟到返回
       await act(async () => {
-        deferred1.resolve([
-          {
-            id: "older-stale-session-data",
-            mode: "doc_chat",
-            status: "active",
-            started_at: "2026-10-21T09:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred1.resolve({
+          items: [
+            {
+              id: "older-stale-session-data",
+              mode: "doc_chat",
+              status: "active",
+              started_at: "2026-10-21T09:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
 
       // 页面应依然展示 newer-session-data，绝不被旧数据冲掉
@@ -577,7 +613,7 @@ describe("ActiveSessions Component", () => {
     });
 
     it("safely unmounts without writing state when in-flight request resolves or rejects", async () => {
-      const deferred = createDeferred<api.SessionListItem[]>();
+      const deferred = createDeferred<api.SessionListResponse>();
       vi.spyOn(api, "listActiveSessions").mockReturnValue(deferred.promise);
 
       const { unmount } = render(<ActiveSessions />);
@@ -585,20 +621,23 @@ describe("ActiveSessions Component", () => {
 
       // 卸载后解析，不抛出异常或更新已卸载组件状态
       await act(async () => {
-        deferred.resolve([
-          {
-            id: "sess-after-unmount",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred.resolve({
+          items: [
+            {
+              id: "sess-after-unmount",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
     });
 
     it("operates normally under React StrictMode", async () => {
-      const deferred = createDeferred<api.SessionListItem[]>();
+      const deferred = createDeferred<api.SessionListResponse>();
       vi.spyOn(api, "listActiveSessions").mockReturnValue(deferred.promise);
 
       render(
@@ -608,16 +647,21 @@ describe("ActiveSessions Component", () => {
       );
 
       await act(async () => {
-        deferred.resolve([
-          {
-            id: "strict-mode-session",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        deferred.resolve({
+          items: [
+            {
+              id: "strict-mode-session",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
       });
+
+      expect(screen.getByText("strict-mode-session")).toBeInTheDocument();
 
       expect(screen.getByText("strict-mode-session")).toBeInTheDocument();
     });
@@ -655,7 +699,7 @@ describe("ActiveSessions Component", () => {
 
       it("allows discovery on initial mount when visibility is unknown or online is null", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        listSpy.mockResolvedValueOnce([]);
+        listSpy.mockResolvedValueOnce({ items: [], next_cursor: null });
 
         setDocumentVisibility(undefined);
         setNavigatorOnline(undefined);
@@ -671,15 +715,18 @@ describe("ActiveSessions Component", () => {
 
       it("when account changes while backgrounded or offline, previous account data is cleared immediately and new account discovery is deferred until eligible lifecycle event", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const initialData: api.SessionListItem[] = [
-          {
-            id: "user-1-initial-session",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ];
+        const initialData: api.SessionListResponse = {
+          items: [
+            {
+              id: "user-1-initial-session",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        };
         listSpy.mockResolvedValueOnce(initialData);
 
         render(<ActiveSessions />);
@@ -708,15 +755,18 @@ describe("ActiveSessions Component", () => {
         expect(listSpy).toHaveBeenCalledTimes(1);
 
         // 3. 切回前台
-        const user2Data: api.SessionListItem[] = [
-          {
-            id: "user-2-resumed-session",
-            mode: "doc_chat",
-            status: "active",
-            started_at: "2026-10-21T11:00:00Z",
-            ended_at: null,
-          },
-        ];
+        const user2Data: api.SessionListResponse = {
+          items: [
+            {
+              id: "user-2-resumed-session",
+              mode: "doc_chat",
+              status: "active",
+              started_at: "2026-10-21T11:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        };
         listSpy.mockResolvedValueOnce(user2Data);
 
         await act(async () => {
@@ -736,15 +786,18 @@ describe("ActiveSessions Component", () => {
       it("fetches active sessions on resume event when visible and online", async () => {
         setDocumentVisibility("hidden");
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        listSpy.mockResolvedValueOnce([
-          {
-            id: "resumed-session-1",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        listSpy.mockResolvedValueOnce({
+          items: [
+            {
+              id: "resumed-session-1",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
 
         render(<ActiveSessions />);
         expect(listSpy).not.toHaveBeenCalled();
@@ -779,15 +832,18 @@ describe("ActiveSessions Component", () => {
       it("fetches active sessions on connectivity event when online=true and visible", async () => {
         setNavigatorOnline(false);
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        listSpy.mockResolvedValueOnce([
-          {
-            id: "online-session-1",
-            mode: "pronunciation",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        listSpy.mockResolvedValueOnce({
+          items: [
+            {
+              id: "online-session-1",
+              mode: "pronunciation",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
 
         render(<ActiveSessions />);
         expect(listSpy).not.toHaveBeenCalled();
@@ -819,15 +875,18 @@ describe("ActiveSessions Component", () => {
         expect(listSpy).not.toHaveBeenCalled();
 
         // 随后回到前台
-        listSpy.mockResolvedValueOnce([
-          {
-            id: "resumed-after-connectivity",
-            mode: "scenario",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        listSpy.mockResolvedValueOnce({
+          items: [
+            {
+              id: "resumed-after-connectivity",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
         await act(async () => {
           dispatchVisibilityChange("visible");
         });
@@ -841,7 +900,7 @@ describe("ActiveSessions Component", () => {
 
       it("merges and deduplicates duplicate resume and connectivity events while request is in-flight", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const deferred = createDeferred<api.SessionListItem[]>();
+        const deferred = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(deferred.promise);
 
         render(<ActiveSessions />);
@@ -859,7 +918,7 @@ describe("ActiveSessions Component", () => {
         expect(listSpy).toHaveBeenCalledTimes(1);
 
         await act(async () => {
-          deferred.resolve([]);
+          deferred.resolve({ items: [], next_cursor: null });
         });
       });
     });
@@ -867,15 +926,18 @@ describe("ActiveSessions Component", () => {
     describe("Suspend & offline request cancellation and state preservation", () => {
       it("aborts in-flight request, clears inFlight slot, exits loading, keeps existing sessions, and does not show error on suspend event", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const initialData: api.SessionListItem[] = [
-          {
-            id: "kept-session-1",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ];
+        const initialData: api.SessionListResponse = {
+          items: [
+            {
+              id: "kept-session-1",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        };
         listSpy.mockResolvedValueOnce(initialData);
 
         render(<ActiveSessions />);
@@ -885,7 +947,7 @@ describe("ActiveSessions Component", () => {
         expect(screen.getByText("kept-session-1")).toBeInTheDocument();
 
         // 发起第二轮请求并在途
-        const deferred = createDeferred<api.SessionListItem[]>();
+        const deferred = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(deferred.promise);
 
         // 触发 resume 发起刷新
@@ -906,15 +968,18 @@ describe("ActiveSessions Component", () => {
 
         // 迟到的旧请求 resolve，被废弃且不污染
         await act(async () => {
-          deferred.resolve([
-            {
-              id: "stale-session-ignored",
-              mode: "doc_chat",
-              status: "active",
-              started_at: "2026-10-21T11:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          deferred.resolve({
+            items: [
+              {
+                id: "stale-session-ignored",
+                mode: "doc_chat",
+                status: "active",
+                started_at: "2026-10-21T11:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
         expect(screen.getByText("kept-session-1")).toBeInTheDocument();
         expect(screen.queryByText("stale-session-ignored")).not.toBeInTheDocument();
@@ -922,7 +987,7 @@ describe("ActiveSessions Component", () => {
 
       it("aborts in-flight request, clears inFlight slot, exits loading, keeps existing sessions, and does not show error on offline event", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const deferred = createDeferred<api.SessionListItem[]>();
+        const deferred = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(deferred.promise);
 
         render(<ActiveSessions />);
@@ -947,7 +1012,7 @@ describe("ActiveSessions Component", () => {
 
       it("aborts in-flight request on pagehide event as suspend", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const deferred = createDeferred<api.SessionListItem[]>();
+        const deferred = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(deferred.promise);
 
         render(<ActiveSessions />);
@@ -965,7 +1030,7 @@ describe("ActiveSessions Component", () => {
 
         // 迟到请求 resolve 不污染
         await act(async () => {
-          deferred.resolve([]);
+          deferred.resolve({ items: [], next_cursor: null });
         });
       });
     });
@@ -973,8 +1038,8 @@ describe("ActiveSessions Component", () => {
     describe("Stale in-flight request vs resumed/new request isolation", () => {
       it("when old request is still pending and lifecycle suspends then resumes, new request is issued and succeeds; stale old resolve does not pollute data", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const deferredOld = createDeferred<api.SessionListItem[]>();
-        const deferredNew = createDeferred<api.SessionListItem[]>();
+        const deferredOld = createDeferred<api.SessionListResponse>();
+        const deferredNew = createDeferred<api.SessionListResponse>();
 
         listSpy.mockReturnValueOnce(deferredOld.promise);
         render(<ActiveSessions />);
@@ -997,30 +1062,36 @@ describe("ActiveSessions Component", () => {
 
         // 新请求成功解析
         await act(async () => {
-          deferredNew.resolve([
-            {
-              id: "fresh-session-after-resume",
-              mode: "free_talk",
-              status: "active",
-              started_at: "2026-10-21T10:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          deferredNew.resolve({
+            items: [
+              {
+                id: "fresh-session-after-resume",
+                mode: "free_talk",
+                status: "active",
+                started_at: "2026-10-21T10:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
         expect(screen.getByText("fresh-session-after-resume")).toBeInTheDocument();
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
 
         // 旧请求迟到 resolve
         await act(async () => {
-          deferredOld.resolve([
-            {
-              id: "stale-session-before-suspend",
-              mode: "doc_chat",
-              status: "active",
-              started_at: "2026-10-21T09:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          deferredOld.resolve({
+            items: [
+              {
+                id: "stale-session-before-suspend",
+                mode: "doc_chat",
+                status: "active",
+                started_at: "2026-10-21T09:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
 
         // 验证展示的依然是新请求数据，旧数据被安全废弃
@@ -1030,8 +1101,8 @@ describe("ActiveSessions Component", () => {
 
       it("when old request is still pending and lifecycle suspends then resumes, stale old reject does not set error", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const deferredOld = createDeferred<api.SessionListItem[]>();
-        const deferredNew = createDeferred<api.SessionListItem[]>();
+        const deferredOld = createDeferred<api.SessionListResponse>();
+        const deferredNew = createDeferred<api.SessionListResponse>();
 
         listSpy.mockReturnValueOnce(deferredOld.promise);
         render(<ActiveSessions />);
@@ -1059,15 +1130,18 @@ describe("ActiveSessions Component", () => {
 
         // 新请求成功
         await act(async () => {
-          deferredNew.resolve([
-            {
-              id: "new-session-ok",
-              mode: "free_talk",
-              status: "active",
-              started_at: "2026-10-21T10:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          deferredNew.resolve({
+            items: [
+              {
+                id: "new-session-ok",
+                mode: "free_talk",
+                status: "active",
+                started_at: "2026-10-21T10:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
         expect(screen.getByText("new-session-ok")).toBeInTheDocument();
         expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
@@ -1075,8 +1149,8 @@ describe("ActiveSessions Component", () => {
 
       it("when old request is still pending and lifecycle suspends then resumes, stale old finally does not clear loading of active new request", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const deferredOld = createDeferred<api.SessionListItem[]>();
-        const deferredNew = createDeferred<api.SessionListItem[]>();
+        const deferredOld = createDeferred<api.SessionListResponse>();
+        const deferredNew = createDeferred<api.SessionListResponse>();
 
         listSpy.mockReturnValueOnce(deferredOld.promise);
         render(<ActiveSessions />);
@@ -1097,7 +1171,7 @@ describe("ActiveSessions Component", () => {
 
         // 旧请求 resolve (触发其 finally 阶段)
         await act(async () => {
-          deferredOld.resolve([]);
+          deferredOld.resolve({ items: [], next_cursor: null });
         });
 
         // 新请求仍在途，loading 绝对不能被旧请求的 finally 冲掉！
@@ -1105,15 +1179,18 @@ describe("ActiveSessions Component", () => {
 
         // 新请求完成
         await act(async () => {
-          deferredNew.resolve([
-            {
-              id: "session-finally-verified",
-              mode: "free_talk",
-              status: "active",
-              started_at: "2026-10-21T10:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          deferredNew.resolve({
+            items: [
+              {
+                id: "session-finally-verified",
+                mode: "free_talk",
+                status: "active",
+                started_at: "2026-10-21T10:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
 
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
@@ -1156,15 +1233,18 @@ describe("ActiveSessions Component", () => {
         expect(listSpy).toHaveBeenCalledTimes(1);
 
         // 3. 恢复 online，connectivity 事件合格触发刷新并恢复成功
-        listSpy.mockResolvedValueOnce([
-          {
-            id: "session-retry-success",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        listSpy.mockResolvedValueOnce({
+          items: [
+            {
+              id: "session-retry-success",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
         await act(async () => {
           dispatchOnline();
         });
@@ -1178,7 +1258,7 @@ describe("ActiveSessions Component", () => {
     describe("StrictMode, disposal & cleanup", () => {
       it("disposes adapter and detaches all listeners on unmount so subsequent DOM events do not trigger fetch", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        listSpy.mockResolvedValueOnce([]);
+        listSpy.mockResolvedValueOnce({ items: [], next_cursor: null });
 
         const { unmount } = render(<ActiveSessions />);
         await act(async () => {
@@ -1201,7 +1281,7 @@ describe("ActiveSessions Component", () => {
       });
 
       it("operates normally with lifecycle under React StrictMode", async () => {
-        const deferred = createDeferred<api.SessionListItem[]>();
+        const deferred = createDeferred<api.SessionListResponse>();
         vi.spyOn(api, "listActiveSessions").mockReturnValue(deferred.promise);
 
         render(
@@ -1211,15 +1291,18 @@ describe("ActiveSessions Component", () => {
         );
 
         await act(async () => {
-          deferred.resolve([
-            {
-              id: "strict-mode-lifecycle-session",
-              mode: "exam_prep",
-              status: "active",
-              started_at: "2026-10-21T10:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          deferred.resolve({
+            items: [
+              {
+                id: "strict-mode-lifecycle-session",
+                mode: "exam_prep",
+                status: "active",
+                started_at: "2026-10-21T10:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
 
         expect(screen.getByText("strict-mode-lifecycle-session")).toBeInTheDocument();
@@ -1229,15 +1312,18 @@ describe("ActiveSessions Component", () => {
     describe("Read-only contract invariants & end capability", () => {
       it("strictly performs discovery with explicit end capability but no resume or takeover controls", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        listSpy.mockResolvedValueOnce([
-          {
-            id: "session-readonly-invariants",
-            mode: "free_talk",
-            status: "active",
-            started_at: "2026-10-21T10:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        listSpy.mockResolvedValueOnce({
+          items: [
+            {
+              id: "session-readonly-invariants",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-21T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
 
         render(<ActiveSessions />);
         await act(async () => {
@@ -1260,22 +1346,25 @@ describe("ActiveSessions Component", () => {
     });
 
     describe("Explicit End Active Session (CP-02 §2)", () => {
-      const mockSessions: api.SessionListItem[] = [
-        {
-          id: "sess-end-1",
-          mode: "free_talk",
-          status: "active",
-          started_at: "2026-10-21T10:00:00Z",
-          ended_at: null,
-        },
-        {
-          id: "sess-end-2",
-          mode: "doc_chat",
-          status: "active",
-          started_at: "2026-10-21T11:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockSessions: api.SessionListResponse = {
+        items: [
+          {
+            id: "sess-end-1",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: null,
+          },
+          {
+            id: "sess-end-2",
+            mode: "doc_chat",
+            status: "active",
+            started_at: "2026-10-21T11:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
 
       it("displays inline confirmation without window.confirm and allows cancellation without network request", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
@@ -1622,7 +1711,7 @@ describe("ActiveSessions Component", () => {
 
       it("cancels in-flight list request when issuing end request", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const listDeferred1 = createDeferred<api.SessionListItem[]>();
+        const listDeferred1 = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(listDeferred1.promise);
 
         render(<ActiveSessions />);
@@ -1634,7 +1723,7 @@ describe("ActiveSessions Component", () => {
         });
 
         // 发起第二轮列表刷新
-        const listDeferred2 = createDeferred<api.SessionListItem[]>();
+        const listDeferred2 = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(listDeferred2.promise);
 
         await act(async () => {
@@ -1655,15 +1744,18 @@ describe("ActiveSessions Component", () => {
 
         // 旧列表请求迟到 resolve
         await act(async () => {
-          listDeferred2.resolve([
-            {
-              id: "stale-polluted-list-session",
-              mode: "scenario",
-              status: "active",
-              started_at: "2026-10-21T12:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          listDeferred2.resolve({
+            items: [
+              {
+                id: "stale-polluted-list-session",
+                mode: "scenario",
+                status: "active",
+                started_at: "2026-10-21T12:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
         // 不污染界面
         expect(screen.queryByText("stale-polluted-list-session")).not.toBeInTheDocument();
@@ -1825,15 +1917,18 @@ describe("ActiveSessions Component", () => {
         fireEvent.click(screen.getByTestId("confirm-end-button-sess-end-1"));
 
         // 换号到 user-2
-        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce([
-          {
-            id: "user-2-session",
-            mode: "scenario",
-            status: "active",
-            started_at: "2026-10-21T12:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+          items: [
+            {
+              id: "user-2-session",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-21T12:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
 
         await act(async () => {
           emitAuthSnapshot({
@@ -1942,22 +2037,25 @@ describe("ActiveSessions Component", () => {
     });
 
     describe("Explicit Resume Active Session (CP-02 §3)", () => {
-      const mockSessions: api.SessionListItem[] = [
-        {
-          id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-          mode: "free_talk",
-          status: "active",
-          started_at: "2026-10-21T10:00:00Z",
-          ended_at: null,
-        },
-        {
-          id: "4fa85f64-5717-4562-b3fc-2c963f66afa7",
-          mode: "doc_chat",
-          status: "active",
-          started_at: "2026-10-21T11:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const mockSessions: api.SessionListResponse = {
+        items: [
+          {
+            id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-21T10:00:00Z",
+            ended_at: null,
+          },
+          {
+            id: "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+            mode: "doc_chat",
+            status: "active",
+            started_at: "2026-10-21T11:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
 
       it("displays inline resume confirmation without window.confirm and allows cancellation without store call or network request", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
@@ -2101,7 +2199,7 @@ describe("ActiveSessions Component", () => {
 
       it("cancels in-flight list request when issuing resume request", async () => {
         const listSpy = vi.spyOn(api, "listActiveSessions");
-        const listDeferred1 = createDeferred<api.SessionListItem[]>();
+        const listDeferred1 = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(listDeferred1.promise);
 
         render(<ActiveSessions />);
@@ -2111,7 +2209,7 @@ describe("ActiveSessions Component", () => {
           listDeferred1.resolve(mockSessions);
         });
 
-        const listDeferred2 = createDeferred<api.SessionListItem[]>();
+        const listDeferred2 = createDeferred<api.SessionListResponse>();
         listSpy.mockReturnValueOnce(listDeferred2.promise);
 
         await act(async () => {
@@ -2132,15 +2230,18 @@ describe("ActiveSessions Component", () => {
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
 
         await act(async () => {
-          listDeferred2.resolve([
-            {
-              id: "5fa85f64-5717-4562-b3fc-2c963f66afa8",
-              mode: "scenario",
-              status: "active",
-              started_at: "2026-10-21T12:00:00Z",
-              ended_at: null,
-            },
-          ]);
+          listDeferred2.resolve({
+            items: [
+              {
+                id: "5fa85f64-5717-4562-b3fc-2c963f66afa8",
+                mode: "scenario",
+                status: "active",
+                started_at: "2026-10-21T12:00:00Z",
+                ended_at: null,
+              },
+            ],
+            next_cursor: null,
+          });
         });
         expect(screen.queryByText("5fa85f64-5717-4562-b3fc-2c963f66afa8")).not.toBeInTheDocument();
 
@@ -2274,15 +2375,18 @@ describe("ActiveSessions Component", () => {
         fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
 
         // 换号
-        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce([
-          {
-            id: "5fa85f64-5717-4562-b3fc-2c963f66afa9",
-            mode: "scenario",
-            status: "active",
-            started_at: "2026-10-21T12:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+          items: [
+            {
+              id: "5fa85f64-5717-4562-b3fc-2c963f66afa9",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-21T12:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
 
         await act(async () => {
           emitAuthSnapshot({
@@ -2432,15 +2536,18 @@ describe("ActiveSessions Component", () => {
         expect(resumeSpy).toHaveBeenCalledTimes(1);
 
         // 2. 账号切换到 user-2
-        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce([
-          {
-            id: idNew,
-            mode: "scenario",
-            status: "active",
-            started_at: "2026-10-21T12:00:00Z",
-            ended_at: null,
-          },
-        ]);
+        vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+          items: [
+            {
+              id: idNew,
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-21T12:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
 
         await act(async () => {
           emitAuthSnapshot({
@@ -2698,15 +2805,18 @@ describe("ActiveSessions Component", () => {
   });
 
   describe("Native iOS Lifecycle Consumer (CP-05)", () => {
-    const mockSessions: api.SessionListItem[] = [
-      {
-        id: "sess-native-1",
-        mode: "free_talk",
-        status: "active",
-        started_at: "2026-10-23T10:00:00Z",
-        ended_at: null,
-      },
-    ];
+    const mockSessions: api.SessionListResponse = {
+      items: [
+        {
+          id: "sess-native-1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2026-10-23T10:00:00Z",
+          ended_at: null,
+        },
+      ],
+      next_cursor: null,
+    };
 
     beforeEach(() => {
       fakeAppListeners.clear();
@@ -2821,8 +2931,8 @@ describe("ActiveSessions Component", () => {
 
     it("query in flight when native transitions to inactive cancels active cycle and leaves list intact, then recovers on active", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
 
       render(<ActiveSessions />);
@@ -2862,15 +2972,18 @@ describe("ActiveSessions Component", () => {
       expect(listSpy).toHaveBeenCalledTimes(2);
 
       // 新请求成功 resolve
-      const updatedSessions: api.SessionListItem[] = [
-        {
-          id: "sess-native-2",
-          mode: "scenario",
-          status: "active",
-          started_at: "2026-10-23T11:00:00Z",
-          ended_at: null,
-        },
-      ];
+      const updatedSessions: api.SessionListResponse = {
+        items: [
+          {
+            id: "sess-native-2",
+            mode: "scenario",
+            status: "active",
+            started_at: "2026-10-23T11:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      };
       await act(async () => {
         deferred2.resolve(updatedSessions);
         await Promise.resolve();
@@ -2881,8 +2994,8 @@ describe("ActiveSessions Component", () => {
 
     it("initial fetch failure can recover on subsequent valid native resume event", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferredFail = createDeferred<api.SessionListItem[]>();
-      const deferredSuccess = createDeferred<api.SessionListItem[]>();
+      const deferredFail = createDeferred<api.SessionListResponse>();
+      const deferredSuccess = createDeferred<api.SessionListResponse>();
       listSpy
         .mockReturnValueOnce(deferredFail.promise)
         .mockReturnValueOnce(deferredSuccess.promise);
@@ -3062,15 +3175,18 @@ describe("ActiveSessions Component", () => {
   });
 
   describe("Query Fact & Lifecycle State (A20 / CROSS_PLATFORM_DISCOVERY_QUERY_STATE)", () => {
-    const mockData: api.SessionListItem[] = [
-      {
-        id: "sess-a20-1",
-        mode: "free_talk",
-        status: "active",
-        started_at: "2026-10-23T10:00:00Z",
-        ended_at: null,
-      },
-    ];
+    const mockData: api.SessionListResponse = {
+      items: [
+        {
+          id: "sess-a20-1",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2026-10-23T10:00:00Z",
+          ended_at: null,
+        },
+      ],
+      next_cursor: null,
+    };
 
     beforeEach(() => {
       fakeAppListeners.clear();
@@ -3099,7 +3215,9 @@ describe("ActiveSessions Component", () => {
     });
 
     it("renders unqueried state with status semantics (not empty) on initial native inactive zero-GET", async () => {
-      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue([]);
+      const listSpy = vi
+        .spyOn(api, "listActiveSessions")
+        .mockResolvedValue({ items: [], next_cursor: null });
       fakeAppGetState.mockImplementationOnce(() => Promise.resolve({ isActive: false }));
 
       render(<ActiveSessions />);
@@ -3116,7 +3234,7 @@ describe("ActiveSessions Component", () => {
 
     it("transitions from unqueried to loading, and only renders empty when GET succeeds with empty array []", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred = createDeferred<api.SessionListItem[]>();
+      const deferred = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred.promise);
 
       render(<ActiveSessions />);
@@ -3131,7 +3249,7 @@ describe("ActiveSessions Component", () => {
       expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
 
       await act(async () => {
-        deferred.resolve([]);
+        deferred.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3142,7 +3260,7 @@ describe("ActiveSessions Component", () => {
 
     it("transitions from unqueried to loading, and renders active session list on non-empty success", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred = createDeferred<api.SessionListItem[]>();
+      const deferred = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred.promise);
 
       render(<ActiveSessions />);
@@ -3167,8 +3285,8 @@ describe("ActiveSessions Component", () => {
 
     it("preserves unqueried state on initial failure and transitions to empty only after retry succeeds with []", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferredFail = createDeferred<api.SessionListItem[]>();
-      const deferredSuccess = createDeferred<api.SessionListItem[]>();
+      const deferredFail = createDeferred<api.SessionListResponse>();
+      const deferredSuccess = createDeferred<api.SessionListResponse>();
       listSpy
         .mockReturnValueOnce(deferredFail.promise)
         .mockReturnValueOnce(deferredSuccess.promise);
@@ -3199,7 +3317,7 @@ describe("ActiveSessions Component", () => {
 
       // 重试成功返回空列表
       await act(async () => {
-        deferredSuccess.resolve([]);
+        deferredSuccess.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3211,8 +3329,8 @@ describe("ActiveSessions Component", () => {
 
     it("background cancellation of in-flight GET does not create empty fact when late response arrives, and recovers after active", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
 
       render(<ActiveSessions />);
@@ -3237,7 +3355,7 @@ describe("ActiveSessions Component", () => {
 
       // 旧 GET 迟到 resolve 返回 []，不得新建空事实
       await act(async () => {
-        deferred1.resolve([]);
+        deferred1.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3255,7 +3373,7 @@ describe("ActiveSessions Component", () => {
 
       // 新请求成功 resolve []
       await act(async () => {
-        deferred2.resolve([]);
+        deferred2.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3266,7 +3384,7 @@ describe("ActiveSessions Component", () => {
 
     it("preserves confirmed empty or non-empty fact for the same account across backgrounding/suspend without fabricating new success", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      listSpy.mockResolvedValueOnce([]);
+      listSpy.mockResolvedValueOnce({ items: [], next_cursor: null });
 
       render(<ActiveSessions />);
 
@@ -3290,8 +3408,8 @@ describe("ActiveSessions Component", () => {
 
     it("account switch clears query fact and displays unqueried for new account until new GET succeeds", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
 
       render(<ActiveSessions />);
@@ -3314,7 +3432,7 @@ describe("ActiveSessions Component", () => {
 
       // 旧 user-1 的请求迟到返回 []
       await act(async () => {
-        deferred1.resolve([]);
+        deferred1.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3323,7 +3441,7 @@ describe("ActiveSessions Component", () => {
 
       // user-2 请求成功返回空列表
       await act(async () => {
-        deferred2.resolve([]);
+        deferred2.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3333,8 +3451,8 @@ describe("ActiveSessions Component", () => {
 
     it("same principal re-login with bumped revision clears query fact and ignores stale revision response", async () => {
       const listSpy = vi.spyOn(api, "listActiveSessions");
-      const deferred1 = createDeferred<api.SessionListItem[]>();
-      const deferred2 = createDeferred<api.SessionListItem[]>();
+      const deferred1 = createDeferred<api.SessionListResponse>();
+      const deferred2 = createDeferred<api.SessionListResponse>();
       listSpy.mockReturnValueOnce(deferred1.promise).mockReturnValueOnce(deferred2.promise);
 
       render(<ActiveSessions />);
@@ -3364,7 +3482,7 @@ describe("ActiveSessions Component", () => {
 
       // 旧 revision 1 请求迟到返回 []
       await act(async () => {
-        deferred1.resolve([]);
+        deferred1.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3373,7 +3491,7 @@ describe("ActiveSessions Component", () => {
 
       // 新 revision 2 请求成功返回 []
       await act(async () => {
-        deferred2.resolve([]);
+        deferred2.resolve({ items: [], next_cursor: null });
         await Promise.resolve();
       });
 
@@ -3382,7 +3500,9 @@ describe("ActiveSessions Component", () => {
     });
 
     it("StrictMode does not leak stale query fact or allow dead effects to create empty state", async () => {
-      const listSpy = vi.spyOn(api, "listActiveSessions").mockResolvedValue([]);
+      const listSpy = vi
+        .spyOn(api, "listActiveSessions")
+        .mockResolvedValue({ items: [], next_cursor: null });
 
       render(
         <StrictMode>
@@ -3401,22 +3521,25 @@ describe("ActiveSessions Component", () => {
   });
 
   describe("CP-05 / A23 Resume Error States & Cancellation Terminal States", () => {
-    const mockSessions: api.SessionListItem[] = [
-      {
-        id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-        mode: "scenario",
-        status: "active",
-        started_at: "2026-10-21T10:00:00Z",
-        ended_at: null,
-      },
-      {
-        id: "4fa85f64-5717-4562-b3fc-2c963f66afa7",
-        mode: "free_talk",
-        status: "active",
-        started_at: "2026-10-21T11:00:00Z",
-        ended_at: null,
-      },
-    ];
+    const mockSessions: api.SessionListResponse = {
+      items: [
+        {
+          id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          mode: "scenario",
+          status: "active",
+          started_at: "2026-10-21T10:00:00Z",
+          ended_at: null,
+        },
+        {
+          id: "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+          mode: "free_talk",
+          status: "active",
+          started_at: "2026-10-21T11:00:00Z",
+          ended_at: null,
+        },
+      ],
+      next_cursor: null,
+    };
 
     it("real store linkage: getSessionDetail 503 synchronous idle notification does not swallow error, retains full UUID, and renders 44px retry button", async () => {
       vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
@@ -3822,6 +3945,663 @@ describe("ActiveSessions Component", () => {
       expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
       expect(screen.getByTestId(`confirm-resume-button-${id}`)).toBeInTheDocument();
       expect(screen.queryByTestId(`retry-resume-button-${id}`)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("ActiveSessions pagination and lifecycle isolation", () => {
+    it("loads more active sessions on click and hides button when next_cursor is null", async () => {
+      vi.spyOn(api, "listActiveSessions")
+        .mockResolvedValueOnce({
+          items: [
+            {
+              id: "aaaaaaaa-1111-4000-8000-000000000001",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: "page-2-cursor",
+        })
+        .mockResolvedValueOnce({
+          items: [
+            {
+              id: "bbbbbbbb-2222-4000-8000-000000000002",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:30:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(
+        screen.getByTestId("active-session-item-aaaaaaaa-1111-4000-8000-000000000001"),
+      ).toBeInTheDocument();
+      const loadMoreBtn = screen.getByTestId("load-more-active-button");
+      expect(loadMoreBtn).toBeInTheDocument();
+
+      fireEvent.click(loadMoreBtn);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(
+        screen.getByTestId("active-session-item-bbbbbbbb-2222-4000-8000-000000000002"),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("load-more-active-button")).not.toBeInTheDocument();
+    });
+
+    it("invalidates in-flight loadMore request when lifecycle goes offline and clears pagination button", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: "aaaaaaaa-1111-4000-8000-000000000001",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-active-p2",
+      });
+
+      const deferredLoadMore = createDeferred<any>();
+      deferredLoadMore.promise.catch(() => {});
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const loadMoreBtn = screen.getByTestId("load-more-active-button");
+      expect(loadMoreBtn).toBeInTheDocument();
+
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredLoadMore.promise);
+
+      fireEvent.click(loadMoreBtn);
+      expect(loadMoreBtn).toBeDisabled();
+
+      // 触发 offline 挂起生命周期，作废在途加载更多并清除游标
+      dispatchOffline();
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 契约要求：游标清空，加载更多按钮彻底消失
+      expect(screen.queryByTestId("load-more-active-button")).not.toBeInTheDocument();
+
+      // 旧在途请求迟到完成
+      await act(async () => {
+        deferredLoadMore.resolve({
+          items: [
+            {
+              id: "stale-item-active-p2",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25T09:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+      });
+
+      // 验证：已作废的请求结果不污染当前列表
+      expect(
+        screen.queryByTestId("active-session-item-stale-item-active-p2"),
+      ).not.toBeInTheDocument();
+
+      // 恢复 online 后重新只读拉取第一页
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: "aaaaaaaa-1111-4000-8000-000000000001",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+          {
+            id: "recovered-active-2",
+            mode: "scenario",
+            status: "active",
+            started_at: "2026-10-25T09:30:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "fresh-active-cursor-p2",
+      });
+
+      dispatchOnline();
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId("active-session-item-recovered-active-2")).toBeInTheDocument();
+      expect(screen.getByTestId("load-more-active-button")).toBeInTheDocument();
+    });
+
+    it("invalidates in-flight loadMore request when lifecycle goes hidden and clears pagination button", async () => {
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: "aaaaaaaa-1111-4000-8000-000000000001",
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-active-p2",
+      });
+
+      const deferredLoadMore = createDeferred<any>();
+      deferredLoadMore.promise.catch(() => {});
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const loadMoreBtn = screen.getByTestId("load-more-active-button");
+      expect(loadMoreBtn).toBeInTheDocument();
+
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredLoadMore.promise);
+
+      fireEvent.click(loadMoreBtn);
+      expect(loadMoreBtn).toBeDisabled();
+
+      // 触发 hidden 挂起生命周期
+      dispatchVisibilityChange("hidden");
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 游标清空，加载更多按钮消失
+      expect(screen.queryByTestId("load-more-active-button")).not.toBeInTheDocument();
+
+      // 恢复 visible
+      dispatchVisibilityChange("visible");
+    });
+
+    it("deduplicates identical active session IDs within the same first page and subsequent page", async () => {
+      vi.spyOn(api, "listActiveSessions")
+        .mockResolvedValueOnce({
+          items: [
+            {
+              id: "dup-active-1",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25T10:00:00Z",
+              ended_at: null,
+            },
+            {
+              id: "dup-active-1",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25T10:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: "cursor-p2",
+        })
+        .mockResolvedValueOnce({
+          items: [
+            {
+              id: "dup-active-1",
+              mode: "free_talk",
+              status: "active",
+              started_at: "2026-10-25T10:00:00Z",
+              ended_at: null,
+            },
+            {
+              id: "dup-active-2",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:30:00Z",
+              ended_at: null,
+            },
+            {
+              id: "dup-active-2",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:30:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getAllByTestId("active-session-item-dup-active-1")).toHaveLength(1);
+
+      fireEvent.click(screen.getByTestId("load-more-active-button"));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getAllByTestId("active-session-item-dup-active-1")).toHaveLength(1);
+      expect(screen.getAllByTestId("active-session-item-dup-active-2")).toHaveLength(1);
+    });
+
+    it("invalidates in-flight loadMore request when user initiates endSession", async () => {
+      const id1 = "aaaaaaaa-1111-4000-8000-000000000001";
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: id1,
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-active-p2",
+      });
+
+      const deferredLoadMore = createDeferred<any>();
+      deferredLoadMore.promise.catch(() => {});
+      const deferredEnd = createDeferred<any>();
+      deferredEnd.promise.catch(() => {});
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const loadMoreBtn = screen.getByTestId("load-more-active-button");
+      expect(loadMoreBtn).toBeInTheDocument();
+
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredLoadMore.promise);
+      vi.spyOn(api, "endSession").mockReturnValueOnce(deferredEnd.promise);
+
+      // 发起加载更多
+      fireEvent.click(loadMoreBtn);
+      expect(loadMoreBtn).toBeDisabled();
+
+      // 同时用户在界面上点击结束会话
+      fireEvent.click(screen.getByTestId(`end-session-button-${id1}`));
+      fireEvent.click(screen.getByTestId(`confirm-end-button-${id1}`));
+
+      // 结束在途时，加载更多在途被取消，且禁用操作互锁
+      expect(loadMoreBtn).toBeDisabled();
+
+      // 旧加载更多返回
+      await act(async () => {
+        deferredLoadMore.resolve({
+          items: [
+            {
+              id: "late-p2-item",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+      });
+
+      // 结束完成
+      await act(async () => {
+        deferredEnd.resolve({
+          id: id1,
+          mode: "free_talk",
+          status: "completed",
+          started_at: "2026-10-25T10:00:00Z",
+          ended_at: "2026-10-25T10:10:00Z",
+        });
+      });
+
+      // 验证：列表中的 id1 成功被移除，迟到的 p2 也不污染列表
+      expect(screen.queryByTestId(`active-session-item-${id1}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId("active-session-item-late-p2-item")).not.toBeInTheDocument();
+    });
+
+    it("invalidates in-flight loadMore when auth principal switches and ignores late response", async () => {
+      let authCallback: ((snap: auth.AuthSnapshot) => void) | null = null;
+      vi.spyOn(auth, "subscribeAuthSnapshot").mockImplementation((cb) => {
+        authCallback = cb;
+        return () => {};
+      });
+
+      const id1 = "aaaaaaaa-1111-4000-8000-000000000001";
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: id1,
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-user1-p2",
+      });
+
+      const deferredLoadMore = createDeferred<any>();
+      deferredLoadMore.promise.catch(() => {});
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId(`active-session-item-${id1}`)).toBeInTheDocument();
+      const loadMoreBtn = screen.getByTestId("load-more-active-button");
+
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredLoadMore.promise);
+      fireEvent.click(loadMoreBtn);
+
+      // 切换到 user-2
+      act(() => {
+        authCallback?.({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-2" },
+        });
+      });
+
+      // user-1 的迟到 loadMore 响应返回
+      await act(async () => {
+        deferredLoadMore.resolve({
+          items: [
+            {
+              id: "late-user1-item",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+        await Promise.resolve();
+      });
+
+      // 验证迟到的 user-1 会话项绝不被渲染
+      expect(screen.queryByTestId("active-session-item-late-user1-item")).not.toBeInTheDocument();
+    });
+
+    it("invalidates in-flight loadMore when auth revision updates and ignores stale response", async () => {
+      let authCallback: ((snap: auth.AuthSnapshot) => void) | null = null;
+      vi.spyOn(auth, "subscribeAuthSnapshot").mockImplementation((cb) => {
+        authCallback = cb;
+        return () => {};
+      });
+
+      const id1 = "aaaaaaaa-1111-4000-8000-000000000002";
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: id1,
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-rev-p2",
+      });
+
+      const deferredLoadMore = createDeferred<any>();
+      deferredLoadMore.promise.catch(() => {});
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId(`active-session-item-${id1}`)).toBeInTheDocument();
+      const loadMoreBtn = screen.getByTestId("load-more-active-button");
+
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredLoadMore.promise);
+      fireEvent.click(loadMoreBtn);
+
+      // 同账号 revision 自增
+      vi.spyOn(auth, "getAuthRevision").mockReturnValue(2);
+      act(() => {
+        authCallback?.({
+          state: "authenticated",
+          principal: { issuer: "https://auth.example.com", subject: "user-1" },
+        });
+      });
+
+      // 旧 revision 的迟到响应返回
+      await act(async () => {
+        deferredLoadMore.resolve({
+          items: [
+            {
+              id: "late-rev-item",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByTestId("active-session-item-late-rev-item")).not.toBeInTheDocument();
+    });
+
+    it("prevents late finally of old loadMore from clearing new loadMore loading state", async () => {
+      const id1 = "aaaaaaaa-1111-4000-8000-000000000003";
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: id1,
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-fin-p2",
+      });
+
+      const deferredOldMore = createDeferred<any>();
+      deferredOldMore.promise.catch(() => {});
+      const deferredNewMore = createDeferred<any>();
+      deferredNewMore.promise.catch(() => {});
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 发起第 1 次 loadMore
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredOldMore.promise);
+      fireEvent.click(screen.getByTestId("load-more-active-button"));
+
+      // 模拟离线后恢复在线（触发生命周期作废旧请求并重新拉取第一页）
+      act(() => {
+        window.dispatchEvent(new Event("offline"));
+      });
+
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: id1,
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-fin-p2",
+      });
+
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 发起第 2 次 loadMore
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredNewMore.promise);
+      fireEvent.click(screen.getByTestId("load-more-active-button"));
+      expect(screen.getByTestId("load-more-active-button")).toBeDisabled();
+
+      // 旧 loadMore finally 结算
+      await act(async () => {
+        deferredOldMore.resolve({
+          items: [
+            {
+              id: "stale-active-item",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T08:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+        await Promise.resolve();
+      });
+
+      // 验证：新在途请求依然保持禁用/loading，没有被旧 finally 误清
+      expect(screen.getByTestId("load-more-active-button")).toBeDisabled();
+      expect(screen.queryByTestId("active-session-item-stale-active-item")).not.toBeInTheDocument();
+
+      // 新 loadMore 正常返回
+      await act(async () => {
+        deferredNewMore.resolve({
+          items: [
+            {
+              id: "fresh-active-item",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId("active-session-item-fresh-active-item")).toBeInTheDocument();
+      expect(screen.queryByTestId("load-more-active-button")).not.toBeInTheDocument();
+    });
+
+    it("supports explicit retry with identical cursor after loadMore error", async () => {
+      const id1 = "aaaaaaaa-1111-4000-8000-000000000004";
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: id1,
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-same-active",
+      });
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 第一次 loadMore 抛错
+      vi.spyOn(api, "listActiveSessions").mockRejectedValueOnce(new Error("Network failed"));
+      fireEvent.click(screen.getByTestId("load-more-active-button"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("load-more-active-error")).toBeInTheDocument();
+      });
+
+      // 第二次点击重试，恢复成功
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: "retry-active-item-2",
+            mode: "scenario",
+            status: "active",
+            started_at: "2026-10-25T09:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: null,
+      });
+
+      fireEvent.click(screen.getByTestId("load-more-active-button"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-session-item-retry-active-item-2")).toBeInTheDocument();
+        expect(screen.queryByTestId("load-more-active-button")).not.toBeInTheDocument();
+      });
+
+      expect(vi.mocked(api.listActiveSessions)).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cursor: "cursor-same-active" }),
+      );
+    });
+
+    it("deduplicates double click on load-more button so only one request is sent", async () => {
+      const id1 = "aaaaaaaa-1111-4000-8000-000000000005";
+      vi.spyOn(api, "listActiveSessions").mockResolvedValueOnce({
+        items: [
+          {
+            id: id1,
+            mode: "free_talk",
+            status: "active",
+            started_at: "2026-10-25T10:00:00Z",
+            ended_at: null,
+          },
+        ],
+        next_cursor: "cursor-double-active",
+      });
+
+      const deferredSlowMore = createDeferred<any>();
+      deferredSlowMore.promise.catch(() => {});
+      vi.spyOn(api, "listActiveSessions").mockReturnValueOnce(deferredSlowMore.promise);
+
+      render(<ActiveSessions />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const loadMoreBtn = screen.getByTestId("load-more-active-button");
+      fireEvent.click(loadMoreBtn);
+      fireEvent.click(loadMoreBtn);
+
+      // listActiveSessions 只被调用 2 次（1 次首屏，1 次 loadMore，第 2 次点击被阻挡）
+      expect(api.listActiveSessions).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        deferredSlowMore.resolve({
+          items: [
+            {
+              id: "double-active-item-2",
+              mode: "scenario",
+              status: "active",
+              started_at: "2026-10-25T09:00:00Z",
+              ended_at: null,
+            },
+          ],
+          next_cursor: null,
+        });
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId("active-session-item-double-active-item-2")).toBeInTheDocument();
     });
   });
 });

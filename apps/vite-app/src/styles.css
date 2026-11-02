@@ -67,3 +67,62 @@
     transform: translateX(0);
   }
 }
+
+/* CP-05 / A35: 主要容器与语义颜色主题过渡 (250ms ease) */
+.theme-transitions .bg-bg,
+.theme-transitions .bg-surface,
+.theme-transitions .bg-surface-alt,
+.theme-transitions .card,
+.theme-transitions dialog.settings-drawer,
+.theme-transitions dialog.settings-drawer > div {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.theme-transitions .border-border-default,
+.theme-transitions .border-border-soft,
+.theme-transitions .border-accent-soft-border {
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.theme-transitions .text-text-default,
+.theme-transitions .text-text-muted,
+.theme-transitions .text-text-faint,
+.theme-transitions .text-accent,
+.theme-transitions .text-accent-soft-text {
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.theme-transitions .transition-shadow {
+  transition:
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+/* CP-05 / A27: prefers-reduced-motion 支持 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+
+  body {
+    transition: none !important;
+  }
+
+  dialog.settings-drawer {
+    animation: none !important;
+  }
+}

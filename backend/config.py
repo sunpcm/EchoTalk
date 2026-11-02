@@ -28,16 +28,12 @@ class Settings(BaseSettings):
     # 数据库
     DATABASE_URL: str = "postgresql://localhost:5432/echotalk"
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
-
     # Mock 开关
     USE_MOCK_DB: bool = False
     USE_MOCK_LLM: bool = False
     USE_MOCK_TTS: bool = False
     USE_MOCK_STT: bool = False
     USE_MOCK_LIVEKIT: bool = False
-    USE_MOCK_CELERY: bool = True
     USE_MOCK_ELSA: bool = True
 
     # PostgreSQL analysis worker
