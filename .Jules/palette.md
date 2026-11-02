@@ -14,3 +14,8 @@
 
 **Learning:** Custom progress bar components (such as daily conversation turn counters and skill mastery levels) rendered as styled `<div>` elements are completely invisible to screen readers without `role="progressbar"` and standard ARIA progress attributes.
 **Action:** Always wrap visual progress indicators in `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`, and `aria-label`.
+
+## 2025-03-03 - Accessible Text Counters and Early Proactive Warnings
+
+**Learning:** Text input character counters are not automatically associated with textareas for assistive technologies unless explicitly linked via `aria-describedby` and set as a polite live region with `aria-live="polite"`. Furthermore, providing early visual feedback before hitting hard character limits prevents user frustration.
+**Action:** Link character counters to textareas with `aria-describedby` and `aria-live="polite"`, and apply warning styling when input length approaches the maximum threshold.
