@@ -175,3 +175,147 @@ mod tests {
         }
     }
 }
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DispatchArgs {
+    pub generation: u64,
+}
+
+// All production commands use this exact guard, also exercised by Rust tests.
+pub fn command_arguments(
+    label: &str,
+    url: &Url,
+    command: &str,
+    value: &serde_json::Value,
+) -> Result<Option<DispatchArgs>, Error> {
+    if !trusted_page(label, url) {
+        return Err("IPC_FORBIDDEN");
+    }
+    if command == "media_dispatch" {
+        let args: DispatchArgs =
+            serde_json::from_value(value.clone()).map_err(|_| "IPC_ARGUMENTS_FORBIDDEN")?;
+        if args.generation == 0 || args.generation > 9_007_199_254_740_991 {
+            return Err("IPC_ARGUMENTS_FORBIDDEN");
+        }
+        Ok(Some(args))
+    } else if [
+        "auth_begin",
+        "auth_cancel",
+        "auth_status",
+        "media_prepare",
+        "media_stop",
+        "media_status",
+    ]
+    .contains(&command)
+        && empty_arguments(value)
+    {
+        Ok(None)
+    } else {
+        Err("IPC_ARGUMENTS_FORBIDDEN")
+    }
+}
+
+// One permit per fixed operation type; callers reject rather than enqueue more work.
+#[derive(Default, Clone)]
+pub struct WorkSlot(std::sync::Arc<std::sync::atomic::AtomicBool>);
+pub struct WorkPermit(std::sync::Arc<std::sync::atomic::AtomicBool>);
+impl WorkSlot {
+    pub fn busy(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Acquire)
+    }
+    pub fn acquire(&self) -> Result<WorkPermit, Error> {
+        self.0
+            .compare_exchange(
+                false,
+                true,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            )
+            .map_err(|_| "IPC_BUSY")?;
+        Ok(WorkPermit(self.0.clone()))
+    }
+}
+impl Drop for WorkPermit {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
+#[cfg(test)]
+mod media_ipc_tests {
+    use super::*;
+    #[test]
+    fn production_guard_strictly_types_generation_and_rejects_extra_keys() {
+        let local = Url::parse("tauri://localhost").unwrap();
+        for value in [
+            serde_json::json!({"generation":1}),
+            serde_json::json!({"generation":9007199254740991u64}),
+        ] {
+            assert!(command_arguments("main", &local, "media_dispatch", &value)
+                .unwrap()
+                .is_some());
+        }
+        for raw in [
+            r#"{}"#,
+            r#"{"generation":0}"#,
+            r#"{"generation":-1}"#,
+            r#"{"generation":1.0}"#,
+            r#"{"generation":1.5}"#,
+            r#"{"generation":"1"}"#,
+            r#"{"generation":9007199254740992}"#,
+            r#"{"generation":null}"#,
+            r#"{"generation":1,"url":"https://evil.test"}"#,
+            r#"[]"#,
+        ] {
+            let value = serde_json::from_str(raw).unwrap();
+            assert!(command_arguments("main", &local, "media_dispatch", &value).is_err());
+        }
+        for command in [
+            "auth_begin",
+            "auth_cancel",
+            "auth_status",
+            "media_prepare",
+            "media_stop",
+            "media_status",
+        ] {
+            assert!(
+                command_arguments("main", &local, command, &serde_json::json!({}))
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(command_arguments(
+                "main",
+                &local,
+                command,
+                &serde_json::json!({"generation":1})
+            )
+            .is_err());
+        }
+        assert!(command_arguments("main", &local, "unknown", &serde_json::json!({})).is_err());
+        for (label, raw) in [
+            ("other", "tauri://localhost"),
+            ("main", "https://localhost/"),
+            ("main", "tauri://localhost?evil=1"),
+            ("main", "tauri://evil/"),
+        ] {
+            assert!(command_arguments(
+                label,
+                &Url::parse(raw).unwrap(),
+                "media_dispatch",
+                &serde_json::json!({"generation":1})
+            )
+            .is_err());
+        }
+    }
+    #[test]
+    fn fixed_work_slot_has_no_queue_and_releases_on_drop() {
+        let slot = WorkSlot::default();
+        let permit = slot.acquire().unwrap();
+        assert!(slot.busy());
+        assert!(slot.acquire().is_err());
+        drop(permit);
+        assert!(!slot.busy());
+        assert!(slot.acquire().is_ok());
+    }
+}

@@ -65,9 +65,26 @@ export function mountAuth(document, invoke, timers = globalThis) {
   let mutation = false;
   let revision = 0;
   let timer;
+  let verified = { authenticated: false, expires_at: null, revision: 0 };
+  const listeners = new Set();
+  function publish(state) {
+    verified = Object.freeze({
+      authenticated: state.authenticated,
+      expires_at: state.expires_at,
+      revision,
+    });
+    for (const listener of listeners) {
+      try {
+        listener(verified);
+      } catch {
+        /* One view cannot prevent invalidation. */
+      }
+    }
+  }
 
   function render(raw) {
     const state = safeStatus(raw);
+    publish(state);
     status.textContent = phases[state.phase];
     detail.textContent =
       state.error ??
@@ -88,6 +105,7 @@ export function mountAuth(document, invoke, timers = globalThis) {
     cancel.disabled = ["unconfigured", "unavailable"].includes(state.phase);
   }
   function failure(error) {
+    publish({ authenticated: false, expires_at: null });
     status.textContent = "登录操作未完成";
     detail.textContent = errors.has(error) ? error : "AUTH_UNAVAILABLE";
   }
@@ -106,6 +124,7 @@ export function mountAuth(document, invoke, timers = globalThis) {
     if (disposed || (mutation && command === "auth_begin")) return;
     const current = ++revision;
     mutation = true;
+    publish({ authenticated: false, expires_at: null });
     login.disabled = true;
     try {
       const state = await invoke(command, {});
@@ -125,11 +144,21 @@ export function mountAuth(document, invoke, timers = globalThis) {
   login.addEventListener("click", begin);
   cancel.addEventListener("click", stop);
   void refresh();
-  return () => {
+  const dispose = () => {
+    if (disposed) return;
+    publish({ authenticated: false, expires_at: null });
     disposed = true;
     revision++;
     timers.clearTimeout(timer);
     login.removeEventListener("click", begin);
     cancel.removeEventListener("click", stop);
+    listeners.clear();
   };
+  dispose.subscribe = (listener) => {
+    if (disposed) return () => {};
+    listeners.add(listener);
+    listener(verified);
+    return () => listeners.delete(listener);
+  };
+  return dispose;
 }

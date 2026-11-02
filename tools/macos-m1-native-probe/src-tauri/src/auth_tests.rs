@@ -620,3 +620,82 @@ fn session_state_cannot_replace_state_issuer_or_cancel_new_transaction() {
     f.auth.callback(&next).unwrap();
     assert!(f.auth.status().unwrap().authenticated);
 }
+
+// Test-only fixture: media tests exercise the real Auth lease implementation.
+pub(crate) struct MediaAuthFixture {
+    fixture: Fixture,
+}
+impl MediaAuthFixture {
+    pub(crate) fn new() -> Self {
+        let fixture = Self {
+            fixture: Fixture::new(),
+        };
+        fixture.login("synthetic-old-bearer");
+        fixture
+    }
+    pub(crate) fn auth(&self) -> Arc<Auth> {
+        self.fixture.auth.clone()
+    }
+    pub(crate) fn clock(&self) -> Arc<dyn Clock> {
+        self.fixture.clock.clone()
+    }
+    pub(crate) fn time(&self, now: u64) {
+        self.fixture.clock.0.store(now, Ordering::SeqCst);
+    }
+    pub(crate) fn login(&self, bearer: &str) {
+        self.fixture.auth.begin().unwrap();
+        self.fixture
+            .auth
+            .callback(&self.fixture.callback())
+            .unwrap();
+        let mut state = self.fixture.auth.lock().unwrap();
+        state.session.as_mut().unwrap().access_token = Zeroizing::new(bearer.to_owned());
+    }
+}
+
+#[test]
+fn native_lease_expiry_cancel_and_matching_401() {
+    let f = MediaAuthFixture::new();
+    let lease = f.auth().lease().unwrap();
+    assert!(f.auth().lease_current(&lease).unwrap());
+    assert_eq!(lease.bearer(), "synthetic-old-bearer");
+    f.login("synthetic-new-bearer");
+    assert!(!f.auth().lease_current(&lease).unwrap());
+    f.auth().invalidate_lease(&lease).unwrap();
+    assert!(f.auth().status().unwrap().authenticated);
+    let current = f.auth().lease().unwrap();
+    assert_eq!(current.bearer(), "synthetic-new-bearer");
+    f.auth().invalidate_lease(&current).unwrap();
+    assert!(!f.auth().status().unwrap().authenticated);
+    assert!(f.auth().lease().is_err());
+    f.login("synthetic-last-bearer");
+    let last = f.auth().lease().unwrap();
+    f.time(1500);
+    assert!(!f.auth().lease_current(&last).unwrap());
+    assert!(f.auth().lease().is_err());
+    // The captured lease remains usable only natively for old-session cleanup.
+    assert_eq!(last.bearer(), "synthetic-last-bearer");
+}
+
+#[test]
+fn local_publication_requires_current_lease_and_never_invokes_stale_closure() {
+    let f = MediaAuthFixture::new();
+    let lease = f.auth().lease().unwrap();
+    let published = AtomicBool::new(false);
+    f.auth()
+        .publish_if_current(&lease, || {
+            published.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .unwrap();
+    assert!(published.swap(false, Ordering::SeqCst));
+    f.login("synthetic-new-bearer");
+    assert!(f
+        .auth()
+        .publish_if_current(&lease, || {
+            published.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .is_err());
+    assert!(!published.load(Ordering::SeqCst));
+}

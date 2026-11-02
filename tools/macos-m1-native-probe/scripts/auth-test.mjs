@@ -3,8 +3,11 @@ import { fileURLToPath } from "node:url";
 import { BuildFailure, RUST_BIN, createPlan, validateInputs } from "./policy.mjs";
 import { inputHashes, prepareCaches, runChild } from "./build.mjs";
 
+import { prepareAssets } from "./assets.mjs";
+
 export function executeAuthTests(plan, run = runChild) {
   validateInputs(plan);
+  prepareAssets(plan);
   const inputs = inputHashes(plan);
   prepareCaches(plan);
   const result = run(
