@@ -46,6 +46,19 @@
   PostgreSQL 迁移和后端覆盖率测试。它们都不能代替真实 LiveKit、第三方 Provider、移动端真机
   或生产部署验收；这些边界应在对应验收文档或 `TODO.md` 中单独记录。
 
+## 2026-11-02 macOS M1 离线媒体接线
+
+独立 `tools/macos-m1-native-probe` 新增固定 native API/代际清理、四个媒体 IPC、
+Auth 同步失效接线、真实 SDK 2.17.2 自托管与最小语音 UI；默认媒体配置禁用，
+不自动采音。固定 policy 纳入新模块、七项精确权限、SDK/许可证生成字节和输入 hash；
+测试 fixture 不再写历史目录，旧拒绝/双流/超时语义保留。npm 锁由唯一主控所有者
+原生应用，root pnpm 与 Cargo 锁未改。实施已执行 Node 离线回归及 Rustfmt；新源码
+Rust 测试/真实 arm64 打包结果以本轮独立回执为准，不能复用旧包结论。
+
+真实 Provider 5 分钟 5 轮、WKWebView/TCC、close/quit、耳机/休眠及兼容性仍未验收；
+未恢复服务/证书、未安装或启动 App、未跑共享业务门禁，不标 M1 通过、不进入 M2。
+详见 [离线媒体接线](./verification/cross-platform/MACOS-M1-OFFLINE-MEDIA.md)。
+
 ## 2026-11-01 项目入口刷新与最新本地边界
 
 本节补充最新事实；上方 A83 具名验收基线与下方各轮历史记录保留原样，不据此改写旧轮计数。
