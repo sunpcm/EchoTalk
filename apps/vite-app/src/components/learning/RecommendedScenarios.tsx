@@ -66,11 +66,14 @@ function ScenarioCard({
       <button
         onClick={() => onEnter(scenario)}
         disabled={isChecking}
+        aria-label={`${t.enterPractice} - ${formatTitle(scenario.scenario_name)}`}
+        aria-busy={isChecking ? "true" : undefined}
         className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isChecking ? (
           <>
             <svg
+              aria-hidden="true"
               className="text-accent-contrast mr-2 h-4 w-4 animate-spin"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -134,7 +137,7 @@ export function RecommendedScenarios() {
 
   if (loading) {
     return (
-      <div className="text-text-faint py-8 text-center">
+      <div role="status" aria-live="polite" className="text-text-faint py-8 text-center">
         <div className="border-border-default mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
         {t.loading}
       </div>

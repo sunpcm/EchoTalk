@@ -14,3 +14,8 @@
 
 **Learning:** Custom progress bar components (such as daily conversation turn counters and skill mastery levels) rendered as styled `<div>` elements are completely invisible to screen readers without `role="progressbar"` and standard ARIA progress attributes.
 **Action:** Always wrap visual progress indicators in `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`, and `aria-label`.
+
+## 2025-03-03 - Contextual ARIA Labels for Repetitive Card Actions & Live Loading Indicators
+
+**Learning:** Repeated generic action buttons (such as "进入练习") in card grids/lists lack item context when screen reader users navigate by buttons. Additionally, async state changes and health checks are unannounced without `role="status"`, `aria-live="polite"`, and `aria-busy`.
+**Action:** Always append the card item name to generic action buttons using `aria-label={`${actionText} - ${itemName}`}`, add `aria-busy` during async loading, and mark loading indicators with `role="status"` and `aria-live="polite"`.
