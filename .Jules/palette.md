@@ -14,3 +14,8 @@
 
 **Learning:** Custom progress bar components (such as daily conversation turn counters and skill mastery levels) rendered as styled `<div>` elements are completely invisible to screen readers without `role="progressbar"` and standard ARIA progress attributes.
 **Action:** Always wrap visual progress indicators in `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`, and `aria-label`.
+
+## 2025-03-03 - Contextual Action Labels and Badge Descriptions for Cards
+
+**Learning:** Repeated generic button text (e.g., "进入练习") across multiple card lists lacks item context when navigated by screen readers via tabbing or rotor, and short acronym badges (e.g. "B2") lack explicit descriptions.
+**Action:** Always append the item name to button `aria-label`s (e.g., `${t.enterPractice}：${formatTitle(item.name)}`) and include clear badge `aria-label`s (e.g., `难度等级：B2`).
