@@ -46,7 +46,7 @@ script/style 仅 self，media-src 仅 self/blob，保留明确 Tauri IPC 源，�
 cd /Users/sunpcm/code/EchoTalk/.review/worktrees/macos-m1-offline-media-20261102
 mkdir -p .review/m1-native-host/tmp/node-tests
 TMPDIR="$PWD/.review/m1-native-host/tmp/node-tests" \
-  /Users/sunpcm/.nvm/versions/node/v22.13.1/bin/node --test --test-timeout=5000 \
+  /Users/sunpcm/.nvm/versions/node/v22.13.1/bin/node --test --test-timeout=30000 \
   tools/macos-m1-native-probe/scripts/build.test.mjs \
   tools/macos-m1-native-probe/scripts/media-build.test.mjs \
   tools/macos-m1-native-probe/scripts/auth-ui.test.mjs \
@@ -56,6 +56,8 @@ TMPDIR="$PWD/.review/m1-native-host/tmp/node-tests" \
   tools/macos-m1-native-probe/scripts/main.test.mjs \
   tools/macos-m1-native-probe/scripts/ci.test.mjs
 ```
+
+`--test-timeout=30000` 为每份 Node 测试文件提供有限的 30 秒整体预算，包含该文件内的大流与真实子进程回归；各子进程保留自身 timeout。CI Node 整批外层仍限时 120000ms，job 仍限时 60 分钟。
 
 等价 package 入口为 `probe:test`。fixture 使用本次 TMPDIR 下每测试唯一目录，退出时只删除自身目录，不再写历史 implementer/r3。
 

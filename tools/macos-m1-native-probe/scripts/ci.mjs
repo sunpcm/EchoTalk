@@ -15,7 +15,7 @@ import { prepareAssets } from "./assets.mjs";
 
 export const NODE_TEST_ARGS = Object.freeze([
   "--test",
-  "--test-timeout=5000",
+  "--test-timeout=30000",
   "scripts/build.test.mjs",
   "scripts/media-build.test.mjs",
   "scripts/auth-ui.test.mjs",

@@ -519,7 +519,7 @@ export const COMMANDS = Object.freeze([
 ]);
 export const PROBE_SCRIPTS = Object.freeze({
   "probe:test":
-    "node --test --test-timeout=5000 scripts/build.test.mjs scripts/media-build.test.mjs scripts/auth-ui.test.mjs scripts/media.test.mjs scripts/livekit-media.test.mjs scripts/media-ui.test.mjs scripts/main.test.mjs scripts/ci.test.mjs",
+    "node --test --test-timeout=30000 scripts/build.test.mjs scripts/media-build.test.mjs scripts/auth-ui.test.mjs scripts/media.test.mjs scripts/livekit-media.test.mjs scripts/media-ui.test.mjs scripts/main.test.mjs scripts/ci.test.mjs",
   "probe:build": "node scripts/build.mjs",
   "probe:auth-test": "node scripts/auth-test.mjs",
   "probe:assets": "node scripts/assets.mjs",

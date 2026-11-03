@@ -157,7 +157,20 @@ test("CI prepares locked dependencies then executes full Node, native Rust and v
   assert.equal(fetch.options.env.CARGO_HOME, f.plan.env.CARGO_HOME);
   assert.equal(f.plan.env.CARGO_NET_OFFLINE, "true");
   const node = f.calls.find((call) => call.args[0] === "--test");
-  assert.deepEqual(node.args, [...NODE_TEST_ARGS]);
+  assert.equal(node.command, f.plan.node);
+  assert.deepEqual(node.args, [
+    "--test",
+    "--test-timeout=30000",
+    "scripts/build.test.mjs",
+    "scripts/media-build.test.mjs",
+    "scripts/auth-ui.test.mjs",
+    "scripts/media.test.mjs",
+    "scripts/livekit-media.test.mjs",
+    "scripts/media-ui.test.mjs",
+    "scripts/main.test.mjs",
+    "scripts/ci.test.mjs",
+  ]);
+  assert.equal(node.options.timeout, 120000);
   const rust = f.calls.find((call) => call.args[0] === "test");
   assert.equal(rust.command, join(f.plan.rustBin, "cargo"));
   assert.deepEqual(rust.args, [
