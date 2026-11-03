@@ -3,6 +3,45 @@
 > 本文是 EchoTalk “当前已经实现什么、最近改变了什么、明确没有采纳什么”的权威入口。
 > 未完成工作维护在根目录 [`TODO.md`](../TODO.md)；具体架构和人工验收步骤仍由各阶段技术文档负责。
 
+## 2026-11-03 无 Key 工作与最新交付状态
+
+主控当日实时核验 [PR #117](https://github.com/sunpcm/EchoTalk/pull/117) 已合并，
+远端 main 为 `b3493a3a40c5c6743c9c3df609790368b2b76435`，已包含 readiness 与
+macOS probe CI；旧 PR #117 及对应 main 运行此前均已全绿。本节覆盖当前状态，
+下方 A83、A64 等具名历史计数及各轮失败记录保留，不外推为本批组合验收结果。
+
+### 本次验证记录（2026-11-03）
+
+`checks/combined-r1` 的 frontend10/backend5 全部通过；actionlint/assets/macOS Node 241、
+独立隐私 4 项通过。原布局探针因主控按钮名错误失败，纠正后 `checks/final-supplement-r2`
+的 format、B r2 Node 28、4 个双浏览器几何场景通过，390/960 截图正常；不称整份 combined-r1 全 exit0。
+B 子集 run 41581791010 的 frontend/backend/macOS/iOS/CI 五 jobs 已全绿，Simulator built-not-run；组合 Web 镜像产物验证通过。
+记录时最终 A 尚未正式交付；正式交付与最终 head CI 状态以 PR #119 和主控报告为准。以下表格保留此前阶段状态，
+其中待组合/待 native CI 的口径以本更新为准，真实设备、语音、签名与部署边界不变。
+
+| 工作线           | 已有实现或证据                                                                                                                                                                                  | 待完成边界                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| A 安全诊断       | 最近 50 条内存白名单记录、账号清理、主动预览/复制/清空，无上传/持久化；主控 Vitest 1034、Chromium/WebKit 合计 166 通过，`auth-buffer` / `copy-order` 两个真实变异 killed 且已还原               | 不代替组合 frontend10/backend5、独立 Review 或真实设备 Clipboard 验收                        |
+| C 后端运行时     | 真实 Linux arm64 API/Agent 角色镜像、frozen export、ASGI health/无 Key 拒绝、全新 PostgreSQL 空库迁移、合成 `c03 → c06` UTC 微秒/索引/event/seed、真实分析 Worker 无 Key 安全失败均通过         | 原 Compose 整栈、真实服务、旧版同环境镜像/冷启动对比仍未验                                   |
+| C Web production | P1 入口绕过已修复；主控真实三构建为 OIDC exit0、dev/oidc-token exit1，两个负向均命中 guard；保留原坏 dev exit0                                                                                  | 不代替缺 OIDC 运行态、原 Compose 整栈或冷启动对比                                            |
+| B 无签名 iOS CI  | B r1 已停写，修复误收集并使用 `ios-ci-test.mjs`；主控格式/actionlint/Node 28 项/macOS 聚合四项检查通过；验证 draft [PR #119](https://github.com/sunpcm/EchoTalk/pull/119) 的远端后端/macOS 已绿 | 旧 frontend 误收集失败保留；B r1 远端结果及原生 iOS 仍待真实 CI                              |
+| 最终组合         | A 已组合 C 四文件与 B 六文件；本次仅更新五份文档，不修改实现                                                                                                                                    | 完整 frontend10/backend5、独立 Review、PR #119 CI 的最终状态仍待主控收口；不阻塞本次文档停写 |
+
+C 当前镜像约 API 1.545 GB、Agent 1.936 GB。没有旧版同环境 before，因此不计算优化百分比，
+不声称冷启动收益或镜像已最小化。PR #119 初始 remote head `291f210` 与本地 `fea4888`
+的 tree 完全相同；这只标识初始验证输入，不代表后续 B r1 或最终组合已经通过。
+C 四阶段验收和 Web 三构建均已结束；主控核验 ID/label/internal/tmpfs 归属后已清理本批
+专用 PG 与内部网络，原 cp00 未动，C 镜像、快照及证据保留，详见 Linux 运行时记录。
+
+Key 仍未准备，本批没有验证真实 IdP/Provider/LiveKit、5 分钟 5 轮语音、WKWebView/TCC、
+设备、签名或部署。RF-05/07/09/12 等整项仍有外部或对比边界，不据上述局部结果关闭。
+next2 草稿未融合；下一阶段优先无 Key 可做且有价值的工作，不在本轮扩实现范围。
+
+细节见[诊断导出验证](./verification/cross-platform/CP-06-DIAGNOSTIC-EXPORT.md)与
+[Linux 运行时记录](./verification/cross-platform/RF-07-LINUX-RUNTIME.md)。本地原始回执保留于
+`.review/reports/keyfree-delivery-20261103/`；最终状态由 PR #119 CI 和主控独立报告承载，
+本次文档静态整理不新增测试结果、approval 或提交记录。
+
 ## 2026-11-02 练习前置检查与探针 CI 最终组合结果
 
 2026-11-03，主控最终组合 21 项检查全部 passed/exit0。readiness 已实现缺用户/设置、
@@ -20,9 +59,9 @@
 - 汇总及命令/输入字节索引位于主 checkout 的
   `.review/reports/practice-readiness-20261102/checks/combined-final-r0/summary.json`；
   首次失败及修复证据保留在本地评审报告。
-- 独立 Review 与提交状态以本轮主控最终报告为准。文档同步时尚未合入 main，
-  未 push/部署，远端 CI 未运行；真实 Provider/LiveKit/IdP、设备/TCC/媒体与
-  Linux/Docker 等外部边界仍未验证，未融合 next2 候选。
+- 该轮已随 PR #117 合入 main，旧 PR 及对应 main 运行此前均已全绿；上述本地 21 项
+  计数保留。真实 Provider/LiveKit/IdP、设备/TCC/媒体与部署仍未验，未融合 next2 候选。
+  本批 Linux/Docker 无 Key 增量和最终组合边界见上方最新状态，不改写本轮历史输入。
 
 验收范围与证据见[练习前置检查验证](./verification/cross-platform/PRACTICE-READINESS.md)
 及[macOS 探针 CI 验证](./verification/cross-platform/MACOS-PROBE-CI.md)。
@@ -30,9 +69,10 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；A83 是历史具名完整门禁记录，
-> 不外推为后续提交已复验。最新状态见下方「项目入口刷新与最新本地边界」及 `TODO.md`。
+> 不外推为后续提交已复验。最新状态见上方「2026-11-03 无 Key 工作与最新交付状态」及 `TODO.md`。
 
-- 最近本地核对日期：2026-11-01。
+- 最新远端状态由主控于 2026-11-03 核验：PR #117 已合并，main 为 `b3493a3`；
+  当前未提交组合的验收仍待完成。本地历史基线核对日期为 2026-11-01。
 - A83 历史具名本地验收代码基线：
   `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
   receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
@@ -42,13 +82,14 @@
   Vitest/34 files、586 backend/76.98%；A80 为 972 Vitest/36 files、586 backend/
   76.98%；A81 为 972 Vitest/36 files、594 backend/78.10%；A82 为 594 backend/
   78.10%。私有探针和变异只在对应 lane 验证，main 未冒认重复。真实 IdP、
-  LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
-- 本地 tracking reference `origin/main` 当前指向
+  LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署在 A83 当时尚未验证；
+  本批新增证据与剩余边界以上方最新状态为准。
+- A84 b/r0 receipt 当时的本地 tracking reference `origin/main` 指向
   `c704925bc9150d153fc951c2727e7472dad00d78`；A84 b/r0 正式 receipt 绑定的具名已验
   代码基线 `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）相对它领先 19 个
   提交。该计数只对应 receipt 中的具名基线，不是提交后必变的实时 lane HEAD 事实；比较
   也只读本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
-- 最近已有远端运行证据：PR
+- 较早已保存精确 run 引用的远端证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
   [41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)，精确 head
   `b7585d140ecc6ad4f45580fabe71e32c9c51466b`、merge
@@ -56,7 +97,7 @@
   18 build-script、61 Fake API、Chromium 74 + WebKit 74；backend 空库迁移至
   `c06_transcript_events` 后 529 passed、82.49%；`test-frontend`、`test-backend` 与聚合
   `CI` 三 job 均 success。该运行不包含 A67 新增的 OpenAPI schema/TypeScript 类型生成
-  两层门禁，也不覆盖 A65–A74 未推送树。
+  两层门禁，也不覆盖 A65–A74 当时的未推送树；不是当前 main 的验收上限。
 - 较早的远端集成记录保留为历史：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
   （PR #108 squash 合并、`feat: integrate locally reviewed cross-platform milestones
 (A45-A63)`）。

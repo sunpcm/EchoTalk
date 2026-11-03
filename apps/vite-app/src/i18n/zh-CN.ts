@@ -191,6 +191,21 @@ export const zhCN = {
     statusError: "未连通",
     statusUnconfigured: "未配置",
     apiKeyConfiguredPlaceholder: "••••••••（留空保持不变）",
+    diagnostics: {
+      title: "安全诊断",
+      description:
+        "仅在内存中保留最近 50 条错误或中断记录，包含版本、平台和错误类别。不含密钥、账号或对话正文，不会自动上传；仅在你点击复制时写入剪贴板。",
+      count: "当前记录：{count} 条（最多 50 条）",
+      preview: "诊断记录预览",
+      empty: "暂无诊断记录",
+      copy: "复制诊断记录",
+      copying: "正在复制诊断记录…",
+      copied: "诊断记录已复制",
+      unsupported: "当前环境不支持复制，请选中预览内容手动复制",
+      copyFailed: "复制失败，请重试或选中预览内容手动复制",
+      clear: "清空诊断记录",
+      cleared: "诊断记录已清空",
+    },
   },
   agentError: {
     title: "AI 服务启动失败",

@@ -2,6 +2,44 @@
 
 > 当前唯一待办清单。完成事项应直接勾选；新增待办需写明验收条件，避免继续散落到阶段文档和源码注释中。
 
+## 2026-11-03 无 Key 工作与当前验收边界
+
+主控当日实时核验 [PR #117](https://github.com/sunpcm/EchoTalk/pull/117) 已合并，
+远端 main 为 `b3493a3a40c5c6743c9c3df609790368b2b76435`，已包含练习前置检查与
+macOS 探针 CI；该 PR 及对应 main 运行此前均已全绿。下方具名轮次的计数和失败历史保留，
+不再将它们当时的未 push/未 CI 状态视为当前远端状态。
+
+本次验证记录（2026-11-03）：`checks/combined-r1` 的 frontend10/backend5 全部通过：
+1034 Vitest/39 files、21 build-script、61 Fake API、8 types、166 双浏览器、
+644 pytest/3 warnings/78.61%（59% 门禁）；补充验证及未发布边界见状态页。
+
+- [x] A 诊断局部验证：最近 50 条内存白名单记录、账号清理、用户主动预览/复制/清空，
+      无上传或持久化；主控 Vitest 1034、Chromium/WebKit 合计 166 通过，
+      `auth-buffer` / `copy-order` 两个真实变异均 killed 且已还原。详见
+      [诊断导出验证](./docs/verification/cross-platform/CP-06-DIAGNOSTIC-EXPORT.md)。
+- [x] C 后端无 Key 验收：真实 Linux arm64 API/Agent 角色镜像、frozen export、ASGI
+      health/无 Key 拒绝、全新 PostgreSQL 空库迁移、合成 `c03 → c06` 的 UTC 微秒/
+      索引/event/seed、真实分析 Worker 无 Key 安全失败均通过。镜像约 API 1.545 GB、
+      Agent 1.936 GB；没有旧版同环境 before，不计算优化百分比或冷启动收益，不代表
+      原 Compose 整栈已验。详见 [Linux 运行时记录](./docs/verification/cross-platform/RF-07-LINUX-RUNTIME.md)。
+- [x] Web Docker production guard 真实复验：P1 绕过入口已最小修复；主控三构建结果为
+      OIDC exit0、dev/oidc-token exit1，两个负向均命中 production guard，原坏 dev exit0
+      记录保留。这不代替缺 OIDC 运行态或原 Compose 整栈验收。
+- [x] B r1 本地四项检查：修复 Node runner 被 Vitest 误收集，文件已改名
+      `ios-ci-test.mjs`；主控格式、actionlint、Node 28 项、macOS 聚合检查通过，B 已停写。
+- [x] B 子集无签名 arm64 Simulator 真实编译及静态产物校验通过，见
+      [CI 41581791010 / job 125738079003](https://github.com/sunpcm/EchoTalk/actions/runs/41581791010/job/125738079003)；
+      frontend/backend/macOS/iOS/CI 五 jobs 已全绿；built-not-run，不代表最终 A head，旧 r0/r1 失败保留。
+- [x] 主控最终组合完整 frontend10/backend5 已通过，补充 format/Node 28/双浏览器几何验证通过。
+- [ ] Key 准备后再验真实 IdP/Provider/LiveKit、5 分钟 5 轮语音、WKWebView/TCC、
+      设备、签名与部署；这些边界本批全部未验，RF-05/07/09/12 等整项继续未勾选。
+
+正式交付与最终 head CI 状态以 PR #119 和主控报告为准。
+
+next2 草稿未融合；下一阶段优先继续无 Key 可做且有价值的工作，本轮不扩大实现范围。
+C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理本批专用 PG/内部网络，cp00
+未动；镜像、快照和证据保留。B 六文件已组合进 A，文档停写不等待远端或后续测试。
+
 ## 2026-11-02 练习前置检查与探针 CI（最终组合检查通过）
 
 2026-11-03，主控完成最终组合 21 项检查，全部 passed/exit0。readiness 保持配置检查
@@ -15,8 +53,9 @@
       继续有效，本次未在 A 重编译，原生 App 未运行。
 - [x] 独立 HTTP 9 场景及浏览器初始化 2 个控制场景通过；HTTP 检查零解密、零外网。
       此前两项关键变异均被真实断言杀死，源码已还原。
-- [ ] 远端 CI 及真实外部验收：远端 CI 未运行；真实 Provider/LiveKit/IdP、设备、
-      TCC/媒体及 Linux/Docker 等边界仍需相应证据。
+- [x] 该轮远端 CI：2026-11-03 主控确认 PR #117 已合并，旧 PR 及对应 main 运行均已全绿。
+- [ ] 真实外部验收：Provider/LiveKit/IdP、设备、TCC/媒体仍需相应证据；本批新增的
+      Linux/Docker 无 Key 验收范围见上方摘要，不替代真实服务或原 Compose 整栈。
 
 最终组合证据：主 checkout 的
 `.review/reports/practice-readiness-20261102/checks/combined-final-r0/summary.json`。
@@ -24,8 +63,8 @@
 [探针 CI 验证](./docs/verification/cross-platform/MACOS-PROBE-CI.md)。
 首次失败及修复证据保留在本地评审报告。
 
-独立 Review 与提交状态以本轮主控最终报告为准。文档同步时尚未合入 main，未 push/部署；
-未融合 next2 候选。本次仅同步新增最终结果，功能代码不变。
+该轮已通过 PR #117 合入 main，历史本地 21 项计数不变；本次无 Key 增量仍待组合验收与
+独立 Review，不据此宣称已合并或发布。未部署，未融合 next2 候选。
 
 ## MVP 产品化修复（RF-01～RF-12）
 
@@ -36,7 +75,9 @@
 
 ### 执行基线
 
-- 当前已验收维护基线：
+- 当前远端基线：主控 2026-11-03 核验的 `main@b3493a3`（PR #117 已合并）；
+  本批未提交增量的组合门禁与独立 Review 仍待完成，见上方摘要。
+- 历史具名已验收维护基线：
   `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
   receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
   和完整 15 项门禁核销；门禁计数为 972 Vitest/36 files、18 build-script、61 Fake API、
@@ -72,8 +113,9 @@
       854 Vitest/18 build-script/61 Fake API/Chromium+WebKit 148，后端为空库迁移至
       `c06_transcript_events` 后 529 passed、82.49%；见
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
-      旧远端证据不包含 A67 新增的 OpenAPI schema 与 TypeScript 类型生成两层门禁，这两层
-      尚未在远端当前树执行，且 A65–A69 未 push；因此 RF-04 整项继续保持未勾选。
+      上述 A64 旧运行不包含 A67 新增的两层门禁；2026-11-03 主控已确认 PR #117 及其
+      main 运行全绿。B r1 runner 修复已通过本地四项检查；PR #119 仍为验证 draft，
+      其远端新结果、原生 iOS CI 与本批组合验收待收口，RF-04 整项继续保持未勾选。
 
 ### Phase 1：分析可靠性
 
@@ -120,6 +162,8 @@
       `b2b02b3bf647676e903b3d9b837e2be4b1133b90` 并精确 fast-forward 本地 main；main 复验为
       566 backend passed、80.10% coverage。首轮 565 passed/1 failed 保留为历史事实；镜像/CI
       体积与部署冷启动对比仍未完成，故整项保持未勾选。
+      2026-11-03 已补 API/Agent Linux arm64 角色镜像运行证据，当前体积约 1.545/1.936 GB；
+      缺少旧版同环境 before，仍不报告优化比例或冷启动收益，也不等于原 Compose 整栈通过。
 - [ ] **RF-06 清理前端模板**：引用审计后删除无调用者的 Webpack、UI 模板、Changesets、
       Plop 和一次性脚本；根包元数据、workspace、Turbo、Docker 和 Capacitor 保持一致。
       A73 b/r0 已按全部 tracked 引用审计删除 Webpack/UI 模板、Changesets、Plop 等 31 个
@@ -131,7 +175,8 @@
       18 build-script、61 Fake API、8 类型生成器、148 E2E）、schema、Ruff 和 566 backend
       （80.10%），不包含上述 root test 复跑。合成 OIDC 下 Web/iOS production-mode 构建与
       真实 Capacitor 资源同步在 lane 通过，未据此冒认 main 重跑、真实登录、原生编译或设备
-      链路。真实 Docker 镜像、CI 与角色分组仍未验收，因此 RF-06 整项保持未勾选。A47
+      链路。A73 当时未验的 Docker/CI 边界已有本批增量；Web production guard 的真实
+      三构建复验已通过，本批组合与发布边界仍待完成，RF-06 整项保持未勾选。A47
       根元数据与诊断脚本历史证据见
       [RF-06 根清理记录](./docs/verification/cross-platform/RF-06-ROOT-CLEANUP.md)。
 
@@ -161,8 +206,10 @@
       `BACKEND_ROLE=api|agent` 并排除 dev，Compose 将 API/analysis-worker 绑定 `api`、
       语音 Agent 绑定 `agent`。A79 已获独立 Review APPROVED，以单提交
       `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main 并通过完整
-      15 项 main 门禁。Linux/Docker 镜像、Compose 服务、真实 Provider/LiveKit、设备、远端
-      CI 与部署仍未验证，RF-07 整项保持未勾选，契约见
+      15 项 main 门禁。2026-11-03 C 线真实 Linux arm64 API/Agent 角色镜像、frozen export
+      与无 Key 运行边界已通过，PR #117 及对应 main CI 此前已绿，Web guard 三构建复验
+      也已通过；原 Compose 整栈、真实 Provider/LiveKit/设备、部署与最终组合仍待完成，
+      RF-07 整项保持未勾选，契约见
       [RF-07 运行角色依赖与容器配方](./docs/verification/cross-platform/RF-07-RUNTIME-ROLES.md)。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；
       timezone-aware UTC、必要索引和有界分页完成；空库及现有数据库副本迁移均通过。
@@ -422,8 +469,8 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 ### CP-06：自动化与真实链路回归
 
 - [x] 本地双浏览器门禁：保留完整质量检查，Chromium/WebKit各11项，覆盖分析/恢复/401边界、0skip；CI安装接线已更新，见[验证](./docs/verification/cross-platform/CP-06-WEBKIT.md)。
-- [ ] 取得当前树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 已有远端基础证据（旧 8 项前端门禁、Chromium/WebKit 各 74 项及 backend 529），但 A67 新增的 OpenAPI schema、TypeScript 类型生成与当前 10 项前端门禁尚未在 A65–A69 未推送树上执行，见 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；当前远端树和真实链路仍待验收。
-- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。
+- [ ] 取得当前增量树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 旧 8 项门禁及其具名计数保留在 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；PR #117 及对应 main 运行此前已绿，本批 PR #119 frontend 与组合门禁仍待收口，真实链路未验。
+- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。macOS 探针 CI 已随 PR #117 合并；B r1 已修复 Node runner 误收集并通过主控本地四项检查，PR #119 为验证 draft，原生 iOS 仍待真实 CI。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 已 Review APPROVED、以单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 精确 fast-forward 本地 main，并完成 main 完整门禁；lane 独立消费探针与 3 项有效变异未在 main 重复。A77 已把 Room 物理 adapter/Room 与认证业务监听归属分离；r1 产品 Vitest 为 940 passed/25 failed/965 total，r2 已修复 native pending 占位 hidden 被误判为真实 inactive，并把 Web 订阅后快照与 native pending 分开：Web 立即失败，native 等 `whenReady` 后重读 snapshot/能力并按原 10 秒 deadline 对账；旧 timer 不得清空新句柄，刷新后当前 native 业务监听仍可停轨。r2 独立 9 项时序与 A76 compat 5 项在 formatter 前通过，随后 format/lint/typecheck 通过，完整 Vitest 为 958 passed/9 failed/967 total，失败均由 stale timer fixture 残留 fake 全局时钟导致后续 A76 异步等待超时；r3 已清理该 fixture，并通过 967 Vitest/33 files、18 build-script、61 Fake API、8 type generator、148 双浏览器 E2E、576 backend/80.09% coverage、schema 与 Ruff。auth revision、原 deadline、ready snapshot 三个产品变异产生 11/6/4 项失败并精确还原；第四项 timer-handle 变异未被原 967 测试杀死，但实际 timer 队列确认卸载后残留本 Room timer，因此 r4 已补真实队列与卸载清理回归，产品逻辑不变。r1 只执行官方返修 native 预检，baseline3 是历史 r0 实测，当前 r4 仍待主 Agent 停写后完整代跑、复验第四项变异必被杀死并由独立 Review 判定，见 [A76 冻结实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md) 与 [A77 本地实施记录](./docs/verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)；三端真实异常联动仍待外部验收，本计划不要求新增遥测上报，整项保持未勾选。
 - [ ] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再

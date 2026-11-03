@@ -3,7 +3,16 @@
 本轮为 CP-06 增加独立 `test-ios-build` job：普通 PR 在不提供发布密钥的情况下，
 构建共享 React 前端、显式同步 Capacitor，然后真实编译 arm64 iOS Simulator `.app`。
 只有退出成功且新包通过静态产物验证，才输出 `ios-simulator-built-not-run`。
-实现与回归用例已写入；本轮实施节点没有运行测试、安装依赖或执行编译，结果待主控代跑。
+
+## 本次验证记录（2026-11-03）
+
+B commit `d5b2414c33cc3db053daa5afbaa6f9d4a0575eba` 的 tree 等于本地 `e96e6b9`。
+[CI 41581791010 / job 125738079003](https://github.com/sunpcm/EchoTalk/actions/runs/41581791010/job/125738079003)
+主控已回读 frontend/backend/macOS/iOS/CI 五 jobs 全绿；真实无签名 arm64 Simulator 编译包含 SPM/Web/sync、全包 Mach-O/plist/public/static no-sign 校验。
+built-not-run 的 binarySha256 为 `c4d26fc6abf0f7a1bffc8b3ffbfb2bfdf449645e3082eda1091b98ab32a7e0e7`。
+这是 B 子集，不是最终 A 诊断组合；记录时最终 A 尚未发布，其最终 head CI 以 PR #119 和主控报告为准，旧 r0/r1 失败保留。
+主控补充 format/B r2 Node 28/布局检查通过；本节点未自行执行，以下先前待 CI 口径以本更新为准。
+App 未启动，未签名、未验设备语音或部署；以上为本次验证记录，不作实时交付状态声明。
 
 ## 工具和权限边界
 

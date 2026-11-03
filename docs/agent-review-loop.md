@@ -22,23 +22,24 @@
 当前默认 PATH 是 Node 24，不能据此宣称完成 CI Node 22 验证。
 Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用其他 lane 的可变虚拟环境。
 
-| 类型            | lane 内工作目录         | 命令                                                                | 环境/说明                                                             |
-| --------------- | ----------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| 真实单元测试树  | `apps/vite-app`         | `pnpm test`                                                         | 使用项目脚本配置 NODE_OPTIONS；Vitest 不使用 Turbo 缓存日志作为新证据 |
-| 浏览器测试树    | `apps/vite-app`         | `pnpm test:e2e`                                                     | Chromium + 本地 Fake API；默认端口 4173/18181，单独串行运行           |
-| 后端测试树      | `backend`               | `.venv/bin/python -m pytest --cov=. --cov-report=term-missing`      | 仅在 §3 明确独立测试库并核验后运行，Mock/DB 用例和 skip 分开报告      |
-| 格式            | 仓库根                  | `pnpm format:check`                                                 | 不扫描本地 `.review/`                                                 |
-| 前端 lint       | 仓库根                  | `pnpm exec turbo run lint --force`                                  | 强制执行；实际只有 Vite 真实 lint 任务，共享配置包不伪造 lint 任务    |
-| 前端类型        | 仓库根                  | `pnpm exec turbo run typecheck --force`                             | 强制执行                                                              |
-| 前端构建        | 仓库根                  | `pnpm exec turbo run build --force`                                 | 构建 Vite/Capacitor 产品前端，原生同步单独记录                        |
-| 后端格式        | `backend`               | `.venv/bin/ruff format --check .`                                   | 与 CI 一致                                                            |
-| 后端 lint       | `backend`               | `.venv/bin/ruff check .`                                            | 与 CI 一致                                                            |
-| OpenAPI schema  | `backend`               | `../.review/rf07-a37-dev-venv/bin/python export_openapi.py --check` | 真实 app 导出后与 canonical `openapi.json` 字节比较；不读 dotenv/凭据 |
-| API 类型漂移    | `apps/vite-app`         | `pnpm check:api-types`                                              | 从 tracked schema 重新生成并与 `api.generated.ts` 字节比较            |
-| API 类型 runner | `apps/vite-app`         | `pnpm test:api-types`                                               | Node 真实 runner；覆盖确定性、stale、`$ref` 与写入失败                |
-| 空库迁移        | `backend`               | `.venv/bin/alembic upgrade head` 后 `.venv/bin/alembic current`     | 仅在专用可重建测试库获授权后执行；不是普通基线检查的默认动作          |
-| iOS 工程检查    | `apps/vite-app/ios/App` | `xcodebuild -list -project App.xcodeproj`                           | 仅清单；可能访问 SPM，运行前确认边界，完整编译不在本轮默认授权内      |
-| Fake API测试    | `apps/vite-app`         | `pnpm test:fake-api`                                                | 真实 Node 子进程回归，使用动态端口 0 与原生 node:test                 |
+| 类型               | lane 内工作目录         | 命令                                                                     | 环境/说明                                                                                 |
+| ------------------ | ----------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| 真实单元测试树     | `apps/vite-app`         | `pnpm test`                                                              | 使用项目脚本配置 NODE_OPTIONS；Vitest 不使用 Turbo 缓存日志作为新证据                     |
+| 浏览器测试树       | `apps/vite-app`         | `pnpm test:e2e`                                                          | Chromium + 本地 Fake API；默认端口 4173/18181，单独串行运行                               |
+| 后端测试树         | `backend`               | `.venv/bin/python -m pytest --cov=. --cov-report=term-missing`           | 仅在 §3 明确独立测试库并核验后运行，Mock/DB 用例和 skip 分开报告                          |
+| 格式               | 仓库根                  | `pnpm format:check`                                                      | 不扫描本地 `.review/`                                                                     |
+| 前端 lint          | 仓库根                  | `pnpm exec turbo run lint --force`                                       | 强制执行；实际只有 Vite 真实 lint 任务，共享配置包不伪造 lint 任务                        |
+| 前端类型           | 仓库根                  | `pnpm exec turbo run typecheck --force`                                  | 强制执行                                                                                  |
+| 前端构建           | 仓库根                  | `pnpm exec turbo run build --force`                                      | 构建 Vite/Capacitor 产品前端，原生同步单独记录                                            |
+| 后端格式           | `backend`               | `.venv/bin/ruff format --check .`                                        | 与 CI 一致                                                                                |
+| 后端 lint          | `backend`               | `.venv/bin/ruff check .`                                                 | 与 CI 一致                                                                                |
+| OpenAPI schema     | `backend`               | `../.review/rf07-a37-dev-venv/bin/python export_openapi.py --check`      | 真实 app 导出后与 canonical `openapi.json` 字节比较；不读 dotenv/凭据                     |
+| API 类型漂移       | `apps/vite-app`         | `pnpm check:api-types`                                                   | 从 tracked schema 重新生成并与 `api.generated.ts` 字节比较                                |
+| API 类型 runner    | `apps/vite-app`         | `pnpm test:api-types`                                                    | Node 真实 runner；覆盖确定性、stale、`$ref` 与写入失败                                    |
+| 空库迁移           | `backend`               | `.venv/bin/alembic upgrade head` 后 `.venv/bin/alembic current`          | 仅在专用可重建测试库获授权后执行；不是普通基线检查的默认动作                              |
+| iOS 工程检查       | `apps/vite-app/ios/App` | `xcodebuild -list -project App.xcodeproj`                                | 仅清单；可能访问 SPM，运行前确认边界，完整编译不在本轮默认授权内                          |
+| Fake API测试       | `apps/vite-app`         | `pnpm test:fake-api`                                                     | 真实 Node 子进程回归，使用动态端口 0 与原生 node:test                                     |
+| iOS CI 脚本 runner | 仓库根                  | `node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci-test.mjs` | 独立 Node runner；正式入口 `test:ios-ci` 保留，不交 Vitest 收集；不表示原生 iOS CI 已通过 |
 
 共享配置 package 不提供占位 test 脚本，不得计入测试树。根目录历史独立诊断脚本
 `test_api_err.ts` 已移除，明确不属于测试树。新增真实 runner 时追加本表。
@@ -95,6 +96,27 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 
 既有各隔离 worktree 的前端 frozen 安装授权保持不变；本次 Python 锁定与 frozen 安装授权仅限当前 cp00 及其受控环境（A36 `.review/rf07-venv`、A37 `.review/rf07-a37-dev-venv` 与 `.review/rf07-a37-runtime-venv`），不扩展到其他 lane 或服务环境。Python 依赖可复现性改造（RF-07）已完成本地 Dev 组受控拆分：后端作为标准 Python 3.12 uv 项目锁定 192 个包（26 runtime + 4 dev，172 项 baseline 重叠版本与 LiveKit 7 项 exact SDK 版本严格不变）；依赖安装对齐 CI（`--group dev`）与 Docker（`--no-dev`）源码配方，通过受控工具在隔离环境验证。远端 Linux/Docker 实际镜像构建仍待后续独立验收。
 不借用主 checkout 的 node_modules/venv 冒充新 lane 的独立依赖环境。
+
+### §3.1 2026-11-03 三线任务与组合验收专用边界
+
+本节仅追加本批已授权边界，不替换上文历史授权，不将执行权限交给受限实施节点。
+凭据仅由主控在受保护 runtime 中保管；实施节点不得读取 cp00 runtime、dotenv 或密码。
+
+| 工作线       | 授权 worktree                                                                     | 主控可用测试库                                                                                               | 执行限制                                                                                      |
+| ------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| A 与最终组合 | `/Users/sunpcm/code/EchoTalk/.review/worktrees/diagnostics-export-20261103`       | 原 `echotalk-cp00-pg` / `127.0.0.1:55432` / `echotalk_cp00_test`                                             | 仅完整 pytest 测试写入，不迁移；沿用原 cp00 协调锁；最终组合在 A 执行完整 frontend10/backend5 |
+| B            | 本批 B lane（本节不增加其文件写入权限）                                           | 无                                                                                                           | 仅前端/原生检查，不连接数据库                                                                 |
+| C            | `/Users/sunpcm/code/EchoTalk/.review/worktrees/linux-runtime-acceptance-20261103` | 新 `echotalk-keyfree-20261103-pg` / `127.0.0.1:55443` / `echotalk_keyfree_empty`、`echotalk_keyfree_upgrade` | 与 55432 库独立；仅主控审核脚本与迁移后代跑，运行于全新内部网络                               |
+
+C 固定 PostgreSQL `postgres:15.19-alpine`，资源 label 为
+`codex.scope=echotalk-keyfree-20261103`。不得复用任何已有应用库、QA/生产库或其它 lane 的库，
+不得读取/复制真实用户数据。密码由主控随机生成，仅写本任务报告下受保护 runtime，
+不进文档、命令回显或报告。主控核验容器 ID、label、镜像、内部网络、端口绑定与 SQL 数据库
+身份后才运行。初始迁移含 `DROP ... CASCADE`，从 base 开始前必须 SQL 确认全新专用库
+不存在业务表/用户对象；发现对象立即拒绝，不清表、不 downgrade、不复用部分失败库。
+旧版本合成演练固定 `c03_call_leases → c06_transcript_events`，只覆盖该前置状态。
+迁移审查与输入 hash 在本批 C 报告 `migration-review.md`、`migration-inputs.json`；
+审查记录不等于脚本或服务已获执行放行。C 实施节点只准备文档/工具，不运行测试、安装或服务。
 
 ## §4 生成产物及验证
 

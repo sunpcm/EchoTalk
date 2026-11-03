@@ -72,21 +72,39 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
     const saveBtn = dialog.getByRole("button", { name: "保存设置" });
     await expect(closeBtn).toBeFocused();
 
-    // 自定义模式关闭时，fieldset 被禁用。
-    // 有效可聚焦控件序列：Close -> 暖色 -> 冷色 -> 黑色 -> 自定义开关 -> 保存设置 -> Close
-    const visitedLabels: string[] = [];
-
-    // 正向 Tab 遍历（5 次从 Close 走到 Save，第 6 次循环回 Close）
-    for (let i = 0; i < 5; i++) {
+    // 自定义模式关闭时，诊断预览与按钮仍可聚焦，Provider fieldset 被禁用。
+    const providerFields = dialog.locator("fieldset");
+    await expect(providerFields).toHaveAttribute("disabled", "");
+    const providerControlIds = [
+      "stt-provider-select",
+      "stt-key-input",
+      "llm-provider-select",
+      "llm-model-input",
+      "llm-key-input",
+      "tts-provider-select",
+      "tts-key-input",
+    ];
+    await expect(providerFields.locator("input, select, textarea, button")).toHaveCount(
+      providerControlIds.length,
+    );
+    for (const id of providerControlIds) {
+      await expect(providerFields.locator(`#${id}`)).toBeDisabled();
+    }
+    const forwardSequence = [
+      dialog.getByRole("radio", { name: "暖色外观主题" }),
+      dialog.getByRole("radio", { name: "冷色外观主题" }),
+      dialog.getByRole("radio", { name: "黑色外观主题" }),
+      dialog.getByRole("textbox", { name: "诊断记录预览" }),
+      dialog.getByRole("button", { name: "复制诊断记录" }),
+      dialog.getByRole("button", { name: "清空诊断记录" }),
+      dialog.getByRole("switch"),
+      saveBtn,
+    ];
+    for (const target of forwardSequence) {
       await page.keyboard.press("Tab");
-      const activeText = await page.evaluate(() => {
-        const el = document.activeElement;
-        return el?.getAttribute("aria-label") || el?.textContent || "";
-      });
-      visitedLabels.push(activeText);
+      await expect(target).toBeFocused();
     }
 
-    // 显式断言第 5 步精确聚焦于“保存设置”按钮，绝不能跳过
     await expect(saveBtn).toBeFocused();
 
     // 再次按 Tab 回到关闭按钮
@@ -97,10 +115,12 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
     await page.keyboard.press("Shift+Tab");
     await expect(saveBtn).toBeFocused();
 
-    // 再次反向遍历循环回到关闭按钮
-    for (let i = 0; i < 5; i++) {
+    // 逐个反向验证，最后回到 Close；不依赖固定 Tab 次数。
+    for (const target of [...forwardSequence.slice(0, -1)].reverse()) {
       await page.keyboard.press("Shift+Tab");
+      await expect(target).toBeFocused();
     }
+    await page.keyboard.press("Shift+Tab");
     await expect(closeBtn).toBeFocused();
 
     // 按 Escape 键关闭抽屉并恢复原触发控件焦点
