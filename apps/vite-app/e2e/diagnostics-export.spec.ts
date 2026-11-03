@@ -167,13 +167,20 @@ test("keeps a selectable preview on clipboard failure or missing support", async
   });
   await region.getByRole("button", { name: t.copy }).click();
   await expect(region.getByRole("status")).toHaveText(t.unsupported);
+  await expect(preview).toHaveJSProperty("readOnly", true);
+  await expect(preview).toBeEnabled();
   await preview.focus();
-  await preview.press("ControlOrMeta+A");
+  await expect(preview).toBeFocused();
+  // 选择动作不依赖宿主全选快捷键，仍验证完整只读预览可聚焦并全选。
+  await preview.selectText();
+  await expect(preview).toBeFocused();
   expect(
-    await preview.evaluate(
-      (element: HTMLTextAreaElement) => element.selectionEnd - element.selectionStart,
-    ),
-  ).toBe(original.length);
+    await preview.evaluate((element: HTMLTextAreaElement) => ({
+      start: element.selectionStart,
+      end: element.selectionEnd,
+    })),
+  ).toEqual({ start: 0, end: original.length });
+  await expect(preview).toHaveValue(original);
   await page.evaluate(() => {
     (Reflect.get(window, "__diagnosticClipboardProbe") as ClipboardProbe).mode = "success";
   });
