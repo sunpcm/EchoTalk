@@ -28,9 +28,12 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
   return (
     <div className="space-y-6">
       {/* 得分区 */}
-      <div className="text-center">
+      <div
+        className="text-center"
+        aria-label={`${t.scoreLabel}: ${Math.round(assessment.overall_score)}/100`}
+      >
         {assessment.is_synthetic ? (
-          <div className="bg-warning-bg text-warning mb-3 rounded-lg px-3 py-2 text-sm">
+          <div role="note" className="bg-warning-bg text-warning mb-3 rounded-lg px-3 py-2 text-sm">
             <span className="font-semibold">{t.syntheticBadge}</span>
             <span className="ml-2">{t.syntheticHint}</span>
           </div>
@@ -60,9 +63,27 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
                 <span className="bg-surface-alt text-text-muted mr-2 inline-block rounded px-2 py-0.5 text-xs font-medium">
                   {err.skill_tag}
                 </span>
-                <span className="text-danger text-sm line-through">{err.original}</span>
+                <del
+                  aria-label={`原句错误：${err.original}`}
+                  className="text-danger text-sm line-through"
+                >
+                  {err.original}
+                </del>
                 {err.corrected && (
-                  <span className="text-success ml-2 text-sm">{err.corrected}</span>
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="text-text-faint mx-2 inline-block text-xs select-none"
+                    >
+                      →
+                    </span>
+                    <ins
+                      aria-label={`建议修改：${err.corrected}`}
+                      className="text-success text-sm font-medium no-underline"
+                    >
+                      {err.corrected}
+                    </ins>
+                  </>
                 )}
               </li>
             ))}
