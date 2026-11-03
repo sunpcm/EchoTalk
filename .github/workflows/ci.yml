@@ -173,7 +173,7 @@ jobs:
       - name: Prepare frozen pnpm dependencies
         run: pnpm install --frozen-lockfile
       - name: Test iOS orchestration
-        run: node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci.test.mjs
+        run: node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci-test.mjs
       - name: Select Xcode and prepare locked SPM dependencies
         run: node apps/vite-app/scripts/ios-ci.mjs prepare
       - name: Production web, explicit sync and unsigned simulator compile

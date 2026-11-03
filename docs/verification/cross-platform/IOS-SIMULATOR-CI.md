@@ -29,7 +29,7 @@
 本轮固定 ev/runtime，不直接绕过共享锁或自行运行这些命令：
 
 ```bash
-node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci.test.mjs
+node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci-test.mjs
 node apps/vite-app/scripts/ios-ci.mjs prepare
 node apps/vite-app/scripts/ios-ci.mjs
 ```
@@ -77,7 +77,9 @@ prepare 只运行工具核验和锁定 SPM 依赖准备，回执保存输入 has
 进程组发送 SIGKILL，等待 close；信号中断也会终止任务子进程组。
 
 所有 stdout/stderr 的原始字节分别完整保存在 `.cache/ios-ci/logs/*.stdout.log` 和
-`*.stderr.log`，每步另存参数、真实 status/signal/error 的 JSON。超时返回 124，
+`*.stderr.log`，默认同时回显控制台。内部 runner 的布尔参数 `echoOutput` 默认 true，
+仅大流测试显式设为 false；它不影响文件写入、capture、失败传播或 timeout，也没有 CLI/env
+覆盖入口。每步另存参数、真实 status/signal/error 的 JSON。超时返回 124，
 信号/启动/日志写入不完整返回 70；普通子命令非零传播实际退出码。既有 build/sync CLI
 会将其内部命令失败归一为 1，此时外层保留实际观察到的 CLI exit1，原始下游失败保留在日志。
 文件、工具版本、锁和产物校验失败返回 78，非法参数返回 64。
@@ -90,7 +92,7 @@ SPM 的版本约束不等于操作系统级断网，依赖准备及 runner 网�
 `success`。failure、skipped、cancelled 或缺失结果均不能通过。原 frontend10/backend5、
 探针八个 Node 文件和既有原生策略保持；只调整探针 CI 测试中的聚合断言。
 
-## 本轮验收状态
+## r0 实施节点验收状态（历史）
 
 新增 Node 回归设计包括：真实现有 build/sync Node CLI 消费，公开配置和 dotenv 隔离，
 固定 Xcode 参数与输入 hash，真实子进程 exit37、双流完整保留、超时，缺文件/错误产物
@@ -111,3 +113,26 @@ SPM 的版本约束不等于操作系统级断网，依赖准备及 runner 网�
 实施报告与本轮 ev 应仅保存在主 checkout `.review/reports/keyfree-delivery-20261103/`，
 不纳入 Git。是否完成 CP-06 编译子项由主控根据真实日志裁定；本文件不修改 TODO 勾选，
 也不把模拟器编译等同于真机、登录、语音或 TestFlight 验收。
+
+## r1：Node runner 收集与大流输出修复
+
+主控保存的 CI `41579605155` frontend job `125731085866` 日志显示，38 个测试文件、
+1003 项测试通过，但本轮 Node runner 被 Vitest 自动收集，因 `Cannot bundle built-in
+module "node:test"` 失败。该失败属于本轮文件命名问题，不能归咎于既有测试。
+日志来源是本地报告根下 `b/ci-frontend-r0.log`；本实施节点未重新查询远端。
+
+Node 文件改为 `scripts/ios-ci-test.mjs`，沿用现有 `build-isolation-test.mjs` 等 Node
+runner 命名方式。package 脚本、workflow、测试自身命令断言和本文的执行命令同步改名。
+Vitest 配置和测试树保留。
+
+原大流用例真实产生每路 1,200,000 bytes，原 runner 会同时完整写文件并向控制台回显，
+因此会向 Node 测试报告器及 CI 输出链路传递共 2.4 MB 无换行数据。该输出路径由源码可确认，
+但现有日志不足以确定 iOS job `125731085637` 的异常耗时是否由 GitHub 输出接收端导致。
+
+r1 让大流测试显式关闭 echo，并在隔离的真实 Node 子进程外以 64 KiB 输出 buffer 验证
+stdout/stderr 均为空；双流文件继续逐路核对 1,200,000 bytes 和完整内容。另用小输出检查
+默认 echo 仍同时写控制台和文件。原 5 秒子进程 timeout、真实超时杀进程及缺程序校验保留，
+没有跳过用例或放宽超时；隔离观察进程另设 10 秒外层上限。
+
+r1 实施节点只完成源码修改与静态核对；Node 28 项、Vitest 全树、格式检查、actionlint 均待
+主控通过真实固定入口代跑。上述用例设计和远端旧日志不构成本轮通过或 CI 耗时修复的实证。

@@ -124,9 +124,14 @@ export function createPlan(root, env = process.env, host = process) {
 
 // Complete separate stdout/stderr files; no spawnSync maxBuffer truncation. POSIX process
 // groups also bound the nested pnpm/tsc/vite/cap/xcodebuild children on macOS.
-export function runBounded(command, args, { cwd, env, timeout, log, capture = false }) {
+export function runBounded(
+  command,
+  args,
+  { cwd, env, timeout, log, capture = false, echoOutput = true },
+) {
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 20 * 60_000)
     throw fail("TIMEOUT_INVALID");
+  if (typeof echoOutput !== "boolean") throw fail("OUTPUT_OPTION_INVALID");
   const out = openSync(`${log}.stdout.log`, "wx");
   let err;
   try {
@@ -170,7 +175,7 @@ export function runBounded(command, args, { cwd, env, timeout, log, capture = fa
       try {
         let offset = 0;
         while (offset < chunk.length) offset += writeSync(fd, chunk, offset);
-        output.write(chunk);
+        if (echoOutput) output.write(chunk);
       } catch {
         ioFailed = true;
         kill();

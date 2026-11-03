@@ -284,14 +284,46 @@ test("bounded child preserves large dual streams and kills a real timed out chil
   const root = mkdtempSync(join(tmpdir(), "ios-bound-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const options = { cwd: root, env: {}, timeout: 5000, log: join(root, "large") };
-  const result = await runBounded(
-    process.execPath,
+  // Isolate console observation from node:test's reporter. A regression that echoes
+  // the large streams exceeds this small outer buffer instead of flooding CI logs.
+  const isolatedRun = (args, childOptions) =>
+    spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import { runBounded } from ${JSON.stringify(new URL("./ios-ci.mjs", import.meta.url).href)};
+const result = await runBounded(process.execPath, ${JSON.stringify(args)}, ${JSON.stringify(childOptions)});
+if (result.status !== 0 || result.errorCode || result.signal || result.ioFailed) process.exitCode = 1;`,
+      ],
+      { cwd: root, env: {}, encoding: "utf8", timeout: 10000, maxBuffer: 64 * 1024 },
+    );
+  const result = isolatedRun(
     ["-e", "process.stdout.write('a'.repeat(1200000));process.stderr.write('b'.repeat(1200000))"],
-    options,
+    { ...options, echoOutput: false },
   );
+  assert.ifError(result.error);
   assert.equal(result.status, 0);
-  assert.equal(readFileSync(`${options.log}.stdout.log`).length, 1200000);
-  assert.equal(readFileSync(`${options.log}.stderr.log`).length, 1200000);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "");
+  const stdout = readFileSync(`${options.log}.stdout.log`);
+  const stderr = readFileSync(`${options.log}.stderr.log`);
+  assert.equal(stdout.length, 1200000);
+  assert.equal(stderr.length, 1200000);
+  assert.ok(stdout.equals(Buffer.alloc(1200000, "a")));
+  assert.ok(stderr.equals(Buffer.alloc(1200000, "b")));
+  // Omitting echoOutput must preserve the normal build's console and file streams.
+  const defaultLog = join(root, "default-echo");
+  const defaultEcho = isolatedRun(
+    ["-e", "process.stdout.write('default stdout');process.stderr.write('default stderr')"],
+    { ...options, log: defaultLog },
+  );
+  assert.ifError(defaultEcho.error);
+  assert.equal(defaultEcho.status, 0);
+  assert.equal(defaultEcho.stdout, "default stdout");
+  assert.equal(defaultEcho.stderr, "default stderr");
+  assert.equal(readFileSync(`${defaultLog}.stdout.log`, "utf8"), defaultEcho.stdout);
+  assert.equal(readFileSync(`${defaultLog}.stderr.log`, "utf8"), defaultEcho.stderr);
   const timeout = await runBounded(process.execPath, ["-e", "setInterval(()=>{},1000)"], {
     ...options,
     log: join(root, "timeout"),
@@ -455,6 +487,10 @@ test("inventory and paths reject dotenv, traversal and symlinked outputs without
   );
   assert.throws(() => safePath(f.root, resolve(f.root, "../escape")), rejects("PATH_OUTSIDE_LANE"));
   assert.throws(() => runBounded(process.execPath, [], { timeout: 0 }), rejects("TIMEOUT_INVALID"));
+  assert.throws(
+    () => runBounded(process.execPath, [], { timeout: 1, echoOutput: "false" }),
+    rejects("OUTPUT_OPTION_INVALID"),
+  );
 });
 
 test("artifact validators reject device Mach-O, malformed commands and wrong plist identity/platform", () => {
@@ -521,7 +557,7 @@ test("workflow preserves original jobs, fixed eight macOS Node files and require
     "pnpm install --frozen-lockfile",
     "node apps/vite-app/scripts/ios-ci.mjs prepare",
     "node apps/vite-app/scripts/ios-ci.mjs\n",
-    "node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci.test.mjs",
+    "node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci-test.mjs",
   ])
     assert.ok(job.includes(text), text);
   assert.doesNotMatch(
