@@ -1,7 +1,5 @@
 """健康检查路由。"""
 
-from typing import Dict
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +10,7 @@ from config import settings
 from database import get_db
 from dependencies import get_current_user
 from models.user import SubscriptionTier, User
+from provider_catalog import PROVIDER_CATALOGS
 
 router = APIRouter()
 
@@ -31,61 +30,115 @@ async def readiness_check(
     深度健康检查，验证关键依赖（数据库、外部服务配置等）是否可用。
     如果各个检查通过，返回 ready，否则抛出 503 异常。
     """
-    errors: Dict[str, str] = {}
+    errors: dict[str, str] = {}
+    reasons: set[str] = set()
 
-    # 1. 检查数据库连通性并获取用户及配置
+    def fail(key: str, code: str, message: str) -> None:
+        errors[key] = message
+        reasons.add(code)
+
+    def configured(value: object) -> bool:
+        return isinstance(value, str) and bool(value.strip())
+
+    real_roles = [
+        role
+        for role in PROVIDER_CATALOGS
+        if not getattr(settings, f"USE_MOCK_{role.upper()}")
+    ]
     user_obj = None
     user_settings = None
+    database_failed = False
     try:
         if not settings.USE_MOCK_DB:
             await db.execute(text("SELECT 1"))
-
-            # 获取当前用户及其配置
-            user_id = current_user.id
             stmt = (
                 select(User)
-                .where(User.id == user_id)
+                .where(User.id == current_user.id)
                 .options(selectinload(User.settings))
             )
             result = await db.execute(stmt)
             user_obj = result.scalar_one_or_none()
-            if user_obj:
+            if user_obj is not None:
                 user_settings = user_obj.settings
-    except Exception as e:
-        errors["database"] = f"DB connection failed: {str(e)}"
+    except Exception:
+        database_failed = True
+        fail("database", "database_unavailable", "Database is temporarily unavailable")
 
-    # 2. 检查 LiveKit 配置
-    if not settings.USE_MOCK_LIVEKIT:
-        if (
-            not settings.LIVEKIT_URL
-            or not settings.LIVEKIT_API_KEY
-            or not settings.LIVEKIT_API_SECRET
-        ):
-            errors["livekit"] = "LiveKit credentials are not fully configured"
+    # DB mock 只替代数据库；不能绕过任一非 mock 语音角色的用户配置。
+    if not database_failed and (not settings.USE_MOCK_DB or real_roles):
+        if user_obj is None:
+            fail("user", "user_unavailable", "User configuration is unavailable")
+        elif real_roles and user_settings is None:
+            fail("config", "settings_required", "Practice settings are required")
 
-    # 3. 检查鉴权与配置连通性
-    if not settings.USE_MOCK_LLM and user_obj and user_settings:
-        if user_settings.is_custom_mode:
-            # 分支 B: 自选模式，要求开启后对应的 verified 为 True
+    if not settings.USE_MOCK_LIVEKIT and not all(
+        configured(value)
+        for value in (
+            settings.LIVEKIT_URL,
+            settings.LIVEKIT_API_KEY,
+            settings.LIVEKIT_API_SECRET,
+        )
+    ):
+        fail("livekit", "livekit_unconfigured", "LiveKit is not fully configured")
+
+    if not database_failed and user_obj is not None and user_settings is not None:
+        if real_roles and user_settings.is_custom_mode:
             if not user_settings.is_custom_verified:
-                errors["config"] = (
-                    "自定义模式未验证通过。请在设置中提交有效的 API Key 进行拨测"
+                fail(
+                    "config",
+                    "custom_unverified",
+                    "Custom credentials require verification",
                 )
-            if not user_settings.encrypted_llm_key:
-                errors["llm"] = "自备密钥模式已开启，但未提供有效的 LLM API Key"
-        else:
-            # 分支 A: 系统兜底模式，需要用户是 VIP
+            for role in real_roles:
+                provider = getattr(user_settings, f"{role}_provider", None)
+                provider_id = getattr(provider, "value", provider)
+                if provider_id not in PROVIDER_CATALOGS[role] or not configured(
+                    getattr(user_settings, f"encrypted_{role}_key", None)
+                ):
+                    fail(
+                        role,
+                        "custom_incomplete",
+                        "Custom provider configuration is incomplete",
+                    )
+        elif real_roles:
             if user_obj.subscription_tier == SubscriptionTier.free:
-                errors["auth"] = (
-                    "高级服务器线路仅限 VIP 用户使用，免费用户请配置个人密钥"
+                fail(
+                    "auth",
+                    "permission_denied",
+                    "System providers require a paid subscription",
                 )
-            elif not settings.SILICONFLOW_API_KEY and not settings.OPENROUTER_API_KEY:
-                # 检查系统环境变量兜底是否完整
-                errors["llm"] = "系统默认 LLM API key 未配置，服务暂时不可用"
+            for role in real_roles:
+                catalog = PROVIDER_CATALOGS[role]
+                if role == "llm":
+                    provider = catalog.get(settings.DEFAULT_LLM_PROVIDER)
+                else:
+                    provider = next((p for p in catalog.values() if p.is_default), None)
+                if (
+                    provider is None
+                    or not configured(getattr(settings, provider.api_key_field, None))
+                    or (role == "llm" and not configured(settings.DEFAULT_LLM_MODEL))
+                ):
+                    fail(
+                        role,
+                        "provider_unconfigured",
+                        "System provider is not fully configured",
+                    )
 
     if errors:
+        priority = (
+            "database_unavailable",
+            "user_unavailable",
+            "settings_required",
+            "custom_unverified",
+            "custom_incomplete",
+            "permission_denied",
+            "livekit_unconfigured",
+            "provider_unconfigured",
+        )
+        code = next(reason for reason in priority if reason in reasons)
         raise HTTPException(
-            status_code=503, detail={"status": "not_ready", "errors": errors}
+            status_code=503,
+            detail={"status": "not_ready", "errors": errors, "code": code},
         )
 
     return {"status": "ready"}

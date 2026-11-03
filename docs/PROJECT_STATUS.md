@@ -3,6 +3,30 @@
 > 本文是 EchoTalk “当前已经实现什么、最近改变了什么、明确没有采纳什么”的权威入口。
 > 未完成工作维护在根目录 [`TODO.md`](../TODO.md)；具体架构和人工验收步骤仍由各阶段技术文档负责。
 
+## 2026-11-02 练习前置检查与探针 CI 最终组合结果
+
+2026-11-03，主控最终组合 21 项检查全部 passed/exit0。readiness 已实现缺用户/设置、
+未验证、配置不完整、套餐与服务故障的失败关闭、中文分类、设置入口及显式重新检查。
+配置检查不解密、不拨测，失败不触发隐式会话或采音；重新检查成功只提示重新选择练习，
+不重放旧场景、文档或恢复意图，安全兜底及既有 Token、认证和 Cloud 协议保持。
+
+- 完整 frontend10/backend5 通过：Vitest 1003、Chromium/WebKit 全 E2E 160、pytest 644，
+  后端覆盖率 78.61%、3 warnings，59% 门禁保持。
+- 组合 actionlint、assets、Node 240 通过；54 份源/SDK/静态输入与 B 线实际编译输入
+  完全一致。B 线真实 Rust 57、无签名 arm64 `.app` 构建及 Mach-O/plist 结果继续有效，
+  本次未在 A 重编译，原生 App 未运行，仍是独立 M1 探针，不进入正式客户端或 M2。
+- 独立 HTTP 9 场景和浏览器初始化 2 个控制场景通过；HTTP 零解密/零外网。
+  此前两项关键变异均被真实断言杀死，源码已恢复。
+- 汇总及命令/输入字节索引位于主 checkout 的
+  `.review/reports/practice-readiness-20261102/checks/combined-final-r0/summary.json`；
+  首次失败及修复证据保留在本地评审报告。
+- 独立 Review 与提交状态以本轮主控最终报告为准。文档同步时尚未合入 main，
+  未 push/部署，远端 CI 未运行；真实 Provider/LiveKit/IdP、设备/TCC/媒体与
+  Linux/Docker 等外部边界仍未验证，未融合 next2 候选。
+
+验收范围与证据见[练习前置检查验证](./verification/cross-platform/PRACTICE-READINESS.md)
+及[macOS 探针 CI 验证](./verification/cross-platform/MACOS-PROBE-CI.md)。
+
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；A83 是历史具名完整门禁记录，

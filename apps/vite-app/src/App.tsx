@@ -27,6 +27,10 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
   const knowledgeStates = useAssessmentStore((s) => s.knowledgeStates);
   const fetchKnowledgeStates = useAssessmentStore((s) => s.fetchKnowledgeStates);
   const error = useConversationStore((s) => s.error);
+  const readinessIssue = useConversationStore((s) => s.readinessIssue);
+  const readinessNotice = useConversationStore((s) => s.readinessNotice);
+  const recheckingReadiness = useConversationStore((s) => s.recheckingReadiness);
+  const recheckReadiness = useConversationStore((s) => s.recheckReadiness);
 
   useEffect(() => {
     void fetchKnowledgeStates();
@@ -56,11 +60,46 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
       </div>
 
       {/* Connection error feedback */}
-      {error && (
+      {error && !readinessIssue && (
         <div className="bg-danger-bg text-danger-text rounded-lg p-4 text-center text-sm">
           <p className="font-medium">{tConv.errorTitle}</p>
           <p>{error}</p>
         </div>
+      )}
+
+      {(readinessIssue || recheckingReadiness) && (
+        <div
+          role="alert"
+          data-testid="practice-readiness-error"
+          className="bg-danger-bg text-danger-text space-y-3 rounded-lg p-4 text-center text-sm"
+        >
+          <p className="font-medium">{zhCN.practiceReadiness.title}</p>
+          <p>{recheckingReadiness ? zhCN.practiceReadiness.checking : readinessIssue?.message}</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {readinessIssue?.canOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="border-border-soft min-h-[44px] rounded-lg border px-4 py-2"
+              >
+                {zhCN.practiceReadiness.openSettings}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void recheckReadiness()}
+              disabled={recheckingReadiness}
+              className="border-border-soft min-h-[44px] rounded-lg border px-4 py-2 disabled:opacity-50"
+            >
+              {recheckingReadiness ? zhCN.practiceReadiness.checking : zhCN.practiceReadiness.retry}
+            </button>
+          </div>
+        </div>
+      )}
+      {readinessNotice && (
+        <p role="status" className="text-text-default rounded-lg p-4 text-center text-sm">
+          {zhCN.practiceReadiness.ready}
+        </p>
       )}
 
       {/* Active Sessions */}
@@ -69,7 +108,10 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
       {/* DocTalk Entry Card */}
       <section>
         <button
-          onClick={() => useConversationStore.setState({ appView: "doc-chat-setup" })}
+          onClick={() => {
+            useConversationStore.getState().reset();
+            useConversationStore.setState({ appView: "doc-chat-setup" });
+          }}
           style={{ background: "var(--panel-gradient)" }}
           className="border-accent-soft-border focus-visible:ring-accent flex w-full items-center gap-4 rounded-[20px] border p-5 text-left shadow-[0_8px_26px_-14px_var(--accent-shadow)] transition-colors transition-shadow hover:shadow-[0_12px_30px_-12px_var(--accent-shadow)] focus-visible:ring-2 focus-visible:outline-none"
         >

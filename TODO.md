@@ -2,6 +2,31 @@
 
 > 当前唯一待办清单。完成事项应直接勾选；新增待办需写明验收条件，避免继续散落到阶段文档和源码注释中。
 
+## 2026-11-02 练习前置检查与探针 CI（最终组合检查通过）
+
+2026-11-03，主控完成最终组合 21 项检查，全部 passed/exit0。readiness 保持配置检查
+不解密、不拨测，失败停止下游会话与采音；显式重新检查成功只提示重新选择练习，
+不重放旧场景、文档或恢复意图，保留安全兜底及既有 Token、认证、Cloud 协议。
+
+- [x] 完整 frontend10/backend5：Vitest 1003、Chromium/WebKit 全 E2E 160、pytest 644
+      全部通过；后端覆盖率 78.61%、3 warnings，59% 门禁保持。
+- [x] 组合探针 actionlint、assets、Node 240 通过；54 份源/SDK/静态输入与 B 线实际编译
+      输入完全一致。B 线真实 Rust 57、无签名 arm64 `.app` 及 Mach-O/plist 通过的证据
+      继续有效，本次未在 A 重编译，原生 App 未运行。
+- [x] 独立 HTTP 9 场景及浏览器初始化 2 个控制场景通过；HTTP 检查零解密、零外网。
+      此前两项关键变异均被真实断言杀死，源码已还原。
+- [ ] 远端 CI 及真实外部验收：远端 CI 未运行；真实 Provider/LiveKit/IdP、设备、
+      TCC/媒体及 Linux/Docker 等边界仍需相应证据。
+
+最终组合证据：主 checkout 的
+`.review/reports/practice-readiness-20261102/checks/combined-final-r0/summary.json`。
+详见[练习前置检查验证](./docs/verification/cross-platform/PRACTICE-READINESS.md)及
+[探针 CI 验证](./docs/verification/cross-platform/MACOS-PROBE-CI.md)。
+首次失败及修复证据保留在本地评审报告。
+
+独立 Review 与提交状态以本轮主控最终报告为准。文档同步时尚未合入 main，未 push/部署；
+未融合 next2 候选。本次仅同步新增最终结果，功能代码不变。
+
 ## MVP 产品化修复（RF-01～RF-12）
 
 > 权威边界与验收细则见
