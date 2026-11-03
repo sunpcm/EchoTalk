@@ -167,6 +167,22 @@ if (stage === "cap") {
 const prepare = (f) => executeIos(f.plan, "prepare", { run: f.run });
 const build = (f, run = f.run) => executeIos(f.plan, "build", { run });
 
+function assertSimulatorArchitecture(args) {
+  assert.equal(
+    args.some((arg) => arg === "-arch" || arg.startsWith("-arch=")),
+    false,
+    "generic Simulator destination must not also specify -arch",
+  );
+  assert.deepEqual(
+    args.filter((arg) => arg.startsWith("ARCHS=")),
+    ["ARCHS=arm64"],
+  );
+  assert.deepEqual(
+    args.filter((arg) => arg.startsWith("ONLY_ACTIVE_ARCH=")),
+    ["ONLY_ACTIVE_ARCH=NO"],
+  );
+}
+
 test("real build/sync entrypoints consume fixed production configuration before native compile", async (t) => {
   const f = fixture(t);
   await prepare(f);
@@ -196,6 +212,11 @@ test("real build/sync entrypoints consume fixed production configuration before 
   );
   assert.ok(sync > 0);
   assert.ok(f.calls.findIndex((call) => call.args[0] === "build") > sync);
+  for (const action of ["-resolvePackageDependencies", "build"]) {
+    const call = f.calls.find((call) => call.command === f.plan.xcode && call.args[0] === action);
+    assert.ok(call, `${action} must execute with the planned architecture settings`);
+    assertSimulatorArchitecture(call.args);
+  }
   const manifest = JSON.parse(
     readFileSync(join(f.plan.app, "dist/ios/production/build-manifest.json")),
   );
@@ -220,7 +241,8 @@ test("Xcode plans pin project, generic simulator, isolated caches, lock policy a
       "Release",
       "generic/platform=iOS Simulator",
       "iphonesimulator",
-      "arm64",
+      "ARCHS=arm64",
+      "ONLY_ACTIVE_ARCH=NO",
       "-disableAutomaticPackageResolution",
       "-onlyUsePackageVersionsFromResolvedFile",
       "-skipPackageUpdates",
@@ -229,6 +251,7 @@ test("Xcode plans pin project, generic simulator, isolated caches, lock policy a
       "CODE_SIGN_IDENTITY=",
     ])
       assert.ok(args.includes(value), value);
+    assertSimulatorArchitecture(args);
     assert.equal(
       args[args.indexOf("-derivedDataPath") + 1],
       prepare ? "/lane/cache/prepare-derived-data" : plan.derived,

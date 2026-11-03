@@ -53,7 +53,9 @@ prepare 只运行工具核验和锁定 SPM 依赖准备，回执保存输入 has
    `sync-ios.mjs --mode production`，保留 manifest 与原生 public 逐文件字节核验。
    Web 产物目录不清空。额外核验原生 config 的 webDir 和无远端 server.url。
 4. 对原有 `ios/App/App.xcodeproj` 的 App scheme 执行 Release `build`；目标固定为
-   `generic/platform=iOS Simulator`、`-sdk iphonesimulator`、`-arch arm64`。
+   `generic/platform=iOS Simulator`、`-sdk iphonesimulator`，通过 build setting
+   `ARCHS=arm64` 限定架构，并显式 `ONLY_ACTIVE_ARCH=NO`，按指定 ARCHS 构建。
+   generic destination 不叠加 `-arch` 命令选项，避免 destination 与 architecture 参数冲突。
    命令显式传入 `CODE_SIGNING_ALLOWED=NO`、`CODE_SIGNING_REQUIRED=NO`、空签名身份；
    不允许 provisioning 更新，不 archive、不启动或安装 App、不 boot 模拟器。
 5. 验证新 `Release-iphonesimulator/App.app`：可执行文件为 arm64 64 位 Mach-O executable，
@@ -136,3 +138,24 @@ stdout/stderr 均为空；双流文件继续逐路核对 1,200,000 bytes 和完�
 
 r1 实施节点只完成源码修改与静态核对；Node 28 项、Vitest 全树、格式检查、actionlint 均待
 主控通过真实固定入口代跑。上述用例设计和远端旧日志不构成本轮通过或 CI 耗时修复的实证。
+
+## r2：真实 Xcode destination 与架构参数冲突修复
+
+主控保存的 CI `41580927765` iOS job `125735323179` 日志
+`b/ci-ios-r1.log` 显示：Node 28 项通过，真实 SPM 锁定 prepare、production Web build
+和 Capacitor sync 均成功。随后首次真实 `xcodebuild build` 在原生编译前报错
+`destination implies architecture, architecture must not also be specified.`，实际 exit70。
+这是 generic destination 与原 `-arch arm64` 选项冲突；这些日志不能证明 `.app` 编译通过。
+
+r2 保留 generic iOS Simulator destination，通过 `ARCHS=arm64` 设置目标架构，移除
+`-arch`；同时显式 `ONLY_ACTIVE_ARCH=NO`，使用固定 ARCHS，而不依据 active destination
+缩减架构。prepare 与 build 共用该固定参数计划，工程与 SPM/依赖锁保持。
+
+回归同时检查 prepare/build 参数工厂及 `executeIos` 实际传给 runner 的两阶段 argv：
+必须没有 `-arch` / `-arch=...`，且只包含一份 `ARCHS=arm64` 和 `ONLY_ACTIVE_ARCH=NO`。
+原 arm64 Mach-O executable 与 iOS Simulator load-command、plist/public 校验仍为成功硬门禁；
+SDK、签名禁用、SPM 锁策略、输入 hash、timeout、退出码和既有用例均保留。
+
+本轮实施节点仅做三文件修改和静态核对；Node/actionlint/全树由主控停写后代跑，修复后的
+真实 Xcode 编译与新 CI 仍待执行。前一轮的 Node/SPM/Web/sync 成功不能替代本轮 native
+产物验收，当前不声明 CI 已 green，也不将该参数错误归因于 Provider Key 或网络。
