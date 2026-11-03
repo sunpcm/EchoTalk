@@ -153,10 +153,44 @@ jobs:
       - name: Node and Rust tests plus unsigned arm64 app
         run: node scripts/ci.mjs
 
+  test-ios-build:
+    name: test-ios-build
+    runs-on: macos-15
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.13.1"
+          cache: "pnpm"
+      - name: Prepare frozen pnpm dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Test iOS orchestration
+        run: node --test --test-timeout=30000 apps/vite-app/scripts/ios-ci.test.mjs
+      - name: Select Xcode and prepare locked SPM dependencies
+        run: node apps/vite-app/scripts/ios-ci.mjs prepare
+      - name: Production web, explicit sync and unsigned simulator compile
+        run: node apps/vite-app/scripts/ios-ci.mjs
+      - name: Preserve complete iOS build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-build-logs
+          path: .cache/ios-ci/logs/
+          include-hidden-files: true
+          if-no-files-found: warn
+
   ci:
     name: CI
     if: always()
-    needs: [test-frontend, test-backend, test-macos-probe]
+    needs: [test-frontend, test-backend, test-macos-probe, test-ios-build]
     runs-on: ubuntu-latest
     steps:
       - name: Require all delivery gates
@@ -164,7 +198,9 @@ jobs:
           FRONTEND_RESULT: ${{ needs.test-frontend.result }}
           BACKEND_RESULT: ${{ needs.test-backend.result }}
           MACOS_PROBE_RESULT: ${{ needs.test-macos-probe.result }}
+          IOS_BUILD_RESULT: ${{ needs.test-ios-build.result }}
         run: |
           test "$FRONTEND_RESULT" = "success"
           test "$BACKEND_RESULT" = "success"
           test "$MACOS_PROBE_RESULT" = "success"
+          test "$IOS_BUILD_RESULT" = "success"
