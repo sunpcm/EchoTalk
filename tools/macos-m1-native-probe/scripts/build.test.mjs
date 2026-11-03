@@ -26,6 +26,7 @@ import {
   COMMANDS,
   SDK_SHA256,
   INFO_PLIST,
+  NODE as LOCAL_NODE,
   createPlan,
   validateInputs,
   permissionText,
@@ -445,61 +446,78 @@ test("real build pipeline in an isolated fixture with missing locks fails closed
   assert.equal(existsSync(f.plan.cache), false);
 });
 
-test("r1 real build branch preserves both complete large streams and exit37, with no post-build stage", (t) => {
-  const f = fixture(t);
-  mkdirSync(join(f.project, "scripts"), { recursive: true });
-  for (const name of ["build.mjs", "policy.mjs"])
-    cpSync(join(source, "scripts", name), join(f.project, "scripts", name));
-  const stdout = "R1_BUILD_OUT_BEGIN\n" + "O".repeat(1024 * 1024 + 123) + "R1_BUILD_OUT_END";
-  const stderr = "R1_BUILD_ERR_BEGIN\n" + "E".repeat(1024 * 1024 + 231) + "R1_BUILD_ERR_END";
-  writeFileSync(
-    f.plan.cli,
-    `
-    const args = process.argv.slice(2);
-    if (args.includes('--version')) process.stdout.write('tauri-cli 2.12.4\\n');
-    else if (args.includes('--help')) process.stdout.write('--debug --target --bundles --no-sign --ci [ARGS] cargo runner\\n');
-    else {
-      process.stdout.write('R1_BUILD_OUT_BEGIN\\n' + 'O'.repeat(1024 * 1024 + 123) + 'R1_BUILD_OUT_END');
-      process.stderr.write('R1_BUILD_ERR_BEGIN\\n' + 'E'.repeat(1024 * 1024 + 231) + 'R1_BUILD_ERR_END');
-      process.exitCode = 37;
+for (const forceCiWrapper of [false, true]) {
+  test(`r1 real build branch preserves both complete large streams and exit37, with no post-build stage (${forceCiWrapper ? "forced CI wrapper" : "automatic entry"})`, (t) => {
+    const f = fixture(t);
+    mkdirSync(join(f.project, "scripts"), { recursive: true });
+    for (const name of ["build.mjs", "policy.mjs"])
+      cpSync(join(source, "scripts", name), join(f.project, "scripts", name));
+    const stdout = "R1_BUILD_OUT_BEGIN\n" + "O".repeat(1024 * 1024 + 123) + "R1_BUILD_OUT_END";
+    const stderr = "R1_BUILD_ERR_BEGIN\n" + "E".repeat(1024 * 1024 + 231) + "R1_BUILD_ERR_END";
+    writeFileSync(
+      f.plan.cli,
+      `
+      const args = process.argv.slice(2);
+      if (args.includes('--version')) process.stdout.write('tauri-cli 2.12.4\\n');
+      else if (args.includes('--help')) process.stdout.write('--debug --target --bundles --no-sign --ci [ARGS] cargo runner\\n');
+      else {
+        process.stdout.write('R1_BUILD_OUT_BEGIN\\n' + 'O'.repeat(1024 * 1024 + 123) + 'R1_BUILD_OUT_END');
+        process.stderr.write('R1_BUILD_ERR_BEGIN\\n' + 'E'.repeat(1024 * 1024 + 231) + 'R1_BUILD_ERR_END');
+        process.exitCode = 37;
+      }
+    `,
+    );
+    const launchArgs = fixtureBuildArgs(f, { forceCiWrapper });
+    if (!forceCiWrapper && NODE === LOCAL_NODE) {
+      assert.deepEqual(launchArgs, [join(f.project, "scripts/build.mjs")]);
+    } else {
+      assert.deepEqual(launchArgs.slice(0, 2), ["--input-type=module", "-e"]);
     }
-  `,
-  );
-  const child = spawnSync(NODE, fixtureBuildArgs(f), {
-    env: { HOME: env.HOME, PATH: "/usr/bin:/bin" },
-    encoding: "utf8",
-    timeout: 3000,
-    maxBuffer: 8 * 1024 * 1024,
+    const child = spawnSync(NODE, launchArgs, {
+      env: { HOME: env.HOME, PATH: "/usr/bin:/bin" },
+      encoding: "utf8",
+      timeout: 3000,
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    assert.equal(child.error, undefined);
+    assert.equal(child.signal, null);
+    assert.equal(child.status, 37);
+    assert.equal(
+      child.stdout.includes(stdout),
+      true,
+      "complete build stdout reaches outer pipe above 1MiB",
+    );
+    assert.equal(
+      child.stderr.includes(stderr),
+      true,
+      "complete build stderr reaches outer pipe above 1MiB",
+    );
+    const records = child.stdout
+      .split("\n")
+      .filter((line) => line.startsWith('{"stage":'))
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(
+      records.map((record) => record.stage),
+      ["cli-version", "cli-help", "tauri-build"],
+    );
+    assert.deepEqual(records.at(-1), {
+      stage: "tauri-build",
+      childExit: 37,
+      signal: null,
+      timedOut: false,
+    });
+    const failures = child.stderr.split("\n").filter((line) => line.startsWith('{"stage":'));
+    assert.equal(
+      failures.length,
+      1,
+      "exactly one standalone failure record follows compiler stderr",
+    );
+    const failure = { stage: "failed", code: "CHILD_FAILED", exit: 37 };
+    assert.deepEqual(JSON.parse(failures[0]), failure);
+    assert.equal(child.stderr, `${stderr}\n${JSON.stringify(failure)}\n`);
+    assert.equal(existsSync(f.plan.bundle), false);
   });
-  assert.equal(child.status, 37);
-  assert.equal(
-    child.stdout.includes(stdout),
-    true,
-    "complete build stdout reaches outer pipe above 1MiB",
-  );
-  assert.equal(
-    child.stderr.includes(stderr),
-    true,
-    "complete build stderr reaches outer pipe above 1MiB",
-  );
-  const records = child.stdout
-    .split("\n")
-    .filter((line) => line.startsWith('{"stage":'))
-    .map((line) => JSON.parse(line));
-  assert.deepEqual(
-    records.map((record) => record.stage),
-    ["cli-version", "cli-help", "tauri-build"],
-  );
-  assert.deepEqual(records.at(-1), {
-    stage: "tauri-build",
-    childExit: 37,
-    signal: null,
-    timedOut: false,
-  });
-  const failure = child.stderr.split("\n").find((line) => line.startsWith('{"stage":'));
-  assert.deepEqual(JSON.parse(failure), { stage: "failed", code: "CHILD_FAILED", exit: 37 });
-  assert.equal(existsSync(f.plan.bundle), false);
-});
+}
 
 test("r1 real captured control-step failure forwards complete stdout/stderr without maxBuffer loss", () => {
   const output = "R1_CAPTURE_OUT_BEGIN\n" + "C".repeat(1024 * 1024 + 17) + "R1_CAPTURE_OUT_END";

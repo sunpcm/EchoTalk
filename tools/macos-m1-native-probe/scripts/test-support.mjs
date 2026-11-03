@@ -150,9 +150,11 @@ export { source, temporary, host, env, failed, fixture, writeBundle, runner };
 // Fixture-only launcher: execute the real build pipeline with a synthetic host plan.
 // Production CLI/profile selection is tested separately; this never builds native code.
 const testNode = process.execPath;
-function fixtureBuildArgs(f) {
-  // Preserve real local CLI entry coverage on the pinned local host.
-  if (process.execPath === LOCAL_NODE) return [join(f.project, "scripts/build.mjs")];
+function fixtureBuildArgs(f, { forceCiWrapper = false } = {}) {
+  // Preserve the real local entry by default; tests can exercise the CI wrapper
+  // explicitly on the pinned local host without an environment/production switch.
+  if (!forceCiWrapper && process.execPath === LOCAL_NODE)
+    return [join(f.project, "scripts/build.mjs")];
   return [
     "--input-type=module",
     "-e",
@@ -160,7 +162,7 @@ function fixtureBuildArgs(f) {
     import { executeBuild } from ${JSON.stringify(new URL("./build.mjs", import.meta.url).href)};
     try { executeBuild(${JSON.stringify(f.plan)}); }
     catch (error) {
-      console.error(JSON.stringify({stage:"failed", code:error.code ?? "BUILD_IO_FAILED", exit:error.exitCode ?? 78}));
+      console.error("\\n" + JSON.stringify({stage:"failed", code:error.code ?? "BUILD_IO_FAILED", exit:error.exitCode ?? 78}));
       process.exitCode = error.exitCode ?? 78;
     }
   `,
