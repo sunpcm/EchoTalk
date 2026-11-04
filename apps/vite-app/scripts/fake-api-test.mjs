@@ -19,6 +19,167 @@ const READY_LINE_REGEX = /^\[fake-api\] ready on http:\/\/(127\.0\.0\.1):(\d+)$/
 const VALID_TOKEN = "e2e-dev-token";
 const AUTH_HEADER = { Authorization: `Bearer ${VALID_TOKEN}` };
 
+describe("七天聚合 Fake API 真实独立子进程契约", { timeout: 30_000 }, () => {
+  let instance;
+  before(async () => {
+    instance = await startFakeApiServer();
+  });
+  after(async () => {
+    await terminateServer(instance?.child);
+  });
+  const get = (query, fixture) =>
+    timedFetch(`${instance.baseUrl}/api/sessions/weekly-progress?${new URLSearchParams(query)}`, {
+      headers: { ...AUTH_HEADER, ...(fixture ? { "x-e2e-weekly-fixture": fixture } : {}) },
+    });
+
+  it("严格认证，静态路由不被详情吞掉", async () => {
+    const res = await timedFetch(
+      `${instance.baseUrl}/api/sessions/weekly-progress?end_date=2026-11-03&timezone=UTC`,
+    );
+    assert.equal(res.status, 401);
+    await res.json();
+    const valid = await get({ end_date: "2026-11-03", timezone: "UTC" });
+    assert.equal(valid.status, 200);
+    assert.equal((await valid.json()).days.length, 7);
+  });
+
+  it("空库严格返回有序七个零桶，固定日界而非七次日报", async () => {
+    const res = await get({ end_date: "2026-11-03", timezone: "Asia/Singapore" });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(Object.keys(body), ["days"]);
+    assert.deepEqual(
+      body.days.map((day) => day.date),
+      [
+        "2026-10-28",
+        "2026-10-29",
+        "2026-10-30",
+        "2026-10-31",
+        "2026-11-01",
+        "2026-11-02",
+        "2026-11-03",
+      ],
+    );
+    assert.deepEqual(
+      body.days.map((day) => day.completed_sessions),
+      [0, 0, 0, 0, 0, 0, 0],
+    );
+    assert.equal(body.days[0].start, "2026-10-27T16:00:00.000Z");
+    assert.equal(body.days[6].end, "2026-11-03T16:00:00.000Z");
+    body.days.slice(1).forEach((day, index) => assert.equal(day.start, body.days[index].end));
+  });
+
+  it("请求局部合成数据：55+1 零转录会话准确统计，active/其他用户排除，无全局播种", async () => {
+    const res = await get({ end_date: "2026-11-03", timezone: "Asia/Singapore" }, "weekly");
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(
+      body.days.map((day) => day.completed_sessions),
+      [0, 0, 0, 0, 0, 1, 55],
+    );
+    const untouched = await get({ end_date: "2026-11-03", timezone: "Asia/Singapore" });
+    assert.equal(
+      (await untouched.json()).days.reduce((sum, day) => sum + day.completed_sessions, 0),
+      0,
+    );
+  });
+
+  for (const [date, start, end, hours] of [
+    ["2026-03-08", "2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z", 23],
+    ["2026-11-01", "2026-11-01T04:00:00.000Z", "2026-11-02T05:00:00.000Z", 25],
+  ]) {
+    it(`${date} 纽约 ${hours}h DST 半开窗口边界与用户/状态过滤`, async () => {
+      const res = await get({ end_date: date, timezone: "America/New_York" }, "dst");
+      assert.equal(res.status, 200);
+      const days = (await res.json()).days;
+      assert.deepEqual(days[6], { date, start, end, completed_sessions: 1 });
+      assert.equal((Date.parse(end) - Date.parse(start)) / 3_600_000, hours);
+      assert.equal(
+        days.reduce((sum, day) => sum + day.completed_sessions, 0),
+        1,
+      );
+    });
+  }
+
+  it("Samoa 极端跳日保留零长度零桶", async () => {
+    const res = await get({ end_date: "2011-12-31", timezone: "Pacific/Apia" }, "dst");
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(body.days[5], {
+      date: "2011-12-30",
+      start: "2011-12-30T10:00:00.000Z",
+      end: "2011-12-30T10:00:00.000Z",
+      completed_sessions: 0,
+    });
+  });
+
+  it("缺参、严格日期、未知时区与溢出均 422", async () => {
+    const bad = [
+      {},
+      { end_date: "2026-11-03" },
+      { timezone: "UTC" },
+      ...["", "2026-02-29", "2026-04-31", "2026-1-01", "20261103", "0001-01-06", "9999-12-31"].map(
+        (end_date) => ({ end_date, timezone: "UTC" }),
+      ),
+      ...["", "Not/AZone", "a".repeat(129), "+08:00"].map((timezone) => ({
+        end_date: "2026-11-03",
+        timezone,
+      })),
+    ];
+    for (const query of bad) {
+      const res = await get(query);
+      assert.equal(res.status, 422, JSON.stringify(query));
+      await res.json();
+    }
+  });
+
+  it("选择一天后真实 keyset 分页，不漏不重；旧 cursor 换日拒绝，旧48h限制保持", async () => {
+    const headers = { ...AUTH_HEADER, "x-e2e-weekly-fixture": "weekly" };
+    const query = {
+      status: "completed",
+      start: "2026-11-02T16:00:00Z",
+      end: "2026-11-03T16:00:00Z",
+      limit: "10",
+    };
+    const ids = [];
+    let cursor = null;
+    let firstCursor = null;
+    for (let index = 0; index < 6; index++) {
+      const qs = new URLSearchParams({ ...query, ...(cursor ? { cursor } : {}) });
+      const res = await timedFetch(`${instance.baseUrl}/api/sessions?${qs}`, { headers });
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      ids.push(...body.items.map((entry) => entry.id));
+      cursor = body.next_cursor;
+      firstCursor ??= cursor;
+      if (index < 5) assert.ok(cursor);
+      else assert.equal(cursor, null);
+    }
+    assert.equal(ids.length, 55);
+    assert.equal(new Set(ids).size, 55);
+    assert.deepEqual(
+      ids,
+      Array.from(
+        { length: 55 },
+        (_, index) => `77300000-0000-4000-8000-${String(55 - index).padStart(12, "0")}`,
+      ),
+    );
+    const changed = new URLSearchParams({
+      ...query,
+      start: "2026-11-01T16:00:00Z",
+      end: "2026-11-02T16:00:00Z",
+      cursor: firstCursor,
+    });
+    const badCursor = await timedFetch(`${instance.baseUrl}/api/sessions?${changed}`, { headers });
+    assert.equal(badCursor.status, 422);
+    await badCursor.json();
+    const tooWide = new URLSearchParams({ ...query, start: "2026-10-27T16:00:00Z" });
+    const wide = await timedFetch(`${instance.baseUrl}/api/sessions?${tooWide}`, { headers });
+    assert.equal(wide.status, 422);
+    await wide.json();
+  });
+});
+
 /**
  * 判断指定 PID 对应的操作系统进程是否仍然存活
  */

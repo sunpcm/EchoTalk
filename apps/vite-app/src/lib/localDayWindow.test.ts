@@ -1,5 +1,56 @@
 import { describe, it, expect } from "vitest";
-import { getLocalDayWindow } from "./localDayWindow";
+import { getLocalDayWindow, getLocalWeekContext, getZonedWeekWindows } from "./localDayWindow";
+
+describe("七个当地自然日窗口", () => {
+  it.each([
+    ["2026-03-08", "America/New_York", "2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z", 23],
+    ["2026-11-01", "America/New_York", "2026-11-01T04:00:00.000Z", "2026-11-02T05:00:00.000Z", 25],
+    ["2026-11-03", "Asia/Singapore", "2026-11-02T16:00:00.000Z", "2026-11-03T16:00:00.000Z", 24],
+    [
+      "2026-10-04",
+      "Australia/Lord_Howe",
+      "2026-10-03T13:30:00.000Z",
+      "2026-10-04T13:00:00.000Z",
+      23.5,
+    ],
+  ])("%s %s 的独立日界支持 %s → %s", (date, timezone, start, end, hours) => {
+    const days = getZonedWeekWindows(date as string, timezone as string);
+    expect(days).toHaveLength(7);
+    expect(days[6]).toEqual({ date, start, end });
+    expect((Date.parse(days[6].end) - Date.parse(days[6].start)) / 3_600_000).toBe(hours);
+    days.slice(1).forEach((day, index) => expect(days[index].end).toBe(day.start));
+  });
+
+  it("Samoa 跳日是零长度桶，不能滚成另一个日期或重复计数", () => {
+    const days = getZonedWeekWindows("2011-12-31", "Pacific/Apia");
+    expect(days[5]).toEqual({
+      date: "2011-12-30",
+      start: "2011-12-30T10:00:00.000Z",
+      end: "2011-12-30T10:00:00.000Z",
+    });
+    expect(days[6].start).toBe(days[5].end);
+  });
+
+  it("闰日、跨年与浏览器本地今天使用日历计算", () => {
+    expect(getZonedWeekWindows("2028-03-02", "UTC").map((day) => day.date)).toContain("2028-02-29");
+    expect(getZonedWeekWindows("2026-01-02", "UTC")[0].date).toBe("2025-12-27");
+    expect(getLocalWeekContext(new Date(2026, 0, 2, 23, 0))).toEqual({
+      endDate: "2026-01-02",
+      timezone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+  });
+
+  it.each(["2026-02-29", "2026-04-31", "2026-1-01", "0000-01-10", "0001-01-06", "9999-12-31"])(
+    "拒绝非法日期或边界溢出 %s",
+    (date) => {
+      expect(() => getZonedWeekWindows(date, "UTC")).toThrow();
+    },
+  );
+
+  it.each(["", "Invalid/Timezone", "+08:00", "a".repeat(129)])("拒绝非法时区 %s", (timezone) => {
+    expect(() => getZonedWeekWindows("2026-11-03", timezone)).toThrow();
+  });
+});
 
 describe("localDayWindow utility", () => {
   it("computes local midnight start and next local midnight end for a standard day", () => {

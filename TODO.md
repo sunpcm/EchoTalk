@@ -2,7 +2,79 @@
 
 > 当前唯一待办清单。完成事项应直接勾选；新增待办需写明验收条件，避免继续散落到阶段文档和源码注释中。
 
-## 2026-11-03 无 Key 工作与当前验收边界
+## 2026-11-04 补充轮：WebKit 首导航与 Worker 停机
+
+Worker 运行时与 UI 三文件范围独立 Review 均 APPROVED，已机械集成。以下为本次文档
+收口前已落地的真实回执；本次两文档仍待主控原生格式、机械复制、最后格式/代码 hash
+保全与整体 Review，最新结论见[补充轮总报告](.review/reports/overnight-followup-20261104/report.md)
+及[进度回执](.review/reports/overnight-followup-20261104/progress.json)。
+以下证据路径相对 `.review/reports/overnight-followup-20261104/`。
+
+- [x] 修复 macOS WebKit 首导航停滞：现场确认 AppKit 原生窗口动画线程累积、dispatch
+      队列饱和；仅 Darwin WebKit 通过可执行包装器转发同锁 SDK 默认参数并追加进程偏好。
+      未改 HTTPS/H2、load/30s、retry、排序或页面动画，未持久化系统偏好。见 `ui/REVIEW-r1.md`。
+- [x] 设置零隐式写保护监听真实 `/api/user/settings`，原零写断言后由真实 UI Save 作正对照；
+      隐式保存变异两浏览器 Expected0/Received1。重新启用原生窗口动画的变异也真实复现
+      WebKit 第64例 goto 超时；两项均完整恢复，恢复后 WebKit87 无重试通过，首次失败与 trace 保留。
+- [x] Worker 有界优雅停机：新程序三个 Worker 与 API 均 exit0；真 PID1 的 SIGINT、在途
+      drain、超时取消/回滚及停止后不再领取均已验。旧过期恢复与幂等保持，范围见 `worker/REVIEW-runtime-r1.md`。
+- [x] 新 integration 实跑完整19项全部 process/gate0：frontend10、backend5、runtime3 加
+      wrapper 语法；1098 Vitest、21 build-script、69 Fake API、8 types、730 pytest/3 warnings，
+      覆盖率78.43%、59%门禁保持，runtime 单测19项。UI lane 与最终集成两轮双浏览器均
+      174全过、retries0，见 `final-quality-checks-r1/summary.json`与 `ui/root-fix-quality-checks-r1/summary.json`。
+- [x] 本轮 runtime 与最后产品测试 PG/网络已按归属清理：
+      `product-cleanup-checks-r1/summary.json`为 exit0，`setup/product-pg-cleanup.json`为 removed=true；
+      `resource-cleanup-final.json`中本轮剩余容器/网络为空，镜像、证据与 worktree 保留。
+- [ ] 补验宿主 HTTP 入口：18800仍为 false，容器内真实 TCP 已验；不据容器访问勾选宿主入口。
+- [ ] 真实 Provider/IdP/LiveKit、语音、设备、签名、本轮原生 App 编译与远端 CI 仍待；
+      原 Compose 整栈未启动，显式预置过期任务恢复不代表任意真实崩溃恢复。
+      RF-04/05/07/08/09/12 等外部边界保留，next2 未融合；停在 Review，未 commit/push/部署或发布。
+
+## 2026-11-04 七天概览与隔离运行时收口（上一轮历史）
+
+以下保留上一轮32路径任务的验收数字与失败记录；后续修复及当前边界以上方补充轮为准。
+
+Dashboard 已实现含今天的最近七个本地自然日已完成会话分布，单次认证聚合返回七桶，
+选择日期后显式分页查看只读历史；保留今日进度，支持空态、加载、失败重试与日期/时区、
+身份 revision、前后台及离线请求隔离，不新增评分、时长或掌握度趋势。
+
+本节是文档停写时的分项快照；最终格式、组合与总 Review 状态以主控持续更新的
+[本轮总报告](.review/reports/overnight-product-runtime-20261103/report.md)和
+[进度回执](.review/reports/overnight-product-runtime-20261103/progress.json)为最新权威。
+以下证据路径相对本轮 `.review/reports/overnight-product-runtime-20261103/`。
+
+- [x] 七天概览与按日历史代码独立 Review APPROVED；14 份前端文件与主控原生生成的
+      schema 已机械组合，槽位守卫变异被真实 deferred 断言杀死并完整恢复，详见 `ui/REVIEW-r1.md`。
+- [x] 最终功能检查 16 项通过：前端除 format/E2E 的 8 项、backend5、runtime3；
+      1098 Vitest、21 build-script、69 Fake API、8 types、678 pytest/3 warnings，
+      后端覆盖率 78.67%，59% 门禁不变；runtime 单测 19 项，见 `final-functional-checks-r1/summary.json`。
+- [x] 最终 Chromium/WebKit 共 174 cases：173 clean + 1 flaky 后重试通过，process/gate
+      均为 0；8 条新增 weekly 用例在两引擎全过。多轮首次超时和 trace 保留，见
+      `final-e2e-checks-r1/summary.json`及对应 `01-e2e/command.log`，不称 174 clean。
+- [x] C1/C2 及最终 154 份后端输入的新 API/Agent 镜像完整性、隔离服务与真实 HTTP
+      已验；最终镜像与配对测量分开。配对收益仅来自 `runtime/paired-comparison-r1.json`：
+      API 0.1803%、Agent 0.2728%，不外推冷启动收益。详细分项见 `docs/PROJECT_STATUS.md`。
+- [x] C1/C2/final 自建运行资源清理通过；文档读取时产品 PG 清理也已通过，
+      `setup/product-pg-cleanup.json`为 removed=true，`resource-cleanup-final.json`中本轮
+      containers/networks 均为空。清理按本轮资源归属，不表示全机无其他任务。
+- [x] 最终 root format 与 `git diff --check`已真实通过，见 `final-format-checks-r1/summary.json`；
+      与 16 项功能检查及 E2E 构成原 15 项 + runtime3 全部通过，仍保留 1 flaky。
+      此次状态文字由主控复制后还会最后 format 复核，最新文字与回执以总报告为准。
+      `final-quality-checks-r1`首次仅 `docs/agent-review-loop.md`与
+      `docs/verification/cross-platform/RF-08-WEEKLY-PROGRESS.md`格式失败，历史保留。
+- [x] **P2：settings WebKit 首次导航超时已在补充轮关闭**：上一轮首个用例的
+      beforeEach `page.goto('/')`首试30秒超时、retry通过，当时根因未定；现已有本机
+      动画线程阻塞、进程偏好正负对照及两轮174无重试通过证据，见顶部补充轮。旧失败与 trace 全部保留，未弱化断言。
+- [x] 补验 Worker 优雅 SIGTERM 停机：上一轮三个 Worker exit137、API exit0 的历史保留；
+      补充轮新程序三个 Worker exit0及在途/超时取消均已验证，见顶部补充轮。
+- [ ] 补验宿主 HTTP：internal 网络下宿主18800仍不可达，容器 loopback HTTP 已验，不代表宿主入口通过。
+      prepared stale 只证明显式准备的过期任务恢复/幂等，不覆盖任意真实崩溃恢复。
+- [ ] 真实 Provider/IdP/LiveKit、语音、设备、签名、本轮 native 编译与远端 CI 继续未验；
+      原 Compose 整栈未启动，未发布。RF-04/05/07/08/09/12 等大项外部边界不因此勾选。
+
+本轮所有 owner 停在 Review，无 commit/push/merge/部署；未融合 next2 草稿。
+
+## 2026-11-03 无 Key 工作与当时验收边界（历史）
 
 主控当日实时核验 [PR #117](https://github.com/sunpcm/EchoTalk/pull/117) 已合并，
 远端 main 为 `b3493a3a40c5c6743c9c3df609790368b2b76435`，已包含练习前置检查与
@@ -75,8 +147,8 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 ### 执行基线
 
-- 当前远端基线：主控 2026-11-03 核验的 `main@b3493a3`（PR #117 已合并）；
-  本批未提交增量的组合门禁与独立 Review 仍待完成，见上方摘要。
+- 历史远端快照：主控 2026-11-03 核验的 `main@b3493a3`（PR #117 已合并），
+  本轮未刷新远端；夜间任务的组合分项与剩余门禁见顶部 2026-11-04 摘要。
 - 历史具名已验收维护基线：
   `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
   receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
@@ -221,7 +293,10 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
       本地已完成时间列 timezone-aware UTC 语义统一（A39）：ORM 模型七列（users.created_at、sessions.started_at/ended_at、user_settings.updated_at、knowledge_states.updated_at、pronunciation_assessments.created_at、grammar_errors.created_at）显式声明 DateTime(timezone=True)，保留既有 nullable 属性；新建纯 stdlib time_utils.utc_now 并替换全量 datetime.utcnow()；schemas/time.py 声明 UtcDatetime 拒绝 naive 输入并将偏移归一至 UTC，响应 JSON 显式时区；c04_utc_timestamps 迁移脚本经 Codex 独立审查通过（SHA256: 3cb19d3f39c166f7e5e93587779d99240a8e2ac90cdbc1edf4c476d80425f612）且在专用测试库合成副本完成演练；新增 test_utc_timestamps.py 覆盖元数据、归一化、PG 真实读写与写入路径，既有测试消除弃用警告（见 [RF-08 七列 UTC 时间语义验证](./docs/verification/cross-platform/RF-08-UTC-TIMESTAMPS.md)）；
       本地已完成必要查询索引方案与迁移声明（A40）：新增三项非唯一 B-tree 索引（sessions(user_id, started_at DESC, id DESC) 名 ix_sessions_user_started_id、transcripts(session_id, timestamp_ms) 名 ix_transcripts_session_timestamp、grammar_errors(session_id, created_at) 名 ix_grammar_errors_session_created）；模型元数据与 Alembic c05_query_indexes 脚本对齐，降级严格逆序 drop；复用 assessment(session_id) 与 knowledge(user_id, skill_id) 已有唯一约束/索引避免冗余；保留 grammar_errors 既有 partial 索引；新迁移经 Codex 独立静态审查，专用测试库空副本与 25 万行合成副本 upgrade/downgrade/re-upgrade 通过，自然 EXPLAIN 均使用目标新索引（不代表真实环境性能验收）（见 [RF-08 三项必要查询索引验证](./docs/verification/cross-platform/RF-08-QUERY-INDEXES.md)）；
       本地已完成会话游标分页与每日聚合方案（A41）：`GET /api/sessions` 与 `GET /api/sessions/active` 升级为 `{ items, next_cursor }`，严格仅读取 5 个必要列，彻底杜绝 ORM selectin 级联查询与正文加载；游标采用标准库 canonical URL-safe base64、严格整型版本与端点/用户/窗口上下文严格比对校验，每页数据库查询始终强制 `user_id == current_user.id` 过滤（自包含无状态校验，非 HMAC 签名凭证，不提供抗恶意改写完整性保证，格式或上下文不符返回 422）；新增 `GET /api/sessions/daily-progress` 单 SQL 服务端聚合；前端 `DailyProgress` 并行双只读请求与自然日 DST 兼容时间窗，跨午夜清空旧数据与生命周期挂起作废在途；`ActiveSessions` 仅显式点击加载更多，结束/恢复操作与加载更多互锁，生命周期挂起作废在途；Fake API 与 E2E 测试严格对齐后端契约与边界校验（见 [RF-08 会话游标分页与每日聚合验证](./docs/verification/cross-platform/RF-08-PAGINATION-DAILY-PROGRESS.md)）；
-      有界分页已完成本地代码与测试闭环，真实环境性能与生产迁移待后续完成，整项保持未勾选。
+      2026-11-04 已完成七天已完成会话聚合与按日只读分页的前后端闭环，保留旧 48 小时
+      窗口、completed 与半开 started_at 口径；组件/双浏览器及最终镜像真实 HTTP 分项已验，
+      最终格式与总 Review 以顶部主控回执为准。有界分页已完成本地代码与测试闭环，
+      真实环境性能与生产迁移待后续完成，整项保持未勾选。
 
 ### Phase 6：内部边界
 
@@ -329,10 +404,13 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 ## P1 — 功能完整性
 
-周度学习报告骨架已移除，功能仍未实现；以下维度应分别实现并验证：
+周度学习报告已实现最近七个本地自然日的 completed 会话计数与按日只读历史；其余指标
+仍需分别定义、实现并验证，不能据此认定完整周报已完成：
 
-- [ ] 统计最近 7 天练习时长与会话次数。
-- [ ] 计算各技能 `p_mastery` 环比趋势。
+- [x] 统计最近七个本地自然日的 completed 会话次数：按既有 `started_at` 半开区间分桶，
+      含零值桶、认证用户隔离和时区/DST；支持按日显式分页只读历史，不产生新评分。
+- [ ] 统计最近7天练习时长：先明确有效练习时长口径与可靠数据来源，当前未实现。
+- [ ] 计算各技能 `p_mastery` 环比趋势：历史数据、对比窗口与指标口径仍待明确。
 - [ ] 按会话聚合发音准确率趋势。
 - [ ] 统计语法错误 Top 3 并生成改善建议。
 - [ ] 基于 RAG/Krashen i+1 生成下周学习重点。

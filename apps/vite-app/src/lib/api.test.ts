@@ -20,6 +20,8 @@ import {
   listSessions,
   listActiveSessions,
   getDailyProgress,
+  getWeeklyProgress,
+  parseWeeklyProgressResponse,
   parseSessionListResponse,
   parseDailyProgressResponse,
   getSessionDetail,
@@ -58,6 +60,7 @@ import {
   UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
 } from "./apiRequestTimeout";
 import { zhCN } from "@/i18n/zh-CN";
+import { getZonedWeekWindows } from "./localDayWindow";
 
 type Assert<T extends true> = T;
 type IsRequired<T, K extends keyof T> = Pick<T, K> extends Required<Pick<T, K>> ? true : false;
@@ -94,6 +97,149 @@ describe("API client", () => {
   });
 
   const fetchMock = () => vi.mocked(globalThis.fetch);
+
+  describe("七天聚合严格契约", () => {
+    const response = (endDate = "2026-11-03", timezone = "Asia/Singapore") => ({
+      days: getZonedWeekWindows(endDate, timezone).map((day) => ({
+        ...day,
+        completed_sessions: 0,
+      })),
+    });
+    it("单次认证 GET、精确参数、no-store 与原有 signal", async () => {
+      const body = response();
+      fetchMock().mockResolvedValue({ ok: true, json: async () => body } as Response);
+      const controller = new AbortController();
+      expect(
+        await getWeeklyProgress("2026-11-03", "Asia/Singapore", { signal: controller.signal }),
+      ).toEqual(body);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchMock().mock.calls[0];
+      expect(url).toBe(
+        `${getBaseUrl()}/sessions/weekly-progress?end_date=2026-11-03&timezone=Asia%2FSingapore`,
+      );
+      expect(options?.method ?? "GET").toBe("GET");
+      expect(options?.cache).toBe("no-store");
+      expect(new Headers(options?.headers).get("Authorization")).toBe("Bearer test-access-token");
+      expect(options?.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it.each(["2026-03-08", "2026-11-01"])(
+      "校验真实 NY DST 日界 %s，接受 UTC 的 +00:00 表达",
+      (date) => {
+        const body = response(date, "America/New_York");
+        body.days.forEach((day) => {
+          day.start = day.start.replace("Z", "+00:00");
+          day.end = day.end.replace("Z", "+00:00");
+        });
+        expect(parseWeeklyProgressResponse(body, date, "America/New_York")).toEqual(body);
+      },
+    );
+
+    it.each([
+      [
+        "六桶",
+        (body: ReturnType<typeof response>) => {
+          body.days.pop();
+        },
+      ],
+      [
+        "八桶",
+        (body: ReturnType<typeof response>) => {
+          body.days.push(body.days[6]);
+        },
+      ],
+      [
+        "乱序",
+        (body: ReturnType<typeof response>) => {
+          body.days.reverse();
+        },
+      ],
+      [
+        "重复日期",
+        (body: ReturnType<typeof response>) => {
+          body.days[1] = body.days[0];
+        },
+      ],
+      [
+        "错日界",
+        (body: ReturnType<typeof response>) => {
+          body.days[0].start = "2026-10-27T00:00:00Z";
+        },
+      ],
+      [
+        "无时区",
+        (body: ReturnType<typeof response>) => {
+          body.days[0].end = body.days[0].end.slice(0, -1);
+        },
+      ],
+      [
+        "负数",
+        (body: ReturnType<typeof response>) => {
+          body.days[0].completed_sessions = -1;
+        },
+      ],
+      [
+        "小数",
+        (body: ReturnType<typeof response>) => {
+          body.days[0].completed_sessions = 1.5;
+        },
+      ],
+      [
+        "不安全整数",
+        (body: ReturnType<typeof response>) => {
+          body.days[0].completed_sessions = Number.MAX_SAFE_INTEGER + 1;
+        },
+      ],
+    ] as const)("拒绝 %s", (_label, mutate) => {
+      const body = response();
+      mutate(body);
+      expect(() => parseWeeklyProgressResponse(body, "2026-11-03", "Asia/Singapore")).toThrow();
+    });
+
+    it("拒绝不完整/额外字段与非数值计数，严格绑定请求日期/时区", () => {
+      const body = response();
+      for (const invalid of [
+        null,
+        [],
+        {},
+        { ...body, raw: true },
+        { days: body.days.map((day) => ({ ...day, raw: "private" })) },
+        { days: body.days.map((day) => ({ ...day, completed_sessions: true })) },
+        { days: body.days.map(({ date, start, end }) => ({ date, start, end })) },
+      ]) {
+        expect(() =>
+          parseWeeklyProgressResponse(invalid, "2026-11-03", "Asia/Singapore"),
+        ).toThrow();
+      }
+      expect(() => parseWeeklyProgressResponse(body, "2026-11-02", "Asia/Singapore")).toThrow();
+      expect(() => parseWeeklyProgressResponse(body, "2026-11-03", "UTC")).toThrow();
+    });
+
+    it("跳日的零桶必须为零，不能伪造该日会话数", () => {
+      const body = response("2011-12-31", "Pacific/Apia");
+      expect(parseWeeklyProgressResponse(body, "2011-12-31", "Pacific/Apia")).toEqual(body);
+      body.days[5].completed_sessions = 1;
+      expect(() => parseWeeklyProgressResponse(body, "2011-12-31", "Pacific/Apia")).toThrow();
+    });
+
+    it("无效参数在联网之前失败", async () => {
+      await expect(getWeeklyProgress("2026-02-29", "UTC")).rejects.toThrow();
+      await expect(getWeeklyProgress("2026-11-03", "Invalid/Zone")).rejects.toThrow();
+      expect(fetchMock()).not.toHaveBeenCalled();
+    });
+
+    it("401 沿用认证失效并只发送一次请求", async () => {
+      const invalidate = vi.spyOn(await import("./auth"), "invalidateAuthSession");
+      fetchMock().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: "private" }),
+      } as Response);
+      await expect(getWeeklyProgress("2026-11-03", "UTC")).rejects.toBeInstanceOf(ApiError);
+      expect(invalidate).toHaveBeenCalledTimes(1);
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+    });
+  });
 
   describe("Error handling", () => {
     it("parses health check errors correctly", async () => {
@@ -2035,6 +2181,10 @@ describe("API client", () => {
         name: "getDailyProgress",
         invoke: (options) =>
           getDailyProgress("2026-11-01T00:00:00Z", "2026-11-01T23:59:59Z", options),
+      },
+      {
+        name: "getWeeklyProgress",
+        invoke: (options) => getWeeklyProgress("2026-11-03", "Asia/Singapore", options),
       },
       {
         name: "getSessionDetail",
