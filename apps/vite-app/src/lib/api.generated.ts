@@ -44,6 +44,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assessments/weekly-grammar": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Weekly Grammar
+     * @description 返回截至 end_date 的七个本地自然日真实语法错误稳定 Top 3 聚合。
+     */
+    get: operations["get_weekly_grammar_api_assessments_weekly_grammar_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assessments/{session_id}": {
     parameters: {
       query?: never;
@@ -1042,6 +1062,47 @@ export interface components {
       type: string;
     };
     /**
+     * WeeklyGrammarItem
+     * @description 七天语法聚合中的一个技能标签计数项。
+     */
+    WeeklyGrammarItem: {
+      /** Count */
+      count: number;
+      skill_tag: components["schemas"]["WeeklyGrammarSkillTag"];
+    };
+    /**
+     * WeeklyGrammarSkillTag
+     * @description 七天语法统计的六类固定归类。
+     * @enum {string}
+     */
+    WeeklyGrammarSkillTag:
+      | "article_usage"
+      | "verb_tense_past"
+      | "verb_tense_present"
+      | "subject_verb_agreement"
+      | "preposition"
+      | "other";
+    /**
+     * WeeklyGrammarSummary
+     * @description GET /api/assessments/weekly-grammar 响应。
+     */
+    WeeklyGrammarSummary: {
+      /**
+       * End
+       * Format: date-time
+       */
+      end: string;
+      /** Items */
+      items: components["schemas"]["WeeklyGrammarItem"][];
+      /**
+       * Start
+       * Format: date-time
+       */
+      start: string;
+      /** Total Errors */
+      total_errors: number;
+    };
+    /**
      * WeeklyProgressDay
      * @description 一个本地自然日对应的 UTC 半开窗口及已完成会话数。
      */
@@ -1130,6 +1191,40 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KnowledgeStateResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_weekly_grammar_api_assessments_weekly_grammar_get: {
+    parameters: {
+      query: {
+        end_date: string;
+        timezone: string;
+      };
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WeeklyGrammarSummary"];
         };
       };
       /** @description Validation Error */

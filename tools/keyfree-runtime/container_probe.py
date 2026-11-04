@@ -21,6 +21,8 @@ def no_dotenv():
 
 
 async def database_operation(stage):
+    from sqlalchemy import func, select
+
     from database import async_session_maker, engine
     from dependencies import DEV_ISSUER, DEV_SUBJECT, MOCK_USER_ID
     from models.analysis import AnalysisJob, AnalysisJobStatus
@@ -35,7 +37,6 @@ async def database_operation(stage):
     )
     from models.user import SubscriptionTier, User, UserSettings
     from services.analysis_jobs import STALE_AFTER
-    from sqlalchemy import func, select
     from time_utils import utc_now
 
     user_id = uuid.UUID(MOCK_USER_ID)

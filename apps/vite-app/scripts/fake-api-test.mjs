@@ -31,6 +31,14 @@ describe("七天聚合 Fake API 真实独立子进程契约", { timeout: 30_000 
     timedFetch(`${instance.baseUrl}/api/sessions/weekly-progress?${new URLSearchParams(query)}`, {
       headers: { ...AUTH_HEADER, ...(fixture ? { "x-e2e-weekly-fixture": fixture } : {}) },
     });
+  const getGrammar = (query, fixture, status) =>
+    timedFetch(`${instance.baseUrl}/api/assessments/weekly-grammar?${new URLSearchParams(query)}`, {
+      headers: {
+        ...AUTH_HEADER,
+        ...(fixture ? { "x-e2e-weekly-grammar-fixture": fixture } : {}),
+        ...(status ? { "x-e2e-weekly-grammar-status": status } : {}),
+      },
+    });
 
   it("严格认证，静态路由不被详情吞掉", async () => {
     const res = await timedFetch(
@@ -177,6 +185,75 @@ describe("七天聚合 Fake API 真实独立子进程契约", { timeout: 30_000 
     const wide = await timedFetch(`${instance.baseUrl}/api/sessions?${tooWide}`, { headers });
     assert.equal(wide.status, 422);
     await wide.json();
+  });
+
+  it("七天语法静态路由严格认证，空库返回零记录空列表", async () => {
+    const anonymous = await timedFetch(
+      `${instance.baseUrl}/api/assessments/weekly-grammar?end_date=2026-11-03&timezone=UTC`,
+    );
+    assert.equal(anonymous.status, 401);
+    await anonymous.json();
+    const res = await getGrammar({ end_date: "2026-11-03", timezone: "Asia/Singapore" });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      start: "2026-10-27T16:00:00.000Z",
+      end: "2026-11-03T16:00:00.000Z",
+      total_errors: 0,
+      items: [],
+    });
+  });
+
+  it("七天语法固定聚合、过滤、unknown合并与稳定Top3，且fixture不污染下一次请求", async () => {
+    const res = await getGrammar({ end_date: "2026-11-03", timezone: "Asia/Singapore" }, "weekly");
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      start: "2026-10-27T16:00:00.000Z",
+      end: "2026-11-03T16:00:00.000Z",
+      total_errors: 15,
+      items: [
+        { skill_tag: "article_usage", count: 4 },
+        { skill_tag: "other", count: 3 },
+        { skill_tag: "verb_tense_past", count: 3 },
+      ],
+    });
+    const untouched = await getGrammar({ end_date: "2026-11-03", timezone: "Asia/Singapore" });
+    assert.equal((await untouched.json()).total_errors, 0);
+  });
+
+  it("七天语法缺参、非法日期时区422；未知参数忽略、同名取最后且可控失败503", async () => {
+    const bad = [
+      {},
+      { end_date: "2026-11-03" },
+      { timezone: "UTC" },
+      ...["", "2026-02-29", "2026-04-31", "2026-1-01", "0001-01-06", "9999-12-31"].map(
+        (end_date) => ({ end_date, timezone: "UTC" }),
+      ),
+      ...["", "Not/AZone", "a".repeat(129), "+08:00"].map((timezone) => ({
+        end_date: "2026-11-03",
+        timezone,
+      })),
+    ];
+    for (const query of bad) {
+      const res = await getGrammar(query);
+      assert.equal(res.status, 422, JSON.stringify(query));
+      await res.json();
+    }
+    const tolerated = await getGrammar({
+      end_date: "2026-11-03",
+      timezone: "UTC",
+      extra: "ignored",
+    });
+    assert.equal(tolerated.status, 200);
+    await tolerated.json();
+    const duplicated = await timedFetch(
+      `${instance.baseUrl}/api/assessments/weekly-grammar?end_date=1999-01-01&end_date=2026-11-03&timezone=Not%2FAZone&timezone=UTC&extra=ignored`,
+      { headers: AUTH_HEADER },
+    );
+    assert.equal(duplicated.status, 200);
+    assert.equal((await duplicated.json()).start, "2026-10-28T00:00:00.000Z");
+    const failed = await getGrammar({ end_date: "2026-11-03", timezone: "UTC" }, undefined, "503");
+    assert.equal(failed.status, 503);
+    await failed.json();
   });
 });
 

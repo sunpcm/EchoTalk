@@ -4,17 +4,21 @@ import base64
 import json
 import os
 import signal
+import socket
 import sqlite3
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import measure
+from host_gateway import FixedUpstreamRelay
 from runtime import (
     DATABASE,
+    LEGACY_SCOPE,
     PG_NAME,
     USER_OBJECT_COUNT_SQL,
     Runtime,
@@ -77,6 +81,359 @@ def env_fixture():
 
 
 class BoundaryTests(unittest.TestCase):
+    def runtime_fixture(self, transport="host-gateway"):
+        runner = Runtime.__new__(Runtime)
+        runner.database = DATABASE
+        runner.scope = "echotalk-grammar-http-20261104"
+        runner.run_id = "r0"
+        runner.source = "c" * 64
+        runner.manifest = {"http_transport": transport, "http_port": 18800}
+        runner.network_name = f"{runner.scope}-runtime-r0-internal"
+        runner.gateway_network_name = f"{runner.scope}-runtime-r0-gateway"
+        runner.gateway_network_id = "e" * 64
+        runner.upstream = "172.20.0.2:8000"
+        runner.commands = Mock()
+        runner.report = Path(tempfile.gettempdir())
+        return runner
+
+    def container_fixture(self, runner, role):
+        networks = {runner.network_name: {"NetworkID": "f" * 64}}
+        if role == "host-gateway":
+            networks[runner.gateway_network_name] = {
+                "NetworkID": runner.gateway_network_id
+            }
+        published = (
+            runner.loopback_binding
+            if role == "host-gateway" or (role == "api" and not runner.host_gateway)
+            else None
+        )
+        return {
+            "Id": CONTAINER,
+            "Image": IMAGE,
+            "Config": {
+                "Labels": runner.expected(role),
+                "Env": [f"FIXED_UPSTREAM={runner.upstream}"]
+                if role == "host-gateway"
+                else [],
+            },
+            "NetworkSettings": {"Networks": networks},
+            "HostConfig": {
+                "RestartPolicy": {"Name": "no"},
+                "PortBindings": published,
+                "Sysctls": {"net.ipv4.ip_forward": "0"}
+                if role == "host-gateway"
+                else {},
+            },
+        }
+
+    def test_gateway_topology_allows_only_gateway_loopback_and_fixed_upstream(self):
+        runner = self.runtime_fixture()
+        for role in ("postgres", "api", "host-gateway"):
+            with self.subTest(role=role):
+                runner.commands.inspect.return_value = self.container_fixture(
+                    runner, role
+                )
+                runner.check_container(CONTAINER, role, IMAGE, "f" * 64)
+        for role in ("postgres", "api"):
+            with self.subTest(role=role):
+                changed = self.container_fixture(runner, role)
+                changed["HostConfig"]["PortBindings"] = runner.loopback_binding
+                runner.commands.inspect.return_value = changed
+                with self.assertRaisesRegex(
+                    Refused, "application_port_boundary|postgres_port_published"
+                ):
+                    runner.check_container(CONTAINER, role, IMAGE, "f" * 64)
+
+    def test_gateway_rejects_wrong_network_upstream_and_inherited_credentials(self):
+        runner = self.runtime_fixture()
+        good = self.container_fixture(runner, "host-gateway")
+        mutations = []
+        changed = self.container_fixture(runner, "host-gateway")
+        changed["NetworkSettings"]["Networks"][runner.gateway_network_name][
+            "NetworkID"
+        ] = "d" * 64
+        mutations.append(("gateway_network_id_mismatch", changed))
+        changed = self.container_fixture(runner, "host-gateway")
+        changed["HostConfig"]["Sysctls"]["net.ipv4.ip_forward"] = "1"
+        mutations.append(("gateway_ip_forward_enabled", changed))
+        changed = self.container_fixture(runner, "host-gateway")
+        changed["Config"]["Env"] = ["FIXED_UPSTREAM=8.8.8.8:8000"]
+        mutations.append(("gateway_env_boundary", changed))
+        changed = self.container_fixture(runner, "host-gateway")
+        changed["Config"]["Env"] += ["DATABASE_URL=do-not-leak"]
+        mutations.append(("gateway_inherited_credentials", changed))
+        for expected, changed in mutations:
+            with self.subTest(expected=expected):
+                runner.commands.inspect.return_value = changed
+                with self.assertRaisesRegex(Refused, expected) as error:
+                    runner.check_container(CONTAINER, "host-gateway", IMAGE, "f" * 64)
+                self.assertNotIn("do-not-leak", str(error.exception))
+        self.assertTrue(good["HostConfig"]["PortBindings"])
+
+    def test_container_http_keeps_legacy_api_publication(self):
+        runner = self.runtime_fixture("container-http")
+        runner.commands.inspect.return_value = self.container_fixture(runner, "api")
+        runner.check_container(CONTAINER, "api", IMAGE, "f" * 64)
+
+    def test_new_scope_derives_names_and_legacy_names_remain_stable(self):
+        runner = self.runtime_fixture()
+        self.assertEqual(runner.api_name(), "echotalk-grammar-http-20261104-api-r0")
+        self.assertEqual(
+            runner.gateway_name(), "echotalk-grammar-http-20261104-host-gateway-r0"
+        )
+        runner.scope = LEGACY_SCOPE
+        self.assertEqual(runner.api_name(), "echotalk-overnight-20261103-api-r0")
+
+    def test_scope_labels_cannot_cross_cleanup_boundary(self):
+        with self.assertRaisesRegex(Refused, "invalid_scope"):
+            labels("r0", "api", "c" * 64, "../other")
+
+    def test_partial_failure_stops_only_owned_gateway(self):
+        with tempfile.TemporaryDirectory() as temp:
+            runner = self.runtime_fixture()
+            runner.resources = []
+            runner.intents = [
+                {
+                    "kind": "container",
+                    "name": "foreign-name",
+                    "role": "host-gateway",
+                    "image": IMAGE,
+                }
+            ]
+            runner.report = Path(temp)
+            runner.commands.call.return_value = (
+                b'{"ID":"%s","Names":"foreign-name"}\n' % CONTAINER.encode()
+            )
+            foreign = self.container_fixture(runner, "host-gateway")
+            foreign["Config"]["Labels"]["codex.scope"] = "foreign"
+            foreign["State"] = {"Running": True, "ExitCode": 0}
+            runner.commands.inspect.return_value = foreign
+            runner.stop_owned_on_failure()
+            self.assertFalse(
+                any(
+                    event.args and event.args[0] == "stop"
+                    for event in runner.commands.call.call_args_list
+                )
+            )
+            receipt = json.loads((Path(temp) / "failure-processes.json").read_text())
+            self.assertEqual(
+                receipt["owned_processes"][0]["cleanup_error"],
+                "resource_label_mismatch",
+            )
+
+
+class GatewayTests(unittest.TestCase):
+    def setUp(self):
+        self.relays = []
+
+    def tearDown(self):
+        for relay in self.relays:
+            relay.shutdown()
+
+    def new_relay(self, upstream, **kwargs):
+        relay = FixedUpstreamRelay(("127.0.0.1", 0), upstream, **kwargs)
+        self.relays.append(relay)
+        relay.start()
+        return relay
+
+    def finish_relay(self, relay):
+        relay.shutdown()
+        self.relays.remove(relay)
+
+    def test_fixed_upstream_relays_without_logging_request_data(self):
+        received = []
+        ready = threading.Event()
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+
+        def upstream():
+            ready.set()
+            connection, _ = listener.accept()
+            with connection:
+                received.append(connection.recv(16384))
+                connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+
+        thread = threading.Thread(target=upstream)
+        thread.start()
+        ready.wait(1)
+        relay = self.new_relay(
+            listener.getsockname(), max_connections=2, idle_timeout=2
+        )
+        try:
+            with socket.create_connection(relay.server_address, timeout=2) as client:
+                client.sendall(b"GET /api/health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                response = bytearray()
+                while chunk := client.recv(1024):
+                    response.extend(chunk)
+                self.assertTrue(response.endswith(b"OK"))
+            self.assertEqual(relay.upstream, listener.getsockname())
+        finally:
+            self.finish_relay(relay)
+            listener.close()
+            thread.join(2)
+            self.assertFalse(thread.is_alive())
+        self.assertTrue(received and received[0].startswith(b"GET /api/health"))
+
+    def test_gateway_accepts_legal_fragmented_header(self):
+        # Three back-to-back sendall calls on a real TCP socket can be coalesced
+        # by the kernel, which would hide the fragmentation path. Drive each
+        # fragment into a distinct recv() return via an observable handshake on
+        # a socketpair, then assert the full header is reassembled unchanged.
+        class FragmentSocket:
+            def __init__(self, sock):
+                self._sock = sock
+                self.fragments = 0
+                self.received = threading.Event()
+
+            def recv(self, size):
+                chunk = self._sock.recv(size)
+                if chunk:
+                    self.fragments += 1
+                    self.received.set()
+                return chunk
+
+            def settimeout(self, value):
+                self._sock.settimeout(value)
+
+        relay = FixedUpstreamRelay.__new__(FixedUpstreamRelay)
+        relay.idle_timeout = 2
+        relay.header_limit = 8192
+        relay.stopping = threading.Event()
+        left, right = socket.socketpair()
+        tracked = FragmentSocket(right)
+        result = {}
+
+        def read():
+            result["header"] = relay.read_headers(tracked)
+
+        reader = threading.Thread(target=read)
+        reader.start()
+        try:
+            for fragment in (
+                b"GET / HTTP/1.1\r\n",
+                b"Host: local",
+                b"host\r\n\r\n",
+            ):
+                left.sendall(fragment)
+                self.assertTrue(tracked.received.wait(2))
+                tracked.received.clear()
+            left.shutdown(socket.SHUT_WR)
+            reader.join(2)
+        finally:
+            left.close()
+            right.close()
+        self.assertFalse(reader.is_alive())
+        self.assertEqual(result["header"], b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        self.assertGreaterEqual(tracked.fragments, 3)
+
+    def test_gateway_rejects_incomplete_or_oversized_header_without_upstream(self):
+        relay = FixedUpstreamRelay.__new__(FixedUpstreamRelay)
+        relay.idle_timeout = 1.0
+        relay.header_limit = 8192
+        relay.stopping = threading.Event()
+        for payload in (b"GET / HTTP/1.1\r\n", b"X" * 8193):
+            with self.subTest(size=len(payload)):
+                left, right = socket.socketpair()
+                result = []
+
+                def read():
+                    result.append(relay.read_headers(right))
+
+                reader = threading.Thread(target=read)
+                reader.start()
+                try:
+                    left.settimeout(2)
+                    left.sendall(payload)
+                    left.shutdown(socket.SHUT_WR)
+                    reader.join(2)
+                finally:
+                    left.close()
+                    right.close()
+                self.assertFalse(reader.is_alive())
+                self.assertTrue(result)
+                self.assertIsNone(result[0])
+
+    def test_shutdown_closes_active_connections_and_threads(self):
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        threads_before = set(threading.enumerate())
+        relay = self.new_relay(listener.getsockname(), idle_timeout=30)
+        client = socket.create_connection(relay.server_address, timeout=2)
+        client.sendall(b"GET / HTTP/1.1\r\nHost: local\r\n\r\n")
+        deadline = time.monotonic() + 2
+        while not any(upstream is not None for upstream in relay.active.values()):
+            if time.monotonic() >= deadline:
+                self.fail("gateway did not connect to fixed upstream in time")
+        self.finish_relay(relay)
+        client.close()
+        listener.close()
+        self.assertFalse(relay.acceptor.is_alive())
+        self.assertFalse(relay.active)
+        self.assertEqual(set(threading.enumerate()), threads_before)
+
+    def test_bind_failure_starts_no_worker(self):
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        try:
+            with self.assertRaises(OSError):
+                FixedUpstreamRelay(listener.getsockname(), ("127.0.0.1", 1))
+        finally:
+            listener.close()
+
+    def test_manifest_initialization_preserves_host_loopback_legacy_defaults(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            snapshot = root / "snapshot"
+            snapshot.mkdir()
+            for name in ("Dockerfile", "uv.lock", "pyproject.toml", ".python-version"):
+                (snapshot / name).write_text("fixture\n")
+            inputs = root / "inputs.json"
+            inputs.write_bytes(
+                json_bytes(
+                    {"files": {path.name: sha256(path) for path in snapshot.iterdir()}}
+                )
+            )
+            protected = root / "protected"
+            protected.mkdir(mode=0o700)
+            pg, app = env_fixture()
+            for name, values in (("pg.env", pg), ("app.env", app)):
+                path = protected / name
+                path.write_text(
+                    "".join(f"{key}={value}\n" for key, value in values.items())
+                )
+                path.chmod(0o600)
+            manifest_path = root / "manifest.json"
+            manifest = {
+                "schema": 1,
+                "run_id": "legacy-r0",
+                "snapshot": str(snapshot),
+                "source_inputs": str(inputs),
+                "source_inputs_sha256": sha256(inputs),
+                "api_image": IMAGE,
+                "postgres_image": IMAGE,
+                "api_image_source_sha256": "a" * 64,
+                "probe_sha256": sha256(Path(__file__).with_name("container_probe.py")),
+                "report_root": str(root),
+                "pg_env": str(protected / "pg.env"),
+                "app_env": str(protected / "app.env"),
+                "http_transport": "host-loopback",
+                "http_port": 18800,
+                "migration_head": "c06_transcript_events",
+                "platform": "linux/arm64",
+            }
+            manifest_path.write_bytes(json_bytes(manifest))
+            runner = Runtime(manifest_path, root / "report")
+            self.assertEqual(runner.scope, LEGACY_SCOPE)
+            self.assertEqual(runner.pg_name, PG_NAME)
+            self.assertFalse(runner.host_gateway)
+            self.assertEqual(
+                runner.network_name,
+                "echotalk-overnight-20261103-runtime-legacy-r0",
+            )
+
     def test_existing_container_refuses_before_mutation(self):
         commands = Mock()
         commands.call.return_value = b"foreign\nreserved\n"
@@ -239,6 +596,7 @@ class BoundaryTests(unittest.TestCase):
             runner.manifest_path = manifest
             runner.files = {"alembic.ini": "e" * 64}
             runner.manifest = {"postgres_image": IMAGE}
+            runner.database = DATABASE
             runner.check_images = Mock()
             runner.check_network = Mock()
             runner.check_container = Mock()

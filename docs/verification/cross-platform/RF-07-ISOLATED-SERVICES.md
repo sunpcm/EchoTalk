@@ -1,5 +1,108 @@
 # RF-07 隔离 API / PostgreSQL / 分析 Worker 验收
 
+## 2026-11-04 grammar-http 资源边界（已实际收口，跨 11-04 夜间至 11-05）
+
+本轮 scope 固定为 `echotalk-grammar-http-20261104`。runtime PG 容器固定为
+`echotalk-grammar-http-20261104-runtime-pg`，用户和数据库均为
+`echotalk_overnight_runtime`，使用全新独占 PG 实例、`/var/lib/postgresql/data` tmpfs，
+不发布端口。internal 网络为 `echotalk-grammar-http-20261104-runtime-<run_id>-internal`；
+仅 `host-gateway` 模式另建普通 bridge
+`echotalk-grammar-http-20261104-runtime-<run_id>-gateway`。API、PG 只能接 internal；
+固定上游 gateway 同时接这两个本轮网络，只有 gateway 发布 `127.0.0.1:18800..18809`。
+API 与 gateway 容器名分别由同一 scope/run_id 派生为
+`echotalk-grammar-http-20261104-api-<run_id>` 和
+`echotalk-grammar-http-20261104-host-gateway-<run_id>`，其他探针/Worker 同样按 scope
+派生。所有资源带该 scope、不可变 run/role/source 标签；创建前拒绝名字、网络或端口冲突。
+
+`manifest.scope` 必须显式等于上述值；旧 `echotalk-overnight-20261103` manifest 保持原兼容
+默认值和 `container-http` 行为，新 scope 不允许隐式继承旧数据库或资源名。gateway 复用
+已批准 API 镜像内的 stdlib，只绑定已核验 API 容器 internal IP:8000，不读取 app env、
+不携带数据库或 Provider/IdP/LiveKit 凭据，不提供 CONNECT、任意 URL 或客户端指定上游。
+每个网络/容器先写创建意向、创建后立即写不可变 ID journal；失败只停止/清理本轮已核验
+资源，不能按模糊名称或全局 label/prune 清理。真实服务、数据库、HTTP 和清理已由主控
+实际执行并通过（见下方最终收口）。
+
+### 初始 manifest 与受控验收矩阵
+
+初始镜像输入只读使用本轮 `R/runtime/base-image-receipt-r0.json`、
+`base-image-provenance-r0.json`、`base-inputs-r0.json` 和 `base-source-r0`。
+主控指定 baseline API ID 为
+`sha256:d045deddd63d44a4860f0ce86e4243c15c78fe9a8229a40121dfda260027e112`；
+它不含新 weekly-grammar，仅用于 PID1 诊断；health/GET、拓扑与 weekly-grammar 业务均由
+最终 157 文件新镜像验收，不能把 baseline 结果改记为最终接口通过。
+
+新 manifest 在原有字段上显式加入：
+
+```json
+{
+  "scope": "echotalk-grammar-http-20261104",
+  "database": "echotalk_overnight_runtime",
+  "postgres_name": "echotalk-grammar-http-20261104-runtime-pg",
+  "http_transport": "host-gateway",
+  "http_port": 18800,
+  "gateway_sha256": "<host_gateway.py 实际 SHA256>"
+}
+```
+
+`http_port` 可在 18800..18809 中选择主控核验未占用者。其余字段继续填写实际冻结的
+schema/run_id、snapshot/source_inputs 及其 SHA、api/postgres image ID、api source SHA、
+platform、probe SHA、report_root、受保护 env 路径和 migration_head；此处不包含任何
+secret 值。runner 从已核验 API internal IP 派生唯一 `FIXED_UPSTREAM=<IP>:8000`，
+manifest 不接受任意 upstream。主控使用同一冻结工具快照执行：
+
+```sh
+python -B <冻结工具快照>/runtime.py provision --manifest <冻结manifest.json>
+python -B <冻结工具快照>/runtime.py exercise --manifest <冻结manifest.json> \
+  --provision <report_root>/provision/provision.json --approval <主控独立approval.json>
+python -B <冻结工具快照>/runtime.py cleanup --manifest <冻结manifest.json>
+```
+
+初始真实验收矩阵为宿主 TCP GET health 200、匿名401、missing-key readiness503
+（只核安全字段）、既有 weekly-progress/history 分页、坏 cursor 和非法时区422。
+同时核验 PG/API 仅 internal 且无端口发布、gateway 恰接 internal+普通 bridge 且只发布
+loopback、固定 upstream、labels/不可变 IDs/image/tmpfs 与 journal。最终镜像另验
+weekly-grammar 过滤、稳定排序、空态及实际 HTTP。应用无外网路径由拓扑和本轮无用户数据
+canary 验证，未拨真实公网。HTTP 主体与 Authorization 不进入证据日志。
+
+新增 stdlib 离线回归仍由主控在批准源码根执行：
+
+```sh
+python -B -m unittest discover -s tools/keyfree-runtime -p 'test_*.py'
+```
+
+覆盖 manifest/scope 派生与旧 `host-loopback` 真实初始化、固定 upstream、loopback 发布、
+网络/凭据/资源篡改拒绝、真实 CRLF 与合法分片 socket 转发、超限/不完整超时拒绝、
+worker/forward/连接有界回收及 partial-failure 安全清理。gateway 常规退出0是 exercise
+通过的必要条件。
+
+### 最终收口（实际通过）
+
+上述资源边界已由主控全部真实验收通过并清理。真实结果：
+
+- 31 项 stdlib unittest 与 6 文件 Ruff 通过；真实 PID1 SIGTERM exit0/280ms（长驻
+  17s）、SIGINT exit0/247ms；`max_connections=2` 第三个连接被拒绝、活跃 socket 关闭
+  200ms、header 累计上限内总超时 150ms。
+- 真实宿主 HTTP：health 200、匿名 401、missing-key ready 503（安全字段
+  livekit/llm/stt/tts）；独立 16 次宿主请求 weekly-grammar Top3 `total_errors=21`
+  （other 7 / article_usage 5 / verb_tense_past 5，含榜外/同分/unknown 合并/过滤空态）；
+  55 条历史 4 页 / 25h；cursor/date/timezone/48h 均 422。
+- 拓扑：API/PG 仅 internal 且无实际发布、无默认路由；gateway 双网络仅宿主 loopback
+  发布、ip_forward=0；本地 canary 仅证明同本地目标 gateway 容器直连可达、API 不可达及
+  拓扑无外网路径，未拨公网（public_network_contacted=false）。
+- 生命周期：三 Worker、API 与 gateway 均 exit0；预置过期任务恢复/幂等 synthetic 1
+  assessment + 1 grammar + knowledge 0。
+- 最终业务镜像为 157 文件新镜像（baseline155 只用于 PID1 诊断，不构成完整业务 HTTP
+  通过）：API `sha256:5444d92f1ad20449e858ccc017a87ea63a053a200a93e3ca93f16bd255a8973d`
+  （1,542,377,979 bytes / 55 包 / ldd 6）、Agent
+  `sha256:f9fb6b9cff828c131dfbe05d50896ada90a043b532458b17f066cc9dbfab61c5`
+  （1,930,847,986 bytes / 83 包 / ldd 79）；同一依赖/export、无 dev、各 3 次导入、
+  ffmpeg/native 通过。
+- 本轮全部容器/网络已按 ID 精确清理。
+
+旧 internal-only 宿主18800不可达、旧 worker137/gateway137、r0 27项1failure/2errors、
+r1 IndentationError 与中断 r2 socketpair timeout124/F841/I001 均保留为历史，不冒充
+本轮通过。当前 dirty 无 CI/native/真实 Provider 语音设备/原 Compose 整栈验收。
+
 ## 2026-11-04 补充轮：Worker 真实停机已验，最终组合待主控
 
 本补充轮证据根为 `R=.review/reports/overnight-followup-20261104`，仅在新 worker lane

@@ -11,6 +11,10 @@ vi.mock("@/components/learning/WeeklyProgress", () => ({
   WeeklyProgress: () => <section data-testid="weekly-progress-mock" />,
 }));
 
+vi.mock("@/components/learning/WeeklyGrammar", () => ({
+  WeeklyGrammar: () => <section data-testid="weekly-grammar-mock" />,
+}));
+
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return {
@@ -89,6 +93,7 @@ describe("App initialization", () => {
     // 但正常触发了 fetchSettings 进行水合
     expect(api.getUserSettings).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("weekly-progress-mock")).toBeInTheDocument();
+    expect(screen.getByTestId("weekly-grammar-mock")).toBeInTheDocument();
   });
 
   it("shows one safe readiness alert, opens settings and only rechecks on explicit click", async () => {

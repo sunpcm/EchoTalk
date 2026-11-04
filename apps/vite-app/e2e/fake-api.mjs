@@ -39,6 +39,14 @@ function createSession(mode) {
 const VALID_STATUSES = new Set(["active", "completed", "cancelled"]);
 const FAKE_USER_ID = "00000000-0000-0000-0000-000000000001";
 const REQUIRED_CURSOR_KEYS = ["v", "u", "ep", "st", "s", "e", "t", "id"];
+const WEEKLY_GRAMMAR_TAGS = new Set([
+  "article_usage",
+  "verb_tense_past",
+  "verb_tense_present",
+  "subject_verb_agreement",
+  "preposition",
+  "other",
+]);
 
 // 请求局部合成记录；不会污染浏览器 worker 共享的 sessions，也不进入产品默认数据。
 function weeklyFixtures(name) {
@@ -138,6 +146,76 @@ function weeklyWindows(endDate, timezone) {
     start: boundaries[index],
     end: boundaries[index + 1],
   }));
+}
+
+function grammarFixtures(name) {
+  if (name !== "weekly") return [];
+  const make = (index, skill_tag, source = "provider", is_synthetic = false) => ({
+    id: `77400000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    user_id: FAKE_USER_ID,
+    session_status: "completed",
+    started_at: "2026-11-02T16:30:00Z",
+    skill_tag,
+    source,
+    is_synthetic,
+  });
+  return [
+    ...Array.from({ length: 4 }, (_, i) => make(i + 1, "article_usage")),
+    ...Array.from({ length: 3 }, (_, i) => make(i + 11, "verb_tense_past")),
+    make(21, "unknown_tag"),
+    make(22, "  "),
+    make(23, "pronunciation"),
+    ...Array.from({ length: 2 }, (_, i) => make(i + 31, "subject_verb_agreement")),
+    ...Array.from({ length: 2 }, (_, i) => make(i + 41, "verb_tense_present")),
+    make(51, "preposition"),
+    make(61, "article_usage", "demo_rule"),
+    make(62, "article_usage", "demo_mock"),
+    make(63, "article_usage", "provider", true),
+    {
+      ...make(64, "article_usage"),
+      session_status: "active",
+    },
+    {
+      ...make(65, "article_usage"),
+      user_id: "00000000-0000-0000-0000-000000000002",
+    },
+  ];
+}
+
+function weeklyGrammarSummary(endDate, timezone, fixture) {
+  const windows = weeklyWindows(endDate, timezone);
+  const firstDay = windows[0];
+  const lastDay = windows[windows.length - 1];
+  const counts = new Map();
+  let total = 0;
+  for (const record of grammarFixtures(fixture)) {
+    if (
+      record.user_id !== FAKE_USER_ID ||
+      record.session_status !== "completed" ||
+      record.is_synthetic ||
+      record.source === "demo_rule" ||
+      record.source === "demo_mock"
+    ) {
+      continue;
+    }
+    const startedMs = Date.parse(record.started_at);
+    if (startedMs < Date.parse(firstDay.start) || startedMs >= Date.parse(lastDay.end)) continue;
+    const tag = WEEKLY_GRAMMAR_TAGS.has(record.skill_tag) ? record.skill_tag : "other";
+    counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    total += 1;
+  }
+  const items = [...counts.entries()]
+    .map(([skill_tag, count]) => ({ skill_tag, count }))
+    .sort(
+      (a, b) =>
+        b.count - a.count || (a.skill_tag < b.skill_tag ? -1 : a.skill_tag > b.skill_tag ? 1 : 0),
+    );
+  return {
+    start: firstDay.start,
+    end: lastDay.end,
+    total_errors: total,
+    items: items.slice(0, 3),
+  };
 }
 
 function validateWindow(startStr, endStr, { required = false } = {}) {
@@ -419,6 +497,28 @@ const server = createServer(async (request, response) => {
       sendJson(response, 200, { days });
     } catch {
       sendJson(response, 422, { detail: "Invalid weekly window" });
+    }
+    return;
+  }
+
+  if (method === "GET" && pathname === "/api/assessments/weekly-grammar") {
+    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+    if (request.headers["x-e2e-weekly-grammar-status"] === "503") {
+      sendJson(response, 503, { detail: "Controlled weekly grammar failure." });
+      return;
+    }
+    try {
+      sendJson(
+        response,
+        200,
+        weeklyGrammarSummary(
+          url.searchParams.getAll("end_date").at(-1),
+          url.searchParams.getAll("timezone").at(-1),
+          request.headers["x-e2e-weekly-grammar-fixture"],
+        ),
+      );
+    } catch {
+      sendJson(response, 422, { detail: "Invalid weekly grammar window" });
     }
     return;
   }

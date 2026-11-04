@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+import ipaddress
 import json
 import os
 import re
@@ -33,6 +34,7 @@ from runtime_support import (
 
 DATABASE = "echotalk_overnight_runtime"
 PG_NAME = "echotalk-overnight-20261103-runtime-pg"
+LEGACY_SCOPE = "echotalk-overnight-20261103"
 USER_OBJECT_COUNT_SQL = {
     "relations": """SELECT count(*) FROM pg_class c
 JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -81,11 +83,11 @@ def read_protected_env(path):
     return result
 
 
-def validate_envs(pg, app):
+def validate_envs(pg, app, *, database=DATABASE, pg_name=PG_NAME):
     require(
         set(pg) == {"POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"}, "pg_env_keys"
     )
-    require(pg["POSTGRES_DB"] == pg["POSTGRES_USER"] == DATABASE, "pg_env_identity")
+    require(pg["POSTGRES_DB"] == pg["POSTGRES_USER"] == database, "pg_env_identity")
     require(
         re.fullmatch(r"[A-Za-z0-9_-]{24,128}", pg["POSTGRES_PASSWORD"]),
         "pg_password_format",
@@ -119,10 +121,10 @@ def validate_envs(pg, app):
     url = urllib.parse.urlsplit(app["DATABASE_URL"])
     require(
         url.scheme == "postgresql+asyncpg"
-        and url.hostname == PG_NAME
+        and url.hostname == pg_name
         and url.port == 5432
-        and url.path == f"/{DATABASE}"
-        and url.username == DATABASE
+        and url.path == f"/{database}"
+        and url.username == database
         and url.password == pg["POSTGRES_PASSWORD"]
         and not url.query
         and not url.fragment,
@@ -139,9 +141,9 @@ def validate_envs(pg, app):
     )
 
 
-def validate_empty(identity):
+def validate_empty(identity, database=DATABASE):
     require(
-        identity["database"] == identity["user"] == DATABASE, "sql_database_identity"
+        identity["database"] == identity["user"] == database, "sql_database_identity"
     )
     require(identity["version"] == "150019", "sql_server_version")
     require(
@@ -190,12 +192,29 @@ class Runtime:
         )
         self.files, self.source = check_snapshot(m["snapshot"], m["source_inputs"])
         self.run_id = m["run_id"]
-        labels(self.run_id, "validation", self.source)
+        self.scope = m.get("scope", LEGACY_SCOPE)
+        require(
+            self.scope in {LEGACY_SCOPE, "echotalk-grammar-http-20261104"},
+            "scope_boundary",
+        )
+        labels(self.run_id, "validation", self.source, self.scope)
+        self.database = m.get("database", DATABASE)
+        require(self.database == DATABASE, "runtime_database_boundary")
+        self.pg_name = m.get("postgres_name", f"{self.scope}-runtime-pg")
+        if self.scope == LEGACY_SCOPE:
+            require(self.pg_name == PG_NAME, "legacy_pg_name_boundary")
+        else:
+            require(
+                m.get("database") == DATABASE
+                and m.get("postgres_name") == f"{self.scope}-runtime-pg",
+                "explicit_scope_identity_required",
+            )
         self.root = Path(m["report_root"])
         require(self.root.is_absolute(), "report_root_absolute_required")
         require(18800 <= m["http_port"] <= 18809, "http_port_boundary")
         require(
-            m.get("http_transport") in {"host-loopback", "container-http"},
+            m.get("http_transport")
+            in {"host-gateway", "host-loopback", "container-http"},
             "explicit_http_transport_required",
         )
         require(
@@ -209,17 +228,25 @@ class Runtime:
         )
         self.probe = Path(__file__).with_name("container_probe.py").resolve()
         require(sha256(self.probe) == m["probe_sha256"], "probe_changed")
+        self.gateway = Path(__file__).with_name("host_gateway.py").resolve()
+        if m["http_transport"] == "host-gateway":
+            require(sha256(self.gateway) == m["gateway_sha256"], "gateway_changed")
         self.pg_env = read_protected_env(m["pg_env"])
         self.app_env = read_protected_env(m["app_env"])
-        validate_envs(self.pg_env, self.app_env)
+        validate_envs(
+            self.pg_env, self.app_env, database=self.database, pg_name=self.pg_name
+        )
         self.report = Path(report)
         self.commands = Commands(self.report, docker_context)
-        self.network_name = f"echotalk-overnight-20261103-runtime-{self.run_id}"
+        self.network_name = f"{self.scope}-runtime-{self.run_id}"
+        self.gateway_network_name = f"{self.network_name}-gateway"
+        if self.scope != LEGACY_SCOPE:
+            self.network_name += "-internal"
         self.resources = []
         self.intents = []
 
     def expected(self, role):
-        return labels(self.run_id, role, self.source)
+        return labels(self.run_id, role, self.source, self.scope)
 
     def record(self, kind, identity, role, image=None):
         resource = {
@@ -317,17 +344,20 @@ class Runtime:
                 )
                 require(actual.get("codex.role") == "api", "api_image_role_mismatch")
 
-    def check_network(self, identity):
+    def check_network(self, identity, role="network"):
         info = self.commands.inspect("network", identity)
-        assert_owned(info, identity, self.expected("network"))
-        require(info["Internal"] is True, "network_not_internal")
+        assert_owned(info, identity, self.expected(role))
+        require(info["Internal"] is (role == "network"), "network_internal_boundary")
         return info
 
     def check_container(self, identity, role, image, network):
         info = self.commands.inspect("container", identity)
         assert_owned(info, identity, self.expected(role), image)
+        networks = {self.network_name}
+        if role == "host-gateway":
+            networks.add(self.gateway_network_name)
         require(
-            set(info["NetworkSettings"]["Networks"]) == {self.network_name},
+            set(info["NetworkSettings"]["Networks"]) == networks,
             "container_network_boundary",
         )
         require(
@@ -335,6 +365,14 @@ class Runtime:
             == network,
             "network_id_mismatch",
         )
+        if role == "host-gateway":
+            require(
+                info["NetworkSettings"]["Networks"][self.gateway_network_name][
+                    "NetworkID"
+                ]
+                == self.gateway_network_id,
+                "gateway_network_id_mismatch",
+            )
         require(
             info["HostConfig"]["RestartPolicy"]["Name"] in {"", "no"},
             "restart_policy_boundary",
@@ -343,7 +381,56 @@ class Runtime:
             require(
                 not info["HostConfig"].get("PortBindings"), "postgres_port_published"
             )
+        elif role == "host-gateway":
+            require(
+                info["HostConfig"].get("PortBindings") == self.loopback_binding,
+                "gateway_port_boundary",
+            )
+            require(
+                info["HostConfig"].get("Sysctls", {}).get("net.ipv4.ip_forward") == "0",
+                "gateway_ip_forward_enabled",
+            )
+            gateway_env = dict(
+                row.split("=", 1) for row in info["Config"].get("Env", [])
+            )
+            require(
+                gateway_env.get("FIXED_UPSTREAM") == self.upstream,
+                "gateway_env_boundary",
+            )
+            require(
+                not any(
+                    key == "DATABASE_URL"
+                    or key == "DEV_AUTH_TOKEN"
+                    or "PASSWORD" in key
+                    or "CREDENTIAL" in key
+                    or key.startswith(("OPENAI_", "LIVEKIT_", "ANTHROPIC_"))
+                    for key in gateway_env
+                ),
+                "gateway_inherited_credentials",
+            )
+        else:
+            expected = (
+                self.loopback_binding
+                if role == "api" and not self.host_gateway
+                else None
+            )
+            require(
+                (info["HostConfig"].get("PortBindings") or None) == expected,
+                "application_port_boundary",
+            )
         return info
+
+    @property
+    def host_gateway(self):
+        return self.manifest.get("http_transport") == "host-gateway"
+
+    @property
+    def loopback_binding(self):
+        return {
+            "8000/tcp": [
+                {"HostIp": "127.0.0.1", "HostPort": str(self.manifest["http_port"])}
+            ]
+        }
 
     def sql(self, pg_id, query):
         output = self.commands.call(
@@ -356,9 +443,9 @@ class Runtime:
             "-v",
             "ON_ERROR_STOP=1",
             "-U",
-            DATABASE,
+            self.database,
             "-d",
-            DATABASE,
+            self.database,
             "-c",
             query,
         )
@@ -366,7 +453,13 @@ class Runtime:
 
     def provision(self):
         self.check_images()
-        refuse_conflicts(self.commands, [PG_NAME, self.api_name()], self.network_name)
+        refuse_conflicts(
+            self.commands,
+            [self.pg_name, self.api_name()]
+            + ([self.gateway_name()] if self.host_gateway else []),
+            self.network_name,
+            [self.gateway_network_name] if self.host_gateway else [],
+        )
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", self.manifest["http_port"]))
         self.intent("network", self.network_name, "network")
@@ -383,18 +476,35 @@ class Runtime:
         )
         self.record("network", network, "network")
         self.check_network(network)
-        self.intent("container", PG_NAME, "postgres", self.manifest["postgres_image"])
+        if self.host_gateway:
+            self.intent("network", self.gateway_network_name, "gateway-network")
+            gateway_network = (
+                self.commands.call(
+                    "network",
+                    "create",
+                    *label_args(self.expected("gateway-network")),
+                    self.gateway_network_name,
+                )
+                .decode()
+                .strip()
+            )
+            self.record("network", gateway_network, "gateway-network")
+            self.check_network(gateway_network, "gateway-network")
+            self.gateway_network_id = gateway_network
+        self.intent(
+            "container", self.pg_name, "postgres", self.manifest["postgres_image"]
+        )
         pg_id = (
             self.commands.call(
                 "create",
                 "--name",
-                PG_NAME,
+                self.pg_name,
                 "--pull=never",
                 "--restart=no",
                 "--network",
                 network,
                 "--network-alias",
-                PG_NAME,
+                self.pg_name,
                 "--tmpfs",
                 "/var/lib/postgresql/data:rw,nosuid,noexec,size=512m",
                 "--env-file",
@@ -414,7 +524,15 @@ class Runtime:
         while True:
             code, _, _ = self.commands.run(
                 self.commands.docker
-                + ["exec", pg_id, "pg_isready", "-U", DATABASE, "-d", DATABASE],
+                + [
+                    "exec",
+                    pg_id,
+                    "pg_isready",
+                    "-U",
+                    self.database,
+                    "-d",
+                    self.database,
+                ],
                 check=False,
                 timeout=5,
             )
@@ -431,16 +549,20 @@ class Runtime:
             "source_sha256": self.source,
             "network_id": network,
             "postgres_id": pg_id,
+            "gateway_network_id": getattr(self, "gateway_network_id", None),
             "database_identity": identity,
             "resources": self.resources,
         }
         write_json(self.report / "provision.json", result)
 
     def api_name(self):
-        return f"echotalk-overnight-20261103-api-{self.run_id}"
+        return f"{self.scope}-api-{self.run_id}"
+
+    def gateway_name(self):
+        return f"{self.scope}-host-gateway-{self.run_id}"
 
     def create_app(self, role, network, command, *, synthetic=False, interactive=False):
-        name = f"echotalk-overnight-20261103-{role}-{self.run_id}"
+        name = f"{self.scope}-{role}-{self.run_id}"
         refuse_conflicts(self.commands, [name])
         args = [
             "create",
@@ -448,6 +570,8 @@ class Runtime:
             name,
             "--pull=never",
             "--restart=no",
+            "--sysctl",
+            "net.ipv4.ip_forward=0",
             "--network",
             network,
             "--env-file",
@@ -462,7 +586,7 @@ class Runtime:
             args += ["--env", "USE_MOCK_ELSA=true"]
         if interactive:
             args += ["--interactive"]
-        if role == "api":
+        if role == "api" and not self.host_gateway:
             args += ["--publish", f"127.0.0.1:{self.manifest['http_port']}:8000"]
         args += ["--entrypoint", command[0], self.manifest["api_image"], *command[1:]]
         self.intent("container", name, role, self.manifest["api_image"])
@@ -508,6 +632,58 @@ class Runtime:
             remove_container(
                 self.commands, identity, self.expected(role), self.manifest["api_image"]
             )
+
+    def create_host_gateway(self, network):
+        api_info = self.check_container(
+            self.api_id, "api", self.manifest["api_image"], network
+        )
+        address = api_info["NetworkSettings"]["Networks"][self.network_name][
+            "IPAddress"
+        ]
+        parsed = ipaddress.ip_address(address)
+        require(
+            parsed.version == 4 and parsed.is_private and not parsed.is_loopback,
+            "gateway_upstream_boundary",
+        )
+        self.upstream = f"{address}:8000"
+        refuse_conflicts(self.commands, [self.gateway_name()])
+        args = [
+            "create",
+            "--name",
+            self.gateway_name(),
+            "--pull=never",
+            "--restart=no",
+            "--sysctl",
+            "net.ipv4.ip_forward=0",
+            "--network",
+            self.gateway_network_name,
+            "--env",
+            f"FIXED_UPSTREAM={self.upstream}",
+            "--publish",
+            f"127.0.0.1:{self.manifest['http_port']}:8000",
+            "--mount",
+            f"type=bind,src={self.gateway},dst=/opt/echotalk-host-gateway.py,readonly",
+            *label_args(self.expected("host-gateway")),
+            "--entrypoint",
+            "python",
+            self.manifest["api_image"],
+            "-B",
+            "/opt/echotalk-host-gateway.py",
+        ]
+        self.intent(
+            "container",
+            self.gateway_name(),
+            "host-gateway",
+            self.manifest["api_image"],
+        )
+        identity = self.commands.call(*args).decode().strip()
+        self.record("container", identity, "host-gateway", self.manifest["api_image"])
+        self.commands.call("network", "connect", network, identity)
+        self.commands.call("start", identity)
+        self.check_container(
+            identity, "host-gateway", self.manifest["api_image"], network
+        )
+        return identity
 
     def http(self, path, authenticated=False):
         if self.manifest["http_transport"] == "container-http":
@@ -588,13 +764,20 @@ class Runtime:
         )
         self.check_images()
         network, pg_id = provision["network_id"], provision["postgres_id"]
+        self.gateway_network_id = provision.get("gateway_network_id")
+        require(
+            (self.gateway_network_id is not None) == self.host_gateway,
+            "gateway_network_provision_boundary",
+        )
         self.check_network(network)
+        if self.host_gateway:
+            self.check_network(self.gateway_network_id, "gateway-network")
         self.check_container(
             pg_id, "postgres", self.manifest["postgres_image"], network
         )
         identity = self.sql(pg_id, IDENTITY_SQL)
         require(identity == provision["database_identity"], "database_identity_changed")
-        validate_empty(identity)
+        validate_empty(identity, self.database)
         write_json(self.report / "empty-before-migration.json", identity)
         self.oneshot("verify-source", network, stdin=json_bytes(self.files))
         self.oneshot("frozen-export", network)
@@ -609,18 +792,11 @@ class Runtime:
             ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"],
         )
         self.api_id = api
+        self.upstream = None
         started = time.monotonic()
         self.commands.call("start", api)
-        api_info = self.check_container(api, "api", self.manifest["api_image"], network)
-        require(
-            api_info["HostConfig"]["PortBindings"]
-            == {
-                "8000/tcp": [
-                    {"HostIp": "127.0.0.1", "HostPort": str(self.manifest["http_port"])}
-                ]
-            },
-            "api_port_boundary",
-        )
+        self.check_container(api, "api", self.manifest["api_image"], network)
+        gateway = self.create_host_gateway(network) if self.host_gateway else None
         deadline = time.monotonic() + 30
         while True:
             try:
@@ -666,6 +842,7 @@ class Runtime:
                 "host_loopback_limit": None
                 if host_reachable
                 else "internal network publication unavailable or unverified; no external bridge added",
+                "gateway_id": gateway,
             },
         )
         worker = self.create_app(
@@ -726,6 +903,10 @@ class Runtime:
         require(final == completed, "restart_or_repeat_changed_products")
         validate_products(final)
         exits.append(self.stop(restarted, "worker-restarted", network))
+        if gateway is not None:
+            gateway_exit = self.stop(gateway, "host-gateway", network)
+            exits.append(gateway_exit)
+            require(gateway_exit["exit"] == 0, "gateway_exit_nonzero")
         exits.append(self.stop(api, "api", network))
         write_json(
             self.report / "result.json",
@@ -773,7 +954,7 @@ class Runtime:
                 )
                 removed.append(identity)
             elif resource["kind"] == "network":
-                info = self.check_network(identity)
+                info = self.check_network(identity, resource["labels"]["codex.role"])
                 require(not info.get("Containers"), "network_has_remaining_members")
                 self.commands.call("network", "rm", identity)
                 removed.append(identity)
