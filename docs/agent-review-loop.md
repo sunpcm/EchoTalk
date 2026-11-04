@@ -83,6 +83,112 @@ Python 使用 lane 内 `backend/.venv/bin/python`，目标 3.12；不得借用�
   Provider、Worker 注册、设备或部署已通过；RF-05、RF-07、RF-09 与 RF-12 的外部边界继续
   保持未完成。
 
+### §2.2 2026-11-04 夜间运行时新增 runner 与实际验收索引
+
+本轮证据根 R 为主 checkout 的 `.review/reports/overnight-product-runtime-20261103/`。
+新增 runtime-format/runtime-lint/runtime-unit 独立于 frontend10/backend5；真实服务与镜像
+另列，不将这些新增检查计入旧 15 项。全部由主控经本轮已审 `R/tools` 控制器和只读
+`/Users/sunpcm/code/EchoTalk/.review/reports/tools/ev.sh` 执行，实施者不运行。
+
+C 三项实际清单固定于 `R/runtime/c2-project-quality-manifest-r1.json`，cwd 为
+`/Users/sunpcm/code/EchoTalk/.review/worktrees/overnight-runtime-20261103`。manifest 绑定
+该 C lane `backend/pyproject.toml` 的 SHA256
+`b65ac36452e41aee661541c64d2c6377b2251467ffcc757341d3afda390473b6`；Ruff 两项均显式
+`--config backend/pyproject.toml`，19 项 unittest 与之属于同一 manifest/源码指纹。
+以下列出与 manifest 等价的精确命令；环境由主控清理，`PYTHONDONTWRITEBYTECODE=1`，
+不继承数据库/Provider 配置，单项 timeout 120 秒。命令仅供主控封装，不授予实施者执行权。
+
+```sh
+RUNTIME_TREE='/Users/sunpcm/code/EchoTalk/.review/worktrees/overnight-runtime-20261103'
+RUNTIME_RUFF='/Users/sunpcm/code/EchoTalk/.review/worktrees/overnight-product-runtime-20261103/backend/.venv/bin/ruff'
+RUNTIME_PYTHON='/Users/sunpcm/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12'
+export PYTHONDONTWRITEBYTECODE=1
+cd "$RUNTIME_TREE"
+"$RUNTIME_RUFF" format --check --config backend/pyproject.toml \
+  tools/keyfree-runtime/container_probe.py tools/keyfree-runtime/measure.py \
+  tools/keyfree-runtime/runtime.py tools/keyfree-runtime/runtime_support.py \
+  tools/keyfree-runtime/test_runtime.py
+"$RUNTIME_RUFF" check --config backend/pyproject.toml \
+  tools/keyfree-runtime/container_probe.py tools/keyfree-runtime/measure.py \
+  tools/keyfree-runtime/runtime.py tools/keyfree-runtime/runtime_support.py \
+  tools/keyfree-runtime/test_runtime.py
+"$RUNTIME_PYTHON" -B -m unittest discover -s tools/keyfree-runtime -p 'test_*.py'
+```
+
+以上 Ruff 是主控集成 lane 的受控工具，Python 是主控核验的 3.12.12；此清单不扩展
+实施者读取或借用环境的权限。`R/runtime/c2-project-quality-checks-r1/summary.json`
+记录三项 process/gate exit 均为 0、runtime-unit 19 项，绑定 C 指纹
+`7f5add2cb20657dfaa811d3b9c06ab7cf164b95d4e5d6f0085de9c56089ea3c5`。
+离线测试不证明真实服务、镜像或宿主 HTTP 入口通过。
+
+真实服务入口 `tools/keyfree-runtime/runtime.py` 按下列参数协议执行；冻结快照、manifest、
+provision 与独立 approval 的实际绝对路径由主控绑定，禁止直接使用占位值：
+
+```sh
+python -B <冻结工具快照>/runtime.py provision --manifest <冻结manifest.json>
+python -B <冻结工具快照>/runtime.py exercise --manifest <冻结manifest.json> \
+  --provision <report_root>/provision/provision.json --approval <主控独立approval.json>
+python -B <冻结工具快照>/runtime.py cleanup --manifest <冻结manifest.json>
+```
+
+顺序为 provision → 独立空库 SQL 回执与迁移审查 → 主控独立批准 → exercise → cleanup；
+provision 不批准迁移，cleanup 以实际回执为准。命令、manifest/approval、身份与清理边界
+由主控按 [RF-07 隔离服务文档](./verification/cross-platform/RF-07-ISOLATED-SERVICES.md)
+审核。`measure.py` 是独立镜像测量入口；C before 使用的主控冻结测量适配及其证据另列，
+不把候选脚本当作已执行。配对收益只引用 `R/runtime/paired-comparison-r1.json`：API
+0.1803%、Agent 0.2728%。包含 A 源码的最终 154 文件新镜像另有新 ID 和验收回执，
+不与上述 before/after 配对混算收益，不据体积降幅推导冷启动改善。
+
+| 范围                     | 本轮已知结果                                                                                                                                                                    | 权威索引与限制                                                                                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A backend5               | 五项 exit 0；678 pytest、3 warnings、78.67%，59% 门禁保持；Review APPROVED                                                                                                      | `R/api/checks-r1/summary.json`、`R/api/REVIEW-r1.md`；仅批准 A 冻结输入                                                                                                                                                                         |
+| B frontend10             | 十项 exit 0；1098 Vitest、21 build-script、69 Fake API、8 types；双浏览器 173 clean + 1 flaky = 174                                                                             | `R/ui/quality-fixed-r1/summary.json`、`R/ui/quality-fixed-r1/10-e2e/command.log`；旧 settings-drawer 文件 goto 首试超时，重试通过，归因未定                                                                                                     |
+| C 工具三项               | 格式/lint/19 unittest 均 exit 0，显式绑定上述 pyproject                                                                                                                         | `R/runtime/c2-project-quality-checks-r1/summary.json`；不属于旧 15 项                                                                                                                                                                           |
+| C1 隔离服务              | Review APPROVED；真实 uvicorn TCP 的 container-http，宿主 18800 未通；Worker 137                                                                                                | `R/runtime/c1-review-r1.md`、`R/runtime/c1-r1/exercise/result.json`；见 §3.2                                                                                                                                                                    |
+| 最终组合功能 16 项       | 前端除 format/e2e 的 8 项 + backend5 + runtime3 全部 process/gate 0；1098 Vitest、21 build-script、69 Fake API、8 types、678 pytest/3 warnings/78.67%、19 runtime，59% 门禁保持 | `R/final-functional-checks-r1/summary.json`；不含 root format 与 E2E                                                                                                                                                                            |
+| 最终组合双浏览器         | 173 clean + 1 flaky = 174，process/gate 0；8 条新增 weekly 场景全部通过                                                                                                         | `R/final-e2e-checks-r1/summary.json`、`R/final-e2e-checks-r1/01-e2e/command.log`；同 settings-drawer beforeEach goto 首试 30s 超时、retry 通过，本轮多次出现，归因未定                                                                          |
+| 最终 root format         | **pending：待主控最终回执**；首败 exit 1 仅提示两份 A 文档未 Prettier                                                                                                           | `R/final-quality-checks-r1` 保留首败；owner 全部停写后主控统一原生 Prettier、机械 copy、重跑 root format，不能提前写旧 15 项全绿                                                                                                                |
+| 最终输入新镜像与真实服务 | 最终 154 后端文件新镜像、完整性、runtime/真实 HTTP 已验                                                                                                                         | `R/runtime/final-measure-r1/receipt.json`、`final-integrity-r1/result.json`、`final-services-r1/exercise/result.json`、`final-services-r1/weekly-http-r1b/result.json`、`final-http-recheck-checks-r1b/summary.json`（后四项同在 `R/runtime/`） |
+| 自有资源清理             | 主控确认 C1/C2/final 清理通过；最终 HTTP/cleanup 两项 exit 0；最后产品 PG 正由主控清理                                                                                          | `R/runtime/final-http-recheck-checks-r1b/summary.json`；产品 PG 最终状态以 `R/report.md`、`R/progress.json` 为准                                                                                                                                |
+
+本表为同一 r2 文档收口时点的真实分项结果；最终总报告 `R/report.md` 与
+`R/progress.json` 是后续格式、产品 PG 清理及整体状态的最新权威。实施者不运行原生
+formatter，也不等待格式结果继续改写；真实 Provider/语音/设备/native 编译/远端 CI
+均未验证，停止在 Review，无 commit/push。
+
+### §2.3 2026-11-04 Worker 停机补充轮 runner 与实测
+
+本补充轮新证据根为 `.review/reports/overnight-followup-20261104/`，以下入口由主控使用
+本轮新树的独立 Python 3.12 环境、受控 `R/tools`/原只读 `ev.sh`/全局锁代跑。
+不使用旧 R 的成功日志或旧 lane 虚拟环境冒充新验证，实施者不安装/执行。
+
+| 检查                | 工作目录               | 命令                                                                            | 环境与边界                                                                              |
+| ------------------- | ---------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Worker 新回归模块   | 新 worker 树 `backend` | `.venv/bin/python -B -m pytest tests/test_analysis_worker.py`                   | 本机主控仅允许 §3.3 新产品测试 PG；仓内 guard 按下述可移植测试库规则验证；无 DB 不 skip |
+| Worker 离线时序子集 | 同上                   | `.venv/bin/python -B -m pytest tests/test_analysis_worker.py -k 'not postgres'` | 仅独立定位，不代替上行或完整 pytest；无 Provider 配置                                   |
+| 完整后端树          | 新集成树 `backend`     | `.venv/bin/python -B -m pytest --cov=. --cov-report=term-missing`               | §3.3 专用库，59% 门禁保持，主控串行协调                                                 |
+
+所有 Python 入口保持 `PYTHONDONTWRITEBYTECODE=1`；新模块不注册测试进程全局信号。
+主控 `R/worker/quality-checks-r1/summary.json` 已验 backend5 全部 process/gate0：
+730 pytest/3 warnings/78.43%，59%门禁不变；新 Worker 模块另列52通过。
+`R/worker/REVIEW-r1.md` 已批准四文件集成，并确认claim后stop守卫的真实变异被
+pending/running断言杀死且还原；实施者未读取私有probe或自行运行检查。
+
+真实 Linux PID1 命令 `python -B -m workers.analysis_worker` 已由主控在新镜像验证：
+TERM/INT正常退出0，处理中drain0、超时取消回滚0、明确预置过期后的恢复幂等保持。
+镜像/服务索引为 `R/worker/final-measure-r1/receipt.json`、`final-integrity-r1/result.json`、
+`runtime-after-r1/{exercise,sigint,inflight}/` 与 `runtime-after-services-checks-r1/summary.json`
+（后面三个路径同在 `R/worker/`），详细边界见 RF07 隔离服务文档。
+这是Worker范围实测；最终组合 frontend10/backend5 与 runtime3 仍以新 `R/report.md`
+为准，不因单项通过取消完整检查，不把旧结果或宿主子进程替代Linux PID1证据。
+
+仓内 Worker 回归不能把一次性本地日期库名写成 CI 的唯一目标。guard 仅接受显式
+PostgreSQL/asyncpg、loopback host、有效显式端口、非空 user、以独立 test/pytest token
+命名且不含 QA/production 等环境标记的数据库，拒绝额外 URL query；缺省/非法目标在
+连接前失败、不 skip/读 dotenv。SQL 再核 current_database/current_user 与已验证 URL
+相同，server15.19/c06仍固定。当前 CI 的 localhost:5432、user echotalk/db echotalk_test
+因此可移植；正例测试只解析地址、不在本机创建或访问5432。主控本机许可仍严格只有§3.3。
+
 ## §3 测试库与安装边界
 
 用户已授权专用容器 `echotalk-cp00-pg`（postgres:15.19-alpine），仅监听 `127.0.0.1:55432`，库 `echotalk_cp00_test`。密码仅存在本地受保护 runtime，不提供给外部 Agent。CP-00 空库迁移至 `b3f1c8e92a10`；后续仅后端 B 线使用此库，A/C 不连接数据库。
@@ -117,6 +223,115 @@ C 固定 PostgreSQL `postgres:15.19-alpine`，资源 label 为
 旧版本合成演练固定 `c03_call_leases → c06_transcript_events`，只覆盖该前置状态。
 迁移审查与输入 hash 在本批 C 报告 `migration-review.md`、`migration-inputs.json`；
 审查记录不等于脚本或服务已获执行放行。C 实施节点只准备文档/工具，不运行测试、安装或服务。
+
+### §3.2 2026-11-03 夜间产品与运行时专用边界
+
+本轮源码基线为 `0e09f5e7f3c16b5bb6562632880003e59369e372`。产品测试只允许新容器
+`echotalk-overnight-20261103-test-pg`，镜像 `postgres:15.19-alpine`，绑定
+`127.0.0.1:55444`，用户和数据库均为 `echotalk_overnight_test`。仅 A lane
+`overnight-progress-api-20261103` 与主控组合 lane `overnight-product-runtime-20261103`
+共享同一协调锁串行使用；实际测试、安装、迁移及服务操作均由主控受控代跑，实施者不执行。
+
+运行时只允许新容器 `echotalk-overnight-20261103-runtime-pg`，同一 PostgreSQL 镜像，
+数据库 `echotalk_overnight_runtime`，仅接本轮全新 internal 网络，不发布 PG 端口；
+隔离 API 仅绑定 `127.0.0.1:18800`。所有资源必须带
+`codex.scope=echotalk-overnight-20261103`。创建前核对名字和端口未占用，不能停止或复用
+占用资源；若主控选用已授权候选产品端口 55445..55449 或 HTTP 18801..18809，须先追加
+精确 manifest 和本节边界，再创建资源。禁止启动原 Compose 或连接应用库、QA、生产、
+其他 lane 的库，禁止复制真实用户数据。
+
+凭据只由主控随机生成并保存在本任务 R/protected（目录 0700、文件 0600），不进源码、
+命令回显或报告，A/C 实施者不读取。空库迁移必须先独立审查迁移输入，再用 SQL 核验
+专用数据库身份、业务表及用户对象均为空；发现对象即拒绝，不清表、不 downgrade。
+主控同时核验容器 ID、镜像、label、网络、端口绑定和迁移版本。以上为授权边界，
+本轮执行事实与限制见下文；新增 runner 清单及验收索引见 §2.2，不由旧 15 项自动覆盖。
+
+2026-11-04 主控执行事实补充：初次产品 PG 仅接 internal 网络，虽有 HostConfig 端口配置，
+实际 `NetworkSettings.Ports` 为空，宿主 55444 连接被拒绝；该失败阶段没有执行迁移，
+失败 SQL 回执保留。主控随后将同一本轮专用 PG 接入新独占普通 bridge
+`echotalk-overnight-20261103-product-host`，核验不可变容器 ID、scope、镜像与实际端口，
+仅发布 `127.0.0.1:55444`，并按 ID/scope 核验后断开、移除本轮旧 internal 网络。
+本次产品 PG 网络修正不用于 C；C 运行时强制 internal 的边界不放宽。
+
+回执根 R 为主 checkout 的 `.review/reports/overnight-product-runtime-20261103/`。
+`R/setup/product-pg-resource-r1.json` 与 `R/setup/product-network-review-r0.md`
+记录资源和审查；
+`R/setup/product-db-empty-before.json` 记录库/用户均为 `echotalk_overnight_test`、
+PostgreSQL `150019`，业务 relations/types/functions 均为 0、无 Alembic 版本；
+`R/setup/product-db-migrated.json` 记录主控迁移后版本 `c06_transcript_events`。
+这些是已读取的主控执行回执，实施者没有独立连接或执行 SQL/迁移。
+产品 PG 协调锁根仍为 `/Users/sunpcm/.local/state/review-loop/locks`，
+资源锁为 `R/resource-locks/product-db`；本轮 `backend_action.py` 严格限定 loopback 55444。
+本轮新增 runner 精确清单见 §2.2，按新 RF-07 文档由主控审核执行，旧 15 项不自动覆盖。
+
+C1 实际边界：运行时 PG 用户/库均为 `echotalk_overnight_runtime`，只在本轮全新
+`echotalk-overnight-20261103-runtime-<run_id>` internal 网络内，PG 使用 tmpfs 且不发布端口。
+provision 要求关系、类型、函数及额外 schema 四类用户对象计数均为 0，主控另审迁移后
+独立批准 exercise；非空即拒绝，不清表/downgrade。C1 主控回执确认 base→c06，
+只授权本轮隔离资源，不连接产品 PG、应用、QA、生产或其他 lane。
+
+API 使用真实 `uvicorn main:app --host 0.0.0.0 --port 8000`，主控以 `container-http`
+在 API 容器内经 `127.0.0.1:8000` TCP 请求；health 200、匿名 sessions 401、缺 Key 的
+ready 503 已验。宿主 `127.0.0.1:18800` 的
+`host_loopback_health_verified=false`，internal 约束保持，不承诺宿主用户入口可达。
+真实 Worker 只证明主控预置过期任务的恢复与幂等，不外推任意崩溃或真实 Provider。
+`R/runtime/c1-r1/exercise/result.json` 中三个 Worker 均 stopped、退出 137，API stopped、
+退出 0；Worker 未证明优雅关闭。该历史 exercise 回执中 PG 曾保留待清理；主控本次交接
+已确认 C1/C2/final 自有资源后续清理通过，final 的 cleanup exit 0 另见
+`R/runtime/final-http-recheck-checks-r1b/summary.json`，不以 exercise passed 代替清理证据。
+
+最终 154 文件新镜像的真实服务与 weekly HTTP 也已通过，仍保留三个 Worker 137/API 0、
+`host_loopback_health_verified=false`，不改变 internal/宿主端口边界。真实 weekly HTTP
+独立验证 7 桶、2 个 completed、23h DST、两页各 1 条历史、换窗口 cursor 422、非法时区
+422 和匿名 401；GET-only，不与 Fake API 浏览器场景混称一条真实语音链路。
+prepared stale 仍仅证明显式准备过期任务的恢复及幂等。主控正在清最后产品 PG，
+本节点不自行核验或写为已清；最终 root format 回执和产品资源状态以 `R/report.md`、
+`R/progress.json` 为准。
+
+### §3.3 2026-11-04 Worker/WebKit 补充轮独立资源边界
+
+本节只增加用户已授权补充轮边界，不授权任何实施节点执行安装、测试、服务或数据库。
+本轮三个新树为 `overnight-followup-{integration,worker,ui}-20261104`；唯一 Worker owner
+树为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/overnight-followup-worker-20261104`。
+32文件已审 seed 是合法 dirty 输入，原任务四树、main/next2、旧 R 与旧资源保持只读。
+
+| 用途                            | 全新 PG 容器                            | 用户 / 数据库                                             | 端口与唯一网络                                                                      | 存储与标签                                                                    |
+| ------------------------------- | --------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Worker PG 回归及最终完整 pytest | `echotalk-followup-20261104-test-pg`    | `echotalk_followup_test` / `echotalk_followup_test`       | 仅 `127.0.0.1:55444`；独占普通 bridge `echotalk-followup-20261104-product-host`     | `/var/lib/postgresql/data` 用 tmpfs；`codex.scope=echotalk-followup-20261104` |
+| 真实 API / Worker CLI 验收      | `echotalk-followup-20261104-runtime-pg` | `echotalk_followup_runtime` / `echotalk_followup_runtime` | PG 不发布端口；独占全新 internal 网络 `echotalk-followup-20261104-runtime-internal` | 同一 PG 数据目录用 tmpfs；同一本轮 scope 标签                                 |
+
+两套 PG 均为 `postgres:15.19-alpine`；执行前由主控核实际本地不可变 image ID 并冻结到
+新 R 资源 manifest，不能只信 tag 或复用旧回执。创建前查名字、端口和网络未占用，冲突
+直接拒绝，不停止/改名/连接占用资源，不复用已存在的同名 PG。测试与迁移在主控同一
+协调锁下串行；Worker 与最终集成的 pytest 不并行消费共享库。
+
+runtime API 只请求 `127.0.0.1:18800` 发布，优先真实 `container-http` TCP 验收；
+internal 网络下宿主端口不可达时单列 false，不加可出公网网络，不用 ASGI 内调用冒充 HTTP。
+本轮任何端口/资源替代必须先由主控冻结精确新 manifest 并更新本节，再创建资源。
+
+凭据只由主控随机生成于新 R/protected（目录0700/文件0600），实施者不读、不复制旧
+protected/真实dotenv/Provider模板，不把值写入命令行/日志。本机 R 受控适配必须在执行前
+严格固定 `127.0.0.1:55444`、user/db `echotalk_followup_test` 及本节精确容器/镜像/
+scope/网络身份；`DATABASE_URL` 缺失或不符即拒绝启动，不 skip/回退默认应用库。
+仓内测试guard按§2.3兼容显式loopback测试库，并在SQL中复查身份；该可移植规则不扩大
+本机执行许可，不允许通过给其他test库URL绕过主控R适配。当前CI地址仅纯解析正例，
+不授权本机访问5432、其他user/database或现存测试资源。
+禁止连接原 cp00、旧轮产品/运行时 PG、应用/QA/生产或其他 lane 的库；仅用新合成数据。
+
+主控先亲读全部迁移文件及其 SHA，再独立 SQL 核 server15.19、database/user、数据库
+OID/`system_identifier` 与关系/类型/函数/额外 schema 四计数为空。系统 schema 用精确
+`pg_` 前缀排除，普通 `pgx` schema 必须计数；任一用户对象非空即拒绝，不清表、downgrade
+或复用半失败库。初始迁移含 DROP CASCADE，必须独立审批后才 base→c06，并核实际revision。
+PG 新回归只删除自身随机 fixture 的记录；不修改业务 stale/重试/租约语义来清状态。
+
+收尾只按本轮不可变容器/网络 ID、scope、镜像和网络归属核验后清理，不做 global prune。
+`R/worker/implementer/db-boundary-ready.json` 仅标记本节资源边界及当时手册 SHA 已准备，
+不是整体停写/执行批准。主控可只读手册准备新资源，不能冻结、编译或测试仍在写入的源码。
+
+本轮 runtime 矩阵与其专用资源清理已由主控验收，见
+`R/worker/runtime-after-services-checks-r1/summary.json` 及
+`R/worker/runtime-after-r1/cleanup/cleanup.json`。产品测试PG仍保留给最终pytest，
+不能据此写本轮全部资源已清或最终组合全绿；后续整体状态以新 `R/report.md` 为权威。
 
 ## §4 生成产物及验证
 

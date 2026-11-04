@@ -262,6 +262,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/weekly-progress": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Weekly Progress
+     * @description 返回截至 end_date 的七个本地自然日已完成会话数，含零桶。
+     */
+    get: operations["get_weekly_progress_api_sessions_weekly_progress_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}": {
     parameters: {
       query?: never;
@@ -1021,6 +1041,37 @@ export interface components {
       /** Error Type */
       type: string;
     };
+    /**
+     * WeeklyProgressDay
+     * @description 一个本地自然日对应的 UTC 半开窗口及已完成会话数。
+     */
+    WeeklyProgressDay: {
+      /** Completed Sessions */
+      completed_sessions: number;
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /**
+       * End
+       * Format: date-time
+       */
+      end: string;
+      /**
+       * Start
+       * Format: date-time
+       */
+      start: string;
+    };
+    /**
+     * WeeklyProgressResponse
+     * @description 按本地日期升序排列的固定七日统计，包含零桶。
+     */
+    WeeklyProgressResponse: {
+      /** Days */
+      days: components["schemas"]["WeeklyProgressDay"][];
+    };
   };
   responses: never;
   parameters: never;
@@ -1436,6 +1487,40 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["DailyProgressResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_weekly_progress_api_sessions_weekly_progress_get: {
+    parameters: {
+      query: {
+        end_date: string;
+        timezone: string;
+      };
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WeeklyProgressResponse"];
         };
       };
       /** @description Validation Error */

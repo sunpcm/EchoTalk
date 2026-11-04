@@ -1,5 +1,134 @@
 # RF-07 Linux/Docker 与专用测试库验收
 
+## 2026-11-04 夜间任务：C1、配对优化与最终组合实测
+
+本批基线 `0e09f5e7f3c16b5bb6562632880003e59369e372`，C lane
+`codex/overnight-runtime-20261103`。主控已独立批准真实隔离服务 C1；工具、输入门禁、
+分阶段命令和证明边界见 [隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。
+实施者未运行测试/服务或读取凭据，本节读取的是主控无凭据实际回执。
+完整门禁与最终 Review 以主控
+[本轮总报告](../../../.review/reports/overnight-product-runtime-20261103/report.md) 为权威。
+
+- 独立 offline runner 19 项通过；真实新 PG 空库门禁、普通 pgx schema/objects 非空拒绝、
+  事务 rollback 后身份/四类计数复原、base→c06、初始153/最终154文件镜像源码核验和
+  frozen export 通过。
+- 真实 uvicorn 的容器 loopback TCP/HTTP：health200、匿名401、缺 Key ready503，错误字段为
+  livekit/llm/stt/tts；没有用 ASGI 内调用替代 HTTP，也没有绕开认证。
+- 主控明确准备的过期 running 任务经新 Worker CLI 恢复为 attempt2/succeeded；一份
+  synthetic assessment、一条 synthetic grammar、零 KnowledgeState；再次 CLI 重启与
+  两次真实 analyze_session 后 ID/计数/attempt 均未变化。只证明预置过期任务恢复与幂等。
+- 三个 Worker 的实际退出均为137：docker stop 5秒后被强杀；API退出0，四进程均停止。
+  **未证明 Worker 优雅 SIGTERM 退出**，作为既有运行遗留保留；本轮不改业务终止/重试/租约。
+- Docker Desktop29.9.2 arm64 的唯一 internal 网络无法从宿主访问18800，
+  `host_loopback_health_verified=false` 单列。保留 internal，未加可出公网 bridge，
+  不声称宿主用户入口或原 Compose 整栈已验。初始 C1 与最终新 PG/四应用容器/网络的
+  主控清理均已完成，最终六个删除 ID 见 `runtime/final-services-r1/cleanup/cleanup.json`。
+
+本批证据根 `R=.review/reports/overnight-product-runtime-20261103`，C1权威索引：
+`runtime/c1-review-r1.md`、`runtime/c1-r1/exercise/result.json`、`http.json`、
+`runtime/c1-r1/schema-regression/result.json`。失败 r0 和实际137退出不覆盖。
+
+### 首轮 main before：保留原证据，不作新配对的收益分母
+
+主控已用仅 tracked/非 dotenv 的冻结后端快照真实构建与测量。平台 linux/arm64，
+Python基础 `python@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30`，
+uv0.9.18基础 `ghcr.io/astral-sh/uv@sha256:5713fa8217f92b80223bc83aac7db36ec80a84437dbc0d04bbc659cae030d8c9`。
+
+| 角色  | before bytes  | /root/.cache KiB | /opt/venv KiB | /usr KiB |
+| ----- | ------------- | ---------------- | ------------- | -------- |
+| API   | 1,545,036,601 | 120,456          | 120,132       | 971,248  |
+| Agent | 1,936,003,446 | 398,460          | 397,800       | 971,248  |
+
+API ID `sha256:6915f019dabdac87bb4b395aefbb0e90b49743096929225c4f34bd436f49a6cf`；
+Agent ID `sha256:1cb6c7c1177cf5747891b5c9f5a60cdcea131f2a3d719341e3077353ca8f6c6f`。
+cache几乎全来自uv（API120,452KiB、Agent398,456KiB）；这是容器目录占用，不能直接等同于
+可减少的镜像bytes。主控核API6个/Agent79个native文件ldd均无missing，ffmpeg通过。
+
+每角色3个新容器，before各导入退出0：API 2989.926/2637.698/2623.955ms，
+Agent 4265.958/3346.492/3737.990ms。时间从宿主 docker start --attach 到成功退出，
+不含create，包含CLI/容器启动/import；before构建层全命中缓存、宿主页缓存未清理，
+首样本与后两样本分开保留。不叫真实语音冷启动，不从3个样本推定稳定性能收益。
+证据 `R/runtime/before-measure-main-r0/receipt.json`、`before-summary-r0.json`；
+该首轮测量使用主控受控适配；后续另用同版 measure.py 配对重测 before/after，
+两轮 before 原始证据均保留。首轮适配样本不与含进程清单监督开销的新配对样本混算。
+
+### C2 同版 measure.py 的独立配对协议与结果
+
+Dockerfile 仅在原 frozen uv sync 的同一 RUN 末尾增加 `uv cache clean`。
+Python3.12/uv0.9.18、SDK/锁、角色、gcc/libpq-dev/ffmpeg、基础镜像引用与阶段结构保持。
+主控使用格式冻结后的同一 measure.py、上述同一基础 digest、linux/arm64 与锁，对各153个
+文件的快照真实重建两角色；输入 map 对照仅 Dockerfile 不同。两份回执都为 measured，
+每角色10个层，完整层/history/目录保留在 `matrix-before-r1/receipt.json` 与
+`matrix-after-r1/receipt.json`，不是拿首轮 main before 旧包重标。
+
+| 角色  | 配对 before bytes | 配对 after bytes | 实减 bytes | 实减比例   |
+| ----- | ----------------- | ---------------- | ---------- | ---------- |
+| API   | 1,545,036,632     | 1,542,251,419    | 2,785,213  | 0.1802684% |
+| Agent | 1,936,003,477     | 1,930,721,426    | 5,282,051  | 0.2728327% |
+
+四个配对不可变 ID：
+
+- API before `sha256:05090909a040ab966762514d571274f12af3f98cfe118857cf42e9355317e3f2`；
+  after `sha256:a01435b31f173ff05c9e95e1fd4812246e2c7423adc32c20b7abb04bcebe11c9`。
+- Agent before `sha256:622d6bc3cd500ce6576da3683a0b7714245e4f2dcc8131c02a7e95843bcb30c3`；
+  after `sha256:5b75c62cbd736635b322c4ac20e7d5041a73881a2d28e61b38e2eed34dc68e1c`。
+
+`/root/.cache` 的API120,456 / Agent398,460 KiB都降为4 KiB；镜像实减仅上表bytes，
+不能把目录降幅当镜像收益。未采集inode/硬链接证据，不断言差异原因。两角色 `/usr`
+仍各971,248 KiB，`/opt/venv` 仍为API120,132 / Agent397,800 KiB，系统依赖保留。
+包版本集合逐角色完全相同（55/83），无dev工具、各153文件与frozen export一致；
+ldd6/79均无missing、ffmpeg通过。证据 `paired-comparison-r1.json`、
+`pair-integrity-r1/result.json`、`pair-integrity-checks-r1/summary.json`。
+
+新配对计时从受控 docker start --attach 到核验退出，不含create，含CLI/容器/import及
+进程清单监督开销。构建缓存复用，宿主页缓存未驱逐，每个样本是新容器，首样本单列。
+
+| 角色  | before三次导入 ms              | after三次导入 ms               |
+| ----- | ------------------------------ | ------------------------------ |
+| API   | 2712.751 / 2712.134 / 2774.794 | 2853.315 / 2848.851 / 2719.269 |
+| Agent | 3567.362 / 3538.383 / 3505.658 | 3462.165 / 3545.867 / 3407.580 |
+
+每次导入退出0；不从三次样本宣称冷启动提速或真实语音启动收益。
+
+### 最终组合输入：154文件，两角色重新构建
+
+最终组合有新增后端内容，从独立冻结快照重新build，不能用于cache-only收益的分母/分子。
+`final-measure-r1/receipt.json` source SHA256 为
+`99eb1561457e9d683b33997cb13f90c1005aa75a462a803c004c263bf7d30698`，最终镜像为：
+
+- API `sha256:eecbd997b19725256b7391eb1d4c068025f08bef41df62d4aee4eec9e8111cde`，
+  1,542,284,611 bytes。
+- Agent `sha256:ba556d437c23d178e2eeea887137368ccadd15d87ca85a5c0bb6e1766ebf2e9e`，
+  1,930,754,618 bytes。
+
+`final-integrity-r1/result.json` 实测各154文件SHA、frozen export、无dev与55/83包，
+逐角色包版本map与cache-only after完全一致；ldd6/79、ffmpeg与各三次导入通过。
+最终API导入2690.620/2687.643/2701.416ms；Agent34594.359/4350.064/3765.583ms，
+包括Agent首样本34.6秒均保留，不因较慢而删样本或替代配对计时。
+
+最终全新internal PG服务与补充GET消费者已实测并清理：HTTP200/401/503，预置过期任务
+attempt2合成成功，重启/真实分析幂等，三个Worker137/API0，宿主18800仍false。
+新GET七天概览返回七桶/2completed，limit1两页各1条，换窗cursor422、23小时DST、非法
+时区422、匿名401，补充API退出0。索引 `final-services-r1/exercise/`、
+`final-services-r1/weekly-http-r1b/`、`final-http-recheck-checks-r1b/summary.json`。
+
+首次 `final-services-checks-r1` 保留failed/incomplete：HTTP业务断言通过，但主控helper
+将stop返回dict当int导致退出1；产品未因此失败。见 `http-helper-correction-r1b.md`。
+主控修helper后在新r1b目录复验HTTP/cleanup全绿，未覆盖首败，也不把它当mutation kill。
+
+整体门禁以主控 `R/report.md` 及其选定回执为权威；本次文档停写时
+`R/final-functional-checks-r1` 排除根format/E2E的16项通过（1098 Vitest、21构建脚本、
+69 Fake API、8类型runner、678 pytest/78.67%、19 runtime-unit）。双浏览器最终174项/exit0，
+173clean+1flaky，新增weekly8项双浏览器通过；settings goto30秒多次retrypass，根因未定，
+不写174全clean。根format前次因A两份文档失败，待owner收口后统一原生格式和复核，
+本节点未运行formatter。`R/resource-cleanup-final.json` 确认scope0容器/0网络，产品PG亦清理。
+不写完整15项全绿。本轮native/远端CI/真实IdP/Provider/LiveKit/语音/原Compose/设备/部署
+仍未验证，Worker优雅终止与宿主18800限制保留，RF-07整体未据此关闭。
+
+## 2026-11-03 keyfree-delivery 历史记录
+
+以下保持上轮证据边界，其中“本次/当前”均指该历史任务；本批最新状态以上节为准。
+
 本次验证记录（2026-11-03）：组合 Web 镜像真实构建通过，`artifact-receipt.json` 确认 Nginx 根 index、
 production OIDC manifest、诊断 UI 编译产物及无 dev token，镜像 77,366,316 bytes；未启动 App 容器。
 主控 `checks/combined-r1` 完整 frontend10/backend5 已通过；记录时最终 A 尚未正式交付，
