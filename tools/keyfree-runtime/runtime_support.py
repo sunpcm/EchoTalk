@@ -283,10 +283,11 @@ class Commands:
         return json.loads(self.call(kind, "inspect", identity))[0]
 
 
-def labels(run_id, role, source):
+def labels(run_id, role, source, scope=SCOPE):
     require(RUN_ID.fullmatch(run_id), "invalid_run_id")
+    require(RUN_ID.fullmatch(scope), "invalid_scope")
     result = {
-        "codex.scope": SCOPE,
+        "codex.scope": scope,
         "codex.run": run_id,
         "codex.role": role,
         "codex.source-sha256": source,
@@ -316,12 +317,18 @@ def remove_container(commands, identity, expected, image):
     commands.call("container", "rm", "--force", "--volumes", identity)
 
 
-def refuse_conflicts(commands, names, network=None):
+def refuse_conflicts(commands, names, network=None, networks=None):
     rows = commands.call("container", "ls", "--all", "--format", "{{.Names}}")
     require(
         not set(rows.decode().splitlines()).intersection(names),
         "container_name_conflict",
     )
+    required_networks = list(networks or [])
     if network:
+        required_networks.append(network)
+    if required_networks:
         rows = commands.call("network", "ls", "--format", "{{.Name}}")
-        require(network not in rows.decode().splitlines(), "network_name_conflict")
+        require(
+            not set(rows.decode().splitlines()).intersection(required_networks),
+            "network_name_conflict",
+        )

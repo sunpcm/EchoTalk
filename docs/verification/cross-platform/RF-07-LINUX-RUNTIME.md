@@ -1,5 +1,42 @@
 # RF-07 Linux/Docker 与专用测试库验收
 
+## 2026-11-04 grammar-http host-gateway（已实际收口，跨 11-04 夜间至 11-05）
+
+本轮仅新增可选 `host-gateway` 运行拓扑，保留旧 `container-http` 与原 internal-only
+宿主18800不可达历史。API/PG 仍只在本轮 internal 网络；短生命周期 gateway 复用已批准
+API 镜像的 stdlib，固定转发到已核验 API internal IP:8000，另接独占普通 bridge，
+只有 gateway 发布 `127.0.0.1:18800..18809`。不新增依赖、不改原 Compose、不启用全局
+IP forwarding 或系统代理；gateway 不带 DB/Provider/IdP/LiveKit 凭据，不支持 CONNECT、
+任意 URL 或客户端上游。
+
+scope、资源派生、初始 baseline 镜像 ID、manifest 和主控阶段命令见
+[隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。baseline 仅用于 PID1 诊断；health/GET、
+拓扑与 weekly-grammar 业务均由最终 157 文件新镜像验收。stdlib 回归覆盖双网络/端口/
+固定上游/资源拒绝、合法分片、线程/信号生命周期与 partial-failure journal/cleanup。
+旧 `host-loopback` 枚举和默认资源身份继续兼容。修复前真实 PID1 exit137/资源已清理
+保留为负向事实。
+
+### 最终收口（实际通过）
+
+本新增 `host-gateway` 拓扑已由主控真实验收通过并清理。最终业务镜像为
+157 文件新镜像，不是 baseline155；baseline155 只用于 PID1 诊断，不构成完整业务 HTTP
+通过声明：
+
+- API `sha256:5444d92f1ad20449e858ccc017a87ea63a053a200a93e3ca93f16bd255a8973d`，
+  1,542,377,979 bytes / 55 包 / ldd 6。
+- Agent `sha256:f9fb6b9cff828c131dfbe05d50896ada90a043b532458b17f066cc9dbfab61c5`，
+  1,930,847,986 bytes / 83 包 / ldd 79。
+
+两角色同一依赖/export、无 dev、各 3 次导入、ffmpeg/native 通过，不断言新性能收益。
+真实 PID1：SIGTERM exit0/280ms（长驻 17s）、SIGINT exit0/247ms；`max_connections=2`
+第三个连接被拒绝、活跃 socket 关闭 200ms、header 总超时 150ms。31 项 stdlib unittest
+与 6 文件 Ruff 通过。拓扑：API/PG 仅 internal 且无实际发布、无默认路由；gateway 双
+网络仅宿主 loopback 发布、ip_forward=0；本地 canary 仅证明同本地目标 gateway 容器直连
+可达、API 不可达及拓扑无外网路径，未拨公网。三 Worker、API 与 gateway 均 exit0。修复前
+真实 PID1 exit137、旧 worker137/gateway137、宿主18800 不可达、r0 27 项 1failure/2errors、
+r1 IndentationError 与中断 r2 失败均保留为历史，不冒充本轮 exit0。本轮全部容器/网络已
+按 ID 精确清理；当前 dirty 无 CI/native/真实 Provider 语音设备/原 Compose 整栈验收。
+
 ## 2026-11-04 夜间任务：C1、配对优化与最终组合实测
 
 本批基线 `0e09f5e7f3c16b5bb6562632880003e59369e372`，C lane

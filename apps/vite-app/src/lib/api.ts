@@ -244,6 +244,10 @@ export type DailyProgressResponse = ApiSchemas["DailyProgressResponse"];
 /** 由主控原生生成的新 schema 提供；不手写 api.generated.ts。 */
 export type WeeklyProgressResponse = ApiSchemas["WeeklyProgressResponse"];
 export type WeeklyProgressDay = WeeklyProgressResponse["days"][number];
+/** 由主控原生生成的新 schema 提供；不手写 api.generated.ts。 */
+export type WeeklyGrammarSummary = ApiSchemas["WeeklyGrammarSummary"];
+export type WeeklyGrammarItem = WeeklyGrammarSummary["items"][number];
+export type WeeklyGrammarSkillTag = WeeklyGrammarItem["skill_tag"];
 
 export type AnalysisJobStatus = "pending" | "running" | "succeeded" | "failed";
 
@@ -881,6 +885,86 @@ export async function getWeeklyProgress(
     signal: options?.signal,
   });
   return parseWeeklyProgressResponse(raw, endDate, timezone);
+}
+
+/** 七天语法聚合严格绑定本次请求的当地日期、时区与固定 Top 3 契约。 */
+export function parseWeeklyGrammarSummary(
+  data: unknown,
+  endDate: string,
+  timezone: string,
+): WeeklyGrammarSummary {
+  const windows = getZonedWeekWindows(endDate, timezone);
+  const firstDay = windows[0];
+  const lastDay = windows[windows.length - 1];
+  const fail = () => new Error("Invalid weekly grammar response");
+  const utcInstant = (value: unknown, expected: string): string => {
+    if (
+      typeof value !== "string" ||
+      !isValidIsoCalendarTimestamp(value) ||
+      !/(Z|\+00:00)$/.test(value) ||
+      Date.parse(value) !== Date.parse(expected)
+    ) {
+      throw fail();
+    }
+    return value;
+  };
+  const skillTags: readonly WeeklyGrammarSkillTag[] = [
+    "article_usage",
+    "verb_tense_past",
+    "verb_tense_present",
+    "subject_verb_agreement",
+    "preposition",
+    "other",
+  ];
+  const validTag = (value: unknown): value is WeeklyGrammarSkillTag =>
+    typeof value === "string" && skillTags.includes(value as WeeklyGrammarSkillTag);
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw fail();
+  const root = data as Record<string, unknown>;
+  if (Object.keys(root).length !== 4 || !Array.isArray(root.items)) throw fail();
+  const start = utcInstant(root.start, firstDay.start);
+  const end = utcInstant(root.end, lastDay.end);
+  if (!isNonNegativeSafeInteger(root.total_errors) || root.items.length > 3) {
+    throw fail();
+  }
+
+  const items = root.items.map((raw: unknown): WeeklyGrammarItem => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail();
+    const item = raw as Record<string, unknown>;
+    if (Object.keys(item).length !== 2 || !validTag(item.skill_tag)) throw fail();
+    if (!isPositiveSafeInteger(item.count)) throw fail();
+    return { skill_tag: item.skill_tag, count: item.count };
+  });
+  if (
+    new Set(items.map((item) => item.skill_tag)).size !== items.length ||
+    items.some((item, index) => index > 0 && items[index - 1].count < item.count) ||
+    items.some(
+      (item, index) =>
+        index > 0 &&
+        items[index - 1].count === item.count &&
+        items[index - 1].skill_tag > item.skill_tag,
+    ) ||
+    items.reduce((sum, item) => sum + item.count, 0) > root.total_errors ||
+    (root.total_errors === 0 && items.length > 0) ||
+    (root.total_errors > 0 && items.length === 0)
+  ) {
+    throw fail();
+  }
+  return { start, end, total_errors: root.total_errors, items };
+}
+
+export async function getWeeklyGrammar(
+  endDate: string,
+  timezone: string,
+  options?: ApiRequestOptions,
+): Promise<WeeklyGrammarSummary> {
+  getZonedWeekWindows(endDate, timezone);
+  const query = new URLSearchParams({ end_date: endDate, timezone });
+  const raw = await request<unknown>(`/assessments/weekly-grammar?${query.toString()}`, {
+    cache: "no-store",
+    signal: options?.signal,
+  });
+  return parseWeeklyGrammarSummary(raw, endDate, timezone);
 }
 
 /** 获取会话详情（含转录记录） */

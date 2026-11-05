@@ -48,6 +48,40 @@ Worker 运行时与 UI 三文件的范围 Review 已 APPROVED 并机械集成；
 本轮停在 Review，未 commit/push/pull/rebase/merge、部署或发布。本节点仅更新两文档，
 未运行格式/测试/服务，也不把主控受控代跑记为实施者独立自测。
 
+## 2026-11-04 至 11-05 七天语法与宿主 HTTP（本地收口，停在 Review）
+
+Dashboard 已实现只读的滚动七天真实语法记录卡片：客户端一次认证 GET
+`/api/assessments/weekly-grammar?end_date=YYYY-MM-DD&timezone=IANA`。七天是截至
+`end_date` 的滚动七个本地自然日，不是从周一开始的 ISO/自然周；服务端使用既有日期窗口、
+认证用户及 completed 会话 `started_at` 半开区间，只消费既有非合成、来源非
+`demo_rule`/`demo_mock` 的记录，按错误记录条数聚合。固定分类中的未知项合并为 `other`，
+按 count 降序、规范 tag 升序稳定排序后最多返回三项；`total_errors` 保留全部可统计记录。
+卡片展示总数、固定本地化标签、top 3 和固定复习提示，不展示原文、改正文本或用户 ID。
+空态明确为“这七天暂无可统计的真实语法记录”，不声称零错误或分析完成；加载失败仅提供
+显式重试，并按 principal/revision、日期时区、前后台、离线与卸载隔离迟到结果。
+
+本地验收事实与外部边界分开记录：
+
+- **本地测试**：frontend10、backend5、runtime3 与 wrapper 语法实际通过；1133 Vitest、
+  21 build-script、72 Fake API、8 types runner、178 Chromium/WebKit（retries 0）、773
+  pytest/3 warnings、覆盖率 78.48%（59% 门禁）及 31 runtime unittest。ESLint 为 136
+  warnings/0 errors，既有 build chunk 提示保留。
+- **隔离 HTTP 与数据**：新 `host-gateway` 拓扑完成 16 次实际请求，health 200、匿名
+  401、缺 Key readiness 503；语法接口返回 21 条记录，Top 3 为 `other:7`、
+  `article_usage:5`、`verb_tense_past:5`，历史 55 行分 4 页，25 小时 DST 日通过。
+  API 与 PG 仍只接本轮 internal 网络，网关只发布 loopback 18800。旧 internal-only
+  拓扑的宿主 18800 不可达历史继续保留，不能把新网关解释为原端口或原 Compose 已通过。
+- **局部收益**：一次只读聚合即可支撑 Dashboard 的七天语法 Top 3 与固定提示；独立
+  host-gateway 在精确隔离拓扑内提供了可复验的宿主 loopback HTTP 入口。本轮没有新增
+  性能、体积或冷启动收益声明。
+- **Review 与交付**：API、UI、runtime 三个范围均 APPROVED；本节点停在 Review，后续以
+  主控最终报告为准。代码仍为未提交 dirty 候选，未 commit/push/pull/rebase/merge/部署；
+  当前候选远端 CI 未运行，本结论不改变任何远端 PR/CI 状态。
+- **未验边界与数据口径**：当前生产语法分析链仍为 demo，真实记录为空时返回合法空态；
+  HTTP 中带 real 标记的过滤行仍是显式合成夹具，不代表真实 Provider 结果。真实
+  Provider/IdP/LiveKit、语音、设备、签名与本轮 native 编译均未验；原 Compose 整栈
+  未启动，next2 未融合，RF-04/05/07/08/09/12 等外部边界不因此关闭。
+
 ## 2026-11-04 七天概览、按日历史与隔离运行时（上一轮历史）
 
 以下保留上一轮32路径任务的验收数字、173+1 flaky、Worker137与当时未验边界；

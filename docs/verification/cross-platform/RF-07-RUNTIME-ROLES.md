@@ -1,5 +1,37 @@
 # RF-07 Python API/Agent 运行角色依赖验证
 
+## 2026-11-04 grammar-http 角色补充（已实际收口，跨 11-04 夜间至 11-05）
+
+API/PostgreSQL 的业务与隔离角色不变：仅接本轮 internal 网络，PG 不发布端口；新
+`host-gateway` 模式下 API 也不发布宿主端口。新增短生命周期 gateway 不是业务 API
+角色，不提供任意代理；它复用已批准 API 镜像的 Python stdlib，挂载只读固定转发脚本，
+只接收 controller 从已核验 API internal 身份派生的 `FIXED_UPSTREAM=<IPv4>:8000`。
+gateway 同时接 internal 与独占普通 bridge，仅自身发布 loopback HTTP；实际有界连接
+槽位（BoundedSemaphore）、累计请求头上限、可取消非阻塞 connect 与统一 join deadline
+用于限制短生命周期资源消耗。合法 TCP 分片在总上限和总超时内收齐；TERM/INT 仅在 CLI
+入口注册，关闭 listener、active sockets 并确定 join 全部 worker/forward 线程。正常
+宿主 GET health 返回 HTTP 200。
+
+API/PG 仍运行真实源码与已锁依赖，gateway 不增加镜像包、不读取 app env、不继承
+数据库、Provider、IdP 或 LiveKit 凭据，也不记录请求/响应内容。保留 `container-http`
+和旧宿主不可达事实。具体 manifest、验收矩阵与证据边界见
+[隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。
+
+### 最终收口（实际通过）
+
+上述角色边界已由主控全部真实验收通过并清理。真实 PID1 结果：SIGTERM
+exit0/280ms（长驻 17s）、SIGINT exit0/247ms；`max_connections=2` 第三个连接被拒绝，
+活跃 socket 关闭 200ms，header 累计上限内总超时 150ms。三 Worker、API 与 gateway 均
+exit0。最终业务使用 157 文件新镜像（baseline155 仅用于 PID1 诊断）：API
+`sha256:5444d92f1ad20449e858ccc017a87ea63a053a200a93e3ca93f16bd255a8973d`
+（1,542,377,979 bytes / 55 包 / ldd 6），Agent
+`sha256:f9fb6b9cff828c131dfbe05d50896ada90a043b532458b17f066cc9dbfab61c5`
+（1,930,847,986 bytes / 83 包 / ldd 79）；同一依赖/export、无 dev、各 3 次导入、
+ffmpeg/native 通过。修复前 network=none PID1 的 docker stop 约2.1秒 exit137、r0 的
+27 项 1failure/2errors、r1 IndentationError 与中断 r2 socketpair timeout124/F841/I001
+均保留为历史，不冒充本轮 exit0。当前 dirty 仍无 CI/native/真实 Provider 语音设备/
+原 Compose 整栈验收。
+
 > 2026-11-04 最新补记：夜间任务真实隔离服务 C1 已由主控独立 APPROVED；
 > C2 配对测量、最终组合两角色重建、真实服务/补充 HTTP 与清理已完成。见 §8 和
 > [隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。以下 A79 安装/验证结论保留历史时点。

@@ -609,3 +609,34 @@ worktree 路径排序后固定顺序取双锁；高序单锁内申请低序锁�
 r1 是五份文件的局部增量：review_wiring.py、项目 ev.sh、新 config 与两份文档；r1 备份恢复
 保留 r0 已批准文档修改，不恢复到 Git HEAD。只更新这两个实际变更工具 pin 和经审 shared_head，
 tasks null 槽位、其他 pin、runtime、历史记录不改。r0 上述备份/新路径说明是其历史口径。
+
+## §18 七天语法 + 宿主 HTTP / api 资源与 runner 边界（2026-11-05 收口）
+
+本节记录本轮 scope=echotalk-grammar-http-20261104 的资源、runner 与最终验收事实，旧节不重排。
+
+- 四树 HEAD=8fa9c0a8f2170eb21b38f0bdca8d551e9dd94ef3；API 树分支
+  `codex/overnight-grammar-api-20261104`。API 候选 7 文件已以源指纹
+  `0c62b0137d30c05d9943722639fc4525b729c8bc2b9929dcb52e2a54e3afb169` 获独立 APPROVED；
+  产品代码、测试、生成物和 OpenAPI 随后冻结，2026-11-05 只允许两份已验证文档收口。
+- 产品 PG 容器 `echotalk-grammar-http-20261104-test-pg`，network
+  `echotalk-grammar-http-20261104-product-host`，数据库/用户 `echotalk_grammar_http_test`，
+  宿主 `127.0.0.1:55444`，仅本轮独占 tmpfs。runtime 宿主 HTTP `127.0.0.1:18800..18809`；
+  凭据只在主控 `R/protected` runtime，不进 Git 或报告正文。
+- 建 PG 前实施 owner 先追加精确边界到
+  `docs/verification/cross-platform/RF-08-WEEKLY-GRAMMAR.md`；主控亲读迁移与 SQL 空库身份、
+  单独审批后才迁移。禁止旧库/应用库/QA/生产/降级或清表。
+- 产品代码和测试由实施方编写；后端 pytest、Ruff、OpenAPI schema 生成/漂移检查、迁移、
+  镜像与 HTTP 由主控受控代跑。
+  最终组合质量 15 项 exit 0，其中 backend5 为 773 passed、3 warnings、78.48%，59% 门禁
+  保持；单次完整 pytest 与独立源码 Review 是同一冻结输入的两类证据，不重复算两次自测。
+- 新 host-gateway 最终通过 16 次宿主 GET：health 200、匿名 401、缺 Key ready 503、
+  weekly-grammar 有效 200/非法 date/timezone 422，周窗口覆盖纽约 25 小时日；历史 55 条、
+  4 页，cursor 负向请求改变 status 并返回 422，另覆盖 >48h 等负向边界，请求前后数据库计数
+  不变。API/PG 仍只在 internal 网络，只有固定网关连接 internal 与专用 bridge 并发布
+  `127.0.0.1:18800`，`ip_forward=0`。同 bridge canary 由网关容器内 `docker exec` 直连通过，
+  API 侧同探测被阻断；该结果不证明任意 relay/代理能力，也未接触公网。此前 internal-only
+  时宿主 18800 不可达的历史失败继续保留，不改写成原 Compose 或真实 Provider 链路通过。
+- API 的 user、synthetic 与 gateway IP-forward 变异均被对应断言杀死并恢复，首败与中断日志
+  保留。最终 runtime/product cleanup 均 exit 0，按本轮不可变身份与 label 清理且无全局 prune。
+  当前文档改动仍需主控最终 format 和整体 Review；真实 Provider/IdP/LiveKit、语音、设备、
+  native、远端 CI 与部署仍为独立未验边界。

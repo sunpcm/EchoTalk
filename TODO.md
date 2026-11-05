@@ -30,6 +30,25 @@ Worker 运行时与 UI 三文件范围独立 Review 均 APPROVED，已机械集�
       原 Compose 整栈未启动，显式预置过期任务恢复不代表任意真实崩溃恢复。
       RF-04/05/07/08/09/12 等外部边界保留，next2 未融合；停在 Review，未 commit/push/部署或发布。
 
+## 2026-11-04 至 11-05 七天语法与宿主 HTTP（本地收口，停在 Review）
+
+Dashboard 已实现截至 `end_date` 的滚动七个本地自然日真实语法记录卡片。该窗口不是
+从周一开始的 ISO/自然周；服务端按认证用户、completed 会话的 `started_at` 半开区间及
+既有非合成、非 demo 语法记录一次性有界聚合，客户端展示总记录数、固定六类中的最多三项、
+固定复习提示和合法空态。未接分析触发、写请求、Token、采音或个性化生成。
+
+本地实测为 1133 Vitest、21 build-script、72 Fake API、8 types runner、178
+Chromium/WebKit（retries 0）、773 pytest（3 warnings、覆盖率 78.48%、59% 门禁）和
+31 runtime unittest；frontend10、backend5、runtime3 与 wrapper 语法均通过。宿主
+`host-gateway` 精确隔离拓扑下 health 200、匿名 401、缺 Key readiness 503，16 次实际
+HTTP 得到 21 条语法记录及 Top 3 `other:7`、`article_usage:5`、`verb_tense_past:5`，
+历史 55 行分 4 页，25 小时 DST 日通过。旧 internal-only 拓扑的宿主 18800 不可达历史
+保留，新网关结果不外推到原 Compose。API/UI/runtime 三个范围 Review 均 APPROVED；
+本节点停在 Review，后续以主控最终报告为准。当前仍为未提交 dirty 候选，无
+commit/push/pull/rebase/merge/部署，当前候选远端 CI、真实 Provider/IdP/LiveKit、语音、
+设备、签名与 native 编译均未验，next2 未融合。完整分项见
+[RF-08 七天语法 Top 3 验收手册](./docs/verification/cross-platform/RF-08-WEEKLY-GRAMMAR.md)。
+
 ## 2026-11-04 七天概览与隔离运行时收口（上一轮历史）
 
 以下保留上一轮32路径任务的验收数字与失败记录；后续修复及当前边界以上方补充轮为准。
@@ -412,7 +431,10 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 - [ ] 统计最近7天练习时长：先明确有效练习时长口径与可靠数据来源，当前未实现。
 - [ ] 计算各技能 `p_mastery` 环比趋势：历史数据、对比窗口与指标口径仍待明确。
 - [ ] 按会话聚合发音准确率趋势。
-- [ ] 统计语法错误 Top 3 并生成改善建议。
+- [x] 统计截至 `end_date` 的滚动七个本地自然日语法错误记录 Top 3 并展示固定改善提示
+      （非个性化生成）：按错误记录条数计数，固定六类且未知项合并为 `other`，以 count
+      降序、规范 tag 升序稳定排序后最多返回三项；当前生产分析链仍为 demo，真实记录为空
+      时返回合法空态，不声称零错误或分析完成。
 - [ ] 基于 RAG/Krashen i+1 生成下周学习重点。
 - [ ] 汇总平均焦虑指数与语速趋势。
 - [ ] 接入正式 i18n 框架，用语言包替换当前 TypeScript 字符串对象。
