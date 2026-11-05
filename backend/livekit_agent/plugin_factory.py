@@ -6,6 +6,7 @@ from typing import Any
 from livekit.plugins import cartesia, deepgram, silero
 from livekit.plugins import openai as lk_openai
 
+from livekit_agent.log_redaction import register_secret
 from provider_catalog import (
     LLM_PROVIDER_CATALOG,
     STT_PROVIDER_CATALOG,
@@ -71,6 +72,7 @@ def _validate_api_key(api_key: Any, provider_label: str) -> str:
             "ERR_CUSTOM_KEY_INVALID",
             f"{provider_label} 的 API Key 格式不安全（包含无效字符）。",
         )
+    register_secret(key)
     return key
 
 

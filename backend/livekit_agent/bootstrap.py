@@ -16,6 +16,11 @@ def _project_root() -> Path:
 
 def main(*, dotenv_path: Path | None = None) -> None:
     """加载项目 dotenv 与真实配置后启动 LiveKit Agent CLI。"""
+    from livekit_agent.log_redaction import install_log_redaction
+
+    # 最先安装：覆盖配置校验与 SDK CLI 主进程的全部日志（GHSA-q77r-q2p5-68vf）。
+    install_log_redaction()
+
     effective_dotenv_path = dotenv_path or (_project_root() / ".env")
     load_dotenv(effective_dotenv_path, override=False)
 
