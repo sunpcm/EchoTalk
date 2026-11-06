@@ -33,7 +33,7 @@ export function SettingsAppearance({ theme, onThemeChange }: SettingsAppearanceP
               aria-checked={active}
               aria-label={`${swatch.label}${t.themeTitle}`}
               onClick={() => onThemeChange(swatch.value)}
-              className={`flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center gap-2 rounded-[14px] border-2 px-3 py-2.5 transition-colors ${
+              className={`focus-visible:ring-accent flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center gap-2 rounded-[14px] border-2 px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
                 active ? "border-accent" : "border-border-default hover:border-accent-soft-border"
               }`}
             >

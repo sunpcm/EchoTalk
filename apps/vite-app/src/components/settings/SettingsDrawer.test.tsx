@@ -269,7 +269,9 @@ describe("SettingsDrawer Component", () => {
     expect(alertSpy).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("switch", { name: t.customModeLabel })).toBeChecked();
 
-    fireEvent.click(screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` }));
+    const coolThemeRadio = screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` });
+    expect(coolThemeRadio).toHaveClass("focus-visible:ring-2", "focus-visible:ring-accent");
+    fireEvent.click(coolThemeRadio);
     expect(screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` })).toBeChecked();
     expect(useSettingsStore.getState().theme).toBe("cool");
     expect(updateSettings).not.toHaveBeenCalled();
