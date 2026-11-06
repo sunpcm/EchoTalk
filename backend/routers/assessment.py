@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,9 @@ from schemas.assessment import (
     GrammarErrorResponse,
     KnowledgeStateResponse,
     SkillResponse,
+    WeeklyGrammarSummary,
 )
+from services.weekly_grammar_queries import query_weekly_grammar
 
 router = APIRouter()
 
@@ -71,6 +73,28 @@ async def list_skills(
     result = await db.execute(stmt)
     skills = result.scalars().all()
     return skills
+
+
+# ─── 七天语法统计端点（必须在 /{session_id} 之前，避免路径冲突） ───
+
+
+@router.get(
+    "/assessments/weekly-grammar",
+    response_model=WeeklyGrammarSummary,
+)
+async def get_weekly_grammar(
+    end_date: str = Query(..., pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"),
+    timezone: str = Query(..., min_length=1, max_length=128),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """返回截至 end_date 的七个本地自然日真实语法错误稳定 Top 3 聚合。"""
+    return await query_weekly_grammar(
+        db,
+        user_id=current_user.id,
+        end_date=end_date,
+        timezone_name=timezone,
+    )
 
 
 # ─── 发音评估端点 ───
