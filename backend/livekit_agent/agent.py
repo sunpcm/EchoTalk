@@ -31,6 +31,7 @@ from livekit_agent.credential_resolver import CredentialResolver
 from livekit_agent.error_delivery import send_error_and_disconnect
 from livekit_agent.error_mapper import AgentErrorMapper
 from livekit_agent.job_orchestrator import AgentJobOrchestrator
+from livekit_agent.log_redaction import install_log_redaction
 from livekit_agent.plugin_errors import PluginInitError
 from livekit_agent.provider_registry import ProviderRegistry
 from livekit_agent.session_policy import build_session_connect_options
@@ -292,6 +293,8 @@ async def entrypoint(ctx: JobContext):
     将连接、参与者等待、TranscriptSink 生命周期及 AgentSession 事件接线
     委托给 AgentJobOrchestrator；entrypoint 保留 DB 配置查询、双轨路由与 Agent 创建。
     """
+    # Job 运行在 spawn/forkserver 子进程，不继承主进程的日志脱敏设置，这里再装一次。
+    install_log_redaction()
 
     async def _setup_agent(
         session_id: str, sink: TranscriptSink
