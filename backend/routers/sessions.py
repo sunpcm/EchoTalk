@@ -39,6 +39,7 @@ from schemas.session import (
     SessionCreate,
     SessionListResponse,
     SessionResponse,
+    WeeklyProgressResponse,
 )
 from services.analysis_jobs import (
     STALE_AFTER,
@@ -63,6 +64,7 @@ from services.session_idempotency import (
 from services.session_queries import (
     paginate_sessions,
     query_daily_progress,
+    query_weekly_progress,
     validate_window,
 )
 from time_utils import utc_now
@@ -267,6 +269,22 @@ async def get_daily_progress(
         user_id=current_user.id,
         start=start_utc,
         end=end_utc,
+    )
+
+
+@router.get("/sessions/weekly-progress", response_model=WeeklyProgressResponse)
+async def get_weekly_progress(
+    end_date: str = Query(..., pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"),
+    timezone: str = Query(..., min_length=1, max_length=128),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """返回截至 end_date 的七个本地自然日已完成会话数，含零桶。"""
+    return await query_weekly_progress(
+        db,
+        user_id=current_user.id,
+        end_date=end_date,
+        timezone_name=timezone,
     )
 
 
