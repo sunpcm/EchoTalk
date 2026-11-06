@@ -1,149 +1,56 @@
-import uuid
+"""HTTP compatibility for readiness; all configuration is synthetic and restored."""
+
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from config import settings
 from database import get_db
 from main import app
-from models.user import SubscriptionTier
-
-
-class MockUser:
-    def __init__(self, id, tier):
-        self.id = id
-        self.subscription_tier = tier
-        self.settings = None
-
-
-class MockUserSettings:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+from routers import health
 
 
 @pytest.mark.asyncio
-async def test_health_ready_success():
-    mock_db = AsyncMock()
-
-    mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.premium)
-    mock_settings = MockUserSettings(is_custom_mode=False)
-    mock_user.settings = mock_settings
-    mock_user_result.scalar_one_or_none.return_value = mock_user
-
-    mock_db.execute.return_value = mock_user_result
-
-    app.dependency_overrides[get_db] = lambda: mock_db
-
-    orig_mock_db = settings.USE_MOCK_DB
-    orig_mock_livekit = settings.USE_MOCK_LIVEKIT
-    orig_mock_llm = settings.USE_MOCK_LLM
-
-    try:
-        settings.USE_MOCK_DB = False
-        settings.USE_MOCK_LIVEKIT = False
-        settings.USE_MOCK_LLM = False
-        settings.LIVEKIT_URL = "test"
-        settings.LIVEKIT_API_KEY = "test"
-        settings.LIVEKIT_API_SECRET = "test"
-        settings.SILICONFLOW_API_KEY = "test"
-
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/health/ready")
-
-        assert response.status_code == 200
-    finally:
-        settings.USE_MOCK_DB = orig_mock_db
-        settings.USE_MOCK_LIVEKIT = orig_mock_livekit
-        settings.USE_MOCK_LLM = orig_mock_llm
-        app.dependency_overrides = {}
-
-
-@pytest.mark.asyncio
-async def test_health_ready_fail_custom_mode_not_verified():
-    mock_db = AsyncMock()
-
-    mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
-    mock_settings = MockUserSettings(
-        is_custom_mode=True, is_custom_verified=False, encrypted_llm_key=None
+@pytest.mark.parametrize("missing_user", [False, True])
+async def test_readiness_http_contract(monkeypatch, missing_user):
+    cfg = SimpleNamespace(
+        USE_MOCK_DB=False,
+        USE_MOCK_LIVEKIT=True,
+        USE_MOCK_STT=False,
+        USE_MOCK_LLM=False,
+        USE_MOCK_TTS=False,
     )
-    mock_user.settings = mock_settings
-    mock_user_result.scalar_one_or_none.return_value = mock_user
-
-    mock_db.execute.return_value = mock_user_result
-
-    app.dependency_overrides[get_db] = lambda: mock_db
-
-    orig_mock_db = settings.USE_MOCK_DB
-    orig_mock_livekit = settings.USE_MOCK_LIVEKIT
-    orig_mock_llm = settings.USE_MOCK_LLM
-
+    monkeypatch.setattr(health, "settings", cfg)
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = (
+        None if missing_user else SimpleNamespace(settings=None)
+    )
+    db = AsyncMock()
+    db.execute.return_value = result
+    previous = app.dependency_overrides.get(get_db)
+    app.dependency_overrides[get_db] = lambda: db
     try:
-        settings.USE_MOCK_DB = False
-        settings.USE_MOCK_LIVEKIT = False
-        settings.USE_MOCK_LLM = False
-        settings.LIVEKIT_URL = "test"
-        settings.LIVEKIT_API_KEY = "test"
-        settings.LIVEKIT_API_SECRET = "test"
-
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            basic = await client.get("/api/health")
             response = await client.get("/api/health/ready")
-
+        assert basic.json() == {"status": "ok", "service": "echo-talk"}
         assert response.status_code == 503
-        data = response.json()
-        assert "errors" in data["detail"]
-        assert "config" in data["detail"]["errors"]
+        assert response.json() == {
+            "detail": {
+                "status": "not_ready",
+                "code": "user_unavailable" if missing_user else "settings_required",
+                "errors": (
+                    {"user": "User configuration is unavailable"}
+                    if missing_user
+                    else {"config": "Practice settings are required"}
+                ),
+            }
+        }
     finally:
-        settings.USE_MOCK_DB = orig_mock_db
-        settings.USE_MOCK_LIVEKIT = orig_mock_livekit
-        settings.USE_MOCK_LLM = orig_mock_llm
-        app.dependency_overrides = {}
-
-
-@pytest.mark.asyncio
-async def test_health_ready_fail_free_user_no_custom_mode():
-    mock_db = AsyncMock()
-
-    mock_user_result = MagicMock()
-    mock_user = MockUser(id=uuid.uuid4(), tier=SubscriptionTier.free)
-    mock_settings = MockUserSettings(is_custom_mode=False)
-    mock_user.settings = mock_settings
-    mock_user_result.scalar_one_or_none.return_value = mock_user
-
-    mock_db.execute.return_value = mock_user_result
-
-    app.dependency_overrides[get_db] = lambda: mock_db
-
-    orig_mock_db = settings.USE_MOCK_DB
-    orig_mock_livekit = settings.USE_MOCK_LIVEKIT
-    orig_mock_llm = settings.USE_MOCK_LLM
-
-    try:
-        settings.USE_MOCK_DB = False
-        settings.USE_MOCK_LIVEKIT = False
-        settings.USE_MOCK_LLM = False
-        settings.LIVEKIT_URL = "test"
-        settings.LIVEKIT_API_KEY = "test"
-        settings.LIVEKIT_API_SECRET = "test"
-
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/health/ready")
-
-        assert response.status_code == 503
-        data = response.json()
-        assert "errors" in data["detail"]
-        assert "auth" in data["detail"]["errors"]
-    finally:
-        settings.USE_MOCK_DB = orig_mock_db
-        settings.USE_MOCK_LIVEKIT = orig_mock_livekit
-        settings.USE_MOCK_LLM = orig_mock_llm
-        app.dependency_overrides = {}
+        if previous is None:
+            app.dependency_overrides.pop(get_db, None)
+        else:
+            app.dependency_overrides[get_db] = previous

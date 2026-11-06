@@ -6,9 +6,11 @@ import * as auth from "@/lib/auth";
 import type { AppStateSource } from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
-vi.mock("@/lib/api", () => {
+vi.mock("@/lib/api", async (importOriginal) => {
+  const { ApiError } = await importOriginal<typeof import("@/lib/api")>();
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return {
+    ApiError,
     getCallCapabilities: vi.fn(),
     checkHealthReady: vi.fn(),
     createSession: vi.fn(),
@@ -57,6 +59,171 @@ describe("useConversationStore", () => {
   afterEach(() => {
     _setLifecycleOptionsForTesting(null);
     vi.restoreAllMocks();
+  });
+
+  function readinessFailure(code = "settings_required") {
+    return new api.ApiError(503, "raw-sensitive-canary", {
+      detail: { status: "not_ready", code, errors: { config: "raw-sensitive-canary" } },
+    });
+  }
+
+  function expectNoCredentials() {
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.getSessionToken).not.toHaveBeenCalled();
+    expect(useConversationStore.getState()).toMatchObject({
+      appView: "dashboard",
+      sessionId: null,
+      token: null,
+      wsUrl: null,
+    });
+  }
+
+  it("readiness failure drops DocTalk intent, never creates credentials, and never logs raw errors", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(api.checkHealthReady).mockRejectedValue(readinessFailure());
+    await useConversationStore.getState().startSession("doc_chat", {
+      content_type: "text/plain",
+      raw_text: "private-old-document",
+      prompt: "old-prompt",
+    });
+    expectNoCredentials();
+    expect(useConversationStore.getState().readinessIssue?.code).toBe("settings_required");
+    expect(useConversationStore.getState().selectedScenario).toBeNull();
+    expect(JSON.stringify(log.mock.calls)).not.toContain("canary");
+
+    vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ready" });
+    await useConversationStore.getState().recheckReadiness();
+    expect(api.checkHealthReady).toHaveBeenCalledTimes(2);
+    expectNoCredentials();
+    expect(useConversationStore.getState().readinessNotice).toBe(true);
+    expect(useConversationStore.getState().readinessIssue).toBeNull();
+    // Successful recheck cannot replay a document; only a new explicit start creates.
+    vi.mocked(api.createSession).mockResolvedValue({ id: "new-session" } as api.Session);
+    vi.mocked(api.getSessionToken).mockResolvedValue({ token: "new-token", ws_url: "wss://test" });
+    await useConversationStore.getState().startSession("free_talk");
+    expect(api.createSession).toHaveBeenCalledTimes(1);
+    expect(api.createSession).toHaveBeenCalledWith("free_talk", undefined);
+    expect(useConversationStore.getState().readinessNotice).toBe(false);
+  });
+
+  it("recheck failure is explicit and deduplicated with no downstream calls", async () => {
+    vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
+    await useConversationStore.getState().startSession("scenario");
+    let reject!: (error: unknown) => void;
+    vi.mocked(api.checkHealthReady).mockReturnValueOnce(
+      new Promise((_, rej) => {
+        reject = rej;
+      }),
+    );
+    const retry = useConversationStore.getState().recheckReadiness();
+    await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
+    await useConversationStore.getState().recheckReadiness();
+    expect(api.checkHealthReady).toHaveBeenCalledTimes(2);
+    reject(readinessFailure("provider_unconfigured"));
+    await retry;
+    expectNoCredentials();
+    expect(useConversationStore.getState().recheckingReadiness).toBe(false);
+    expect(useConversationStore.getState().readinessIssue?.code).toBe("provider_unconfigured");
+  });
+
+  it("explicit cancellation releases the recheck indicator and drops late success", async () => {
+    vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
+    await useConversationStore.getState().startSession("scenario");
+    let resolve!: (value: api.HealthReadyResponse) => void;
+    vi.mocked(api.checkHealthReady).mockReturnValueOnce(
+      new Promise((res) => {
+        resolve = res;
+      }),
+    );
+    const retry = useConversationStore.getState().recheckReadiness();
+    await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
+    await useConversationStore.getState().endSession();
+    resolve({ status: "ready" });
+    await retry;
+    expectNoCredentials();
+    expect(api.endSession).not.toHaveBeenCalled();
+    expect(useConversationStore.getState()).toMatchObject({
+      recheckingReadiness: false,
+      readinessIssue: null,
+      readinessNotice: false,
+    });
+  });
+
+  it("late recheck failure cannot overwrite a new explicit start", async () => {
+    vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
+    await useConversationStore.getState().startSession("scenario");
+    let reject!: (error: unknown) => void;
+    vi.mocked(api.checkHealthReady).mockReturnValueOnce(
+      new Promise((_, rej) => {
+        reject = rej;
+      }),
+    );
+    const retry = useConversationStore.getState().recheckReadiness();
+    await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
+    vi.mocked(api.checkHealthReady).mockResolvedValueOnce({ status: "ready" });
+    vi.mocked(api.createSession).mockResolvedValue({ id: "new-session" } as api.Session);
+    vi.mocked(api.getSessionToken).mockResolvedValue({ token: "new-token", ws_url: "wss://test" });
+    await useConversationStore.getState().startSession("free_talk");
+    reject(readinessFailure());
+    await retry;
+    expect(useConversationStore.getState()).toMatchObject({
+      sessionId: "new-session",
+      token: "new-token",
+      error: null,
+      readinessIssue: null,
+      readinessNotice: false,
+    });
+  });
+
+  it("identity revision change clears guidance and drops an in-flight recheck result", async () => {
+    vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
+    await useConversationStore.getState().startSession("scenario");
+    const snap = auth.getAuthSnapshot();
+    vi.mocked(auth.getAuthRevision).mockReturnValue(2);
+    for (const listener of [...authSnapshotListeners]) listener(snap);
+    expect(useConversationStore.getState().readinessIssue).toBeNull();
+    await useConversationStore.getState().recheckReadiness();
+    expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+
+    vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
+    await useConversationStore.getState().startSession("scenario");
+    let resolve!: (value: api.HealthReadyResponse) => void;
+    vi.mocked(api.checkHealthReady).mockReturnValueOnce(
+      new Promise((res) => {
+        resolve = res;
+      }),
+    );
+    const retry = useConversationStore.getState().recheckReadiness();
+    await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(3));
+    vi.mocked(auth.getAuthRevision).mockReturnValue(3);
+    for (const listener of [...authSnapshotListeners]) listener(snap);
+    resolve({ status: "ready" });
+    await retry;
+    expectNoCredentials();
+    expect(useConversationStore.getState().readinessNotice).toBe(false);
+    expect(useConversationStore.getState().readinessIssue).toBeNull();
+  });
+
+  it("resume readiness failure has the same safe guidance and never obtains token", async () => {
+    const id = "00000000-0000-0000-0000-000000000012";
+    vi.mocked(api.getSessionDetail).mockResolvedValue({
+      id,
+      status: "active",
+      ended_at: null,
+    } as api.Session);
+    vi.mocked(api.checkHealthReady).mockRejectedValue(readinessFailure("custom_unverified"));
+    const ok = await useConversationStore.getState().resumeSession(id, {
+      principal: auth.getAuthSnapshot().principal!,
+      revision: 1,
+    });
+    expect(ok).toBe(false);
+    expectNoCredentials();
+    expect(useConversationStore.getState().readinessIssue?.code).toBe("custom_unverified");
+    vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ready" });
+    await useConversationStore.getState().recheckReadiness();
+    expect(api.getSessionDetail).toHaveBeenCalledTimes(1);
+    expectNoCredentials();
+    expect(useConversationStore.getState().readinessNotice).toBe(true);
   });
 
   it("has correct initial state", () => {
@@ -472,7 +639,7 @@ describe("useConversationStore", () => {
       const state = useConversationStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
-      expect(state.error).toBe("Health check failed");
+      expect(state.error).toBe(zhCN.practiceReadiness.fallback);
     });
 
     it("handles health check error with fallback message for non-Error", async () => {
@@ -484,7 +651,7 @@ describe("useConversationStore", () => {
       const state = useConversationStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
-      expect(state.error).toBe("服务不可用，请稍后再试或检查相关配置");
+      expect(state.error).toBe(zhCN.practiceReadiness.fallback);
     });
 
     it("handles createSession / getSessionToken error with Error instance", async () => {
@@ -2646,6 +2813,55 @@ describe("useConversationStore", () => {
       principal: { issuer: "https://auth.example.com", subject: "user-1" },
       revision: 1,
     };
+
+    it("recheck preserves the native readiness timeout and never reaches downstream APIs", async () => {
+      vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
+      await useConversationStore.getState().startSession("scenario");
+      const fakeApp = createFakeApp();
+      fakeApp.getState.mockImplementation(() => new Promise(() => {}));
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      vi.useFakeTimers();
+      try {
+        const retry = useConversationStore.getState().recheckReadiness();
+        await vi.advanceTimersByTimeAsync(10000);
+        await retry;
+        expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
+        expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
+        expectNoCredentials();
+        expect(useConversationStore.getState()).toMatchObject({
+          connectionState: "idle",
+          error: zhCN.conversation.lifecycleUnavailable,
+          readinessNotice: false,
+          recheckingReadiness: false,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("suspending an in-flight recheck invalidates its eventual success", async () => {
+      vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
+      await useConversationStore.getState().startSession("scenario");
+      const fakeApp = createFakeApp();
+      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      let resolve!: (value: api.HealthReadyResponse) => void;
+      vi.mocked(api.checkHealthReady).mockReturnValueOnce(
+        new Promise((res) => {
+          resolve = res;
+        }),
+      );
+      const retry = useConversationStore.getState().recheckReadiness();
+      await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
+      fakeApp.emitAppStateChange({ isActive: false });
+      resolve({ status: "ready" });
+      await retry;
+      expectNoCredentials();
+      expect(useConversationStore.getState()).toMatchObject({
+        connectionState: "idle",
+        readinessNotice: false,
+        recheckingReadiness: false,
+      });
+    });
 
     it("startSession: keeps pending with zero external calls, and proceeds once upon active", async () => {
       let resolveGetState!: (state: { isActive: boolean }) => void;

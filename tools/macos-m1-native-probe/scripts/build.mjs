@@ -11,7 +11,6 @@ import {
   GENERATED,
   SDK_INPUTS,
   INFO_PLIST,
-  NODE,
   createPlan,
   requireSafePath,
   validateInputs,
@@ -104,10 +103,10 @@ export function executeBuild(
   validateInputs(plan);
   prepareAssets(plan);
   const inputs = inputHashes(plan);
-  const version = step("cli-version", NODE, [plan.cli, "--version"], 10000).trim();
+  const version = step("cli-version", plan.node, [plan.cli, "--version"], 10000).trim();
   if (!/^(?:tauri-cli|tauri) 2\.12\.4$/u.test(version))
     throw new BuildFailure("CLI_VERSION_INVALID");
-  const help = step("cli-help", NODE, [plan.cli, "build", "--help"], 10000);
+  const help = step("cli-help", plan.node, [plan.cli, "build", "--help"], 10000);
   if (
     ["--debug", "--target", "--bundles", "--no-sign", "--ci"].some(
       (flag) => !help.includes(flag),
@@ -126,7 +125,7 @@ export function executeBuild(
     emit({ stage: "previous-artifact-preserved" });
   }
   // No install/fetch, npm/npx, shell, config override, sign or binary execution.
-  step("tauri-build", NODE, [plan.cli, ...plan.args], 1200000, false);
+  step("tauri-build", plan.node, [plan.cli, ...plan.args], 1200000, false);
   validateInputs(plan);
   if (JSON.stringify(inputHashes(plan)) !== JSON.stringify(inputs))
     throw new BuildFailure("INPUT_CHANGED");

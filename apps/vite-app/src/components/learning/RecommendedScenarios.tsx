@@ -41,6 +41,8 @@ function ScenarioCard({
           {formatTitle(scenario.scenario_name)}
         </h3>
         <span
+          title={`${t.difficulty}：${scenario.difficulty_cefr}`}
+          aria-label={`${t.difficulty}：${scenario.difficulty_cefr}`}
           className={`ml-2 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cefrColor}`}
         >
           {scenario.difficulty_cefr}
@@ -64,9 +66,12 @@ function ScenarioCard({
 
       {/* Enter button */}
       <button
+        type="button"
         onClick={() => onEnter(scenario)}
         disabled={isChecking}
-        className="btn-primary flex w-full items-center justify-center disabled:cursor-not-allowed disabled:opacity-70"
+        aria-busy={isChecking ? true : undefined}
+        aria-label={`${t.enterPractice}：${formatTitle(scenario.scenario_name)}`}
+        className="btn-primary focus-visible:ring-accent flex min-h-[44px] w-full items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isChecking ? (
           <>

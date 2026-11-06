@@ -14,3 +14,13 @@
 
 **Learning:** Custom progress bar components (such as daily conversation turn counters and skill mastery levels) rendered as styled `<div>` elements are completely invisible to screen readers without `role="progressbar"` and standard ARIA progress attributes.
 **Action:** Always wrap visual progress indicators in `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`, and `aria-label`.
+
+## 2025-03-03 - Accessible Text Counters and Early Proactive Warnings
+
+**Learning:** Text input character counters are not automatically associated with textareas for assistive technologies unless explicitly linked via `aria-describedby` and set as a polite live region with `aria-live="polite"`. Furthermore, providing early visual feedback before hitting hard character limits prevents user frustration.
+**Action:** Link character counters to textareas with `aria-describedby` and `aria-live="polite"`, and apply warning styling when input length approaches the maximum threshold.
+
+## 2025-03-04 - Semantic Deletions & Insertions for Language Learning Error Feedback
+
+**Learning:** In language correction and grammar feedback lists, relying purely on styled `<span>` elements with CSS `line-through` fails to convey the deletion/insertion semantics to screen reader users, who hear the wrong word and correction in sequence without distinction. In addition, sighted users benefit from an explicit directional transition indicator (`→`) rather than adjacent text blocks.
+**Action:** Use semantic `<del>` and `<ins>` tags with descriptive `aria-label` prefixes (e.g. "原句错误：..." and "建议修改：..."), include an `aria-hidden="true"` arrow divider, and preserve clean keyboard tab order without adding unnecessary tabstops to static list items.

@@ -25,7 +25,7 @@ import {
   COMMANDS,
   SDK_SHA256,
   INFO_PLIST,
-  NODE,
+  NODE as LOCAL_NODE,
   createPlan,
   validateInputs,
   permissionText,
@@ -39,7 +39,7 @@ const source = dirname(dirname(fileURLToPath(import.meta.url)));
 const temporaryRoot = resolve(process.env.TMPDIR ?? tmpdir());
 mkdirSync(temporaryRoot, { recursive: true });
 const temporary = realpathSync(temporaryRoot);
-const host = { platform: "darwin", arch: "arm64", version: "v22.13.1", execPath: NODE };
+const host = { platform: "darwin", arch: "arm64", version: "v22.13.1", execPath: LOCAL_NODE };
 const env = { HOME: process.env.HOME };
 const failed =
   (code, exitCode = 78) =>
@@ -84,7 +84,10 @@ function fixture(t) {
     JSON.stringify({
       lockfileVersion: 3,
       packages: {
-        "": { dependencies: { "livekit-client": "2.17.2" } },
+        "": {
+          dependencies: { "livekit-client": "2.17.2" },
+          devDependencies: { "@tauri-apps/cli": "2.12.4" },
+        },
         "node_modules/@tauri-apps/cli": { version: "2.12.4" },
         "node_modules/livekit-client": { version: "2.17.2" },
       },
@@ -94,7 +97,7 @@ function fixture(t) {
     join(project, "src-tauri/Cargo.lock"),
     "# TEST fixture, not a dependency resolution\n",
   );
-  const plan = createPlan(project, env, host);
+  const plan = Object.freeze({ ...createPlan(project, env, host), node: process.execPath });
   return { root, project, plan };
 }
 
@@ -127,7 +130,7 @@ function runner(f, build = () => writeBundle(f.plan)) {
   const run = (command, args, options) => {
     calls.push({ command, args, options });
     if (command === "/usr/bin/plutil") return runChild(command, args, options);
-    assert.equal(command, NODE);
+    assert.equal(command, f.plan.node);
     assert.equal(args[0], f.plan.cli);
     if (args[1] === "--version") return { status: 0, stdout: "tauri-cli 2.12.4\n" };
     if (args.includes("--help"))
@@ -143,3 +146,26 @@ function runner(f, build = () => writeBundle(f.plan)) {
 }
 
 export { source, temporary, host, env, failed, fixture, writeBundle, runner };
+
+// Fixture-only launcher: execute the real build pipeline with a synthetic host plan.
+// Production CLI/profile selection is tested separately; this never builds native code.
+const testNode = process.execPath;
+function fixtureBuildArgs(f, { forceCiWrapper = false } = {}) {
+  // Preserve the real local entry by default; tests can exercise the CI wrapper
+  // explicitly on the pinned local host without an environment/production switch.
+  if (!forceCiWrapper && process.execPath === LOCAL_NODE)
+    return [join(f.project, "scripts/build.mjs")];
+  return [
+    "--input-type=module",
+    "-e",
+    `
+    import { executeBuild } from ${JSON.stringify(new URL("./build.mjs", import.meta.url).href)};
+    try { executeBuild(${JSON.stringify(f.plan)}); }
+    catch (error) {
+      console.error("\\n" + JSON.stringify({stage:"failed", code:error.code ?? "BUILD_IO_FAILED", exit:error.exitCode ?? 78}));
+      process.exitCode = error.exitCode ?? 78;
+    }
+  `,
+  ];
+}
+export { testNode, fixtureBuildArgs };
