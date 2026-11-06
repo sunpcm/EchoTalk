@@ -29,6 +29,7 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
     <div className="space-y-6">
       {/* 得分区 */}
       <div
+        role="group"
         className="text-center"
         aria-label={`${t.scoreLabel}: ${Math.round(assessment.overall_score)}/100`}
       >
@@ -64,7 +65,7 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
                   {err.skill_tag}
                 </span>
                 <del
-                  aria-label={`原句错误：${err.original}`}
+                  aria-label={t.grammarOriginalLabel.replace("{text}", err.original)}
                   className="text-danger text-sm line-through"
                 >
                   {err.original}
@@ -78,7 +79,7 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
                       →
                     </span>
                     <ins
-                      aria-label={`建议修改：${err.corrected}`}
+                      aria-label={t.grammarCorrectedLabel.replace("{text}", err.corrected)}
                       className="text-success text-sm font-medium no-underline"
                     >
                       {err.corrected}

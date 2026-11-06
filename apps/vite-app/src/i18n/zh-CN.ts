@@ -75,6 +75,8 @@ export const zhCN = {
     scoreLabel: "发音评分",
     phonemeTitle: "音素对齐详情",
     grammarTitle: "语法提示",
+    grammarOriginalLabel: "原句错误：{text}",
+    grammarCorrectedLabel: "建议修改：{text}",
     pronunciation: "发音",
     grammar: "语法",
     mastered: "已掌握",
