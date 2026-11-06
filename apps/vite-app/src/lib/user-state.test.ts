@@ -1,33 +1,14 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { createElement } from "react";
-import { act, cleanup, render } from "@testing-library/react";
+import { describe, expect, it, beforeEach } from "vitest";
 import { clearUserSessionData } from "./user-state";
-import {
-  clearDiagnosticBuffer,
-  getDiagnosticGeneration,
-  getDiagnosticSnapshot,
-  logDiagnostic,
-  subscribeDiagnosticBuffer,
-} from "./diagnostics";
-import * as auth from "./auth";
-import { AuthGate } from "@/components/auth/AuthGate";
 import { useConversationStore } from "@/store/conversation";
 import { useSettingsStore } from "@/store/settings";
 import { useAssessmentStore } from "@/store/assessment";
 
 describe("clearUserSessionData", () => {
   beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    clearDiagnosticBuffer();
     useConversationStore.getState().reset();
     useSettingsStore.getState().reset();
     useAssessmentStore.getState().reset();
-  });
-
-  afterEach(() => {
-    cleanup();
-    clearDiagnosticBuffer();
-    vi.restoreAllMocks();
   });
 
   it("synchronously resets conversation, settings, and assessment stores idempotently", () => {
@@ -98,69 +79,4 @@ describe("clearUserSessionData", () => {
     // 重复调用幂等，不报错
     expect(() => clearUserSessionData()).not.toThrow();
   });
-
-  it("clears diagnostic data and invalidates copy ownership without mounting diagnostic UI", () => {
-    logDiagnostic("api_http_failed", { status: 503 });
-    const oldSnapshot = getDiagnosticSnapshot();
-    const generation = getDiagnosticGeneration();
-    clearUserSessionData();
-    expect(getDiagnosticSnapshot()).toEqual([]);
-    expect(getDiagnosticGeneration()).toBeGreaterThan(generation);
-    expect(oldSnapshot).toHaveLength(1);
-    expect(() => clearUserSessionData()).not.toThrow();
-    logDiagnostic("api_http_failed", { status: 502 });
-    expect(getDiagnosticSnapshot().map((record) => record.status)).toEqual([502]);
-  });
-
-  it("does not let a failed diagnostic listener prevent clearing business stores", () => {
-    useConversationStore.setState({ sessionId: "synthetic-session", token: "synthetic-token" });
-    const stop = subscribeDiagnosticBuffer(() => {
-      throw new Error("synthetic-listener-canary");
-    });
-    try {
-      expect(() => clearUserSessionData()).not.toThrow();
-      expect(useConversationStore.getState().sessionId).toBeNull();
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useSettingsStore.getState().settings).toBeNull();
-      expect(getDiagnosticSnapshot()).toEqual([]);
-    } finally {
-      stop();
-    }
-  });
-
-  it.each(["logout", "switch-account", "unmount"] as const)(
-    "clears through the real AuthGate on %s while settings UI is absent",
-    async (action) => {
-      let listener: ((snapshot: auth.AuthSnapshot) => void) | undefined;
-      const principal = { issuer: "urn:synthetic-test", subject: "account-a" };
-      vi.spyOn(auth, "initializeAuthSnapshot").mockResolvedValue({
-        state: "authenticated",
-        principal,
-      });
-      vi.spyOn(auth, "subscribeAuthSnapshot").mockImplementation((callback) => {
-        listener = callback;
-        return () => {};
-      });
-      const view = render(createElement(AuthGate, null, createElement("div", null, "private")));
-      await act(async () => {
-        await Promise.resolve();
-      });
-      logDiagnostic("api_http_failed", { status: 503 });
-      expect(getDiagnosticSnapshot()).toHaveLength(1);
-      const generation = getDiagnosticGeneration();
-      if (action === "unmount") {
-        view.unmount();
-      } else {
-        act(() => {
-          listener?.(
-            action === "logout"
-              ? { state: "anonymous", principal: null }
-              : { state: "authenticated", principal: { ...principal, subject: "account-b" } },
-          );
-        });
-      }
-      expect(getDiagnosticSnapshot()).toEqual([]);
-      expect(getDiagnosticGeneration()).toBeGreaterThan(generation);
-    },
-  );
 });

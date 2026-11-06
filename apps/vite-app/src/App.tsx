@@ -13,8 +13,6 @@ import { VoiceInterface } from "@/components/conversation/VoiceInterface";
 import { SettingsDrawer } from "@/components/settings/SettingsDrawer";
 import { RecommendedScenarios } from "@/components/learning/RecommendedScenarios";
 import { DailyProgress } from "@/components/learning/DailyProgress";
-import { WeeklyProgress } from "@/components/learning/WeeklyProgress";
-import { WeeklyGrammar } from "@/components/learning/WeeklyGrammar";
 import { SkillTree } from "@/components/learning/SkillTree";
 import { DocChatSetup } from "@/components/doc-chat/DocChatSetup";
 import { ActiveSessions } from "@/components/conversation/ActiveSessions";
@@ -151,10 +149,6 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
 
       {/* Daily Progress */}
       <DailyProgress />
-
-      <WeeklyProgress />
-
-      <WeeklyGrammar />
 
       {/* Skill Tree */}
       {knowledgeStates.length > 0 && (

@@ -20,10 +20,6 @@ import {
   listSessions,
   listActiveSessions,
   getDailyProgress,
-  getWeeklyProgress,
-  parseWeeklyProgressResponse,
-  getWeeklyGrammar,
-  parseWeeklyGrammarSummary,
   parseSessionListResponse,
   parseDailyProgressResponse,
   getSessionDetail,
@@ -45,8 +41,6 @@ import {
   type CallCapabilitiesResponse,
   type CallLeaseResponse,
   type CallReleaseResponse,
-  type WeeklyGrammarItem,
-  type WeeklyGrammarSummary,
 } from "./api";
 import {
   setAccessTokenProvider,
@@ -64,7 +58,6 @@ import {
   UPDATE_USER_SETTINGS_REQUEST_TIMEOUT_MS,
 } from "./apiRequestTimeout";
 import { zhCN } from "@/i18n/zh-CN";
-import { getZonedWeekWindows } from "./localDayWindow";
 
 type Assert<T extends true> = T;
 type IsRequired<T, K extends keyof T> = Pick<T, K> extends Required<Pick<T, K>> ? true : false;
@@ -84,10 +77,6 @@ export type GeneratedContractAssertions = [
   >,
   Assert<CallLeaseResponse["state"] extends "held" ? true : false>,
   Assert<CallReleaseResponse["released"] extends true ? true : false>,
-  Assert<IsRequired<WeeklyGrammarSummary, "total_errors">>,
-  Assert<IsRequired<WeeklyGrammarSummary, "items">>,
-  Assert<IsRequired<WeeklyGrammarItem, "skill_tag">>,
-  Assert<IsRequired<WeeklyGrammarItem, "count">>,
 ];
 
 describe("API client", () => {
@@ -105,315 +94,6 @@ describe("API client", () => {
   });
 
   const fetchMock = () => vi.mocked(globalThis.fetch);
-
-  describe("七天聚合严格契约", () => {
-    const response = (endDate = "2026-11-03", timezone = "Asia/Singapore") => ({
-      days: getZonedWeekWindows(endDate, timezone).map((day) => ({
-        ...day,
-        completed_sessions: 0,
-      })),
-    });
-    it("单次认证 GET、精确参数、no-store 与原有 signal", async () => {
-      const body = response();
-      fetchMock().mockResolvedValue({ ok: true, json: async () => body } as Response);
-      const controller = new AbortController();
-      expect(
-        await getWeeklyProgress("2026-11-03", "Asia/Singapore", { signal: controller.signal }),
-      ).toEqual(body);
-      expect(fetchMock()).toHaveBeenCalledTimes(1);
-      const [url, options] = fetchMock().mock.calls[0];
-      expect(url).toBe(
-        `${getBaseUrl()}/sessions/weekly-progress?end_date=2026-11-03&timezone=Asia%2FSingapore`,
-      );
-      expect(options?.method ?? "GET").toBe("GET");
-      expect(options?.cache).toBe("no-store");
-      expect(new Headers(options?.headers).get("Authorization")).toBe("Bearer test-access-token");
-      expect(options?.signal).toBeInstanceOf(AbortSignal);
-    });
-
-    it.each(["2026-03-08", "2026-11-01"])(
-      "校验真实 NY DST 日界 %s，接受 UTC 的 +00:00 表达",
-      (date) => {
-        const body = response(date, "America/New_York");
-        body.days.forEach((day) => {
-          day.start = day.start.replace("Z", "+00:00");
-          day.end = day.end.replace("Z", "+00:00");
-        });
-        expect(parseWeeklyProgressResponse(body, date, "America/New_York")).toEqual(body);
-      },
-    );
-
-    it.each([
-      [
-        "六桶",
-        (body: ReturnType<typeof response>) => {
-          body.days.pop();
-        },
-      ],
-      [
-        "八桶",
-        (body: ReturnType<typeof response>) => {
-          body.days.push(body.days[6]);
-        },
-      ],
-      [
-        "乱序",
-        (body: ReturnType<typeof response>) => {
-          body.days.reverse();
-        },
-      ],
-      [
-        "重复日期",
-        (body: ReturnType<typeof response>) => {
-          body.days[1] = body.days[0];
-        },
-      ],
-      [
-        "错日界",
-        (body: ReturnType<typeof response>) => {
-          body.days[0].start = "2026-10-27T00:00:00Z";
-        },
-      ],
-      [
-        "无时区",
-        (body: ReturnType<typeof response>) => {
-          body.days[0].end = body.days[0].end.slice(0, -1);
-        },
-      ],
-      [
-        "负数",
-        (body: ReturnType<typeof response>) => {
-          body.days[0].completed_sessions = -1;
-        },
-      ],
-      [
-        "小数",
-        (body: ReturnType<typeof response>) => {
-          body.days[0].completed_sessions = 1.5;
-        },
-      ],
-      [
-        "不安全整数",
-        (body: ReturnType<typeof response>) => {
-          body.days[0].completed_sessions = Number.MAX_SAFE_INTEGER + 1;
-        },
-      ],
-    ] as const)("拒绝 %s", (_label, mutate) => {
-      const body = response();
-      mutate(body);
-      expect(() => parseWeeklyProgressResponse(body, "2026-11-03", "Asia/Singapore")).toThrow();
-    });
-
-    it("拒绝不完整/额外字段与非数值计数，严格绑定请求日期/时区", () => {
-      const body = response();
-      for (const invalid of [
-        null,
-        [],
-        {},
-        { ...body, raw: true },
-        { days: body.days.map((day) => ({ ...day, raw: "private" })) },
-        { days: body.days.map((day) => ({ ...day, completed_sessions: true })) },
-        { days: body.days.map(({ date, start, end }) => ({ date, start, end })) },
-      ]) {
-        expect(() =>
-          parseWeeklyProgressResponse(invalid, "2026-11-03", "Asia/Singapore"),
-        ).toThrow();
-      }
-      expect(() => parseWeeklyProgressResponse(body, "2026-11-02", "Asia/Singapore")).toThrow();
-      expect(() => parseWeeklyProgressResponse(body, "2026-11-03", "UTC")).toThrow();
-    });
-
-    it("跳日的零桶必须为零，不能伪造该日会话数", () => {
-      const body = response("2011-12-31", "Pacific/Apia");
-      expect(parseWeeklyProgressResponse(body, "2011-12-31", "Pacific/Apia")).toEqual(body);
-      body.days[5].completed_sessions = 1;
-      expect(() => parseWeeklyProgressResponse(body, "2011-12-31", "Pacific/Apia")).toThrow();
-    });
-
-    it("无效参数在联网之前失败", async () => {
-      await expect(getWeeklyProgress("2026-02-29", "UTC")).rejects.toThrow();
-      await expect(getWeeklyProgress("2026-11-03", "Invalid/Zone")).rejects.toThrow();
-      expect(fetchMock()).not.toHaveBeenCalled();
-    });
-
-    it("401 沿用认证失效并只发送一次请求", async () => {
-      const invalidate = vi.spyOn(await import("./auth"), "invalidateAuthSession");
-      fetchMock().mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: async () => ({ detail: "private" }),
-      } as Response);
-      await expect(getWeeklyProgress("2026-11-03", "UTC")).rejects.toBeInstanceOf(ApiError);
-      expect(invalidate).toHaveBeenCalledTimes(1);
-      expect(fetchMock()).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("七天语法聚合严格契约", () => {
-    const summary = (endDate = "2026-11-03", timezone = "Asia/Singapore") => {
-      const windows = getZonedWeekWindows(endDate, timezone);
-      const firstDay = windows[0];
-      const lastDay = windows[windows.length - 1];
-      return {
-        start: firstDay.start,
-        end: lastDay.end,
-        total_errors: 7,
-        items: [
-          { skill_tag: "article_usage" as const, count: 4 },
-          { skill_tag: "other" as const, count: 2 },
-          { skill_tag: "preposition" as const, count: 1 },
-        ],
-      };
-    };
-
-    type WeeklyGrammarMutation = (body: WeeklyGrammarSummary) => void;
-    const rejectedWeeklyGrammarCases: ReadonlyArray<
-      readonly [label: string, mutate: WeeklyGrammarMutation]
-    > = [
-      ["额外字段", (body) => Object.assign(body, { raw: true })],
-      ["错误start", (body) => void (body.start = "2026-10-27T15:00:00.000Z")],
-      ["错误end", (body) => void (body.end = "2026-11-03T15:00:00.000Z")],
-      ["负总数", (body) => void (body.total_errors = -1)],
-      ["小数总数", (body) => void (body.total_errors = 1.5)],
-      ["第四项", (body) => void body.items.push({ skill_tag: "preposition", count: 1 })],
-      ["零计数", (body) => void (body.items[2].count = 0)],
-      [
-        "未知枚举",
-        (body) => {
-          body.items[0] = {
-            ...body.items[0],
-            skill_tag: "pronunciation" as unknown as WeeklyGrammarItem["skill_tag"],
-          };
-        },
-      ],
-      [
-        "乱序count",
-        (body) => {
-          [body.items[0], body.items[1]] = [body.items[1], body.items[0]];
-        },
-      ],
-      [
-        "同分非字典序",
-        (body) => {
-          body.items = [
-            { skill_tag: "article_usage", count: 4 },
-            { skill_tag: "preposition", count: 2 },
-            { skill_tag: "other", count: 2 },
-          ];
-        },
-      ],
-      [
-        "非相邻重复tag",
-        (body) => {
-          body.items = [
-            { skill_tag: "article_usage", count: 4 },
-            { skill_tag: "other", count: 3 },
-            { skill_tag: "article_usage", count: 2 },
-          ];
-        },
-      ],
-      [
-        "零总数带items",
-        (body) => {
-          body.total_errors = 0;
-          body.items = [{ skill_tag: "other", count: 1 }];
-        },
-      ],
-      ["正总数空items", (body) => void (body.items = [])],
-      ["总数小于Top3计数和", (body) => void (body.total_errors = 6)],
-    ];
-
-    it("单次认证GET、精确路径参数、no-store与signal", async () => {
-      const body = summary();
-      fetchMock().mockResolvedValue({ ok: true, json: async () => body } as Response);
-      const controller = new AbortController();
-      expect(
-        await getWeeklyGrammar("2026-11-03", "Asia/Singapore", { signal: controller.signal }),
-      ).toEqual(body);
-      expect(fetchMock()).toHaveBeenCalledTimes(1);
-      const [url, options] = fetchMock().mock.calls[0];
-      expect(url).toBe(
-        `${getBaseUrl()}/assessments/weekly-grammar?end_date=2026-11-03&timezone=Asia%2FSingapore`,
-      );
-      expect(options?.method ?? "GET").toBe("GET");
-      expect(options?.cache).toBe("no-store");
-      expect(new Headers(options?.headers).get("Authorization")).toBe("Bearer test-access-token");
-      expect(options?.signal).toBeInstanceOf(AbortSignal);
-    });
-
-    for (const [label, mutate] of rejectedWeeklyGrammarCases) {
-      it(`拒绝${label}`, () => {
-        const body = summary();
-        mutate(body);
-        expect(() => parseWeeklyGrammarSummary(body, "2026-11-03", "Asia/Singapore")).toThrow();
-      });
-    }
-
-    it("真实七日UTC边界、空态和请求归属严格绑定", () => {
-      const body = summary();
-      expect(body.start).toBe("2026-10-27T16:00:00.000Z");
-      expect(body.end).toBe("2026-11-03T16:00:00.000Z");
-      expect(parseWeeklyGrammarSummary(body, "2026-11-03", "Asia/Singapore")).toEqual(body);
-      expect(() => parseWeeklyGrammarSummary(body, "2026-11-02", "Asia/Singapore")).toThrow();
-      expect(() => parseWeeklyGrammarSummary(body, "2026-11-03", "UTC")).toThrow();
-      const empty: WeeklyGrammarSummary = {
-        start: body.start,
-        end: body.end,
-        total_errors: 0,
-        items: [],
-      };
-      expect(parseWeeklyGrammarSummary(empty, "2026-11-03", "Asia/Singapore")).toEqual(empty);
-    });
-
-    it("DST与跳日窗口使用独立固定首末边界", () => {
-      const newYork: WeeklyGrammarSummary = {
-        start: "2026-10-26T04:00:00.000Z",
-        end: "2026-11-02T05:00:00.000Z",
-        total_errors: 1,
-        items: [{ skill_tag: "other", count: 1 }],
-      };
-      const apia: WeeklyGrammarSummary = {
-        start: "2011-12-25T10:00:00.000Z",
-        end: "2011-12-31T10:00:00.000Z",
-        total_errors: 1,
-        items: [{ skill_tag: "other", count: 1 }],
-      };
-      expect(parseWeeklyGrammarSummary(newYork, "2026-11-01", "America/New_York")).toEqual(newYork);
-      expect(parseWeeklyGrammarSummary(apia, "2011-12-31", "Pacific/Apia")).toEqual(apia);
-    });
-
-    it("接受同一UTC瞬间的Z无毫秒与.000Z表达，拒绝错误窗口", () => {
-      const body = summary();
-      const equivalent = {
-        ...body,
-        start: body.start.replace(".000Z", "Z"),
-        end: body.end.replace(".000Z", "Z"),
-      };
-      expect(parseWeeklyGrammarSummary(equivalent, "2026-11-03", "Asia/Singapore")).toEqual(
-        equivalent,
-      );
-      equivalent.start = "2026-10-27T15:00:00Z";
-      expect(() => parseWeeklyGrammarSummary(equivalent, "2026-11-03", "Asia/Singapore")).toThrow();
-    });
-
-    it("无效参数在联网之前失败", async () => {
-      await expect(getWeeklyGrammar("2026-02-29", "UTC")).rejects.toThrow();
-      await expect(getWeeklyGrammar("2026-11-03", "Invalid/Zone")).rejects.toThrow();
-      expect(fetchMock()).not.toHaveBeenCalled();
-    });
-
-    it("401沿用认证失效并只发送一次请求", async () => {
-      const invalidate = vi.spyOn(await import("./auth"), "invalidateAuthSession");
-      fetchMock().mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: async () => ({ detail: "private" }),
-      } as Response);
-      await expect(getWeeklyGrammar("2026-11-03", "UTC")).rejects.toBeInstanceOf(ApiError);
-      expect(invalidate).toHaveBeenCalledTimes(1);
-      expect(fetchMock()).toHaveBeenCalledTimes(1);
-    });
-  });
 
   describe("Error handling", () => {
     it("parses health check errors correctly", async () => {
@@ -2355,14 +2035,6 @@ describe("API client", () => {
         name: "getDailyProgress",
         invoke: (options) =>
           getDailyProgress("2026-11-01T00:00:00Z", "2026-11-01T23:59:59Z", options),
-      },
-      {
-        name: "getWeeklyProgress",
-        invoke: (options) => getWeeklyProgress("2026-11-03", "Asia/Singapore", options),
-      },
-      {
-        name: "getWeeklyGrammar",
-        invoke: (options) => getWeeklyGrammar("2026-11-03", "Asia/Singapore", options),
       },
       {
         name: "getSessionDetail",

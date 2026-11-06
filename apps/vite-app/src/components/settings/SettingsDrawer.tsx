@@ -9,7 +9,6 @@ import { zhCN } from "@/i18n/zh-CN";
 import { getAuthMode } from "@/lib/auth";
 import { SettingsAppearance } from "./SettingsAppearance";
 import { SettingsProviderFields } from "./SettingsProviderFields";
-import { SettingsDiagnostics } from "./SettingsDiagnostics";
 import { useSettingsDialog } from "./useSettingsDialog";
 import { useSettingsForm } from "./useSettingsForm";
 
@@ -92,10 +91,6 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
       <div className="flex-1 space-y-6 overflow-x-visible overflow-y-auto px-6 py-6">
         <SettingsAppearance theme={theme} onThemeChange={setTheme} />
-
-        <hr className="border-border-default" />
-
-        <SettingsDiagnostics />
 
         <hr className="border-border-default" />
 

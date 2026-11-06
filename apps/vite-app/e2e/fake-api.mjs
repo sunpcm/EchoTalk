@@ -39,184 +39,6 @@ function createSession(mode) {
 const VALID_STATUSES = new Set(["active", "completed", "cancelled"]);
 const FAKE_USER_ID = "00000000-0000-0000-0000-000000000001";
 const REQUIRED_CURSOR_KEYS = ["v", "u", "ep", "st", "s", "e", "t", "id"];
-const WEEKLY_GRAMMAR_TAGS = new Set([
-  "article_usage",
-  "verb_tense_past",
-  "verb_tense_present",
-  "subject_verb_agreement",
-  "preposition",
-  "other",
-]);
-
-// 请求局部合成记录；不会污染浏览器 worker 共享的 sessions，也不进入产品默认数据。
-function weeklyFixtures(name) {
-  const make = (index, started_at, status = "completed", user_id = FAKE_USER_ID) => ({
-    id: `77300000-0000-4000-8000-${String(index).padStart(12, "0")}`,
-    user_id,
-    mode: "free_talk",
-    status,
-    started_at,
-    ended_at: status === "completed" ? started_at : null,
-    transcripts: [],
-  });
-  if (name === "weekly") {
-    return [
-      ...Array.from({ length: 55 }, (_, i) =>
-        make(i + 1, new Date(Date.parse("2026-11-02T16:00:00Z") + i * 60_000).toISOString()),
-      ),
-      make(56, "2026-11-01T16:00:00Z"),
-      make(57, "2026-11-02T16:00:00Z", "active"),
-      make(58, "2026-11-02T16:00:00Z", "completed", "00000000-0000-0000-0000-000000000002"),
-    ];
-  }
-  if (name === "dst") {
-    return [
-      make(101, "2026-03-08T05:00:00Z"),
-      make(102, "2026-03-09T04:00:00Z"),
-      make(103, "2026-11-01T04:00:00Z"),
-      make(104, "2026-11-02T05:00:00Z"),
-      make(105, "2026-11-01T04:00:00Z", "active"),
-      make(106, "2026-11-01T04:00:00Z", "completed", "00000000-0000-0000-0000-000000000002"),
-    ];
-  }
-  return [];
-}
-
-function weeklyWindows(endDate, timezone) {
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(endDate ?? "") ||
-    !timezone ||
-    timezone.length > 128 ||
-    /^[+-]/.test(timezone)
-  ) {
-    throw new Error("Invalid weekly window");
-  }
-  const last = new Date(`${endDate}T00:00:00Z`);
-  if (
-    !Number.isFinite(last.getTime()) ||
-    last.getUTCFullYear() < 1 ||
-    last.toISOString().slice(0, 10) !== endDate
-  ) {
-    throw new Error("Invalid weekly date");
-  }
-  const formatter = new Intl.DateTimeFormat("en-US-u-ca-gregory-nu-latn", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    era: "short",
-    hourCycle: "h23",
-  });
-  const wallTime = (instant) => {
-    const parts = formatter.formatToParts(new Date(instant));
-    const part = (type) => Number(parts.find((p) => p.type === type)?.value);
-    const result = new Date(0);
-    const year =
-      parts.find((p) => p.type === "era")?.value === "BC" ? 1 - part("year") : part("year");
-    result.setUTCFullYear(year, part("month") - 1, part("day"));
-    result.setUTCHours(part("hour"), part("minute"), part("second"), 0);
-    return result.getTime();
-  };
-  const dates = Array.from({ length: 8 }, (_, i) => {
-    const date = new Date(last);
-    date.setUTCDate(date.getUTCDate() + i - 6);
-    if (date.getUTCFullYear() < 1 || date.getUTCFullYear() > 9999) throw new Error("Date overflow");
-    return date;
-  });
-  const boundaries = dates.map((date) => {
-    const wall = date.getTime();
-    const offsets = new Set(
-      [-48, -24, 0, 24, 48].map((hours) => {
-        const probe = wall + hours * 3_600_000;
-        return wallTime(probe) - probe;
-      }),
-    );
-    const candidates = [...offsets].map((offset) => wall - offset);
-    const exact = candidates.filter((candidate) => wallTime(candidate) === wall);
-    const boundary = new Date(exact.length ? Math.min(...exact) : Math.max(...candidates));
-    if (boundary.getUTCFullYear() < 1 || boundary.getUTCFullYear() > 9999)
-      throw new Error("UTC overflow");
-    return boundary.toISOString();
-  });
-  return dates.slice(0, 7).map((date, index) => ({
-    date: date.toISOString().slice(0, 10),
-    start: boundaries[index],
-    end: boundaries[index + 1],
-  }));
-}
-
-function grammarFixtures(name) {
-  if (name !== "weekly") return [];
-  const make = (index, skill_tag, source = "provider", is_synthetic = false) => ({
-    id: `77400000-0000-4000-8000-${String(index).padStart(12, "0")}`,
-    user_id: FAKE_USER_ID,
-    session_status: "completed",
-    started_at: "2026-11-02T16:30:00Z",
-    skill_tag,
-    source,
-    is_synthetic,
-  });
-  return [
-    ...Array.from({ length: 4 }, (_, i) => make(i + 1, "article_usage")),
-    ...Array.from({ length: 3 }, (_, i) => make(i + 11, "verb_tense_past")),
-    make(21, "unknown_tag"),
-    make(22, "  "),
-    make(23, "pronunciation"),
-    ...Array.from({ length: 2 }, (_, i) => make(i + 31, "subject_verb_agreement")),
-    ...Array.from({ length: 2 }, (_, i) => make(i + 41, "verb_tense_present")),
-    make(51, "preposition"),
-    make(61, "article_usage", "demo_rule"),
-    make(62, "article_usage", "demo_mock"),
-    make(63, "article_usage", "provider", true),
-    {
-      ...make(64, "article_usage"),
-      session_status: "active",
-    },
-    {
-      ...make(65, "article_usage"),
-      user_id: "00000000-0000-0000-0000-000000000002",
-    },
-  ];
-}
-
-function weeklyGrammarSummary(endDate, timezone, fixture) {
-  const windows = weeklyWindows(endDate, timezone);
-  const firstDay = windows[0];
-  const lastDay = windows[windows.length - 1];
-  const counts = new Map();
-  let total = 0;
-  for (const record of grammarFixtures(fixture)) {
-    if (
-      record.user_id !== FAKE_USER_ID ||
-      record.session_status !== "completed" ||
-      record.is_synthetic ||
-      record.source === "demo_rule" ||
-      record.source === "demo_mock"
-    ) {
-      continue;
-    }
-    const startedMs = Date.parse(record.started_at);
-    if (startedMs < Date.parse(firstDay.start) || startedMs >= Date.parse(lastDay.end)) continue;
-    const tag = WEEKLY_GRAMMAR_TAGS.has(record.skill_tag) ? record.skill_tag : "other";
-    counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    total += 1;
-  }
-  const items = [...counts.entries()]
-    .map(([skill_tag, count]) => ({ skill_tag, count }))
-    .sort(
-      (a, b) =>
-        b.count - a.count || (a.skill_tag < b.skill_tag ? -1 : a.skill_tag > b.skill_tag ? 1 : 0),
-    );
-  return {
-    start: firstDay.start,
-    end: lastDay.end,
-    total_errors: total,
-    items: items.slice(0, 3),
-  };
-}
 
 function validateWindow(startStr, endStr, { required = false } = {}) {
   if (required && (!startStr || !endStr)) {
@@ -474,55 +296,6 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  const userSessions = [
-    ...sessions.values(),
-    ...weeklyFixtures(request.headers["x-e2e-weekly-fixture"]),
-  ].filter((session) => session.user_id === FAKE_USER_ID);
-
-  if (method === "GET" && pathname === "/api/sessions/weekly-progress") {
-    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
-    try {
-      const days = weeklyWindows(
-        url.searchParams.get("end_date"),
-        url.searchParams.get("timezone"),
-      ).map((day) => ({
-        ...day,
-        completed_sessions: userSessions.filter(
-          (session) =>
-            session.status === "completed" &&
-            Date.parse(session.started_at) >= Date.parse(day.start) &&
-            Date.parse(session.started_at) < Date.parse(day.end),
-        ).length,
-      }));
-      sendJson(response, 200, { days });
-    } catch {
-      sendJson(response, 422, { detail: "Invalid weekly window" });
-    }
-    return;
-  }
-
-  if (method === "GET" && pathname === "/api/assessments/weekly-grammar") {
-    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
-    if (request.headers["x-e2e-weekly-grammar-status"] === "503") {
-      sendJson(response, 503, { detail: "Controlled weekly grammar failure." });
-      return;
-    }
-    try {
-      sendJson(
-        response,
-        200,
-        weeklyGrammarSummary(
-          url.searchParams.getAll("end_date").at(-1),
-          url.searchParams.getAll("timezone").at(-1),
-          request.headers["x-e2e-weekly-grammar-fixture"],
-        ),
-      );
-    } catch {
-      sendJson(response, 422, { detail: "Invalid weekly grammar window" });
-    }
-    return;
-  }
-
   if (method === "GET" && pathname === "/api/sessions/daily-progress") {
     const url = new URL(request.url ?? "/", `http://${host}:${port}`);
     const win = validateWindow(url.searchParams.get("start"), url.searchParams.get("end"), {
@@ -533,7 +306,7 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const completedSessions = userSessions.filter((s) => {
+    const completedSessions = [...sessions.values()].filter((s) => {
       if (s.status !== "completed") return false;
       const t = new Date(s.started_at).getTime();
       return t >= win.startMs && t < win.endMs;
@@ -566,7 +339,7 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const allSessions = userSessions
+    const allSessions = [...sessions.values()]
       .filter((s) => {
         if (statusFilter && s.status !== statusFilter) return false;
         if (win.startMs !== null && win.endMs !== null) {
@@ -612,7 +385,7 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const activeSessions = userSessions
+    const activeSessions = [...sessions.values()]
       .filter((s) => {
         if (s.status !== "active") return false;
         if (win.startMs !== null && win.endMs !== null) {

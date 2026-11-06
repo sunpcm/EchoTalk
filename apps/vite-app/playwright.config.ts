@@ -1,5 +1,4 @@
-import path from "node:path";
-import { defineConfig, devices, webkit } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 const webPort = 4173;
 const apiPort = 18181;
@@ -48,22 +47,7 @@ export default defineConfig({
     },
     {
       name: "webkit",
-      use: {
-        ...devices["Desktop Safari"],
-        // 避免 macOS 测试浏览器的 AppKit 窗口动画线程堆积。
-        // https://github.com/microsoft/playwright/issues/42385
-        ...(process.platform === "darwin"
-          ? {
-              launchOptions: {
-                executablePath: path.resolve(__dirname, "e2e/webkit-launch.sh"),
-                env: {
-                  ...process.env,
-                  ECHOTALK_E2E_WEBKIT_EXECUTABLE: webkit.executablePath(),
-                },
-              },
-            }
-          : {}),
-      },
+      use: { ...devices["Desktop Safari"] },
     },
   ],
 });

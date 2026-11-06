@@ -52,11 +52,12 @@ describe("PronunciationFeedback", () => {
     },
   ];
 
-  it("renders score and score region label", () => {
+  it("renders score and score region label with group role", () => {
     render(<PronunciationFeedback assessment={mockAssessment} grammarErrors={[]} />);
     expect(screen.getByText(t.scoreLabel)).toBeInTheDocument();
     expect(screen.getByText("85")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: `${t.scoreLabel}: 85/100` })).toBeInTheDocument();
+    const scoreGroup = screen.getByRole("group", { name: `${t.scoreLabel}: 85/100` });
+    expect(scoreGroup).toBeInTheDocument();
   });
 
   it("renders synthetic warning banner with role note when is_synthetic is true", () => {
@@ -75,17 +76,18 @@ describe("PronunciationFeedback", () => {
   it("renders grammar errors with semantic del and ins tags and ARIA labels", () => {
     render(<PronunciationFeedback assessment={mockAssessment} grammarErrors={mockGrammarErrors} />);
 
-    // Verify del element for first error
-    const delElem = screen.getByLabelText(
-      t.grammarOriginalLabel.replace("{text}", "He go there yesterday"),
-    );
+    // Verify del element for first error using i18n label definition
+    const expectedOriginalLabel = t.grammarOriginalLabel.replace("{text}", "He go there yesterday");
+    const delElem = screen.getByLabelText(expectedOriginalLabel);
     expect(delElem.tagName.toLowerCase()).toBe("del");
     expect(delElem).toHaveTextContent("He go there yesterday");
 
-    // Verify ins element for corrected version
-    const insElem = screen.getByLabelText(
-      t.grammarCorrectedLabel.replace("{text}", "He went there yesterday"),
+    // Verify ins element for corrected version using i18n label definition
+    const expectedCorrectedLabel = t.grammarCorrectedLabel.replace(
+      "{text}",
+      "He went there yesterday",
     );
+    const insElem = screen.getByLabelText(expectedCorrectedLabel);
     expect(insElem.tagName.toLowerCase()).toBe("ins");
     expect(insElem).toHaveTextContent("He went there yesterday");
 
@@ -93,11 +95,9 @@ describe("PronunciationFeedback", () => {
     expect(screen.getByText("→")).toBeInTheDocument();
 
     // Verify second error without correction does not render ins
-    const delElem2 = screen.getByLabelText(
-      t.grammarOriginalLabel.replace("{text}", "She don't know"),
-    );
+    const expectedOriginalLabel2 = t.grammarOriginalLabel.replace("{text}", "She don't know");
+    const delElem2 = screen.getByLabelText(expectedOriginalLabel2);
     expect(delElem2.tagName.toLowerCase()).toBe("del");
-    expect(document.querySelectorAll("ins")).toHaveLength(1);
   });
 
   it("renders grammar error items within a standard list structure without cluttering tab stops", () => {

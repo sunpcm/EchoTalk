@@ -153,14 +153,6 @@ test.describe("Session Pagination & Daily Progress E2E (RF-08 / A41)", () => {
 
     await page.route("**/api/sessions?*", async (route) => {
       const url = new URL(route.request().url());
-      if (url.searchParams.has("limit")) {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ items: [], next_cursor: null }),
-        });
-        return;
-      }
       const cursor = url.searchParams.get("cursor");
 
       if (!cursor) {

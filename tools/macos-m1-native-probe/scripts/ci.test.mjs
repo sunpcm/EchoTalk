@@ -340,29 +340,20 @@ test("workflow pins arm64 tools and real CI entry with bounded read-only job", (
     job,
     /continue-on-error|secrets\.|contents: write|id-token: write|--config|--sign|notari/iu,
   );
-  assert.match(
-    workflow,
-    /needs: \[test-frontend, test-backend, test-macos-probe, test-ios-build\]/u,
-  );
+  assert.match(workflow, /needs: \[test-frontend, test-backend, test-macos-probe\]/u);
 });
 
-test("real aggregate shell rejects failure, skip or cancellation and requires all four successes", () => {
+test("real aggregate shell rejects macOS failure, skip or cancellation and requires all three successes", () => {
   const aggregate = workflow.split("\n  ci:\n")[1];
   assert.ok(aggregate.includes("if: always()"));
   assert.ok(aggregate.includes("MACOS_PROBE_RESULT: ${{ needs.test-macos-probe.result }}"));
-  assert.ok(aggregate.includes("IOS_BUILD_RESULT: ${{ needs.test-ios-build.result }}"));
   const script = aggregate
     .split("        run: |\n")[1]
     .trim()
     .split("\n")
     .map((line) => line.trim())
     .join("\n");
-  for (const key of [
-    "FRONTEND_RESULT",
-    "BACKEND_RESULT",
-    "MACOS_PROBE_RESULT",
-    "IOS_BUILD_RESULT",
-  ]) {
+  for (const key of ["FRONTEND_RESULT", "BACKEND_RESULT", "MACOS_PROBE_RESULT"]) {
     for (const status of ["success", "failure", "skipped", "cancelled", ""]) {
       const result = spawnSync("/bin/bash", ["-e", "-c", script], {
         encoding: "utf8",
@@ -371,7 +362,6 @@ test("real aggregate shell rejects failure, skip or cancellation and requires al
           FRONTEND_RESULT: "success",
           BACKEND_RESULT: "success",
           MACOS_PROBE_RESULT: "success",
-          IOS_BUILD_RESULT: "success",
           [key]: status,
         },
       });

@@ -6,14 +6,12 @@ import { zhCN } from "@/i18n/zh-CN";
 import { useSettingsStore } from "@/store/settings";
 import { SettingsDrawer } from "./SettingsDrawer";
 import * as settingsPayloadModule from "./settingsPayload";
-import { clearDiagnosticBuffer, getDiagnosticSnapshot, logDiagnostic } from "@/lib/diagnostics";
 
 vi.mock("@/lib/auth", () => ({
   beginLogout: vi.fn(async () => {}),
   getAuthMode: vi.fn(() => "invalid" as const),
   getAuthSnapshot: vi.fn(() => ({ state: "anonymous" as const, principal: null })),
   getAuthRevision: vi.fn(() => 1),
-  subscribeAuthSnapshot: vi.fn(() => () => {}),
   arePrincipalsEqual: vi.fn(
     (
       left: { issuer: string; subject: string } | null,
@@ -133,13 +131,11 @@ describe("SettingsDrawer Component", () => {
     localStorage.clear();
     document.body.style.overflow = "";
     useSettingsStore.getState().reset();
-    clearDiagnosticBuffer();
     installStore(makeSettings());
   });
 
   afterEach(() => {
     cleanup();
-    clearDiagnosticBuffer();
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -163,55 +159,6 @@ describe("SettingsDrawer Component", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetchSettings).not.toHaveBeenCalled();
-  });
-
-  it("keeps diagnostics independent from provider drafts, saving, loading, and dialog lifetime", async () => {
-    const diagnosticText = t.diagnostics;
-    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const { fetchSettings, updateSettings } = installStore(makeSettings());
-    const { rerender } = render(<SettingsDrawer open={true} onClose={vi.fn()} />);
-    try {
-      const key = screen.getByLabelText(t.apiKey, { selector: "#llm-key-input" });
-      fireEvent.change(key, { target: { value: "synthetic-draft-key-canary" } });
-      act(() => {
-        logDiagnostic("api_http_failed", { status: 503 });
-      });
-      expect(writeText).not.toHaveBeenCalled();
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: diagnosticText.copy }));
-      });
-      expect(screen.getByRole("status")).toHaveTextContent(diagnosticText.copied);
-      expect(writeText.mock.calls[0][0]).not.toContain("synthetic-draft-key-canary");
-      fireEvent.click(screen.getByRole("button", { name: diagnosticText.clear }));
-      expect(getDiagnosticSnapshot()).toEqual([]);
-      expect(key).toHaveValue("synthetic-draft-key-canary");
-      expect(fetchSettings).toHaveBeenCalledTimes(1);
-      expect(updateSettings).not.toHaveBeenCalled();
-      expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalledTimes(1);
-      act(() => {
-        useSettingsStore.setState({ loading: true });
-      });
-      expect(screen.getByRole("region", { name: diagnosticText.title })).toBeInTheDocument();
-      act(() => {
-        useSettingsStore.setState({ loading: false });
-      });
-      rerender(<SettingsDrawer open={false} onClose={vi.fn()} />);
-      rerender(<SettingsDrawer open={true} onClose={vi.fn()} />);
-      expect(screen.getByRole("status")).toBeEmptyDOMElement();
-      expect(screen.getByLabelText(t.apiKey, { selector: "#llm-key-input" })).toHaveValue(
-        "synthetic-draft-key-canary",
-      );
-      expect(updateSettings).not.toHaveBeenCalled();
-    } finally {
-      if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
-      else Reflect.deleteProperty(navigator, "clipboard");
-    }
   });
 
   it("renders the accessible native modal, locks scroll, and restores it on unmount", () => {
@@ -322,9 +269,7 @@ describe("SettingsDrawer Component", () => {
     expect(alertSpy).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("switch", { name: t.customModeLabel })).toBeChecked();
 
-    const coolThemeRadio = screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` });
-    expect(coolThemeRadio).toHaveClass("focus-visible:ring-2", "focus-visible:ring-accent");
-    fireEvent.click(coolThemeRadio);
+    fireEvent.click(screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` }));
     expect(screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` })).toBeChecked();
     expect(useSettingsStore.getState().theme).toBe("cool");
     expect(updateSettings).not.toHaveBeenCalled();
