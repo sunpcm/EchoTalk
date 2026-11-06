@@ -3,6 +3,198 @@
 > 本文是 EchoTalk “当前已经实现什么、最近改变了什么、明确没有采纳什么”的权威入口。
 > 未完成工作维护在根目录 [`TODO.md`](../TODO.md)；具体架构和人工验收步骤仍由各阶段技术文档负责。
 
+## 2026-11-04 补充轮：WebKit 首导航与 Worker 停机
+
+Worker 运行时与 UI 三文件的范围 Review 已 APPROVED 并机械集成；新 integration 的
+完整19项检查已实跑通过。本次仅收口 TODO/本状态文档，整体含两文档的最终 Review、
+原生格式与机械复制后的格式/代码 hash 保全，由主控持续更新的
+[补充轮总报告](../.review/reports/overnight-followup-20261104/report.md)和
+[进度回执](../.review/reports/overnight-followup-20261104/progress.json)承载，不提前视为整体已批准。
+以下证据路径相对 `.review/reports/overnight-followup-20261104/`。
+
+- **WebKit 根因与修复**：本机现有 SDK2336 极简页第64次 goto 超时、63次完成，实际
+  App 有71线程/65处 `NSAnimation _runBlocking`，dispatch 队列饱和。仅追加进程级原生
+  窗口动画偏好后120次导航全过、线程稳定16，见 `ui/animation-diagnostic-r0c/result.json`。
+  Darwin WebKit 专用 exec 包装器使用公开 SDK 路径并原样转发默认参数；实际 App 默认 flags
+  与 NO 参数已核，过64例后15线程，偏好键未持久化，见 `ui/root-fixed-browser-metadata-confirmed-r1.json`
+  及 `ui/native-preference-readonly-audit-r1.json`。默认 HTTPS/H2、证书/代理、load/30s、
+  retry、排序、页面 CSS/reducedMotion 与无障碍/触控断言均保持，无锁/依赖或系统显示设置变更。
+- **真实回归与负向**：UI lane 完整 frontend10 的174双浏览器无重试全过；将 NO 临时改回
+  YES，WebKit87真实86过+同第64例首导航超时，完整还原字节/模式后87无重试全过。
+  设置监听改为真实 `/api/user/settings`，原零隐式写断言后由 UI Save 验证监听有效；
+  真实 toggle 隐式保存变异两浏览器均 Expected0/Received1，完整恢复。见 `ui/REVIEW-r1.md`、
+  `ui/root-fix-quality-checks-r1/summary.json`及 `ui/root-restored-checks-r1/summary.json`，所有首次失败与 trace 保留。
+- **Worker 停机与恢复**：原程序三 Worker137/API0；新程序三 Worker0/API0。真 PID1
+  SIGINT约283ms、在途自然 drain约470ms、超时取消约2459ms均 exit0，第二 pending 不领取，
+  取消回滚未提交产物，不伪造失败/重试/finished。按原300秒规则显式准备过期后恢复与再次
+  启动幂等保持；合成 assessment/grammar各1、knowledge0。范围及回执见 `worker/REVIEW-runtime-r1.md`
+  与 `worker/runtime-after-r1/`，不外推真实 Provider 调用终止或任意真实崩溃恢复。
+- **镜像与最终组合**：新 API/Agent 镜像155份后端源码逐 hash 对齐，frozen export、55/83
+  分发集合、镜像内 native 依赖及导入已验，不使用新镜像 ID 重算上一轮配对收益。
+  `final-quality-checks-r1/summary.json`的19项全部 process/gate0：frontend10、backend5、
+  runtime3加 wrapper 语法。1098 Vitest、21 build-script、69 Fake API、8 types、730 pytest/
+  3 warnings，覆盖率78.43%、59%门禁保持，runtime 单测19项。最终集成174双浏览器也
+  全过、retries0，构成与 UI lane 的两轮完整无重试通过，不从 lane 成功推算集成成功。
+- **资源清理**：runtime 与最后产品测试 PG/网络均按已审 ID 清理；
+  `product-cleanup-checks-r1/summary.json`的 process/gate0，`setup/product-pg-cleanup.json`
+  为 removed=true，`resource-cleanup-final.json`中本轮剩余容器/网络为空。镜像、证据和 worktree 保留，未全局 prune。
+
+七天 completed 会话计数与按日历史已完成，按既有 `started_at`、认证用户和本地自然日
+分桶，含零桶/时区/DST。练习时长、历史 `p_mastery` 趋势及其余周报维度仍待可靠定义与
+数据，未实现完整周报，详见 `TODO.md`。宿主18800仍为 false，仅容器内真实 TCP 已验。
+真实 Provider/IdP/LiveKit、语音、设备、签名、本轮原生 App 编译及远端 CI 仍未验，原 Compose
+整栈未启动；RF-04/05/07/08/09/12 等外部边界保留，未融合 next2。
+
+本轮停在 Review，未 commit/push/pull/rebase/merge、部署或发布。本节点仅更新两文档，
+未运行格式/测试/服务，也不把主控受控代跑记为实施者独立自测。
+
+## 2026-11-04 至 11-05 七天语法与宿主 HTTP（本地收口，停在 Review）
+
+Dashboard 已实现只读的滚动七天真实语法记录卡片：客户端一次认证 GET
+`/api/assessments/weekly-grammar?end_date=YYYY-MM-DD&timezone=IANA`。七天是截至
+`end_date` 的滚动七个本地自然日，不是从周一开始的 ISO/自然周；服务端使用既有日期窗口、
+认证用户及 completed 会话 `started_at` 半开区间，只消费既有非合成、来源非
+`demo_rule`/`demo_mock` 的记录，按错误记录条数聚合。固定分类中的未知项合并为 `other`，
+按 count 降序、规范 tag 升序稳定排序后最多返回三项；`total_errors` 保留全部可统计记录。
+卡片展示总数、固定本地化标签、top 3 和固定复习提示，不展示原文、改正文本或用户 ID。
+空态明确为“这七天暂无可统计的真实语法记录”，不声称零错误或分析完成；加载失败仅提供
+显式重试，并按 principal/revision、日期时区、前后台、离线与卸载隔离迟到结果。
+
+本地验收事实与外部边界分开记录：
+
+- **本地测试**：frontend10、backend5、runtime3 与 wrapper 语法实际通过；1133 Vitest、
+  21 build-script、72 Fake API、8 types runner、178 Chromium/WebKit（retries 0）、773
+  pytest/3 warnings、覆盖率 78.48%（59% 门禁）及 31 runtime unittest。ESLint 为 136
+  warnings/0 errors，既有 build chunk 提示保留。
+- **隔离 HTTP 与数据**：新 `host-gateway` 拓扑完成 16 次实际请求，health 200、匿名
+  401、缺 Key readiness 503；语法接口返回 21 条记录，Top 3 为 `other:7`、
+  `article_usage:5`、`verb_tense_past:5`，历史 55 行分 4 页，25 小时 DST 日通过。
+  API 与 PG 仍只接本轮 internal 网络，网关只发布 loopback 18800。旧 internal-only
+  拓扑的宿主 18800 不可达历史继续保留，不能把新网关解释为原端口或原 Compose 已通过。
+- **局部收益**：一次只读聚合即可支撑 Dashboard 的七天语法 Top 3 与固定提示；独立
+  host-gateway 在精确隔离拓扑内提供了可复验的宿主 loopback HTTP 入口。本轮没有新增
+  性能、体积或冷启动收益声明。
+- **Review 与交付**：API、UI、runtime 三个范围均 APPROVED；本节点停在 Review，后续以
+  主控最终报告为准。代码仍为未提交 dirty 候选，未 commit/push/pull/rebase/merge/部署；
+  当前候选远端 CI 未运行，本结论不改变任何远端 PR/CI 状态。
+- **未验边界与数据口径**：当前生产语法分析链仍为 demo，真实记录为空时返回合法空态；
+  HTTP 中带 real 标记的过滤行仍是显式合成夹具，不代表真实 Provider 结果。真实
+  Provider/IdP/LiveKit、语音、设备、签名与本轮 native 编译均未验；原 Compose 整栈
+  未启动，next2 未融合，RF-04/05/07/08/09/12 等外部边界不因此关闭。
+
+## 2026-11-04 七天概览、按日历史与隔离运行时（上一轮历史）
+
+以下保留上一轮32路径任务的验收数字、173+1 flaky、Worker137与当时未验边界；
+后续修复、当前门禁及剩余事项以上方补充轮为准。
+
+Dashboard 已实现含今天的最近七个本地自然日已完成会话分布。一次认证聚合返回七个完整
+有序桶（含零值、23/25 小时 DST 与跳日），选择日期后通过原 keyset 接口显式分页查看
+只读历史，保留今日进度。新增加载/空态/安全失败重试，按日期、时区、principal/revision、
+离线/前后台及卸载隔离迟到成功、失败与 finally；恢复只读刷新，不自动创建/恢复通话、
+取 Token、dispatch 或采音，不生成评分、时长或掌握度趋势。
+
+本节记录文档停写时的实际分项。主控持续更新的
+[本轮总报告](../.review/reports/overnight-product-runtime-20261103/report.md)与
+[进度回执](../.review/reports/overnight-product-runtime-20261103/progress.json)承载最新格式、
+最终组合及总 Review 结论。以下本地证据路径均相对
+`.review/reports/overnight-product-runtime-20261103/`，旧轮计数不覆盖为本轮通过。
+
+### 代码与最终组合检查
+
+- UI r1 代码独立 Review 为 APPROVED，主控已原生生成 schema/types 并机械复制 14 份
+  已审前端文件；与 A 同字节的 OpenAPI 不重复复制。TS2367 冗余窄化比较已修，未使用
+  类型屏蔽；独立旧 slot 守卫变异被真实 deferred 断言杀死且完整恢复，依据 `ui/REVIEW-r1.md`。
+- `final-functional-checks-r1/summary.json`的 16 项均 passed/process exit0/gate exit0：
+  前端除 format/E2E 的 8 项、backend5 与 runtime3。实际 1098 Vitest、21 build-script、
+  69 Fake API、8 types、678 pytest/3 warnings；覆盖率 78.67%，59% 门禁不变，runtime 单测 19 项。
+- `final-e2e-checks-r1/summary.json`与 `01-e2e/command.log`记录 Chromium/WebKit
+  173 clean + 1 flaky = 174 cases，process/gate 均为 0；8 条新增 weekly 用例全过。
+  `settings-drawer.spec.ts`首个用例在 beforeEach `page.goto('/')`首试 30 秒超时后 retry
+  通过，本轮多次出现。已记录的 flaky 历史及本次首次失败、重试与 trace 保留；根因未定，不能因
+  settings 文件未改就认定是既有缺陷或环境原因。该项作为明确 P2 待办保留在 `TODO.md`，
+  后续排查不弱化旧断言、不加 sleep 掩盖超时。
+- 最终 root format 与 `git diff --check`已有真实通过回执，见 `final-format-checks-r1/summary.json`；
+  与 16 项功能检查及 E2E 构成原 15 项 + runtime3 全部通过，仍保留 1 flaky。
+  `final-quality-checks-r1`首次只在
+  `docs/agent-review-loop.md`与 `docs/verification/cross-platform/RF-08-WEEKLY-PROGRESS.md`
+  失败的历史保留。此次状态文字由主控原生格式化、机械复制后还会最后 root format 复核，
+  当前文字与最终回执以总报告及进度回执为准。
+
+### 镜像测量、真实服务与清理
+
+同架构、同输入的配对收益仅引用 `runtime/paired-comparison-r1.json`。优化仅同层清理
+uv cache，系统依赖、锁与 SDK 保持；不据有限导入样本声称语音冷启动收益。
+
+| 配对角色 | before bytes | after bytes | 体积减少 |
+| -------- | ------------ | ----------- | -------- |
+| API      | 1545036632   | 1542251419  | 0.1803%  |
+| Agent    | 1936003477   | 1930721426  | 0.2728%  |
+
+最终包含 A 源码的 154 份后端输入另建了新 API/Agent 镜像，新 ID、bytes 与输入快照见
+`runtime/final-measure-r1/receipt.json`，完整性见 `runtime/final-integrity-r1/result.json`；
+这些新 ID 不参与上表收益混算。最终镜像源码/frozen export/运行角色完整性与真实隔离
+服务已验，dev 工具不进入角色镜像；完整明细由运行时 owner 文档与主控回执承载。
+
+`runtime/final-services-r1/exercise/result.json`验证无 Key 受控失败、显式准备的过期任务
+恢复及重复分析幂等，范围是 `prepared_expired_job_only`，不能外推为任意真实崩溃恢复。
+`runtime/final-services-r1/weekly-http-r1b/result.json`验证最终 API 镜像真实 GET：七桶、
+2 个 completed、23 小时 DST、两页历史、匿名 401、非法时区/换窗口 cursor 422；
+`runtime/final-http-recheck-checks-r1b/summary.json`的 HTTP 与清理均通过。
+首次 helper 解析失败与后续 r1b 复验并列保留，不覆盖首次失败。
+
+三个 Worker 停止后均 exit137，API exit0；未证明 Worker 优雅 SIGTERM 停机。
+internal 网络下宿主 18800 HTTP 为 false，容器 loopback 真实 HTTP 已验，宿主访问入口仍
+未通过。真实 Provider/IdP/LiveKit、语音、设备、签名、本轮 native 编译与远端 CI 未验；
+原 Compose 整栈未启动，不称生产服务或完整语音链路验收完成。
+
+C1/C2/final 自建容器/网络清理通过。文档读取时产品 PG 清理也已完成：
+`setup/final-cleanup-checks-r1/summary.json`通过，`setup/product-pg-cleanup.json`记录
+removed=true，`resource-cleanup-final.json`中本轮 containers/networks 均为空；
+这是主控归属核验后的资源回执，本 UI 节点没有操作服务或数据库。
+
+RF-04/05/07/08/09/12 等整项外部边界继续保留，未融合 next2 草稿。
+本轮停在 Review，无 commit/push/merge/部署或发布；本次仅由 UI owner 更新两份状态文档，
+不修改已交产品/测试/schema，也不把主控代跑记为实施者独立自测。
+
+## 2026-11-03 无 Key 工作与当时交付状态（历史）
+
+主控当日实时核验 [PR #117](https://github.com/sunpcm/EchoTalk/pull/117) 已合并，
+远端 main 为 `b3493a3a40c5c6743c9c3df609790368b2b76435`，已包含 readiness 与
+macOS probe CI；旧 PR #117 及对应 main 运行此前均已全绿。本节保留该轮当时状态，
+最新夜间任务状态见上方 2026-11-04 摘要；历史计数及失败不外推为本轮组合验收结果。
+
+### 本次验证记录（2026-11-03）
+
+`checks/combined-r1` 的 frontend10/backend5 全部通过；actionlint/assets/macOS Node 241、
+独立隐私 4 项通过。原布局探针因主控按钮名错误失败，纠正后 `checks/final-supplement-r2`
+的 format、B r2 Node 28、4 个双浏览器几何场景通过，390/960 截图正常；不称整份 combined-r1 全 exit0。
+B 子集 run 41581791010 的 frontend/backend/macOS/iOS/CI 五 jobs 已全绿，Simulator built-not-run；组合 Web 镜像产物验证通过。
+记录时最终 A 尚未正式交付；正式交付与最终 head CI 状态以 PR #119 和主控报告为准。以下表格保留此前阶段状态，
+其中待组合/待 native CI 的口径以本更新为准，真实设备、语音、签名与部署边界不变。
+
+| 工作线           | 已有实现或证据                                                                                                                                                                                  | 待完成边界                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| A 安全诊断       | 最近 50 条内存白名单记录、账号清理、主动预览/复制/清空，无上传/持久化；主控 Vitest 1034、Chromium/WebKit 合计 166 通过，`auth-buffer` / `copy-order` 两个真实变异 killed 且已还原               | 不代替组合 frontend10/backend5、独立 Review 或真实设备 Clipboard 验收                        |
+| C 后端运行时     | 真实 Linux arm64 API/Agent 角色镜像、frozen export、ASGI health/无 Key 拒绝、全新 PostgreSQL 空库迁移、合成 `c03 → c06` UTC 微秒/索引/event/seed、真实分析 Worker 无 Key 安全失败均通过         | 原 Compose 整栈、真实服务、旧版同环境镜像/冷启动对比仍未验                                   |
+| C Web production | P1 入口绕过已修复；主控真实三构建为 OIDC exit0、dev/oidc-token exit1，两个负向均命中 guard；保留原坏 dev exit0                                                                                  | 不代替缺 OIDC 运行态、原 Compose 整栈或冷启动对比                                            |
+| B 无签名 iOS CI  | B r1 已停写，修复误收集并使用 `ios-ci-test.mjs`；主控格式/actionlint/Node 28 项/macOS 聚合四项检查通过；验证 draft [PR #119](https://github.com/sunpcm/EchoTalk/pull/119) 的远端后端/macOS 已绿 | 旧 frontend 误收集失败保留；B r1 远端结果及原生 iOS 仍待真实 CI                              |
+| 最终组合         | A 已组合 C 四文件与 B 六文件；本次仅更新五份文档，不修改实现                                                                                                                                    | 完整 frontend10/backend5、独立 Review、PR #119 CI 的最终状态仍待主控收口；不阻塞本次文档停写 |
+
+C 当前镜像约 API 1.545 GB、Agent 1.936 GB。没有旧版同环境 before，因此不计算优化百分比，
+不声称冷启动收益或镜像已最小化。PR #119 初始 remote head `291f210` 与本地 `fea4888`
+的 tree 完全相同；这只标识初始验证输入，不代表后续 B r1 或最终组合已经通过。
+C 四阶段验收和 Web 三构建均已结束；主控核验 ID/label/internal/tmpfs 归属后已清理本批
+专用 PG 与内部网络，原 cp00 未动，C 镜像、快照及证据保留，详见 Linux 运行时记录。
+
+Key 仍未准备，本批没有验证真实 IdP/Provider/LiveKit、5 分钟 5 轮语音、WKWebView/TCC、
+设备、签名或部署。RF-05/07/09/12 等整项仍有外部或对比边界，不据上述局部结果关闭。
+next2 草稿未融合；下一阶段优先无 Key 可做且有价值的工作，不在本轮扩实现范围。
+
+细节见[诊断导出验证](./verification/cross-platform/CP-06-DIAGNOSTIC-EXPORT.md)与
+[Linux 运行时记录](./verification/cross-platform/RF-07-LINUX-RUNTIME.md)。本地原始回执保留于
+`.review/reports/keyfree-delivery-20261103/`；最终状态由 PR #119 CI 和主控独立报告承载，
+本次文档静态整理不新增测试结果、approval 或提交记录。
+
 ## 2026-11-02 练习前置检查与探针 CI 最终组合结果
 
 2026-11-03，主控最终组合 21 项检查全部 passed/exit0。readiness 已实现缺用户/设置、
@@ -20,9 +212,9 @@
 - 汇总及命令/输入字节索引位于主 checkout 的
   `.review/reports/practice-readiness-20261102/checks/combined-final-r0/summary.json`；
   首次失败及修复证据保留在本地评审报告。
-- 独立 Review 与提交状态以本轮主控最终报告为准。文档同步时尚未合入 main，
-  未 push/部署，远端 CI 未运行；真实 Provider/LiveKit/IdP、设备/TCC/媒体与
-  Linux/Docker 等外部边界仍未验证，未融合 next2 候选。
+- 该轮已随 PR #117 合入 main，旧 PR 及对应 main 运行此前均已全绿；上述本地 21 项
+  计数保留。真实 Provider/LiveKit/IdP、设备/TCC/媒体与部署仍未验，未融合 next2 候选。
+  本批 Linux/Docker 无 Key 增量和最终组合边界见上方最新状态，不改写本轮历史输入。
 
 验收范围与证据见[练习前置检查验证](./verification/cross-platform/PRACTICE-READINESS.md)
 及[macOS 探针 CI 验证](./verification/cross-platform/MACOS-PROBE-CI.md)。
@@ -30,9 +222,10 @@
 ## 维护基线
 
 > 下列带日期的实施记录保留各轮当时的事实与边界；A83 是历史具名完整门禁记录，
-> 不外推为后续提交已复验。最新状态见下方「项目入口刷新与最新本地边界」及 `TODO.md`。
+> 不外推为后续提交已复验。最新状态见上方「2026-11-04 补充轮：WebKit 首导航与 Worker 停机」及 `TODO.md`。
 
-- 最近本地核对日期：2026-11-01。
+- 历史远端快照由主控于 2026-11-03 核验：PR #117 已合并，main 为 `b3493a3`；
+  本轮未刷新远端，不外推本轮 CI 或发布。本地历史基线核对日期为 2026-11-01。
 - A83 历史具名本地验收代码基线：
   `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
   receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
@@ -42,13 +235,14 @@
   Vitest/34 files、586 backend/76.98%；A80 为 972 Vitest/36 files、586 backend/
   76.98%；A81 为 972 Vitest/36 files、594 backend/78.10%；A82 为 594 backend/
   78.10%。私有探针和变异只在对应 lane 验证，main 未冒认重复。真实 IdP、
-  LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署仍未验证。
-- 本地 tracking reference `origin/main` 当前指向
+  LiveKit/Provider、设备、Linux/Docker 镜像、远端 CI 与部署在 A83 当时尚未验证；
+  本批新增证据与剩余边界以上方最新状态为准。
+- A84 b/r0 receipt 当时的本地 tracking reference `origin/main` 指向
   `c704925bc9150d153fc951c2727e7472dad00d78`；A84 b/r0 正式 receipt 绑定的具名已验
   代码基线 `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）相对它领先 19 个
   提交。该计数只对应 receipt 中的具名基线，不是提交后必变的实时 lane HEAD 事实；比较
   也只读本地 Git 引用，不是本轮实时远端查询，不能据此推断 GitHub 当前 head。
-- 最近已有远端运行证据：PR
+- 较早已保存精确 run 引用的远端证据：PR
   [#109](https://github.com/sunpcm/EchoTalk/pull/109) 的 run
   [41220439360](https://github.com/sunpcm/EchoTalk/actions/runs/41220439360)，精确 head
   `b7585d140ecc6ad4f45580fabe71e32c9c51466b`、merge
@@ -56,7 +250,7 @@
   18 build-script、61 Fake API、Chromium 74 + WebKit 74；backend 空库迁移至
   `c06_transcript_events` 后 529 passed、82.49%；`test-frontend`、`test-backend` 与聚合
   `CI` 三 job 均 success。该运行不包含 A67 新增的 OpenAPI schema/TypeScript 类型生成
-  两层门禁，也不覆盖 A65–A74 未推送树。
+  两层门禁，也不覆盖 A65–A74 当时的未推送树；不是当前 main 的验收上限。
 - 较早的远端集成记录保留为历史：`main@a92dc545d68f68e6267e0e97f98a5be5e7fc3739`
   （PR #108 squash 合并、`feat: integrate locally reviewed cross-platform milestones
 (A45-A63)`）。
@@ -1280,3 +1474,27 @@ Codex 独立评审 APPROVED：真实192包锁、原172项重叠版本/七项SDK�
 - **生产接线与生命周期**：`agent.py` 的 `entrypoint` 委托 `AgentJobOrchestrator`，显式注入 `AgentSession`、`TranscriptSink`、`_send_error_and_disconnect` 与 `_persist_assistant_conversation_item`，保持既有测试 patch 路径完全生效；移除 `agent.py` 中未使用的 `asyncio`、`AutoSubscribe` 与 `ErrorEvent` 导入；原有 helper 与业务函数导出入口与逻辑逐项保持。
 - **质量验证覆盖**：新增 `backend/tests/test_job_orchestrator.py`（8 项测试）覆盖完整成功生命周期与排空、两 Job 独立状态隔离与关闭互不影响、setup 失败安全退出与 Sink 关闭、start 启动失败双轨错误通知与 Sink 关闭、CancelledError 取消异常正常向上传播且任务收束、Sink 故障 `_on_sink_failure` 双轨安全错误码映射、assistant 事件接线及 entrypoint 真实委托 Orchestrator；全链路回归（A42 安全错误、A43 幂等、A44 Sink、A45 Resolver、A46 显式 Key、A48 ProviderRegistry）通过。
 - **契约与界限**：契约见 [RF-09 AgentJobOrchestrator 生命周期边界验证](./verification/cross-platform/RF-09-JOB-ORCHESTRATOR.md)。本轮仅完成任务编排与生命周期边界解耦（RF-09 子项）；sys.path/dotenv 清理及真实 SDK/外部 Provider 联调仍待后续完成，整项保持未勾选，RF-09 持续推进。
+
+## 2026-11-07 恢复被误回退的集成并完成本地收口
+
+本段替换 delivery r0 候选追加，不改写上方从
+`42c61bb08f5e234989198ef46ed7534a80c70796` 恢复的原文。上方历史 CI 与已验记录只属于
+当时提交。本候选没有 push，也没有本轮远端 CI。这里的 Node 回归不能代替 native
+App、Xcode、Rust 构建或设备验收。真实 Provider、IdP、LiveKit、语音、生产部署和原
+Compose 整栈未验。根格式与保全回执见主控交付报告，这里不预告根格式通过。
+
+`#122` 的 28 个文件曾进入 `#119` 的 main `42c61bb`。`#118` 后续 `768a81a` 把工作树
+退回旧快照，并经 `6bda2cd` 进入 main。本轮按 `42c61bb` 精确恢复被退回的范围，同时
+保留 `#118` 的正确无障碍增量和 `#125` 的 6 个文件。delivery lane 的 9 个非文档文件
+与参考字节一致，WebKit 包装器保持 `0755`。
+
+主控集成验收：backend pytest 794 passed、3 warnings、覆盖率 78.84%，59% 门禁保持；
+Vitest 1137、构建脚本 21、Fake API 72、API 类型 runner 8、Chromium 与 WebKit E2E
+178 且 retry 0、runtime 标准库测试 31、iOS 编排 Node 测试 28、actionlint 通过。
+ESLint 为 0 error、136 warnings。macOS probe 首轮 47 项中 17 项因该探针自己缺少
+`node_modules` 而 ENOENT；主控离线执行 `npm ci --ignore-scripts` 后 47 项通过，没有
+产品补丁，首败日志保留。`WeeklyGrammar` 请求 slot 归属守卫的变异被杀死，源码指纹
+已恢复。
+
+专用产品库和 runtime 已创建、审批、验收并清理，身份见手册 §19。这不改写上方各轮
+历史 CI，也不表示本候选已经 push。

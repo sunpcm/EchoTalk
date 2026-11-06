@@ -1,8 +1,9 @@
 """会话相关 Pydantic 请求/响应模型。"""
 
+from datetime import date as CalendarDate
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from schemas.time import UtcDatetime
 
@@ -74,6 +75,21 @@ class DailyProgressResponse(BaseModel):
 
     completed_sessions: int
     total_turns: int
+
+
+class WeeklyProgressDay(BaseModel):
+    """一个本地自然日对应的 UTC 半开窗口及已完成会话数。"""
+
+    date: CalendarDate
+    start: UtcDatetime
+    end: UtcDatetime
+    completed_sessions: int = Field(ge=0)
+
+
+class WeeklyProgressResponse(BaseModel):
+    """按本地日期升序排列的固定七日统计，包含零桶。"""
+
+    days: list[WeeklyProgressDay] = Field(min_length=7, max_length=7)
 
 
 class AnalysisStatusResponse(BaseModel):

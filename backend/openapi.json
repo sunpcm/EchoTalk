@@ -1193,6 +1193,126 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WeeklyGrammarItem": {
+        "description": "七天语法聚合中的一个技能标签计数项。",
+        "properties": {
+          "count": {
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "skill_tag": {
+            "$ref": "#/components/schemas/WeeklyGrammarSkillTag"
+          }
+        },
+        "required": [
+          "skill_tag",
+          "count"
+        ],
+        "title": "WeeklyGrammarItem",
+        "type": "object"
+      },
+      "WeeklyGrammarSkillTag": {
+        "description": "七天语法统计的六类固定归类。",
+        "enum": [
+          "article_usage",
+          "verb_tense_past",
+          "verb_tense_present",
+          "subject_verb_agreement",
+          "preposition",
+          "other"
+        ],
+        "title": "WeeklyGrammarSkillTag",
+        "type": "string"
+      },
+      "WeeklyGrammarSummary": {
+        "description": "GET /api/assessments/weekly-grammar 响应。",
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyGrammarItem"
+            },
+            "maxItems": 3,
+            "title": "Items",
+            "type": "array"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "total_errors": {
+            "minimum": 0.0,
+            "title": "Total Errors",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "total_errors",
+          "items"
+        ],
+        "title": "WeeklyGrammarSummary",
+        "type": "object"
+      },
+      "WeeklyProgressDay": {
+        "description": "一个本地自然日对应的 UTC 半开窗口及已完成会话数。",
+        "properties": {
+          "completed_sessions": {
+            "minimum": 0.0,
+            "title": "Completed Sessions",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "start",
+          "end",
+          "completed_sessions"
+        ],
+        "title": "WeeklyProgressDay",
+        "type": "object"
+      },
+      "WeeklyProgressResponse": {
+        "description": "按本地日期升序排列的固定七日统计，包含零桶。",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyProgressDay"
+            },
+            "maxItems": 7,
+            "minItems": 7,
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "title": "WeeklyProgressResponse",
+        "type": "object"
       }
     }
   },
@@ -1306,6 +1426,77 @@
           }
         },
         "summary": "Get Knowledge States",
+        "tags": [
+          "发音评估与知识追踪"
+        ]
+      }
+    },
+    "/api/assessments/weekly-grammar": {
+      "get": {
+        "description": "返回截至 end_date 的七个本地自然日真实语法错误稳定 Top 3 聚合。",
+        "operationId": "get_weekly_grammar_api_assessments_weekly_grammar_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "title": "End Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyGrammarSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Weekly Grammar",
         "tags": [
           "发音评估与知识追踪"
         ]
@@ -2042,6 +2233,77 @@
           }
         },
         "summary": "Get Daily Progress",
+        "tags": [
+          "会话管理"
+        ]
+      }
+    },
+    "/api/sessions/weekly-progress": {
+      "get": {
+        "description": "返回截至 end_date 的七个本地自然日已完成会话数，含零桶。",
+        "operationId": "get_weekly_progress_api_sessions_weekly_progress_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "title": "End Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyProgressResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Weekly Progress",
         "tags": [
           "会话管理"
         ]

@@ -11,6 +11,7 @@
 import pkg from "../../package.json";
 import { detectPlatform } from "@/platform/detection";
 import type { PlatformType } from "@/platform/types";
+import { getAuthRevision, subscribeAuthSnapshot } from "@/lib/auth";
 
 export const DIAGNOSTIC_PREFIX = "[diagnostic]";
 
@@ -55,9 +56,91 @@ export interface DiagnosticLogOptions {
   agent_code?: unknown;
 }
 
+// 只有 logDiagnostic 能写入；不导出接收外部 record/payload 的入口。
+const BUFFER_LIMIT = 50;
+type DiagnosticSnapshot = readonly Readonly<DiagnosticRecord>[];
+let snapshot: DiagnosticSnapshot = Object.freeze([]);
+let bufferAuthRevision: number | null = null;
+let bufferGeneration = 0;
+const bufferListeners = new Set<() => void>();
+let notifying = false;
+
+function notifyBufferListeners(): void {
+  // 同步订阅者可以清空或写日志；重入不递归，也不回写旧快照。
+  if (notifying) return;
+  notifying = true;
+  try {
+    for (const listener of Array.from(bufferListeners)) {
+      if (!bufferListeners.has(listener)) continue;
+      try {
+        listener();
+      } catch {
+        // 一个 UI/订阅者失败不能影响日志、认证清理或其他订阅者。
+      }
+    }
+  } finally {
+    notifying = false;
+  }
+}
+
+function resetDiagnosticBuffer(): void {
+  snapshot = Object.freeze([]);
+  bufferGeneration += 1;
+  notifyBufferListeners();
+}
+
+function syncDiagnosticAuthRevision(): void {
+  const revision = getAuthRevision();
+  if (bufferAuthRevision === revision) return;
+  bufferAuthRevision = revision;
+  resetDiagnosticBuffer();
+}
+
+/** 稳定、深度只读的内存快照；每次访问均核对认证代际，不暴露身份。 */
+export function getDiagnosticSnapshot(): DiagnosticSnapshot {
+  syncDiagnosticAuthRevision();
+  return snapshot;
+}
+
+/** 清空/认证变化使复制结果失效；新日志本身不会作废用户已发起的复制。 */
+export function getDiagnosticGeneration(): number {
+  syncDiagnosticAuthRevision();
+  return bufferGeneration;
+}
+
+/** 账号清理链直接调用，即使诊断 UI 从未挂载也会清理。 */
+export function clearDiagnosticBuffer(): void {
+  bufferAuthRevision = getAuthRevision();
+  resetDiagnosticBuffer();
+}
+
+export function subscribeDiagnosticBuffer(listener: () => void): () => void {
+  const subscription = () => listener();
+  bufferListeners.add(subscription);
+  // 仅活跃消费者拥有监听；无消费者时，读/写仍按 revision 失效旧记录。
+  let unsubscribeAuth: (() => void) | undefined;
+  try {
+    unsubscribeAuth = subscribeAuthSnapshot(syncDiagnosticAuthRevision);
+  } catch {
+    // 认证监听不可用时仍可显式读/写；不会绕过每次访问的 revision 校验。
+  }
+  syncDiagnosticAuthRevision();
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    bufferListeners.delete(subscription);
+    try {
+      unsubscribeAuth?.();
+    } catch {
+      // 释放失败不阻断 UI 卸载，buffer listener 已同步移除。
+    }
+  };
+}
+
 /**
  * 记录结构化安全诊断日志。
- * 仅向控制台输出固定前缀与纯净白名单 record。
+ * 向控制台与最多 50 条的内存缓冲输出同一纯净白名单 record。
  *
  * @param eventName 诊断事件名称
  * @param options 可选上下文参数 (status / agent_code)
@@ -73,6 +156,8 @@ export function logDiagnostic(
       return null;
     }
     const validEvent = eventName as DiagnosticEvent;
+    syncDiagnosticAuthRevision();
+    const generation = bufferGeneration;
 
     // 2. 平台检测容错：已知集合，检测异常或未知一律映射为 "unknown"
     let platform: PlatformType | "unknown" = "unknown";
@@ -114,7 +199,15 @@ export function logDiagnostic(
       }
     }
 
-    // 6. 控制台分级输出 (保留现有 warn/log/error 映射)
+    // 6. 冻结后再发布，console、返回值与快照均不能被调用方扩写污染。
+    Object.freeze(record);
+    syncDiagnosticAuthRevision();
+    if (generation === bufferGeneration) {
+      snapshot = Object.freeze([...snapshot.slice(-(BUFFER_LIMIT - 1)), record]);
+      notifyBufferListeners();
+    }
+
+    // 7. 控制台分级输出 (保留现有 warn/log/error 映射)
     try {
       if (
         validEvent === "lifecycle_audio_interrupted" ||
