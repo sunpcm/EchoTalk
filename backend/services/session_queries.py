@@ -1,11 +1,10 @@
-"""会话查询服务：游标分页、时间窗口校验与日/周进度聚合。"""
+"""会话查询服务：游标分页、时间窗口校验与每日练习聚合。"""
 
 import base64
 import json
 import re
 import uuid
-from datetime import date, datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import and_, distinct, func, or_, select
@@ -16,8 +15,6 @@ from schemas.session import (
     DailyProgressResponse,
     SessionListItem,
     SessionListResponse,
-    WeeklyProgressDay,
-    WeeklyProgressResponse,
 )
 
 _URLSAFE_B64_RE = re.compile(r"^[A-Za-z0-9_-]+={0,2}$")
@@ -321,66 +318,3 @@ async def query_daily_progress(
         completed_sessions=completed_sessions,
         total_turns=total_turns,
     )
-
-
-def weekly_day_windows(end_date: str, timezone_name: str) -> list[WeeklyProgressDay]:
-    """独立计算七个本地日窗口，不放宽既有 daily/history 的 48h 校验。
-
-    每个午夜单独转为 UTC，避免用 7×24h 切割 DST；跳过的自然日可为零长度。
-    日期计算或 UTC 转换溢出、非法时区统一失败为 422，不回显原始输入。
-    """
-    try:
-        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", end_date):
-            raise ValueError("Invalid date shape")
-        if not 1 <= len(timezone_name) <= 128:
-            raise ValueError("Invalid timezone length")
-        local_end = date.fromisoformat(end_date)
-        local_start = local_end - timedelta(days=6)
-        zone = ZoneInfo(timezone_name)
-        dates = [local_start + timedelta(days=i) for i in range(8)]
-        boundaries = [
-            datetime.combine(day, time.min, tzinfo=zone).astimezone(timezone.utc)
-            for day in dates
-        ]
-        if any(start > end for start, end in zip(boundaries, boundaries[1:])):
-            raise ValueError("Nonmonotonic day boundaries")
-    except (ValueError, OverflowError, ZoneInfoNotFoundError):
-        raise HTTPException(status_code=422, detail="无效的日期或时区参数") from None
-
-    return [
-        WeeklyProgressDay(
-            date=dates[i],
-            start=boundaries[i],
-            end=boundaries[i + 1],
-            completed_sessions=0,
-        )
-        for i in range(7)
-    ]
-
-
-async def query_weekly_progress(
-    db: AsyncSession,
-    *,
-    user_id: uuid.UUID,
-    end_date: str,
-    timezone_name: str,
-) -> WeeklyProgressResponse:
-    """单次有界 SQL 聚合七日会话数；不查询实体或关联表/正文。"""
-    days = weekly_day_windows(end_date, timezone_name)
-    stmt = select(
-        *[
-            func.count()
-            .filter(Session.started_at >= day.start, Session.started_at < day.end)
-            .label(f"day_{i}")
-            for i, day in enumerate(days)
-        ]
-    ).where(
-        Session.user_id == user_id,
-        Session.status == SessionStatus.completed,
-        Session.started_at >= days[0].start,
-        Session.started_at < days[-1].end,
-    )
-    counts = (await db.execute(stmt)).one()
-    for day, count in zip(days, counts, strict=True):
-        day.completed_sessions = int(count)
-    return WeeklyProgressResponse(days=days)

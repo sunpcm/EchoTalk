@@ -1,22 +1,10 @@
 """发音评估与知识追踪的 Pydantic 响应模型。"""
 
-import enum
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from schemas.time import UtcDatetime
-
-
-class WeeklyGrammarSkillTag(str, enum.Enum):
-    """七天语法统计的六类固定归类。"""
-
-    article_usage = "article_usage"
-    verb_tense_past = "verb_tense_past"
-    verb_tense_present = "verb_tense_present"
-    subject_verb_agreement = "subject_verb_agreement"
-    preposition = "preposition"
-    other = "other"
 
 
 class PhonemeAlignmentItem(BaseModel):
@@ -64,22 +52,6 @@ class GrammarErrorResponse(BaseModel):
     created_at: UtcDatetime
 
     model_config = {"from_attributes": True}
-
-
-class WeeklyGrammarItem(BaseModel):
-    """七天语法聚合中的一个技能标签计数项。"""
-
-    skill_tag: WeeklyGrammarSkillTag
-    count: int = Field(ge=1)
-
-
-class WeeklyGrammarSummary(BaseModel):
-    """GET /api/assessments/weekly-grammar 响应。"""
-
-    start: UtcDatetime
-    end: UtcDatetime
-    total_errors: int = Field(ge=0)
-    items: list[WeeklyGrammarItem] = Field(max_length=3)
 
 
 class KnowledgeStateResponse(BaseModel):

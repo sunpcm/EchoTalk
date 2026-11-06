@@ -1,44 +1,6 @@
 # RF-07 Python API/Agent 运行角色依赖验证
 
-## 2026-11-04 grammar-http 角色补充（已实际收口，跨 11-04 夜间至 11-05）
-
-API/PostgreSQL 的业务与隔离角色不变：仅接本轮 internal 网络，PG 不发布端口；新
-`host-gateway` 模式下 API 也不发布宿主端口。新增短生命周期 gateway 不是业务 API
-角色，不提供任意代理；它复用已批准 API 镜像的 Python stdlib，挂载只读固定转发脚本，
-只接收 controller 从已核验 API internal 身份派生的 `FIXED_UPSTREAM=<IPv4>:8000`。
-gateway 同时接 internal 与独占普通 bridge，仅自身发布 loopback HTTP；实际有界连接
-槽位（BoundedSemaphore）、累计请求头上限、可取消非阻塞 connect 与统一 join deadline
-用于限制短生命周期资源消耗。合法 TCP 分片在总上限和总超时内收齐；TERM/INT 仅在 CLI
-入口注册，关闭 listener、active sockets 并确定 join 全部 worker/forward 线程。正常
-宿主 GET health 返回 HTTP 200。
-
-API/PG 仍运行真实源码与已锁依赖，gateway 不增加镜像包、不读取 app env、不继承
-数据库、Provider、IdP 或 LiveKit 凭据，也不记录请求/响应内容。保留 `container-http`
-和旧宿主不可达事实。具体 manifest、验收矩阵与证据边界见
-[隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。
-
-### 最终收口（实际通过）
-
-上述角色边界已由主控全部真实验收通过并清理。真实 PID1 结果：SIGTERM
-exit0/280ms（长驻 17s）、SIGINT exit0/247ms；`max_connections=2` 第三个连接被拒绝，
-活跃 socket 关闭 200ms，header 累计上限内总超时 150ms。三 Worker、API 与 gateway 均
-exit0。最终业务使用 157 文件新镜像（baseline155 仅用于 PID1 诊断）：API
-`sha256:5444d92f1ad20449e858ccc017a87ea63a053a200a93e3ca93f16bd255a8973d`
-（1,542,377,979 bytes / 55 包 / ldd 6），Agent
-`sha256:f9fb6b9cff828c131dfbe05d50896ada90a043b532458b17f066cc9dbfab61c5`
-（1,930,847,986 bytes / 83 包 / ldd 79）；同一依赖/export、无 dev、各 3 次导入、
-ffmpeg/native 通过。修复前 network=none PID1 的 docker stop 约2.1秒 exit137、r0 的
-27 项 1failure/2errors、r1 IndentationError 与中断 r2 socketpair timeout124/F841/I001
-均保留为历史，不冒充本轮 exit0。当前 dirty 仍无 CI/native/真实 Provider 语音设备/
-原 Compose 整栈验收。
-
-> 2026-11-04 最新补记：夜间任务真实隔离服务 C1 已由主控独立 APPROVED；
-> C2 配对测量、最终组合两角色重建、真实服务/补充 HTTP 与清理已完成。见 §8 和
-> [隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。以下 A79 安装/验证结论保留历史时点。
-> 完整门禁与最终 Review 以主控
-> [本轮总报告](../../../.review/reports/overnight-product-runtime-20261103/report.md) 为权威。
->
-> 历史状态：A79 已 Review APPROVED，单提交 `eaac89d0f4f008e77ba51b26a590412a03541acb`
+> 状态：A79 已 Review APPROVED，单提交 `eaac89d0f4f008e77ba51b26a590412a03541acb`
 > 已精确 fast-forward 本地 main，并通过完整 15 项 main 门禁。真实 Linux/Docker 镜像、
 > Compose 服务、远端 CI 与外部运行链路仍未验证。
 > 起点：`codex/rf07-dependency-roles@8efb92387ac0bf3b9489a20b6080d78d6ec91ab4`。
@@ -122,13 +84,10 @@ CI 原有 `--group dev` 无需改成同义别名；兼容 `requirements.txt` 继
 运行：
 
 ```text
-uv sync --frozen --no-default-groups --group "$BACKEND_ROLE" --no-python-downloads && \
-    uv cache clean
+uv sync --frozen --no-default-groups --group "$BACKEND_ROLE" --no-python-downloads
 ```
 
-2026-11-04 配方在原同步同一层追加cache清理，不改冻结安装参数与角色包集合；
-主控已真实build并核安装完整性、动态库、导入、frozen export及服务，实减见§8。
-该命令不会把 dev 混入任一角色。A79 历史 Compose 角色分配为：
+该命令不会把 dev 混入任一角色。Compose 只改三个后端 build：
 
 - `echotalk-api`：`BACKEND_ROLE=api`
 - `echotalk-analysis-worker`：`BACKEND_ROLE=api`
@@ -186,56 +145,3 @@ volumes、认证和启动入口逐字保持，没有新增 Worker 组或服务�
   设备与部署均未验证。
 - 本轮源码配方完成不单独完成 RF-05、RF-07、RF-09 或 RF-12。`pronouncing` 的 optional
   fallback 是现存边界，不在本轮新增依赖。
-
-## 8. 2026-11-04 夜间任务：真实服务边界与最小缓存减法
-
-本批基线 `0e09f5e7f3c16b5bb6562632880003e59369e372`；角色/依赖与上述七个LiveKit exact
-pins不变，不改pyproject、uv.lock、requirements或原Compose。API和analysis-worker继续
-使用api角色，语音Agent使用agent角色；本轮没有启动语音Agent注册或连接Provider。
-
-主控已实测并独立批准C1：19项新offline runner、全新internal PG的SQL身份/空库/
-pgx非空拒绝与rollback、真实base→c06、镜像源码/frozen export、真实uvicorn TCP HTTP
-200/401/503、真实Worker缺Provider受控失败、预置过期任务attempt2合成成功及重启/重复
-分析幂等。合成产物仅1assessment/1grammar、KnowledgeState=0，不扩大为真实学习效果。
-
-三个Worker实际exit137（docker stop5秒后强杀），API exit0，四进程均已停止。
-优雅SIGTERM退出尚未证明，作为运维遗留；不把强杀退出改写为成功0或143。本轮不修业务
-入口/重试/租约。internal网络下宿主18800不可达仍false；容器loopback真实HTTP已验，
-未增加外网bridge。详细事实/证据与清理边界见隔离服务文档。
-
-首轮main before证据完整保留；收益仅依据后来格式冻结后的同版measure.py独立重测配对，
-同arm64/基础digest/锁、每份153文件，仅Dockerfile缓存清理不同：API
-1,545,036,632→1,542,251,419bytes，实减2,785,213bytes/0.1802684%；Agent
-1,936,003,477→1,930,721,426bytes，实减5,282,051bytes/0.2728327%。
-缓存120,456/398,460KiB→各4KiB不能当镜像实减，未采集inode证据，不断言差异原因。
-两角色 `/usr` 仍各971,248KiB，保留gcc/libpq-dev/ffmpeg和原单阶段结构。
-完整ID/基础digest/层/目录/两套计时定义见[Linux记录](./RF-07-LINUX-RUNTIME.md)。
-
-cache-only before/after包版本集合逐角色相同（API55/Agent83），dev absent、各153文件/
-frozen export、ldd6/79无missing、ffmpeg和三次导入均通过；新计时含ps监督开销，
-不和首轮main适配样本混算，也不宣称cold start提速。
-
-最终集成输入新增后端内容后，主控已从154文件独立快照重建两角色：
-
-- API `sha256:eecbd997b19725256b7391eb1d4c068025f08bef41df62d4aee4eec9e8111cde`，
-  1,542,284,611 bytes。
-- Agent `sha256:ba556d437c23d178e2eeea887137368ccadd15d87ca85a5c0bb6e1766ebf2e9e`，
-  1,930,754,618 bytes。
-
-最终各154文件SHA/frozen/dev absent、55/83包版本与after一致，动态库/ffmpeg/三次导入
-通过。最终Agent首样本34,594.359ms仍保留，不用于cache-only收益论证。
-最终新PG/真实TCP HTTP/Worker过期任务与幂等已复验，仍为Worker137/API0、宿主18800false。
-补充只读GET验证七桶/2completed、limit1两页、换窗cursor422、23小时DST、非法时区422、
-匿名401、API退出0；最终容器与网络已按ID清理，scope清点为0容器/0网络（含产品PG）。
-
-首次weekly-http批次因主控helper把stop字典当整数误报失败；原服务通过/HTTP断言通过/
-stop0及首败回执保留，r1b修helper后的HTTP与cleanup全绿另列，未改产品代码或算mutation。
-证据 `R/runtime/final-measure-r1/receipt.json`、`final-integrity-r1/result.json`、
-`final-services-r1/`、`final-http-recheck-checks-r1b/summary.json`，其中
-`R=.review/reports/overnight-product-runtime-20261103`。
-
-主控排除根format/E2E的16项通过；双浏览器最终174项/exit0，173clean+1flaky，新增weekly8项
-双浏览器通过。settings goto30秒超时多次retrypass，根因未定，不能写174全clean。
-根format前次失败，待owner全部停写后主控统一原生格式复核；完整15项与最终Review以
-`R/report.md`为权威，不能提前宣布全绿。本轮native/远端CI/真实IdP/Provider/LiveKit/
-语音/原Compose/设备/部署仍未验证，Worker优雅终止与宿主18800边界保留。
