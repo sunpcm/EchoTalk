@@ -40,6 +40,25 @@
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。
 
+## 2026-11-07 遗留问题（已核实，未修复）
+
+来源：#128 评审与本地重跑。以下问题均为 #119 原有代码问题，恢复时未改动。
+
+- [ ] **无 Key 运行时验收忽略长期进程退出码**（#128 Codex P2）：
+      `tools/keyfree-runtime/runtime.py` 的 `stop()` 只断言 `Running is False`，
+      `exercise()` 只把三个 Worker 与 API 的退出码追加到 `process_exits`，仍写
+      `status: "passed"`；只有 gateway 与 oneshot 校验退出码。验收：生成成功回执前统一要求
+      全部长期进程 `ExitCode == 0`，补 runtime unittest：任一进程非零退出时回执不为 passed。
+- [ ] **WebKit `weekly-grammar.spec.ts:57` 偶发失败**：无重试单独跑 5 次失败 1 次，
+      CI `retries: 2` 掩盖。推测加载期认证快照变化触发 `WeeklyGrammar` 重新请求，
+      耗掉测试唯一一次注入的 503，未验证。验收：先复现并确认根因，修复后 WebKit 无重试
+      重复运行（≥20 次）全过，不靠放宽断言或增加重试。
+- [ ] **防止 bot 推送导致误合并**：#118 合并前 google-labs-jules[bot] 在更新分支后推送
+      删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
+      限制 bot 推送他人 PR 分支，或加大规模删除的 CI 告警；合并前人工核对 head SHA 与 diff 规模。
+- [ ] **本地 worktree 清理**：`.review/worktrees/` 下 17 个 worktree（含无新提交的
+      `restore-backend`/`restore-delivery`/`restore-ui`）待用户决定是否清理，清理前核对各分支是否已合并。
+
 ## 2026-11-04 补充轮：WebKit 首导航与 Worker 停机
 
 Worker 运行时与 UI 三文件范围独立 Review 均 APPROVED，已机械集成。以下为本次文档
