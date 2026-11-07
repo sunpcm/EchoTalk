@@ -85,7 +85,14 @@ export function ChatSubtitles() {
       </div>
 
       {/* 消息列表 */}
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-label={t.title}
+        className="flex-1 space-y-3 overflow-y-auto p-4"
+      >
         {messages.length === 0 ? (
           <p className="text-text-faint py-8 text-center text-sm">{t.empty}</p>
         ) : (
@@ -98,10 +105,12 @@ export function ChatSubtitles() {
 
 function ChatBubble({ message }: { message: ChatMessage }) {
   const isUser = message.sender === "user";
+  const senderLabel = isUser ? t.you : t.aiCoach;
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
+        aria-label={`${senderLabel}: ${message.text}`}
         className={`max-w-[80%] rounded-lg p-3 ${
           isUser ? "bg-accent text-accent-contrast" : "bg-surface-alt text-text-default"
         } ${!message.isFinal ? "opacity-70" : ""}`}
@@ -110,7 +119,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
         <p
           className={`mb-1 text-xs font-medium ${isUser ? "text-accent-contrast/80" : "text-text-faint"}`}
         >
-          {isUser ? t.you : t.aiCoach}
+          {senderLabel}
         </p>
         {/* 消息文本 */}
         <p className="text-sm leading-relaxed">{message.text}</p>

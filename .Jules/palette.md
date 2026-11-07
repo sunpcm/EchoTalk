@@ -24,3 +24,8 @@
 
 **Learning:** In language correction and grammar feedback lists, relying purely on styled `<span>` elements with CSS `line-through` fails to convey the deletion/insertion semantics to screen reader users, who hear the wrong word and correction in sequence without distinction. In addition, sighted users benefit from an explicit directional transition indicator (`→`) rather than adjacent text blocks.
 **Action:** Use semantic `<del>` and `<ins>` tags with descriptive `aria-label` prefixes (e.g. "原句错误：..." and "建议修改：..."), include an `aria-hidden="true"` arrow divider, and preserve clean keyboard tab order without adding unnecessary tabstops to static list items.
+
+## 2025-03-05 - Accessible Live Log Semantics for Streaming Audio Subtitles
+
+**Learning:** Realtime voice chat subtitles continuously append messages asynchronously, but without `role="log"` and polite live region configuration (`aria-live="polite"` with `aria-relevant="additions text"`), assistive technologies do not announce incoming turn transcripts, making the conversation invisible to blind or screen reader users. Furthermore, individual speech bubbles need explicit sender context in their accessible name (`${sender}: ${text}`) rather than separating visual sender headers from message text.
+**Action:** Always wrap live speech/chat stream containers in `role="log"` with `aria-live="polite"`, `aria-relevant="additions text"`, and an `aria-label`, and attach compound accessible labels to message bubbles combining sender identity and text.
