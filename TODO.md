@@ -2,6 +2,192 @@
 
 > 当前唯一待办清单。完成事项应直接勾选；新增待办需写明验收条件，避免继续散落到阶段文档和源码注释中。
 
+## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
+
+来源：#120、#123、#126、#127，以及本地 Issue 评估与 2026-11-07 只读核实（均不纳入 Git）。
+已定：继续使用 LiveKit（主要用户不在中国大陆），只做安全升级、RF-12 后的 1.8.x 评估和
+学习者 turn-taking；不迁移框架、不做 S2S。
+
+**无需 Key，可直接开发：**
+
+- [ ] **RF-04 远端证据核对**：main CI（`42c61bb`、`6bda2cd`、`ef6cb53`）已实跑 OpenAPI
+      schema 与 TypeScript 类型生成门禁并成功；验收：按 RF-04 原契约逐项核对，更新
+      [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)，标明
+      当前 run 无 iOS job、required check 配置未核。只改文档。
+- [ ] **会后分析按来源门控**（方案 C-1，#120）：BKT 只吃 `is_synthetic=False` 的观察；
+      `USE_MOCK_ELSA=False` 时发音标为不可用、语法独立完成，不再整个 Job 失败；须同时处理
+      发音缺失时 assessment 接口 404、前端 `Promise.all` 整体报错与纯语法重跑幂等。验收：
+      pytest 覆盖全合成、两种方向的混合来源、两路真实、无发音、无转录、重跑，前端覆盖部分结果。
+- [ ] **livekit-agents 安全升级到 1.6.10**（方案 A-2，GHSA-q77r-q2p5-68vf）：agents 与四个
+      插件 `==1.6.10`、`livekit==1.1.14`、`livekit-api>=1.2.0`，uv 重生成 lock 与 export，
+      不混入 OpenAI 3、Turn Detector 或模型更换；保留 #125 脱敏钩子；验收：三测试树通过；
+      本地 LiveKit dev + 故意错误的 Key 触发 Deepgram/Cartesia 握手失败，日志无 Canary 明文
+      （无需真实 Key，外网访问与服务启动需用户另行授权）；离线回归、错误 Key 冒烟、真实语音分开报告。
+- [ ] **python-jose 迁移 PyJWT**（方案 B）：改 `auth.py` 与测试，并在 API 依赖组显式声明 PyJWT、
+      删除 `python-jose`，同步 lock/export；与 1.6.10 升级共用依赖文件，须顺序生成。验收：补伪造
+      HS256 + RSA `kid` 回归，401/503 语义不变。
+- [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长
+      ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。
+- [ ] **核销 LiveKit 消息路径 SDK 类型忽略**（P2 既有项）：当前消息路径已用公开属性和类型收窄，
+      唯一命中 `log_redaction.py` 的 `method-assign` 不在范围内；待 1.6.10 固定后取得类型证据再勾选。
+
+**被 Key 或外部条件阻断：**
+
+- [ ] 语法 LLM SGEC（方案 C-2）：可先在 Mock 下做结构化输出、`skill_tag` 校验与离线评测集；
+      真实 Provider 验收需 LLM Key，BKT 接线等 C-1。
+- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：先由用户裁定产品口径。
+- [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
+- [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
+- [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。
+
+## 2026-11-07 遗留问题（已核实，未修复）
+
+来源：#128 评审与本地重跑。以下问题均为 #119 原有代码问题，恢复时未改动。
+
+- [ ] **无 Key 运行时验收忽略长期进程退出码**（#128 Codex P2）：
+      `tools/keyfree-runtime/runtime.py` 的 `stop()` 只断言 `Running is False`，
+      `exercise()` 只把三个 Worker 与 API 的退出码追加到 `process_exits`，仍写
+      `status: "passed"`；只有 gateway 与 oneshot 校验退出码。验收：生成成功回执前统一要求
+      全部长期进程 `ExitCode == 0`，补 runtime unittest：任一进程非零退出时回执不为 passed。
+- [ ] **WebKit `weekly-grammar.spec.ts:57` 偶发失败**：无重试单独跑 5 次失败 1 次，
+      CI `retries: 2` 掩盖。推测加载期认证快照变化触发 `WeeklyGrammar` 重新请求，
+      耗掉测试唯一一次注入的 503，未验证。验收：先复现并确认根因，修复后 WebKit 无重试
+      重复运行（≥20 次）全过，不靠放宽断言或增加重试。
+- [ ] **防止 bot 推送导致误合并**：#118 合并前 google-labs-jules[bot] 在更新分支后推送
+      删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
+      限制 bot 推送他人 PR 分支，或加大规模删除的 CI 告警；合并前人工核对 head SHA 与 diff 规模。
+- [ ] **本地 worktree 清理**：`.review/worktrees/` 下 17 个 worktree（含无新提交的
+      `restore-backend`/`restore-delivery`/`restore-ui`）待用户决定是否清理，清理前核对各分支是否已合并。
+
+## 2026-11-04 补充轮：WebKit 首导航与 Worker 停机
+
+Worker 运行时与 UI 三文件范围独立 Review 均 APPROVED，已机械集成。以下为本次文档
+收口前已落地的真实回执；本次两文档仍待主控原生格式、机械复制、最后格式/代码 hash
+保全与整体 Review，最新结论见[补充轮总报告](.review/reports/overnight-followup-20261104/report.md)
+及[进度回执](.review/reports/overnight-followup-20261104/progress.json)。
+以下证据路径相对 `.review/reports/overnight-followup-20261104/`。
+
+- [x] 修复 macOS WebKit 首导航停滞：现场确认 AppKit 原生窗口动画线程累积、dispatch
+      队列饱和；仅 Darwin WebKit 通过可执行包装器转发同锁 SDK 默认参数并追加进程偏好。
+      未改 HTTPS/H2、load/30s、retry、排序或页面动画，未持久化系统偏好。见 `ui/REVIEW-r1.md`。
+- [x] 设置零隐式写保护监听真实 `/api/user/settings`，原零写断言后由真实 UI Save 作正对照；
+      隐式保存变异两浏览器 Expected0/Received1。重新启用原生窗口动画的变异也真实复现
+      WebKit 第64例 goto 超时；两项均完整恢复，恢复后 WebKit87 无重试通过，首次失败与 trace 保留。
+- [x] Worker 有界优雅停机：新程序三个 Worker 与 API 均 exit0；真 PID1 的 SIGINT、在途
+      drain、超时取消/回滚及停止后不再领取均已验。旧过期恢复与幂等保持，范围见 `worker/REVIEW-runtime-r1.md`。
+- [x] 新 integration 实跑完整19项全部 process/gate0：frontend10、backend5、runtime3 加
+      wrapper 语法；1098 Vitest、21 build-script、69 Fake API、8 types、730 pytest/3 warnings，
+      覆盖率78.43%、59%门禁保持，runtime 单测19项。UI lane 与最终集成两轮双浏览器均
+      174全过、retries0，见 `final-quality-checks-r1/summary.json`与 `ui/root-fix-quality-checks-r1/summary.json`。
+- [x] 本轮 runtime 与最后产品测试 PG/网络已按归属清理：
+      `product-cleanup-checks-r1/summary.json`为 exit0，`setup/product-pg-cleanup.json`为 removed=true；
+      `resource-cleanup-final.json`中本轮剩余容器/网络为空，镜像、证据与 worktree 保留。
+- [ ] 补验宿主 HTTP 入口：18800仍为 false，容器内真实 TCP 已验；不据容器访问勾选宿主入口。
+- [ ] 真实 Provider/IdP/LiveKit、语音、设备、签名、本轮原生 App 编译与远端 CI 仍待；
+      原 Compose 整栈未启动，显式预置过期任务恢复不代表任意真实崩溃恢复。
+      RF-04/05/07/08/09/12 等外部边界保留，next2 未融合；停在 Review，未 commit/push/部署或发布。
+
+## 2026-11-04 至 11-05 七天语法与宿主 HTTP（本地收口，停在 Review）
+
+Dashboard 已实现截至 `end_date` 的滚动七个本地自然日真实语法记录卡片。该窗口不是
+从周一开始的 ISO/自然周；服务端按认证用户、completed 会话的 `started_at` 半开区间及
+既有非合成、非 demo 语法记录一次性有界聚合，客户端展示总记录数、固定六类中的最多三项、
+固定复习提示和合法空态。未接分析触发、写请求、Token、采音或个性化生成。
+
+本地实测为 1133 Vitest、21 build-script、72 Fake API、8 types runner、178
+Chromium/WebKit（retries 0）、773 pytest（3 warnings、覆盖率 78.48%、59% 门禁）和
+31 runtime unittest；frontend10、backend5、runtime3 与 wrapper 语法均通过。宿主
+`host-gateway` 精确隔离拓扑下 health 200、匿名 401、缺 Key readiness 503，16 次实际
+HTTP 得到 21 条语法记录及 Top 3 `other:7`、`article_usage:5`、`verb_tense_past:5`，
+历史 55 行分 4 页，25 小时 DST 日通过。旧 internal-only 拓扑的宿主 18800 不可达历史
+保留，新网关结果不外推到原 Compose。API/UI/runtime 三个范围 Review 均 APPROVED；
+本节点停在 Review，后续以主控最终报告为准。当前仍为未提交 dirty 候选，无
+commit/push/pull/rebase/merge/部署，当前候选远端 CI、真实 Provider/IdP/LiveKit、语音、
+设备、签名与 native 编译均未验，next2 未融合。完整分项见
+[RF-08 七天语法 Top 3 验收手册](./docs/verification/cross-platform/RF-08-WEEKLY-GRAMMAR.md)。
+
+## 2026-11-04 七天概览与隔离运行时收口（上一轮历史）
+
+以下保留上一轮32路径任务的验收数字与失败记录；后续修复及当前边界以上方补充轮为准。
+
+Dashboard 已实现含今天的最近七个本地自然日已完成会话分布，单次认证聚合返回七桶，
+选择日期后显式分页查看只读历史；保留今日进度，支持空态、加载、失败重试与日期/时区、
+身份 revision、前后台及离线请求隔离，不新增评分、时长或掌握度趋势。
+
+本节是文档停写时的分项快照；最终格式、组合与总 Review 状态以主控持续更新的
+[本轮总报告](.review/reports/overnight-product-runtime-20261103/report.md)和
+[进度回执](.review/reports/overnight-product-runtime-20261103/progress.json)为最新权威。
+以下证据路径相对本轮 `.review/reports/overnight-product-runtime-20261103/`。
+
+- [x] 七天概览与按日历史代码独立 Review APPROVED；14 份前端文件与主控原生生成的
+      schema 已机械组合，槽位守卫变异被真实 deferred 断言杀死并完整恢复，详见 `ui/REVIEW-r1.md`。
+- [x] 最终功能检查 16 项通过：前端除 format/E2E 的 8 项、backend5、runtime3；
+      1098 Vitest、21 build-script、69 Fake API、8 types、678 pytest/3 warnings，
+      后端覆盖率 78.67%，59% 门禁不变；runtime 单测 19 项，见 `final-functional-checks-r1/summary.json`。
+- [x] 最终 Chromium/WebKit 共 174 cases：173 clean + 1 flaky 后重试通过，process/gate
+      均为 0；8 条新增 weekly 用例在两引擎全过。多轮首次超时和 trace 保留，见
+      `final-e2e-checks-r1/summary.json`及对应 `01-e2e/command.log`，不称 174 clean。
+- [x] C1/C2 及最终 154 份后端输入的新 API/Agent 镜像完整性、隔离服务与真实 HTTP
+      已验；最终镜像与配对测量分开。配对收益仅来自 `runtime/paired-comparison-r1.json`：
+      API 0.1803%、Agent 0.2728%，不外推冷启动收益。详细分项见 `docs/PROJECT_STATUS.md`。
+- [x] C1/C2/final 自建运行资源清理通过；文档读取时产品 PG 清理也已通过，
+      `setup/product-pg-cleanup.json`为 removed=true，`resource-cleanup-final.json`中本轮
+      containers/networks 均为空。清理按本轮资源归属，不表示全机无其他任务。
+- [x] 最终 root format 与 `git diff --check`已真实通过，见 `final-format-checks-r1/summary.json`；
+      与 16 项功能检查及 E2E 构成原 15 项 + runtime3 全部通过，仍保留 1 flaky。
+      此次状态文字由主控复制后还会最后 format 复核，最新文字与回执以总报告为准。
+      `final-quality-checks-r1`首次仅 `docs/agent-review-loop.md`与
+      `docs/verification/cross-platform/RF-08-WEEKLY-PROGRESS.md`格式失败，历史保留。
+- [x] **P2：settings WebKit 首次导航超时已在补充轮关闭**：上一轮首个用例的
+      beforeEach `page.goto('/')`首试30秒超时、retry通过，当时根因未定；现已有本机
+      动画线程阻塞、进程偏好正负对照及两轮174无重试通过证据，见顶部补充轮。旧失败与 trace 全部保留，未弱化断言。
+- [x] 补验 Worker 优雅 SIGTERM 停机：上一轮三个 Worker exit137、API exit0 的历史保留；
+      补充轮新程序三个 Worker exit0及在途/超时取消均已验证，见顶部补充轮。
+- [ ] 补验宿主 HTTP：internal 网络下宿主18800仍不可达，容器 loopback HTTP 已验，不代表宿主入口通过。
+      prepared stale 只证明显式准备的过期任务恢复/幂等，不覆盖任意真实崩溃恢复。
+- [ ] 真实 Provider/IdP/LiveKit、语音、设备、签名、本轮 native 编译与远端 CI 继续未验；
+      原 Compose 整栈未启动，未发布。RF-04/05/07/08/09/12 等大项外部边界不因此勾选。
+
+本轮所有 owner 停在 Review，无 commit/push/merge/部署；未融合 next2 草稿。
+
+## 2026-11-03 无 Key 工作与当时验收边界（历史）
+
+主控当日实时核验 [PR #117](https://github.com/sunpcm/EchoTalk/pull/117) 已合并，
+远端 main 为 `b3493a3a40c5c6743c9c3df609790368b2b76435`，已包含练习前置检查与
+macOS 探针 CI；该 PR 及对应 main 运行此前均已全绿。下方具名轮次的计数和失败历史保留，
+不再将它们当时的未 push/未 CI 状态视为当前远端状态。
+
+本次验证记录（2026-11-03）：`checks/combined-r1` 的 frontend10/backend5 全部通过：
+1034 Vitest/39 files、21 build-script、61 Fake API、8 types、166 双浏览器、
+644 pytest/3 warnings/78.61%（59% 门禁）；补充验证及未发布边界见状态页。
+
+- [x] A 诊断局部验证：最近 50 条内存白名单记录、账号清理、用户主动预览/复制/清空，
+      无上传或持久化；主控 Vitest 1034、Chromium/WebKit 合计 166 通过，
+      `auth-buffer` / `copy-order` 两个真实变异均 killed 且已还原。详见
+      [诊断导出验证](./docs/verification/cross-platform/CP-06-DIAGNOSTIC-EXPORT.md)。
+- [x] C 后端无 Key 验收：真实 Linux arm64 API/Agent 角色镜像、frozen export、ASGI
+      health/无 Key 拒绝、全新 PostgreSQL 空库迁移、合成 `c03 → c06` 的 UTC 微秒/
+      索引/event/seed、真实分析 Worker 无 Key 安全失败均通过。镜像约 API 1.545 GB、
+      Agent 1.936 GB；没有旧版同环境 before，不计算优化百分比或冷启动收益，不代表
+      原 Compose 整栈已验。详见 [Linux 运行时记录](./docs/verification/cross-platform/RF-07-LINUX-RUNTIME.md)。
+- [x] Web Docker production guard 真实复验：P1 绕过入口已最小修复；主控三构建结果为
+      OIDC exit0、dev/oidc-token exit1，两个负向均命中 production guard，原坏 dev exit0
+      记录保留。这不代替缺 OIDC 运行态或原 Compose 整栈验收。
+- [x] B r1 本地四项检查：修复 Node runner 被 Vitest 误收集，文件已改名
+      `ios-ci-test.mjs`；主控格式、actionlint、Node 28 项、macOS 聚合检查通过，B 已停写。
+- [x] B 子集无签名 arm64 Simulator 真实编译及静态产物校验通过，见
+      [CI 41581791010 / job 125738079003](https://github.com/sunpcm/EchoTalk/actions/runs/41581791010/job/125738079003)；
+      frontend/backend/macOS/iOS/CI 五 jobs 已全绿；built-not-run，不代表最终 A head，旧 r0/r1 失败保留。
+- [x] 主控最终组合完整 frontend10/backend5 已通过，补充 format/Node 28/双浏览器几何验证通过。
+- [ ] Key 准备后再验真实 IdP/Provider/LiveKit、5 分钟 5 轮语音、WKWebView/TCC、
+      设备、签名与部署；这些边界本批全部未验，RF-05/07/09/12 等整项继续未勾选。
+
+正式交付与最终 head CI 状态以 PR #119 和主控报告为准。
+
+next2 草稿未融合；下一阶段优先继续无 Key 可做且有价值的工作，本轮不扩大实现范围。
+C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理本批专用 PG/内部网络，cp00
+未动；镜像、快照和证据保留。B 六文件已组合进 A，文档停写不等待远端或后续测试。
+
 ## 2026-11-02 练习前置检查与探针 CI（最终组合检查通过）
 
 2026-11-03，主控完成最终组合 21 项检查，全部 passed/exit0。readiness 保持配置检查
@@ -15,8 +201,9 @@
       继续有效，本次未在 A 重编译，原生 App 未运行。
 - [x] 独立 HTTP 9 场景及浏览器初始化 2 个控制场景通过；HTTP 检查零解密、零外网。
       此前两项关键变异均被真实断言杀死，源码已还原。
-- [ ] 远端 CI 及真实外部验收：远端 CI 未运行；真实 Provider/LiveKit/IdP、设备、
-      TCC/媒体及 Linux/Docker 等边界仍需相应证据。
+- [x] 该轮远端 CI：2026-11-03 主控确认 PR #117 已合并，旧 PR 及对应 main 运行均已全绿。
+- [ ] 真实外部验收：Provider/LiveKit/IdP、设备、TCC/媒体仍需相应证据；本批新增的
+      Linux/Docker 无 Key 验收范围见上方摘要，不替代真实服务或原 Compose 整栈。
 
 最终组合证据：主 checkout 的
 `.review/reports/practice-readiness-20261102/checks/combined-final-r0/summary.json`。
@@ -24,8 +211,8 @@
 [探针 CI 验证](./docs/verification/cross-platform/MACOS-PROBE-CI.md)。
 首次失败及修复证据保留在本地评审报告。
 
-独立 Review 与提交状态以本轮主控最终报告为准。文档同步时尚未合入 main，未 push/部署；
-未融合 next2 候选。本次仅同步新增最终结果，功能代码不变。
+该轮已通过 PR #117 合入 main，历史本地 21 项计数不变；本次无 Key 增量仍待组合验收与
+独立 Review，不据此宣称已合并或发布。未部署，未融合 next2 候选。
 
 ## MVP 产品化修复（RF-01～RF-12）
 
@@ -36,7 +223,9 @@
 
 ### 执行基线
 
-- 当前已验收维护基线：
+- 历史远端快照：主控 2026-11-03 核验的 `main@b3493a3`（PR #117 已合并），
+  本轮未刷新远端；夜间任务的组合分项与剩余门禁见顶部 2026-11-04 摘要。
+- 历史具名已验收维护基线：
   `main@fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`（A83）。A84 b/r0 的正式本地
   receipt 记录 A83 已 Review APPROVED，并以正常 hook 单提交、main 精确 fast-forward
   和完整 15 项门禁核销；门禁计数为 972 Vitest/36 files、18 build-script、61 Fake API、
@@ -72,8 +261,9 @@
       854 Vitest/18 build-script/61 Fake API/Chromium+WebKit 148，后端为空库迁移至
       `c06_transcript_events` 后 529 passed、82.49%；见
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
-      旧远端证据不包含 A67 新增的 OpenAPI schema 与 TypeScript 类型生成两层门禁，这两层
-      尚未在远端当前树执行，且 A65–A69 未 push；因此 RF-04 整项继续保持未勾选。
+      上述 A64 旧运行不包含 A67 新增的两层门禁；2026-11-03 主控已确认 PR #117 及其
+      main 运行全绿。B r1 runner 修复已通过本地四项检查；PR #119 仍为验证 draft，
+      其远端新结果、原生 iOS CI 与本批组合验收待收口，RF-04 整项继续保持未勾选。
 
 ### Phase 1：分析可靠性
 
@@ -120,6 +310,8 @@
       `b2b02b3bf647676e903b3d9b837e2be4b1133b90` 并精确 fast-forward 本地 main；main 复验为
       566 backend passed、80.10% coverage。首轮 565 passed/1 failed 保留为历史事实；镜像/CI
       体积与部署冷启动对比仍未完成，故整项保持未勾选。
+      2026-11-03 已补 API/Agent Linux arm64 角色镜像运行证据，当前体积约 1.545/1.936 GB；
+      缺少旧版同环境 before，仍不报告优化比例或冷启动收益，也不等于原 Compose 整栈通过。
 - [ ] **RF-06 清理前端模板**：引用审计后删除无调用者的 Webpack、UI 模板、Changesets、
       Plop 和一次性脚本；根包元数据、workspace、Turbo、Docker 和 Capacitor 保持一致。
       A73 b/r0 已按全部 tracked 引用审计删除 Webpack/UI 模板、Changesets、Plop 等 31 个
@@ -131,7 +323,8 @@
       18 build-script、61 Fake API、8 类型生成器、148 E2E）、schema、Ruff 和 566 backend
       （80.10%），不包含上述 root test 复跑。合成 OIDC 下 Web/iOS production-mode 构建与
       真实 Capacitor 资源同步在 lane 通过，未据此冒认 main 重跑、真实登录、原生编译或设备
-      链路。真实 Docker 镜像、CI 与角色分组仍未验收，因此 RF-06 整项保持未勾选。A47
+      链路。A73 当时未验的 Docker/CI 边界已有本批增量；Web production guard 的真实
+      三构建复验已通过，本批组合与发布边界仍待完成，RF-06 整项保持未勾选。A47
       根元数据与诊断脚本历史证据见
       [RF-06 根清理记录](./docs/verification/cross-platform/RF-06-ROOT-CLEANUP.md)。
 
@@ -161,8 +354,10 @@
       `BACKEND_ROLE=api|agent` 并排除 dev，Compose 将 API/analysis-worker 绑定 `api`、
       语音 Agent 绑定 `agent`。A79 已获独立 Review APPROVED，以单提交
       `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main 并通过完整
-      15 项 main 门禁。Linux/Docker 镜像、Compose 服务、真实 Provider/LiveKit、设备、远端
-      CI 与部署仍未验证，RF-07 整项保持未勾选，契约见
+      15 项 main 门禁。2026-11-03 C 线真实 Linux arm64 API/Agent 角色镜像、frozen export
+      与无 Key 运行边界已通过，PR #117 及对应 main CI 此前已绿，Web guard 三构建复验
+      也已通过；原 Compose 整栈、真实 Provider/LiveKit/设备、部署与最终组合仍待完成，
+      RF-07 整项保持未勾选，契约见
       [RF-07 运行角色依赖与容器配方](./docs/verification/cross-platform/RF-07-RUNTIME-ROLES.md)。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；
       timezone-aware UTC、必要索引和有界分页完成；空库及现有数据库副本迁移均通过。
@@ -174,7 +369,10 @@
       本地已完成时间列 timezone-aware UTC 语义统一（A39）：ORM 模型七列（users.created_at、sessions.started_at/ended_at、user_settings.updated_at、knowledge_states.updated_at、pronunciation_assessments.created_at、grammar_errors.created_at）显式声明 DateTime(timezone=True)，保留既有 nullable 属性；新建纯 stdlib time_utils.utc_now 并替换全量 datetime.utcnow()；schemas/time.py 声明 UtcDatetime 拒绝 naive 输入并将偏移归一至 UTC，响应 JSON 显式时区；c04_utc_timestamps 迁移脚本经 Codex 独立审查通过（SHA256: 3cb19d3f39c166f7e5e93587779d99240a8e2ac90cdbc1edf4c476d80425f612）且在专用测试库合成副本完成演练；新增 test_utc_timestamps.py 覆盖元数据、归一化、PG 真实读写与写入路径，既有测试消除弃用警告（见 [RF-08 七列 UTC 时间语义验证](./docs/verification/cross-platform/RF-08-UTC-TIMESTAMPS.md)）；
       本地已完成必要查询索引方案与迁移声明（A40）：新增三项非唯一 B-tree 索引（sessions(user_id, started_at DESC, id DESC) 名 ix_sessions_user_started_id、transcripts(session_id, timestamp_ms) 名 ix_transcripts_session_timestamp、grammar_errors(session_id, created_at) 名 ix_grammar_errors_session_created）；模型元数据与 Alembic c05_query_indexes 脚本对齐，降级严格逆序 drop；复用 assessment(session_id) 与 knowledge(user_id, skill_id) 已有唯一约束/索引避免冗余；保留 grammar_errors 既有 partial 索引；新迁移经 Codex 独立静态审查，专用测试库空副本与 25 万行合成副本 upgrade/downgrade/re-upgrade 通过，自然 EXPLAIN 均使用目标新索引（不代表真实环境性能验收）（见 [RF-08 三项必要查询索引验证](./docs/verification/cross-platform/RF-08-QUERY-INDEXES.md)）；
       本地已完成会话游标分页与每日聚合方案（A41）：`GET /api/sessions` 与 `GET /api/sessions/active` 升级为 `{ items, next_cursor }`，严格仅读取 5 个必要列，彻底杜绝 ORM selectin 级联查询与正文加载；游标采用标准库 canonical URL-safe base64、严格整型版本与端点/用户/窗口上下文严格比对校验，每页数据库查询始终强制 `user_id == current_user.id` 过滤（自包含无状态校验，非 HMAC 签名凭证，不提供抗恶意改写完整性保证，格式或上下文不符返回 422）；新增 `GET /api/sessions/daily-progress` 单 SQL 服务端聚合；前端 `DailyProgress` 并行双只读请求与自然日 DST 兼容时间窗，跨午夜清空旧数据与生命周期挂起作废在途；`ActiveSessions` 仅显式点击加载更多，结束/恢复操作与加载更多互锁，生命周期挂起作废在途；Fake API 与 E2E 测试严格对齐后端契约与边界校验（见 [RF-08 会话游标分页与每日聚合验证](./docs/verification/cross-platform/RF-08-PAGINATION-DAILY-PROGRESS.md)）；
-      有界分页已完成本地代码与测试闭环，真实环境性能与生产迁移待后续完成，整项保持未勾选。
+      2026-11-04 已完成七天已完成会话聚合与按日只读分页的前后端闭环，保留旧 48 小时
+      窗口、completed 与半开 started_at 口径；组件/双浏览器及最终镜像真实 HTTP 分项已验，
+      最终格式与总 Review 以顶部主控回执为准。有界分页已完成本地代码与测试闭环，
+      真实环境性能与生产迁移待后续完成，整项保持未勾选。
 
 ### Phase 6：内部边界
 
@@ -282,12 +480,18 @@
 
 ## P1 — 功能完整性
 
-周度学习报告骨架已移除，功能仍未实现；以下维度应分别实现并验证：
+周度学习报告已实现最近七个本地自然日的 completed 会话计数与按日只读历史；其余指标
+仍需分别定义、实现并验证，不能据此认定完整周报已完成：
 
-- [ ] 统计最近 7 天练习时长与会话次数。
-- [ ] 计算各技能 `p_mastery` 环比趋势。
+- [x] 统计最近七个本地自然日的 completed 会话次数：按既有 `started_at` 半开区间分桶，
+      含零值桶、认证用户隔离和时区/DST；支持按日显式分页只读历史，不产生新评分。
+- [ ] 统计最近7天练习时长：先明确有效练习时长口径与可靠数据来源，当前未实现。
+- [ ] 计算各技能 `p_mastery` 环比趋势：历史数据、对比窗口与指标口径仍待明确。
 - [ ] 按会话聚合发音准确率趋势。
-- [ ] 统计语法错误 Top 3 并生成改善建议。
+- [x] 统计截至 `end_date` 的滚动七个本地自然日语法错误记录 Top 3 并展示固定改善提示
+      （非个性化生成）：按错误记录条数计数，固定六类且未知项合并为 `other`，以 count
+      降序、规范 tag 升序稳定排序后最多返回三项；当前生产分析链仍为 demo，真实记录为空
+      时返回合法空态，不声称零错误或分析完成。
 - [ ] 基于 RAG/Krashen i+1 生成下周学习重点。
 - [ ] 汇总平均焦虑指数与语速趋势。
 - [ ] 接入正式 i18n 框架，用语言包替换当前 TypeScript 字符串对象。
@@ -422,8 +626,8 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 ### CP-06：自动化与真实链路回归
 
 - [x] 本地双浏览器门禁：保留完整质量检查，Chromium/WebKit各11项，覆盖分析/恢复/401边界、0skip；CI安装接线已更新，见[验证](./docs/verification/cross-platform/CP-06-WEBKIT.md)。
-- [ ] 取得当前树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 已有远端基础证据（旧 8 项前端门禁、Chromium/WebKit 各 74 项及 backend 529），但 A67 新增的 OpenAPI schema、TypeScript 类型生成与当前 10 项前端门禁尚未在 A65–A69 未推送树上执行，见 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；当前远端树和真实链路仍待验收。
-- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。
+- [ ] 取得当前增量树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 旧 8 项门禁及其具名计数保留在 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；PR #117 及对应 main 运行此前已绿，本批 PR #119 frontend 与组合门禁仍待收口，真实链路未验。
+- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。macOS 探针 CI 已随 PR #117 合并；B r1 已修复 Node runner 误收集并通过主控本地四项检查，PR #119 为验证 draft，原生 iOS 仍待真实 CI。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 已 Review APPROVED、以单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 精确 fast-forward 本地 main，并完成 main 完整门禁；lane 独立消费探针与 3 项有效变异未在 main 重复。A77 已把 Room 物理 adapter/Room 与认证业务监听归属分离；r1 产品 Vitest 为 940 passed/25 failed/965 total，r2 已修复 native pending 占位 hidden 被误判为真实 inactive，并把 Web 订阅后快照与 native pending 分开：Web 立即失败，native 等 `whenReady` 后重读 snapshot/能力并按原 10 秒 deadline 对账；旧 timer 不得清空新句柄，刷新后当前 native 业务监听仍可停轨。r2 独立 9 项时序与 A76 compat 5 项在 formatter 前通过，随后 format/lint/typecheck 通过，完整 Vitest 为 958 passed/9 failed/967 total，失败均由 stale timer fixture 残留 fake 全局时钟导致后续 A76 异步等待超时；r3 已清理该 fixture，并通过 967 Vitest/33 files、18 build-script、61 Fake API、8 type generator、148 双浏览器 E2E、576 backend/80.09% coverage、schema 与 Ruff。auth revision、原 deadline、ready snapshot 三个产品变异产生 11/6/4 项失败并精确还原；第四项 timer-handle 变异未被原 967 测试杀死，但实际 timer 队列确认卸载后残留本 Room timer，因此 r4 已补真实队列与卸载清理回归，产品逻辑不变。r1 只执行官方返修 native 预检，baseline3 是历史 r0 实测，当前 r4 仍待主 Agent 停写后完整代跑、复验第四项变异必被杀死并由独立 Review 判定，见 [A76 冻结实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md) 与 [A77 本地实施记录](./docs/verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)；三端真实异常联动仍待外部验收，本计划不要求新增遥测上报，整项保持未勾选。
 - [ ] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再
@@ -467,3 +671,18 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - `README.md` 只记录已验证现状，不承载待办。
 - `docs/PHASE_*_TECH_STACK.md` 记录已实现架构，`docs/PHASE_*_MANUAL_TEST.md` 记录验收步骤。
 - 已完成任务应同步删除对应源码 `TODO` 注释；重大取舍写入相关技术文档。
+
+## RESTORE-20261107 文档收口
+
+本段替换 delivery r0 候选追加，不改写上方从
+`42c61bb08f5e234989198ef46ed7534a80c70796` 恢复的原文。上方历史 CI 与已验记录只属于
+当时提交。本候选没有 push，也没有本轮远端 CI。这里的 Node 回归不能代替 native
+App、Xcode、Rust 构建或设备验收。真实 Provider、IdP、LiveKit、语音、生产部署和原
+Compose 整栈未验。根格式与保全回执见主控交付报告，这里不预告根格式通过。
+
+本段不关闭上面尚未勾选的 Android、Windows、后台持续语音及其他需求，也不写入主
+checkout 未提交的 TODO 候选或 `docs/triage/`。
+
+本轮只收口被误回退后已恢复的交付记录。主控在 `echotalk_restore_test` 上迁移到
+`c06_transcript_events` 后，backend pytest 为 794 passed、3 warnings、覆盖率
+78.84%，59% 门禁保持。资源身份和验收见 `docs/agent-review-loop.md` §19。
