@@ -181,27 +181,54 @@ iOS CI workflow、`ios-ci.mjs` 和 `ios-ci-test.mjs` 已按参考字节恢复。
 测试为 28 项并通过，actionlint 通过。这不是 Xcode 编译、模拟器安装、签名、Rust
 构建或真机验收。上方关于旧轮 native 产物尚未验收的限制仍然有效。
 
-## PR #128 缓存故障修复候选（2026-11-08，待真实 CI）
+## PR #128 受控 binary artifact 预取候选（2026-11-08 r1，待真实 CI）
 
-主控报告 macos-15 / Xcode 26.0.1 的 prepare 以 74 退出，错误落在 lane 的
-`package-cache/artifacts`，提示 Capacitor/Cordova 压缩包缓存路径 already exists。
-精确锁定 revision 的 [Capacitor 8.5.0 Package.swift](https://github.com/ionic-team/capacitor-swift-pm/blob/4f71d0b979f2f957326f04353eca7604ee937e1e/Package.swift)
-确实声明这两个远端 binaryTarget 及其 checksum。
+r0 的 `-disablePackageRepositoryCache` 已被移除、由本节方案取代。
+主控回读 run 42470099397：iOS Node 28 项通过，但真实 prepare 仍 exit74，
+报错路径仅从 `package-cache/artifacts` 转移到 `source-packages/artifacts`。
+r0 禁缓存没有修复故障，不是成功的原生验收。
+
+主控于 2026-11-08T10:11Z 观察到普通 Cordova release 下载 URL 返回 HTTP/2 504；
+随后两个公开 asset API 均无凭据下载成功，大小与 SHA256 精确匹配下表。
+[精确 revision 的 Package.swift](https://github.com/ionic-team/capacitor-swift-pm/blob/4f71d0b979f2f957326f04353eca7604ee937e1e/Package.swift)
+仍是 URL/checksum 契约，asset ID/大小同时来自
+[8.5.0 官方 release 元数据](https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/tags/8.5.0)。
+实施方只读了官方源码；上述真实 HTTP 和下载结果由主控提供。
+
+| binaryTarget | 公开 asset ID | bytes   | SHA256                                                             |
+| ------------ | ------------- | ------- | ------------------------------------------------------------------ |
+| Capacitor    | 496864201     | 6605675 | `357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130` |
+| Cordova      | 496864200     | 1842453 | `a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10` |
+
+[Swift 6.2 BinaryArtifacts 源码](https://github.com/swiftlang/swift-package-manager/blob/swift-6.2-RELEASE/Sources/Workspace/Workspace%2BBinaryArtifacts.swift)
+584–602 行向固定 destination 下载，设置最多 3 次 HTTP 尝试且仅接受 200；
+[HTTPClient](https://github.com/swiftlang/swift-package-manager/blob/swift-6.2-RELEASE/Sources/Basics/HTTPClient/HTTPClient.swift)
+在 5xx 后重新执行相同请求；
+[URLSessionHTTPClient](https://github.com/swiftlang/swift-package-manager/blob/swift-6.2-RELEASE/Sources/Basics/HTTPClient/URLSessionHTTPClient.swift)
+的 download delegate 将临时文件 move 到 destination。504 响应落盘后重试产生路径冲突
+是有源码依据的候选解释，并非已现场证明的唯一根因。
 [SwiftPM #10138](https://github.com/swiftlang/swift-package-manager/issues/10138)
-记录了并发下载同一 binary artifact 时的相同报错；本轮尚未证明实际并发来自何处。
+描述的跨进程缓存并发是另一种已知来源，不能仅凭相同错误认定本次也属于该原因。
 
-prepare/build 共用参数增加 Xcode 26.0.1 帮助列出的
-`-disablePackageRepositoryCache`。它禁用共享依赖缓存，范围包含 repository，
-不是声称存在 binary-artifact 专用 CLI/user-default。
-[Swift 6.2 Workspace 源码](https://github.com/swiftlang/swift-package-manager/blob/swift-6.2-RELEASE/Sources/Workspace/Workspace.swift)
-把 `sharedDependenciesCacheEnabled` 同时用于 repository、registry 和 binary artifact
-cachePath；禁用时 binary artifact 直接下载到工作区，不经过共享缓存复制。
-本机相同版本的 SwiftPM.framework 也包含 `IDEEnablePackageRepositoryCache` 与
-`sharedDependenciesCacheEnabled` 字符串；这些只读证据支持该规避方案，不能单凭
-字符串证明 Xcode 内部的完整调用关系。实际效果仍以远端 prepare + compile 为准。
+prepare 先串行调用 `/usr/bin/curl`，固定公开
+`https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/assets/<id>`，
+设置 `Accept: application/octet-stream`、禁用 curl 配置、只允许 HTTPS 重定向、
+HTTP 失败非零、连接超时 20 秒、下载超时 120 秒、子进程超时 130 秒、重试 0。
+只使用既有白名单环境，不传 token/凭据，不增加动态元数据请求。
+每个输出先写 lane `.cache/ios-ci/artifact-downloads/<name>.zip.partial`。
+两份文件都通过 regular-file、精确大小和 SHA256 后，才以独占 hard link 发布到
+`package-cache/artifacts/<原manifest URL 的 SwiftPM mangled key>`，再移除自有临时链接。
+失败保留已有输出及完整 stdout/stderr/退出日志，不清全局缓存、不覆盖既有文件。
+所有路径经 `safePath`；已有下载目录、已有 artifact 缓存或 symlink 都失败关闭。
 
-保留 `-packageCachePath`、`-clonedSourcePackagesDirPath` 和 DerivedData 的 lane 隔离，
-保留两个依赖锁、checksum、版本/SDK 检查、输入 hash、无签名、完整日志与超时门禁。
-不修改全局 defaults、不删除缓存、不增加重试、不升级版本。代价是共享依赖缓存命中减少；
-prepare 后的本 lane checkout/artifact 仍可供 build 使用。Node 回归检查参数工厂和
-`executeIos` 的 prepare/build 实际 runner argv，不能替代真实 SwiftPM 下载和原生编译。
+随后真实执行原 `xcodebuild -resolvePackageDependencies`，允许命中上述 lane 缓存；
+SwiftPM 原 manifest/checksum 校验不变。prepare 成功后和 build 启动前再次验证缓存字节。
+`prepared.json` 仍只在真实 SPM 成功、源码与锁 hash 不变、缓存仍有效后写出。
+Package.swift、Package.resolved、pnpm 锁、版本/SDK、隔离 checkout/DerivedData、
+完整输出、无签名和原生 Mach-O/plist/public 验证均保持。
+
+离线 Node 以小型合成字节验证 API 输出消费、坏大小/hash/缺文件、非零下载、已有/symlink
+缓存拒绝、prepare 无成功回执及 build 前漂移拒绝；生产 CLI 无 URL/checksum 覆盖入口。
+这些替身不证明真实下载/SPM/原生编译成功。主控独立 scratch 真实 SPM 探针在 git clone
+阶段 120 秒超时，尚未进入 ZIP；属于本机网络阻断，不是本候选 prepare 通过。
+最终必须验远端 prepare + compile 和原生产物；不因 API 两次下载成功而宣布 CI 已通过。

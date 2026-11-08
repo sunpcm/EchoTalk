@@ -4,12 +4,14 @@ import {
   copyFileSync,
   existsSync,
   lstatSync,
+  linkSync,
   mkdirSync,
   openSync,
   readFileSync,
   realpathSync,
   statSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
   writeSync,
 } from "node:fs";
@@ -47,6 +49,87 @@ const WEB_FILES = [
 ];
 const fail = (code, exitCode = 78) => Object.assign(new Error(code), { code, exitCode });
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+// From capacitor-swift-pm Package.swift at the exact revision in validateLock.
+// Public GitHub asset IDs change transport only; SwiftPM still verifies the ZIPs.
+export const PINNED_ARTIFACTS = Object.freeze([
+  Object.freeze({
+    name: "Capacitor",
+    id: 496864201,
+    size: 6605675,
+    sha256: "357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130",
+  }),
+  Object.freeze({
+    name: "Cordova",
+    id: 496864200,
+    size: 1842453,
+    sha256: "a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10",
+  }),
+]);
+const artifactUrl = (artifact) =>
+  `https://github.com/ionic-team/capacitor-swift-pm/releases/download/8.5.0/${artifact.name}.xcframework.zip`;
+const artifactCachePath = (plan, artifact) =>
+  safePath(
+    plan.root,
+    join(
+      plan.cache,
+      "package-cache/artifacts",
+      artifactUrl(artifact).replace(/[^a-zA-Z0-9_]/gu, "_"),
+    ),
+  );
+
+function verifyArchive(plan, path, artifact) {
+  safePath(plan.root, path);
+  const stat = lstatSync(path);
+  if (!stat.isFile() || stat.size !== artifact.size) throw fail("ARTIFACT_SIZE_INVALID");
+  if (hash(regular(plan.root, path)) !== artifact.sha256) throw fail("ARTIFACT_CHECKSUM_INVALID");
+}
+
+async function prepareArtifacts(plan, artifacts, command) {
+  const downloads = safePath(plan.root, join(plan.cache, "artifact-downloads"));
+  const cache = safePath(plan.root, join(plan.cache, "package-cache/artifacts"));
+  freshDirectory(plan, downloads);
+  freshDirectory(plan, cache);
+  // No curl config, credentials, inherited proxies, retries or remote filenames.
+  // Keep failed/partial outputs as evidence; only verified bytes become cache entries.
+  for (const artifact of artifacts) {
+    const partial = safePath(plan.root, join(downloads, `${artifact.name}.zip.partial`));
+    await command(
+      `artifact-${artifact.name}`,
+      "/usr/bin/curl",
+      [
+        "--disable",
+        "--fail",
+        "--location",
+        "--silent",
+        "--show-error",
+        "--proto",
+        "=https",
+        "--proto-redir",
+        "=https",
+        "--connect-timeout",
+        "20",
+        "--max-time",
+        "120",
+        "--retry",
+        "0",
+        "--header",
+        "Accept: application/octet-stream",
+        "--output",
+        partial,
+        `https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/assets/${artifact.id}`,
+      ],
+      130_000,
+    );
+    verifyArchive(plan, partial, artifact);
+  }
+  for (const artifact of artifacts) {
+    const partial = safePath(plan.root, join(downloads, `${artifact.name}.zip.partial`));
+    // Atomic exclusive publication: never overwrite even an unexpected racing file.
+    linkSync(partial, artifactCachePath(plan, artifact));
+    unlinkSync(partial);
+  }
+}
 
 // Check every ancestor, including dangling symlinks. All writes stay below this lane.
 export function safePath(root, path) {
@@ -234,9 +317,6 @@ export function xcodeArgs(plan, prepare = false) {
     plan.packages,
     "-packageCachePath",
     join(plan.cache, "package-cache"),
-    // SwiftPM's shared dependency cache also holds binary artifacts. Avoid its
-    // cold-download race; keep this lane's checkout and cache paths isolated.
-    "-disablePackageRepositoryCache",
     "-disableAutomaticPackageResolution",
     "-onlyUsePackageVersionsFromResolvedFile",
     "-skipPackageUpdates",
@@ -346,7 +426,11 @@ export function verifyPlist(plist) {
 }
 
 // run is an internal test seam, never selectable through argv or the environment.
-export async function executeIos(plan, mode = "build", { run = runBounded } = {}) {
+export async function executeIos(
+  plan,
+  mode = "build",
+  { run = runBounded, artifacts = PINNED_ARTIFACTS } = {},
+) {
   if (!["prepare", "build"].includes(mode)) throw fail("ARGUMENTS_FORBIDDEN", 64);
   for (const dir of ["logs", "tmp", "clang-cache", "swift-cache"])
     mkdirSync(safePath(plan.root, join(plan.cache, dir)), { recursive: true });
@@ -410,7 +494,10 @@ export async function executeIos(plan, mode = "build", { run = runBounded } = {}
   const receipt = safePath(plan.root, join(plan.cache, "prepared.json"));
   if (mode === "prepare") {
     if (existsSync(receipt) || existsSync(plan.packages)) throw fail("PREPARATION_ALREADY_EXISTS");
+    await prepareArtifacts(plan, artifacts, command);
     await command("spm", plan.xcode, xcodeArgs(plan, true), 10 * 60_000);
+    for (const artifact of artifacts)
+      verifyArchive(plan, artifactCachePath(plan, artifact), artifact);
     sameInputs(plan, files, inputs);
     writeFileSync(receipt, JSON.stringify(inputs, null, 2), { flag: "wx" });
     return { stage: "ios-dependencies-prepared", inputs };
@@ -420,6 +507,8 @@ export async function executeIos(plan, mode = "build", { run = runBounded } = {}
     JSON.stringify(JSON.parse(regular(plan.root, receipt))) !== JSON.stringify(inputs)
   )
     throw fail("PREPARATION_MISSING_OR_STALE");
+  for (const artifact of artifacts)
+    verifyArchive(plan, artifactCachePath(plan, artifact), artifact);
   freshDirectory(plan, plan.stage);
   freshDirectory(plan, plan.derived);
   // A clean source snapshot is necessary: the source app has tracked dotenv files.

@@ -13,12 +13,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createPlan,
-  executeIos,
+  executeIos as executePinnedIos,
+  PINNED_ARTIFACTS,
   PUBLIC_CONFIG,
   runBounded,
   safePath,
@@ -31,6 +33,21 @@ import {
 const source = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repo = resolve(source, "../..");
 const appPrefix = "apps/vite-app";
+const artifactBytes = (name) => Buffer.from(`synthetic ${name} archive; never native acceptance`);
+const testArtifacts = PINNED_ARTIFACTS.map((artifact) => ({
+  ...artifact,
+  size: artifactBytes(artifact.name).length,
+  sha256: createHash("sha256").update(artifactBytes(artifact.name)).digest("hex"),
+}));
+// Internal test seam only; production CLI has no artifact or checksum override.
+const executeIos = (plan, mode, options) =>
+  executePinnedIos(plan, mode, { artifacts: testArtifacts, ...options });
+const cachedArtifact = (plan, name) =>
+  join(
+    plan.cache,
+    "package-cache/artifacts",
+    `https___github_com_ionic_team_capacitor_swift_pm_releases_download_8_5_0_${name}_xcframework_zip`,
+  );
 const put = (path, content) => {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
@@ -147,10 +164,24 @@ if (stage === "cap") {
     if (command === "pnpm") return { status: 0, stdout: "10.26.0\n" };
     if (command === plan.node) return runBounded(command, args, options);
     if (command === "/usr/bin/plutil") return { status: 0, stdout: JSON.stringify(plist) };
+    if (command === "/usr/bin/curl") {
+      const artifact = testArtifacts.find((entry) => args.at(-1).endsWith(`/${entry.id}`));
+      assert.ok(artifact);
+      assert.equal(args[0], "--disable");
+      assert.equal(args[args.indexOf("--retry") + 1], "0");
+      assert.ok(args.includes("Accept: application/octet-stream"));
+      put(args[args.indexOf("--output") + 1], artifactBytes(artifact.name));
+      return { status: 0 };
+    }
     assert.equal(command, plan.xcode);
     if (args.length === 1) return { status: 0, stdout: "Xcode 26.0.1\nBuild version 17A400\n" };
     if (args[0] === "-version") return { status: 0, stdout: "26.0\n" };
     if (args[0] === "-resolvePackageDependencies") {
+      for (const artifact of testArtifacts)
+        assert.deepEqual(
+          readFileSync(cachedArtifact(plan, artifact.name)),
+          artifactBytes(artifact.name),
+        );
       mkdirSync(plan.packages, { recursive: true });
       return { status: 0 };
     }
@@ -184,10 +215,100 @@ function assertSimulatorArchitecture(args) {
 }
 
 function assertPackageCachePolicy(plan, args) {
-  assert.equal(args.filter((arg) => arg === "-disablePackageRepositoryCache").length, 1);
+  assert.equal(args.includes("-disablePackageRepositoryCache"), false);
   assert.equal(args[args.indexOf("-packageCachePath") + 1], join(plan.cache, "package-cache"));
   assert.equal(args[args.indexOf("-clonedSourcePackagesDirPath") + 1], plan.packages);
 }
+
+test("fixed public assets bind the exact 8.5.0 manifest hashes and cache keys", () => {
+  assert.deepEqual(
+    PINNED_ARTIFACTS.map(({ name, id, size, sha256 }) => [name, id, size, sha256]),
+    [
+      [
+        "Capacitor",
+        496864201,
+        6605675,
+        "357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130",
+      ],
+      [
+        "Cordova",
+        496864200,
+        1842453,
+        "a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10",
+      ],
+    ],
+  );
+});
+
+for (const defect of ["http", "checksum", "size", "missing"])
+  test(`artifact ${defect} failure blocks SPM and preparation receipt`, async (t) => {
+    const f = fixture(t);
+    const run = async (command, args, options) => {
+      if (command !== "/usr/bin/curl") return f.run(command, args, options);
+      if (defect === "http") return { status: 22 };
+      if (defect === "missing") return { status: 0 };
+      const result = await f.run(command, args, options);
+      const path = args[args.indexOf("--output") + 1];
+      put(
+        path,
+        defect === "size" ? "HTTP error body" : Buffer.alloc(artifactBytes("Capacitor").length),
+      );
+      return result;
+    };
+    await assert.rejects(
+      executeIos(f.plan, "prepare", { run }),
+      defect === "http" ? rejects("CHILD_FAILED", 22) : undefined,
+    );
+    assert.equal(
+      f.calls.some((call) => call.args[0] === "-resolvePackageDependencies"),
+      false,
+    );
+    assert.equal(existsSync(join(f.plan.cache, "prepared.json")), false);
+    assert.equal(existsSync(join(f.plan.cache, "logs/built-not-run.json")), false);
+    for (const artifact of testArtifacts)
+      assert.equal(existsSync(cachedArtifact(f.plan, artifact.name)), false);
+  });
+
+for (const defect of ["existing", "symlink"])
+  test(`${defect} artifact cache is refused without downloads or overwrites`, async (t) => {
+    const f = fixture(t);
+    const directory = join(f.plan.cache, "package-cache/artifacts");
+    mkdirSync(dirname(directory), { recursive: true });
+    if (defect === "symlink") symlinkSync(tmpdir(), directory, "dir");
+    else put(join(directory, "owner.txt"), "retain existing data");
+    await assert.rejects(
+      prepare(f),
+      rejects(defect === "symlink" ? "SYMLINK_FORBIDDEN" : "OUTPUT_ALREADY_EXISTS"),
+    );
+    assert.equal(
+      f.calls.some((call) => call.command === "/usr/bin/curl"),
+      false,
+    );
+    assert.equal(existsSync(join(f.plan.cache, "prepared.json")), false);
+    if (defect === "existing")
+      assert.equal(readFileSync(join(directory, "owner.txt"), "utf8"), "retain existing data");
+  });
+
+test("changed artifact cache blocks build before web or native compilation", async (t) => {
+  const f = fixture(t);
+  await prepare(f);
+  put(cachedArtifact(f.plan, "Cordova"), Buffer.alloc(artifactBytes("Cordova").length));
+  await assert.rejects(build(f), rejects("ARTIFACT_CHECKSUM_INVALID"));
+  assert.equal(
+    f.calls.some((call) => call.command === f.plan.node || call.args[0] === "build"),
+    false,
+  );
+  assert.equal(existsSync(join(f.plan.cache, "logs/built-not-run.json")), false);
+});
+
+test("production checksum defaults reject synthetic archives", async (t) => {
+  const f = fixture(t);
+  await assert.rejects(
+    executePinnedIos(f.plan, "prepare", { run: f.run }),
+    rejects("ARTIFACT_SIZE_INVALID"),
+  );
+  assert.equal(existsSync(join(f.plan.cache, "prepared.json")), false);
+});
 
 test("real build/sync entrypoints consume fixed production configuration before native compile", async (t) => {
   const f = fixture(t);
