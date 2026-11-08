@@ -17,13 +17,15 @@ ARG BACKEND_ROLE=api
 
 COPY pyproject.toml uv.lock .python-version ./
 
+# 与依赖安装同层清理 uv 缓存，避免缓存进入最终镜像层。
 RUN case "$BACKEND_ROLE" in \
         api|agent) ;; \
         *) echo "BACKEND_ROLE must be 'api' or 'agent'" >&2; exit 64 ;; \
     esac && \
     uv lock --check && \
     uv sync --frozen --no-default-groups \
-        --group "$BACKEND_ROLE" --no-python-downloads
+        --group "$BACKEND_ROLE" --no-python-downloads && \
+    uv cache clean
 
 COPY . .
 

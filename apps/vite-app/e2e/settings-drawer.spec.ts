@@ -72,21 +72,39 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
     const saveBtn = dialog.getByRole("button", { name: "保存设置" });
     await expect(closeBtn).toBeFocused();
 
-    // 自定义模式关闭时，fieldset 被禁用。
-    // 有效可聚焦控件序列：Close -> 暖色 -> 冷色 -> 黑色 -> 自定义开关 -> 保存设置 -> Close
-    const visitedLabels: string[] = [];
-
-    // 正向 Tab 遍历（5 次从 Close 走到 Save，第 6 次循环回 Close）
-    for (let i = 0; i < 5; i++) {
+    // 自定义模式关闭时，诊断预览与按钮仍可聚焦，Provider fieldset 被禁用。
+    const providerFields = dialog.locator("fieldset");
+    await expect(providerFields).toHaveAttribute("disabled", "");
+    const providerControlIds = [
+      "stt-provider-select",
+      "stt-key-input",
+      "llm-provider-select",
+      "llm-model-input",
+      "llm-key-input",
+      "tts-provider-select",
+      "tts-key-input",
+    ];
+    await expect(providerFields.locator("input, select, textarea, button")).toHaveCount(
+      providerControlIds.length,
+    );
+    for (const id of providerControlIds) {
+      await expect(providerFields.locator(`#${id}`)).toBeDisabled();
+    }
+    const forwardSequence = [
+      dialog.getByRole("radio", { name: "暖色外观主题" }),
+      dialog.getByRole("radio", { name: "冷色外观主题" }),
+      dialog.getByRole("radio", { name: "黑色外观主题" }),
+      dialog.getByRole("textbox", { name: "诊断记录预览" }),
+      dialog.getByRole("button", { name: "复制诊断记录" }),
+      dialog.getByRole("button", { name: "清空诊断记录" }),
+      dialog.getByRole("switch"),
+      saveBtn,
+    ];
+    for (const target of forwardSequence) {
       await page.keyboard.press("Tab");
-      const activeText = await page.evaluate(() => {
-        const el = document.activeElement;
-        return el?.getAttribute("aria-label") || el?.textContent || "";
-      });
-      visitedLabels.push(activeText);
+      await expect(target).toBeFocused();
     }
 
-    // 显式断言第 5 步精确聚焦于“保存设置”按钮，绝不能跳过
     await expect(saveBtn).toBeFocused();
 
     // 再次按 Tab 回到关闭按钮
@@ -97,10 +115,12 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
     await page.keyboard.press("Shift+Tab");
     await expect(saveBtn).toBeFocused();
 
-    // 再次反向遍历循环回到关闭按钮
-    for (let i = 0; i < 5; i++) {
+    // 逐个反向验证，最后回到 Close；不依赖固定 Tab 次数。
+    for (const target of [...forwardSequence.slice(0, -1)].reverse()) {
       await page.keyboard.press("Shift+Tab");
+      await expect(target).toBeFocused();
     }
+    await page.keyboard.press("Shift+Tab");
     await expect(closeBtn).toBeFocused();
 
     // 按 Escape 键关闭抽屉并恢复原触发控件焦点
@@ -203,12 +223,9 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   }) => {
     let settingsPutCount = 0;
     page.on("request", (req) => {
-      if (req.url().includes("/api/settings") && req.method() === "PUT") {
-        const postData = req.postDataJSON() || {};
-        // 排除外观主题切换的前端同步，仅统计自定义模式业务保存
-        if ("is_custom_mode" in postData || "stt_key" in postData || "llm_key" in postData) {
-          settingsPutCount++;
-        }
+      // 本例没有切换主题；真实设置接口的任意 PUT 都属于隐式写入。
+      if (new URL(req.url()).pathname === "/api/user/settings" && req.method() === "PUT") {
+        settingsPutCount++;
       }
     });
 
@@ -233,6 +250,46 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
 
     // 验证整个交互过程没有触发业务写操作
     expect(settingsPutCount).toBe(0);
+
+    // 正对照：同一个监听器必须观察到真实保存按钮发出的 PUT，避免路径错误造成假绿。
+    // Fake API 没有实现设置 PUT，仅为接下来的显式保存返回合成响应。
+    await page.route("**/api/user/settings", async (route, request) => {
+      if (request.method() !== "PUT") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        json: {
+          is_custom_mode: request.postDataJSON().is_custom_mode,
+          is_custom_verified: false,
+          subscription_tier: "free",
+          theme: "warm",
+          stt_provider: null,
+          llm_provider: null,
+          llm_model: null,
+          tts_provider: null,
+          has_stt_key: false,
+          has_llm_key: false,
+          has_tts_key: false,
+          stt_status: "unconfigured",
+          llm_status: "unconfigured",
+          tts_status: "unconfigured",
+        },
+      });
+    });
+    await settingsBtn.click();
+    await expect(dialog).toBeVisible();
+    const [saveResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/user/settings" &&
+          response.request().method() === "PUT",
+      ),
+      dialog.getByRole("button", { name: "保存设置" }).click(),
+    ]);
+    expect(saveResponse.status()).toBe(200);
+    await saveResponse.finished();
+    expect(settingsPutCount).toBe(1);
   });
 
   test("renders safely on 320px narrow portrait viewport without horizontal overflow and can scroll to save", async ({

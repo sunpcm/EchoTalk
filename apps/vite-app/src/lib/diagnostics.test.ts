@@ -4,9 +4,14 @@ import {
   DIAGNOSTIC_PREFIX,
   ALLOWED_DIAGNOSTIC_EVENTS,
   ALLOWED_AGENT_CODES,
+  clearDiagnosticBuffer,
+  getDiagnosticGeneration,
+  getDiagnosticSnapshot,
+  subscribeDiagnosticBuffer,
 } from "./diagnostics";
 import pkg from "../../package.json";
 import * as detectionModule from "@/platform/detection";
+import * as authModule from "@/lib/auth";
 
 describe("Diagnostics Helper (CP-06)", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -19,6 +24,8 @@ describe("Diagnostics Helper (CP-06)", () => {
     logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     vi.spyOn(detectionModule, "detectPlatform").mockReturnValue("web");
+    vi.spyOn(authModule, "getAuthRevision").mockReturnValue(1);
+    clearDiagnosticBuffer();
   });
 
   afterEach(() => {
@@ -261,6 +268,201 @@ describe("Diagnostics Helper (CP-06)", () => {
         const record = logDiagnostic("lifecycle_audio_interrupted");
         expect(record).not.toBeNull();
       }).not.toThrow();
+    });
+  });
+
+  describe("User-controlled diagnostic buffer", () => {
+    it("buffers safe records with frozen inputs and unreadable unknown fields", () => {
+      const options = Object.freeze({
+        status: 503,
+        token: "synthetic-token-canary",
+        url: "https://private.invalid/secret-path-canary",
+        user_id: "synthetic-account-canary",
+        body: "synthetic-document-canary",
+        get unknown_payload() {
+          throw new Error("unknown fields must never be read");
+        },
+      });
+      const record = logDiagnostic("api_http_failed", options);
+      const records = getDiagnosticSnapshot();
+      expect(records).toEqual([
+        {
+          schema_version: 1,
+          app_version: pkg.version,
+          platform: "web",
+          event: "api_http_failed",
+          status: 503,
+        },
+      ]);
+      expect(errorSpy).toHaveBeenCalledWith(DIAGNOSTIC_PREFIX, record);
+      expect(JSON.stringify(records)).not.toContain("canary");
+      expect(Object.isFrozen(records)).toBe(true);
+      expect(Object.isFrozen(records[0])).toBe(true);
+      expect(Reflect.set(records, "0", { token: "injected-canary" })).toBe(false);
+      expect(Reflect.set(record!, "token", "injected-canary")).toBe(false);
+      expect(Reflect.set(records[0], "status", 401)).toBe(false);
+      expect(getDiagnosticSnapshot()).toBe(records);
+      expect(getDiagnosticSnapshot()[0].status).toBe(503);
+    });
+
+    it("retains the latest 50 records in order and keeps earlier snapshots isolated", () => {
+      logDiagnostic("api_http_failed", { status: 100 });
+      const earlier = getDiagnosticSnapshot();
+      for (let status = 101; status < 155; status += 1) {
+        logDiagnostic("api_http_failed", { status });
+      }
+      const records = getDiagnosticSnapshot();
+      expect(records).toHaveLength(50);
+      expect(records.map((record) => record.status)).toEqual(
+        Array.from({ length: 50 }, (_, index) => 105 + index),
+      );
+      expect(earlier).toHaveLength(1);
+      expect(earlier[0].status).toBe(100);
+      clearDiagnosticBuffer();
+      expect(getDiagnosticSnapshot()).toEqual([]);
+      expect(records).toHaveLength(50);
+    });
+
+    it("keeps only whitelisted fields for every event and rejects unknown events", () => {
+      for (const event of ALLOWED_DIAGNOSTIC_EVENTS) {
+        logDiagnostic(event, { status: 599, agent_code: "secret-canary" });
+      }
+      expect(getDiagnosticSnapshot()).toHaveLength(ALLOWED_DIAGNOSTIC_EVENTS.length);
+      for (const record of getDiagnosticSnapshot()) {
+        const keys = ["schema_version", "app_version", "platform", "event"];
+        if (record.event === "api_http_failed") keys.push("status");
+        if (record.event === "agent_error_received") {
+          keys.push("agent_code");
+          expect(record.agent_code).toBe("unknown");
+        }
+        expect(Object.keys(record).sort()).toEqual(keys.sort());
+      }
+      const before = getDiagnosticSnapshot();
+      for (const event of ["unknown-canary", "__proto__", "constructor"]) {
+        expect(logDiagnostic(event)).toBeNull();
+      }
+      expect(getDiagnosticSnapshot()).toBe(before);
+      expect(JSON.stringify(before)).not.toContain("secret-canary");
+    });
+
+    it("clears without a mounted consumer on authentication revision change", () => {
+      logDiagnostic("api_http_failed", { status: 503 });
+      const generation = getDiagnosticGeneration();
+      vi.mocked(authModule.getAuthRevision).mockReturnValue(2);
+      expect(getDiagnosticSnapshot()).toEqual([]);
+      expect(getDiagnosticGeneration()).toBeGreaterThan(generation);
+      logDiagnostic("livekit_disconnected");
+      expect(getDiagnosticSnapshot().map((record) => record.event)).toEqual([
+        "livekit_disconnected",
+      ]);
+      vi.mocked(authModule.getAuthRevision).mockReturnValue(3);
+      logDiagnostic("agent_dispatch_failed");
+      expect(getDiagnosticSnapshot().map((record) => record.event)).toEqual([
+        "agent_dispatch_failed",
+      ]);
+    });
+
+    it("invalidates generation even on empty clears and preserves it for new records", () => {
+      const initial = getDiagnosticGeneration();
+      clearDiagnosticBuffer();
+      const cleared = getDiagnosticGeneration();
+      expect(cleared).toBeGreaterThan(initial);
+      logDiagnostic("api_network_failed");
+      expect(getDiagnosticGeneration()).toBe(cleared);
+      clearDiagnosticBuffer();
+      expect(getDiagnosticGeneration()).toBeGreaterThan(cleared);
+    });
+
+    it("isolates listener errors, reentrant clearing and auth cleanup", () => {
+      const release = vi.fn();
+      let authChanged: (() => void) | undefined;
+      vi.spyOn(authModule, "subscribeAuthSnapshot").mockImplementation((listener) => {
+        authChanged = () => listener({ state: "anonymous", principal: null });
+        return release;
+      });
+      const stopThrowing = subscribeDiagnosticBuffer(() => {
+        throw new Error("synthetic-listener-canary");
+      });
+      let clearOnce = true;
+      const listener = vi.fn(() => {
+        if (clearOnce) {
+          clearOnce = false;
+          clearDiagnosticBuffer();
+        }
+      });
+      const stop = subscribeDiagnosticBuffer(listener);
+      try {
+        expect(() => logDiagnostic("api_network_failed")).not.toThrow();
+        expect(listener).toHaveBeenCalledTimes(1);
+        expect(getDiagnosticSnapshot()).toEqual([]);
+        expect(errorSpy).toHaveBeenCalledWith(
+          DIAGNOSTIC_PREFIX,
+          expect.objectContaining({ event: "api_network_failed" }),
+        );
+        logDiagnostic("livekit_disconnected");
+        vi.mocked(authModule.getAuthRevision).mockReturnValue(2);
+        authChanged?.();
+        expect(getDiagnosticSnapshot()).toEqual([]);
+        expect(listener).toHaveBeenCalledTimes(3);
+      } finally {
+        stop();
+        stop();
+        stopThrowing();
+      }
+      expect(release).toHaveBeenCalledTimes(2);
+      const calls = listener.mock.calls.length;
+      logDiagnostic("api_network_failed");
+      expect(listener).toHaveBeenCalledTimes(calls);
+    });
+
+    it("keeps duplicate callbacks independent and tolerates auth cleanup failure", () => {
+      vi.spyOn(authModule, "subscribeAuthSnapshot").mockReturnValue(() => {
+        throw new Error("synthetic-cleanup-canary");
+      });
+      const listener = vi.fn();
+      const first = subscribeDiagnosticBuffer(listener);
+      const second = subscribeDiagnosticBuffer(listener);
+      expect(() => first()).not.toThrow();
+      try {
+        logDiagnostic("api_network_failed");
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        expect(() => second()).not.toThrow();
+      }
+      logDiagnostic("api_network_failed");
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps buffer notifications usable when auth subscription registration fails", () => {
+      vi.spyOn(authModule, "subscribeAuthSnapshot").mockImplementation(() => {
+        throw new Error("synthetic-subscription-canary");
+      });
+      const listener = vi.fn();
+      const stop = subscribeDiagnosticBuffer(listener);
+      try {
+        expect(logDiagnostic("api_network_failed")).not.toBeNull();
+        expect(listener).toHaveBeenCalledTimes(1);
+        vi.mocked(authModule.getAuthRevision).mockReturnValue(2);
+        expect(getDiagnosticSnapshot()).toEqual([]);
+        expect(listener).toHaveBeenCalledTimes(2);
+      } finally {
+        stop();
+      }
+    });
+
+    it("isolates console failure and rejects records invalidated during construction", () => {
+      errorSpy.mockImplementation(() => {
+        throw new Error("synthetic-console-canary");
+      });
+      expect(logDiagnostic("api_network_failed")).not.toBeNull();
+      expect(getDiagnosticSnapshot()).toHaveLength(1);
+      logDiagnostic("api_http_failed", {
+        get status() {
+          clearDiagnosticBuffer();
+          return 503;
+        },
+      });
+      expect(getDiagnosticSnapshot()).toEqual([]);
     });
   });
 });
