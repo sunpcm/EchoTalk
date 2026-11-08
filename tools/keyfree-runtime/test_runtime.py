@@ -221,6 +221,220 @@ class BoundaryTests(unittest.TestCase):
                 "resource_label_mismatch",
             )
 
+    def test_stop_requires_running_then_stopped_with_zero_exit_for_every_role(self):
+        roles = (
+            "worker-missing",
+            "worker-demo",
+            "worker-restarted",
+            "api",
+            "host-gateway",
+        )
+        for role in roles:
+            for before, after, code, refusal in (
+                (True, False, 0, None),
+                (True, False, 1, "long_process_exit_nonzero"),
+                (True, False, 137, "long_process_exit_nonzero"),
+                (True, False, None, "long_process_exit_nonzero"),
+                (False, False, 0, "long_process_exited_early"),
+                (False, False, 1, "long_process_exited_early"),
+                (True, True, 0, "process_did_not_stop"),
+            ):
+                with self.subTest(role=role, before=before, after=after, code=code):
+                    runner = self.runtime_fixture()
+                    runner.manifest["api_image"] = IMAGE
+                    info = self.container_fixture(runner, role)
+                    runner.commands.inspect.side_effect = [
+                        {**info, "State": {"Running": before, "ExitCode": 0}},
+                        {**info, "State": {"Running": after, "ExitCode": code}},
+                    ]
+                    if refusal:
+                        with self.assertRaisesRegex(Refused, refusal):
+                            runner.stop(CONTAINER, role, "f" * 64)
+                    else:
+                        self.assertEqual(
+                            runner.stop(CONTAINER, role, "f" * 64),
+                            {
+                                "id": CONTAINER,
+                                "role": role,
+                                "running": False,
+                                "exit": 0,
+                            },
+                        )
+                    if before:
+                        runner.commands.call.assert_called_once_with(
+                            "stop", "--time", "5", CONTAINER, timeout=15
+                        )
+                    else:
+                        runner.commands.call.assert_not_called()
+
+    def exercise_fixture(self, root, failure_role=None, failure_state=None):
+        # Replace service I/O only: exercise, stop, approval and product guards run.
+        runner = self.runtime_fixture()
+        runner.report = root
+        runner.manifest.update(
+            api_image=IMAGE,
+            postgres_image=IMAGE,
+            migration_head="c06_transcript_events",
+        )
+        runner.manifest_path = root / "manifest.json"
+        runner.manifest_path.write_text(json.dumps(runner.manifest))
+        runner.files = {"alembic.ini": "e" * 64}
+        provision = root / "provision.json"
+        provision.write_text(
+            json.dumps(
+                {
+                    "manifest_sha256": sha256(runner.manifest_path),
+                    "network_id": "f" * 64,
+                    "gateway_network_id": runner.gateway_network_id,
+                    "postgres_id": CONTAINER,
+                    "database_identity": empty_identity(),
+                }
+            )
+        )
+        approval = root / "approval.json"
+        approval.write_text(
+            json.dumps(
+                {
+                    "approved_for_execution": True,
+                    "manifest_sha256": sha256(runner.manifest_path),
+                    "provision_sha256": sha256(provision),
+                    "reviewed_migration_files": runner.files,
+                    "reviewed_empty_database": True,
+                    "evidence_basis": "offline synthetic exercise fixture; no services",
+                }
+            )
+        )
+        completed = {
+            "jobs": [{"session_id": "missing"}, {"session_id": "stale"}],
+            "assessments": [{"is_synthetic": True, "source": "demo_mock"}],
+            "grammar": [{"is_synthetic": True}],
+            "knowledge_count": 0,
+        }
+        unsupported = {
+            "jobs": [],
+            "assessments": [],
+            "grammar": [],
+            "knowledge_count": 0,
+        }
+        stages = {
+            "verify-source": {},
+            "frozen-export": {},
+            "migrate": {},
+            "seed-missing": {"session_id": "missing"},
+            "seed-stale": {"session_id": "stale"},
+            "repeat-analysis": {},
+            "state": completed,
+        }
+        stopped = set()
+
+        def inspect(identity, role, image, network):
+            state = {"Running": role not in stopped, "ExitCode": 0}
+            if role == failure_role:
+                if failure_state == "early":
+                    state["Running"] = False
+                elif role in stopped:
+                    if failure_state == "running":
+                        state["Running"] = True
+                    else:
+                        state["ExitCode"] = failure_state
+            return {"State": state}
+
+        def command(*args, **kwargs):
+            if args[0] == "stop":
+                stopped.add(args[-1])
+
+        runner.check_images = Mock()
+        runner.check_network = Mock()
+        runner.check_container = Mock(side_effect=inspect)
+        runner.sql = Mock(side_effect=[empty_identity(), "c06_transcript_events"])
+        runner.oneshot = Mock(side_effect=lambda stage, *a, **k: stages[stage])
+        runner.create_app = Mock(side_effect=lambda role, *a, **k: role)
+        runner.create_host_gateway = Mock(return_value="host-gateway")
+        runner.commands.call.side_effect = command
+        runner.wait_state = Mock(side_effect=[unsupported, completed])
+
+        def http(path, authenticated=False):
+            if path == "/api/health":
+                return 200, {"status": "ok", "service": "echo-talk"}
+            if path == "/api/sessions":
+                return 401, {}
+            return 503, {
+                "detail": {
+                    "status": "not_ready",
+                    "errors": dict.fromkeys(
+                        ("livekit", "llm", "stt", "tts"), "missing"
+                    ),
+                }
+            }
+
+        runner.http = Mock(side_effect=http)
+        runner.host_http = Mock(side_effect=http)
+        return runner, provision, approval
+
+    def test_exercise_refuses_every_bad_long_process_without_success_receipt(self):
+        for role in (
+            "worker-missing",
+            "worker-demo",
+            "worker-restarted",
+            "api",
+            "host-gateway",
+        ):
+            for state in (1, 137, "early", "running"):
+                with (
+                    self.subTest(role=role, state=state),
+                    tempfile.TemporaryDirectory() as temp,
+                ):
+                    root = Path(temp)
+                    runner, provision, approval = self.exercise_fixture(
+                        root, role, state
+                    )
+                    with patch("runtime.time.sleep"), self.assertRaises(Refused):
+                        runner.exercise(provision, approval)
+                    self.assertFalse((root / "result.json").exists())
+
+    def test_exercise_zero_exits_produce_complete_success_receipt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner, provision, approval = self.exercise_fixture(root)
+            with patch("runtime.time.sleep"):
+                runner.exercise(provision, approval)
+            result = json.loads((root / "result.json").read_text())
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(
+                [entry["role"] for entry in result["process_exits"]],
+                [
+                    "worker-missing",
+                    "worker-demo",
+                    "worker-restarted",
+                    "host-gateway",
+                    "api",
+                ],
+            )
+            self.assertTrue(
+                all(entry["exit"] == 0 for entry in result["process_exits"])
+            )
+
+    def test_exercise_final_guard_rejects_nonzero_stop_result(self):
+        for role in ("worker-missing", "worker-demo", "worker-restarted", "api"):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                runner, provision, approval = self.exercise_fixture(root)
+                stop = runner.stop
+
+                def return_bad_exit(
+                    identity, current_role, network, stop=stop, role=role
+                ):
+                    result = stop(identity, current_role, network)
+                    return {**result, "exit": 1} if current_role == role else result
+
+                runner.stop = return_bad_exit
+                with (
+                    patch("runtime.time.sleep"),
+                    self.assertRaisesRegex(Refused, "process_exit_nonzero"),
+                ):
+                    runner.exercise(provision, approval)
+                self.assertFalse((root / "result.json").exists())
+
 
 class GatewayTests(unittest.TestCase):
     def setUp(self):

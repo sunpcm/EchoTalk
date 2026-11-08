@@ -234,6 +234,9 @@ export function xcodeArgs(plan, prepare = false) {
     plan.packages,
     "-packageCachePath",
     join(plan.cache, "package-cache"),
+    // SwiftPM's shared dependency cache also holds binary artifacts. Avoid its
+    // cold-download race; keep this lane's checkout and cache paths isolated.
+    "-disablePackageRepositoryCache",
     "-disableAutomaticPackageResolution",
     "-onlyUsePackageVersionsFromResolvedFile",
     "-skipPackageUpdates",

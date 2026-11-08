@@ -56,9 +56,11 @@ test("七天语法Top3展示固定名称、记录数与空态，且零业务写�
 
 test("七天语法失败显示安全错误，显式重试成功且零业务写入", async ({ page }) => {
   const calls = await prepare(page);
-  let failures = 1;
+  // Lifecycle/auth refreshes may issue extra reads. Keep every read failing
+  // until this test explicitly starts the UI retry, rather than spending a 503.
+  let failing = true;
   await page.route("**/api/assessments/weekly-grammar?*", async (route) => {
-    if (failures-- > 0) {
+    if (failing) {
       await route.fulfill({
         status: 503,
         contentType: "application/json",
@@ -72,8 +74,11 @@ test("七天语法失败显示安全错误，显式重试成功且零业务写�
   const section = page.getByTestId("weekly-grammar");
   await expect(section.getByRole("alert")).toHaveText(/七天语法记录加载失败/);
   await expect(section).not.toContainText("private-grammar-canary");
+  const beforeRetry = calls.grammar.length;
+  expect(beforeRetry).toBeGreaterThanOrEqual(1);
+  failing = false;
   await section.getByRole("button", { name: "重试七天语法记录", exact: true }).click();
   await expect(section.getByText("共 15 条记录")).toBeVisible();
-  expect(calls.grammar).toHaveLength(2);
+  await expect.poll(() => calls.grammar.length).toBeGreaterThan(beforeRetry);
   expect(calls.writes).toEqual([]);
 });

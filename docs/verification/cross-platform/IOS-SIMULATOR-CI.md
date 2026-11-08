@@ -180,3 +180,28 @@ Compose 整栈未验。根格式与保全回执见主控交付报告，这里不
 iOS CI workflow、`ios-ci.mjs` 和 `ios-ci-test.mjs` 已按参考字节恢复。本轮 Node 编排
 测试为 28 项并通过，actionlint 通过。这不是 Xcode 编译、模拟器安装、签名、Rust
 构建或真机验收。上方关于旧轮 native 产物尚未验收的限制仍然有效。
+
+## PR #128 缓存故障修复候选（2026-11-08，待真实 CI）
+
+主控报告 macos-15 / Xcode 26.0.1 的 prepare 以 74 退出，错误落在 lane 的
+`package-cache/artifacts`，提示 Capacitor/Cordova 压缩包缓存路径 already exists。
+精确锁定 revision 的 [Capacitor 8.5.0 Package.swift](https://github.com/ionic-team/capacitor-swift-pm/blob/4f71d0b979f2f957326f04353eca7604ee937e1e/Package.swift)
+确实声明这两个远端 binaryTarget 及其 checksum。
+[SwiftPM #10138](https://github.com/swiftlang/swift-package-manager/issues/10138)
+记录了并发下载同一 binary artifact 时的相同报错；本轮尚未证明实际并发来自何处。
+
+prepare/build 共用参数增加 Xcode 26.0.1 帮助列出的
+`-disablePackageRepositoryCache`。它禁用共享依赖缓存，范围包含 repository，
+不是声称存在 binary-artifact 专用 CLI/user-default。
+[Swift 6.2 Workspace 源码](https://github.com/swiftlang/swift-package-manager/blob/swift-6.2-RELEASE/Sources/Workspace/Workspace.swift)
+把 `sharedDependenciesCacheEnabled` 同时用于 repository、registry 和 binary artifact
+cachePath；禁用时 binary artifact 直接下载到工作区，不经过共享缓存复制。
+本机相同版本的 SwiftPM.framework 也包含 `IDEEnablePackageRepositoryCache` 与
+`sharedDependenciesCacheEnabled` 字符串；这些只读证据支持该规避方案，不能单凭
+字符串证明 Xcode 内部的完整调用关系。实际效果仍以远端 prepare + compile 为准。
+
+保留 `-packageCachePath`、`-clonedSourcePackagesDirPath` 和 DerivedData 的 lane 隔离，
+保留两个依赖锁、checksum、版本/SDK 检查、输入 hash、无签名、完整日志与超时门禁。
+不修改全局 defaults、不删除缓存、不增加重试、不升级版本。代价是共享依赖缓存命中减少；
+prepare 后的本 lane checkout/artifact 仍可供 build 使用。Node 回归检查参数工厂和
+`executeIos` 的 prepare/build 实际 runner argv，不能替代真实 SwiftPM 下载和原生编译。

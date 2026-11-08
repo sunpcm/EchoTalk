@@ -734,6 +734,7 @@ class Runtime:
         self.commands.call("stop", "--time", "5", identity, timeout=15)
         info = self.check_container(identity, role, self.manifest["api_image"], network)
         require(info["State"]["Running"] is False, "process_did_not_stop")
+        require(info["State"]["ExitCode"] == 0, "long_process_exit_nonzero")
         return {
             "id": identity,
             "role": role,
@@ -908,6 +909,7 @@ class Runtime:
             exits.append(gateway_exit)
             require(gateway_exit["exit"] == 0, "gateway_exit_nonzero")
         exits.append(self.stop(api, "api", network))
+        require(all(process["exit"] == 0 for process in exits), "process_exit_nonzero")
         write_json(
             self.report / "result.json",
             {

@@ -183,6 +183,12 @@ function assertSimulatorArchitecture(args) {
   );
 }
 
+function assertPackageCachePolicy(plan, args) {
+  assert.equal(args.filter((arg) => arg === "-disablePackageRepositoryCache").length, 1);
+  assert.equal(args[args.indexOf("-packageCachePath") + 1], join(plan.cache, "package-cache"));
+  assert.equal(args[args.indexOf("-clonedSourcePackagesDirPath") + 1], plan.packages);
+}
+
 test("real build/sync entrypoints consume fixed production configuration before native compile", async (t) => {
   const f = fixture(t);
   await prepare(f);
@@ -216,6 +222,7 @@ test("real build/sync entrypoints consume fixed production configuration before 
     const call = f.calls.find((call) => call.command === f.plan.xcode && call.args[0] === action);
     assert.ok(call, `${action} must execute with the planned architecture settings`);
     assertSimulatorArchitecture(call.args);
+    assertPackageCachePolicy(f.plan, call.args);
   }
   const manifest = JSON.parse(
     readFileSync(join(f.plan.app, "dist/ios/production/build-manifest.json")),
@@ -252,6 +259,7 @@ test("Xcode plans pin project, generic simulator, isolated caches, lock policy a
     ])
       assert.ok(args.includes(value), value);
     assertSimulatorArchitecture(args);
+    assertPackageCachePolicy(plan, args);
     assert.equal(
       args[args.indexOf("-derivedDataPath") + 1],
       prepare ? "/lane/cache/prepare-derived-data" : plan.derived,
