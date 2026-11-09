@@ -60,7 +60,8 @@
 - [ ] **iOS CI 预下载有限重试**：`5c28e1b` 的 `test-ios-build` 因 GitHub 资产单次 504 且
       `--retry 0` 失败；已改为 curl 原生有限重试（3 次、`--retry-max-time 240`），校验不变。
       验收：分支 CI 的 `test-ios-build` 通过后勾选。
-- [ ] **防止 bot 推送导致误合并**：#118 合并前 google-labs-jules[bot] 在更新分支后推送
+- [ ] **防止 bot 推送导致误合并**（2026-11-09 已加 `.github/workflows/pr-guard.yml`：删除 ≥1000 且 >5× 新增时失败，
+      `allow-mass-deletion` label 放行；剩余：用户在仓库创建该 label 并把 `mass-deletion-guard` 设为 required check）：#118 合并前 google-labs-jules[bot] 在更新分支后推送
       删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
       限制 bot 推送他人 PR 分支，或加大规模删除的 CI 告警；合并前人工核对 head SHA 与 diff 规模。
 - [ ] **本地 worktree 清理**：`.review/worktrees/` 下 17 个 worktree（含无新提交的
