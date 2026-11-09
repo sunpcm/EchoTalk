@@ -26,7 +26,8 @@
       不混入 OpenAI 3、Turn Detector 或模型更换；保留 #125 脱敏钩子；验收：三测试树通过；
       本地 LiveKit dev + 故意错误的 Key 触发 Deepgram/Cartesia 握手失败，日志无 Canary 明文
       （无需真实 Key，外网访问与服务启动需用户另行授权）；离线回归、错误 Key 冒烟、真实语音分开报告。
-- [ ] **python-jose 迁移 PyJWT**（方案 B）：改 `auth.py` 与测试，并在 API 依赖组显式声明 PyJWT、
+- [x] **python-jose 迁移 PyJWT**（方案 B；2026-11-09 本地验收：lock 107→102 移除 python-jose/ecdsa/rsa/pyasn1/six，
+      pytest 801 passed，auth 变异 4/5 被杀、1 例等价；遗留：PyJWT 下限可上调、防御分支无测试）：改 `auth.py` 与测试，并在 API 依赖组显式声明 PyJWT、
       删除 `python-jose`，同步 lock/export；与 1.6.10 升级共用依赖文件，须顺序生成。验收：补伪造
       HS256 + RSA `kid` 回归，401/503 语义不变。
 - [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长

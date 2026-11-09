@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+import jwt
 from fastapi import HTTPException, status
-from jose import JWTError, jwt
+from jwt import PyJWK, PyJWTError
 
 from config import settings
 
@@ -73,7 +74,7 @@ class OIDCVerifier:
     async def verify(self, token: str) -> AuthIdentity:
         try:
             header = jwt.get_unverified_header(token)
-        except JWTError as exc:
+        except PyJWTError as exc:
             raise _unauthorized() from exc
         algorithm = header.get("alg")
         key_id = header.get("kid")
@@ -89,15 +90,16 @@ class OIDCVerifier:
             raise _unauthorized()
 
         try:
+            jwk = PyJWK.from_dict(key)
             claims = jwt.decode(
                 token,
-                key,
+                jwk,
                 algorithms=[algorithm],
                 audience=settings.OIDC_AUDIENCE,
                 issuer=settings.OIDC_ISSUER,
-                options={"require_sub": True, "require_exp": True},
+                options={"require": ["exp", "sub"]},
             )
-        except JWTError as exc:
+        except (PyJWTError, ValueError, TypeError) as exc:
             raise _unauthorized() from exc
 
         subject = claims.get("sub")
@@ -113,7 +115,11 @@ class OIDCVerifier:
 
 def _find_key(jwks: dict[str, Any], key_id: str) -> dict[str, Any] | None:
     return next(
-        (key for key in jwks.get("keys", []) if key.get("kid") == key_id),
+        (
+            key
+            for key in jwks.get("keys", [])
+            if isinstance(key, dict) and key.get("kid") == key_id
+        ),
         None,
     )
 
