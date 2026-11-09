@@ -197,7 +197,7 @@ POST /sessions/{id}/end
 
 三个 Python 服务共用 `backend/Dockerfile`，构建时只接受显式
 `BACKEND_ROLE=api|agent`。API 与 analysis-worker 使用 `api` 组
-（FastAPI、uvicorn、Alembic、python-jose），语音 Agent 使用 `agent` 组
+（FastAPI、uvicorn、Alembic、PyJWT），语音 Agent 使用 `agent` 组
 （LiveKit RTC/Agents 与现有四个插件）；SQLAlchemy、asyncpg、Pydantic、dotenv、OpenAI、
 LiveKit API、cryptography 与 httpx 等共用依赖保留在项目公共依赖。无 flag 的本地开发默认
 安装 `api/agent/dev` 三组，镜像使用 `--no-default-groups` 只安装所选运行组。

@@ -213,7 +213,10 @@ r0 禁缓存没有修复故障，不是成功的原生验收。
 prepare 先串行调用 `/usr/bin/curl`，固定公开
 `https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/assets/<id>`，
 设置 `Accept: application/octet-stream`、禁用 curl 配置、只允许 HTTPS 重定向、
-HTTP 失败非零、连接超时 20 秒、下载超时 120 秒、子进程超时 130 秒、重试 0。
+HTTP 失败非零、连接超时 20 秒、单次下载超时 120 秒。curl 原生有限重试 3 次（间隔 5 秒、
+`--retry-max-time 240`），只覆盖超时与 408/429/5xx 等瞬时错误，不加 `--retry-all-errors`；
+子进程超时 400 秒。2026-11-08 main `5c28e1b` 曾因单次 504 且重试 0 失败，故改为有限重试；
+重试会重写同一 partial 文件，发布前的大小与 SHA256 校验不变。
 只使用既有白名单环境，不传 token/凭据，不增加动态元数据请求。
 每个输出先写 lane `.cache/ios-ci/artifact-downloads/<name>.zip.partial`。
 两份文件都通过 regular-file、精确大小和 SHA256 后，才以独占 hard link 发布到

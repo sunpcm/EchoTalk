@@ -1,0 +1,36 @@
+# 目的：阻止 #118 类误合并（基于旧树、一次性大规模删除的 PR）。
+# 仅使用 pull_request 事件载荷，不 checkout、不调用 API、不使用第三方 action。
+# 放行方式：人工核对 head SHA 与 diff 后，给 PR 添加 allow-mass-deletion label。
+name: PR Guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions: {}
+
+jobs:
+  mass-deletion-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check mass deletion
+        env:
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
+          ALLOWED: ${{ contains(github.event.pull_request.labels.*.name, 'allow-mass-deletion') }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$ADDITIONS" =~ ^[0-9]+$ ]] || ! [[ "$DELETIONS" =~ ^[0-9]+$ ]]; then
+            echo "::error::additions/deletions 不是非负整数: additions='$ADDITIONS' deletions='$DELETIONS'"
+            exit 1
+          fi
+          if [ "$DELETIONS" -ge 1000 ] && [ "$DELETIONS" -gt $((ADDITIONS * 5)) ]; then
+            if [ "$ALLOWED" = "true" ]; then
+              echo "::warning::大规模删除已由 allow-mass-deletion label 放行: deletions=$DELETIONS additions=$ADDITIONS"
+              exit 0
+            fi
+            echo "::error::检测到大规模删除: deletions=$DELETIONS, additions=$ADDITIONS。请人工核对 head SHA 与 diff 是否基于旧树；确认无误后可添加 allow-mass-deletion label 放行。"
+            exit 1
+          fi
+          echo "PR Guard passed: additions=$ADDITIONS deletions=$DELETIONS"
