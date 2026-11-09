@@ -168,7 +168,9 @@ if (stage === "cap") {
       const artifact = testArtifacts.find((entry) => args.at(-1).endsWith(`/${entry.id}`));
       assert.ok(artifact);
       assert.equal(args[0], "--disable");
-      assert.equal(args[args.indexOf("--retry") + 1], "0");
+      assert.equal(args[args.indexOf("--retry") + 1], "3");
+      assert.equal(args[args.indexOf("--retry-max-time") + 1], "240");
+      assert.ok(!args.includes("--retry-all-errors"));
       assert.ok(args.includes("Accept: application/octet-stream"));
       put(args[args.indexOf("--output") + 1], artifactBytes(artifact.name));
       return { status: 0 };

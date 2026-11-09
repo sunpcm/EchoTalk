@@ -13,7 +13,8 @@
 - [ ] **RF-04 远端证据核对**：main CI（`42c61bb`、`6bda2cd`、`ef6cb53`）已实跑 OpenAPI
       schema 与 TypeScript 类型生成门禁并成功；验收：按 RF-04 原契约逐项核对，更新
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)，标明
-      当前 run 无 iOS job、required check 配置未核。只改文档。
+      `6bda2cd`/`ef6cb53` 的 run 因 #118 回退而无 iOS job（#128 起恢复 `test-ios-build`），
+      required check 配置未核。只改文档。
 - [ ] **会后分析按来源门控**（方案 C-1，#120）：BKT 只吃 `is_synthetic=False` 的观察；
       `USE_MOCK_ELSA=False` 时发音标为不可用、语法独立完成，不再整个 Job 失败；须同时处理
       发音缺失时 assessment 接口 404、前端 `Promise.all` 整体报错与纯语法重跑幂等。验收：
@@ -44,7 +45,8 @@
 
 来源：#128 评审与本地重跑。以下问题均为 #119 原有代码问题，恢复时未改动。
 
-- [ ] **无 Key 运行时验收忽略长期进程退出码**（#128 Codex P2）：
+- [x] **无 Key 运行时验收忽略长期进程退出码**（#128 Codex P2，已在 #128 修复：`stop()` 断言
+      `long_process_exit_nonzero`，`exercise()` 断言 `process_exit_nonzero`，`test_runtime.py` 已覆盖）：
       `tools/keyfree-runtime/runtime.py` 的 `stop()` 只断言 `Running is False`，
       `exercise()` 只把三个 Worker 与 API 的退出码追加到 `process_exits`，仍写
       `status: "passed"`；只有 gateway 与 oneshot 校验退出码。验收：生成成功回执前统一要求
@@ -53,6 +55,9 @@
       CI `retries: 2` 掩盖。推测加载期认证快照变化触发 `WeeklyGrammar` 重新请求，
       耗掉测试唯一一次注入的 503，未验证。验收：先复现并确认根因，修复后 WebKit 无重试
       重复运行（≥20 次）全过，不靠放宽断言或增加重试。
+- [ ] **iOS CI 预下载有限重试**：`5c28e1b` 的 `test-ios-build` 因 GitHub 资产单次 504 且
+      `--retry 0` 失败；已改为 curl 原生有限重试（3 次、`--retry-max-time 240`），校验不变。
+      验收：分支 CI 的 `test-ios-build` 通过后勾选。
 - [ ] **防止 bot 推送导致误合并**：#118 合并前 google-labs-jules[bot] 在更新分支后推送
       删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
       限制 bot 推送他人 PR 分支，或加大规模删除的 CI 告警；合并前人工核对 head SHA 与 diff 规模。

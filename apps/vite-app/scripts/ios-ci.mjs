@@ -90,8 +90,10 @@ async function prepareArtifacts(plan, artifacts, command) {
   const cache = safePath(plan.root, join(plan.cache, "package-cache/artifacts"));
   freshDirectory(plan, downloads);
   freshDirectory(plan, cache);
-  // No curl config, credentials, inherited proxies, retries or remote filenames.
-  // Keep failed/partial outputs as evidence; only verified bytes become cache entries.
+  // No curl config, credentials, inherited proxies or remote filenames.
+  // Bounded curl retries cover transient GitHub CDN failures (timeouts, 408/429/5xx) only;
+  // 4xx and checksum/size mismatches still fail closed. Each retry rewrites the partial
+  // file, and only verified bytes become cache entries.
   for (const artifact of artifacts) {
     const partial = safePath(plan.root, join(downloads, `${artifact.name}.zip.partial`));
     await command(
@@ -112,14 +114,19 @@ async function prepareArtifacts(plan, artifacts, command) {
         "--max-time",
         "120",
         "--retry",
-        "0",
+        "3",
+        "--retry-delay",
+        "5",
+        "--retry-max-time",
+        "240",
         "--header",
         "Accept: application/octet-stream",
         "--output",
         partial,
         `https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/assets/${artifact.id}`,
       ],
-      130_000,
+      // Last attempt may start just before --retry-max-time and still run --max-time.
+      400_000,
     );
     verifyArchive(plan, partial, artifact);
   }
