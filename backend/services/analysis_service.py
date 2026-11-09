@@ -7,6 +7,7 @@
 import logging
 import re
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,17 @@ class AnalysisServiceError(RuntimeError):
         self.retryable = retryable
 
 
+@dataclass(frozen=True)
+class SessionAnalysisResult:
+    """Result of session analysis when user transcripts exist."""
+
+    assessment: PronunciationAssessment | None = None
+
+    @property
+    def id(self) -> uuid.UUID | None:
+        return self.assessment.id if self.assessment is not None else None
+
+
 # ───── 发音分析 ─────
 
 
@@ -65,21 +77,14 @@ def _get_mock_user_phonemes(ref_phonemes: list[str], word: str) -> list[str]:
 
 async def analyze_session(
     session_id: uuid.UUID, db: AsyncSession
-) -> PronunciationAssessment | None:
+) -> SessionAnalysisResult | None:
     """
     发音评估 + 语法错误检测管线。
 
     1. 获取用户转录文本
-    2. 拆词并逐词做 NW 对齐
-    3. 保存 PronunciationAssessment
-    4. 检测语法错误并保存 GrammarError
+    2. 发音可用时拆词并逐词做 NW 对齐，幂等保存 PronunciationAssessment
+    3. 独立幂等检测语法错误并保存 GrammarError
     """
-    if not settings.USE_MOCK_ELSA:
-        raise AnalysisServiceError(
-            "analysis_unsupported",
-            "No real pronunciation assessment provider is configured",
-        )
-
     # 1. 获取用户转录
     stmt = (
         select(Transcript)
@@ -96,75 +101,74 @@ async def analyze_session(
         logger.info("会话 %s 无用户转录，跳过分析", session_id)
         return None
 
-    # The job transaction is the primary idempotency boundary. This lookup plus
-    # the database unique constraint also prevents accidental direct re-execution.
-    existing_result = await db.execute(
-        select(PronunciationAssessment).where(
-            PronunciationAssessment.session_id == session_id
-        )
-    )
-    existing = existing_result.scalar_one_or_none()
-    if existing is not None:
-        logger.info("会话 %s 已有发音评估，跳过重复写入", session_id)
-        return existing
-
-    # 2. 合并文本并拆词
+    # 2. 合并文本
     full_text = " ".join(t.content for t in transcripts)
-    words = [w for w in re.split(r"\s+", full_text.strip()) if w]
 
-    # 3. 逐词做 NW 对齐
-    all_alignment: list[dict] = []
-    position_offset = 0
+    # 3. 发音评估（仅在启用发音 provider/mock 时执行，且保持独立幂等）
+    assessment: PronunciationAssessment | None = None
+    if settings.USE_MOCK_ELSA:
+        existing_result = await db.execute(
+            select(PronunciationAssessment).where(
+                PronunciationAssessment.session_id == session_id
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+        if existing is not None:
+            logger.info("会话 %s 已有发音评估，跳过重复写入", session_id)
+            assessment = existing
+        else:
+            words = [w for w in re.split(r"\s+", full_text.strip()) if w]
+            all_alignment: list[dict] = []
+            position_offset = 0
 
-    for word in words:
-        # 去除标点
-        clean_word = re.sub(r"[^\w]", "", word)
-        if not clean_word:
-            continue
+            for word in words:
+                clean_word = re.sub(r"[^\w]", "", word)
+                if not clean_word:
+                    continue
 
-        ref = _get_ref_phonemes(clean_word)
-        user = _get_mock_user_phonemes(ref, clean_word)
+                ref = _get_ref_phonemes(clean_word)
+                user = _get_mock_user_phonemes(ref, clean_word)
 
-        if not ref:
-            continue
+                if not ref:
+                    continue
 
-        word_alignment = align_phonemes(ref, user)
-        # 调整全局 position
-        for entry in word_alignment:
-            entry["position"] = position_offset + entry["position"]
-        position_offset += len(word_alignment)
+                word_alignment = align_phonemes(ref, user)
+                for entry in word_alignment:
+                    entry["position"] = position_offset + entry["position"]
+                position_offset += len(word_alignment)
 
-        all_alignment.extend(word_alignment)
+                all_alignment.extend(word_alignment)
 
-    # 4. 计算得分并保存评估结果
-    score = compute_pronunciation_score(all_alignment)
+            score = compute_pronunciation_score(all_alignment)
 
-    assessment = PronunciationAssessment(
-        id=uuid.uuid4(),
-        session_id=session_id,
-        overall_score=score,
-        phoneme_alignment=all_alignment,
-        source="demo_mock",
-        provider=None,
-        model_version="demo-phoneme-rules-v1",
-        is_synthetic=True,
-        confidence=0.0,
-        provider_response_ref=None,
-        elsa_response=None,
-    )
-    db.add(assessment)
-    await db.flush()
+            assessment = PronunciationAssessment(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                overall_score=score,
+                phoneme_alignment=all_alignment,
+                source="demo_mock",
+                provider=None,
+                model_version="demo-phoneme-rules-v1",
+                is_synthetic=True,
+                confidence=0.0,
+                provider_response_ref=None,
+                elsa_response=None,
+            )
+            db.add(assessment)
+            await db.flush()
 
-    logger.info(
-        "发音评估完成: session=%s, score=%.1f, phonemes=%d",
-        session_id,
-        score,
-        len(all_alignment),
-    )
+            logger.info(
+                "发音评估完成: session=%s, score=%.1f, phonemes=%d",
+                session_id,
+                score,
+                len(all_alignment),
+            )
+    else:
+        logger.info("会话 %s 未启用发音评估服务，跳过发音评估", session_id)
 
-    # 5. 语法错误检测（mock 模式：简单规则匹配）
+    # 4. 语法错误检测（独立幂等）
     await _detect_grammar_errors(session_id, full_text, db)
-    return assessment
+    return SessionAnalysisResult(assessment=assessment)
 
 
 # ───── 语法错误检测 ─────
@@ -204,7 +208,14 @@ _GRAMMAR_RULES = [
 async def _detect_grammar_errors(
     session_id: uuid.UUID, text: str, db: AsyncSession
 ) -> None:
-    """基于规则的语法错误检测（mock 模式）。"""
+    """基于规则的语法错误检测（mock 模式），对同一会话保持独立幂等。"""
+    existing_result = await db.execute(
+        select(GrammarError.id).where(GrammarError.session_id == session_id).limit(1)
+    )
+    if existing_result.scalar_one_or_none() is not None:
+        logger.info("会话 %s 已有语法错误记录，跳过重复写入", session_id)
+        return
+
     detected: set[str] = set()  # 避免同一 skill_tag 重复
 
     for rule in _GRAMMAR_RULES:
@@ -281,23 +292,22 @@ async def update_knowledge(
     result = await db.execute(stmt)
     grammar_errors = result.scalars().all()
 
-    if (assessment is not None and assessment.is_synthetic) or any(
-        error.is_synthetic for error in grammar_errors
-    ):
-        logger.info("会话 %s 的评估为 synthetic，跳过知识状态更新", session_id)
-        return
-
-    # 2. 收集技能观察数据 {skill_id: [correct/incorrect, ...]}
+    # 2. 按来源门控收集非合成技能观察数据 {skill_id: [correct/incorrect, ...]}
     observations: dict[str, list[bool]] = {}
 
-    if assessment and assessment.phoneme_alignment:
+    if (
+        assessment is not None
+        and not assessment.is_synthetic
+        and assessment.phoneme_alignment
+    ):
         for entry in assessment.phoneme_alignment:
             skill_id = phoneme_error_to_skill(entry)
             if skill_id:
                 observations.setdefault(skill_id, []).append(entry["type"] == "correct")
 
     for error in grammar_errors:
-        observations.setdefault(error.skill_tag, []).append(False)
+        if not error.is_synthetic:
+            observations.setdefault(error.skill_tag, []).append(False)
 
     if not observations:
         logger.info("会话 %s 无可更新的技能", session_id)

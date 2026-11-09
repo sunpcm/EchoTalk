@@ -5,11 +5,8 @@ import pytest
 
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState
-from services.analysis_service import (
-    AnalysisServiceError,
-    analyze_session,
-    update_knowledge,
-)
+from models.session import Transcript, TranscriptRole
+from services.analysis_service import analyze_session, update_knowledge
 
 
 @pytest.mark.asyncio
@@ -112,12 +109,30 @@ async def test_synthetic_results_do_not_update_knowledge():
 
 
 @pytest.mark.asyncio
-async def test_production_mode_without_provider_is_explicitly_unsupported(monkeypatch):
+async def test_analyze_session_without_provider_runs_grammar_only(monkeypatch):
     monkeypatch.setattr("services.analysis_service.settings.USE_MOCK_ELSA", False)
+    session_id = uuid.uuid4()
+    transcript = Transcript(
+        session_id=session_id,
+        role=TranscriptRole.user,
+        content="I go yesterday.",
+        timestamp_ms=1,
+    )
     mock_db = AsyncMock()
+    mock_db.add = MagicMock()
 
-    with pytest.raises(AnalysisServiceError) as exc_info:
-        await analyze_session(uuid.uuid4(), mock_db)
+    transcript_result = MagicMock()
+    transcript_result.scalars.return_value.all.return_value = [transcript]
+    existing_grammar_result = MagicMock()
+    existing_grammar_result.scalar_one_or_none.return_value = None
+    mock_db.execute.side_effect = [transcript_result, existing_grammar_result]
 
-    assert exc_info.value.code == "analysis_unsupported"
-    mock_db.execute.assert_not_awaited()
+    result = await analyze_session(session_id, mock_db)
+
+    assert result is not None
+    assert result.assessment is None
+    assert mock_db.add.call_count == 1
+    added = mock_db.add.call_args[0][0]
+    assert isinstance(added, GrammarError)
+    assert added.skill_tag == "verb_tense_past"
+    mock_db.flush.assert_awaited_once()

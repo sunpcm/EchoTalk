@@ -15,7 +15,8 @@
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)，标明
       `6bda2cd`/`ef6cb53` 的 run 因 #118 回退而无 iOS job（#128 起恢复 `test-ios-build`），
       required check 配置未核。只改文档。
-- [ ] **会后分析按来源门控**（方案 C-1，#120）：BKT 只吃 `is_synthetic=False` 的观察；
+- [x] **会后分析按来源门控**（方案 C-1，#120；2026-11-09 本地验收：pytest 809、Vitest 1142、E2E 180，变异 7/7 被杀；
+      语法仍为 demo 规则，BKT 需 SGEC 落地后才有真实信号；遗留：无发音且无语法错误时的文案待定）：BKT 只吃 `is_synthetic=False` 的观察；
       `USE_MOCK_ELSA=False` 时发音标为不可用、语法独立完成，不再整个 Job 失败；须同时处理
       发音缺失时 assessment 接口 404、前端 `Promise.all` 整体报错与纯语法重跑幂等。验收：
       pytest 覆盖全合成、两种方向的混合来源、两路真实、无发音、无转录、重跑，前端覆盖部分结果。

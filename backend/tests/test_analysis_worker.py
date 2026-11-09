@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
-from models.knowledge import KnowledgeState
+from models.knowledge import KnowledgeState, Skill
 from models.session import (
     Session,
     SessionMode,
@@ -30,7 +30,7 @@ from models.session import (
     TranscriptRole,
 )
 from models.user import User
-from services import analysis_jobs
+from services import analysis_jobs, analysis_service
 from time_utils import utc_now
 from workers import analysis_worker as worker
 
@@ -993,3 +993,264 @@ async def test_postgres_external_cancel_does_not_persist_failure_or_partial_prod
         if not task.done():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+async def ensure_test_skills(db):
+    for skill_id, name, category in (
+        ("th_sounds", "TH sounds", "pronunciation"),
+        ("verb_tense_past", "Past tense", "grammar"),
+        ("subject_verb_agreement", "Subject-verb agreement", "grammar"),
+    ):
+        if await db.get(Skill, skill_id) is None:
+            db.add(Skill(id=skill_id, name=name, category=category))
+    await db.flush()
+
+
+@pytest.mark.asyncio
+async def test_postgres_all_synthetic_skips_knowledge(postgres_worker_job):
+    factory, _engine, user_id, session_id, job_id = postgres_worker_job
+    async with factory() as db, db.begin():
+        await ensure_test_skills(db)
+        assert await analysis_jobs.claim_next_job(db) == job_id
+        await analysis_jobs.execute_claimed_job(job_id, db)
+
+    state = await database_snapshot(factory, session_id, job_id)
+    assert state["status"] == AnalysisJobStatus.succeeded
+    assert (state["assessments"], state["grammar"]) == (1, 1)
+
+    async with factory() as db:
+        knowledge_count = await db.scalar(
+            select(func.count())
+            .select_from(KnowledgeState)
+            .where(KnowledgeState.user_id == user_id)
+        )
+        assert knowledge_count == 0
+
+
+@pytest.mark.asyncio
+async def test_postgres_real_pronunciation_only_updates_bkt(postgres_worker_job):
+    factory, _engine, user_id, session_id, _job_id = postgres_worker_job
+    alignment = [
+        {"type": "substitution", "expected": "TH", "actual": "S", "position": 0}
+    ]
+    async with factory() as db, db.begin():
+        await ensure_test_skills(db)
+        db.add(
+            PronunciationAssessment(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                overall_score=75.0,
+                phoneme_alignment=alignment,
+                source="provider",
+                provider="elsa",
+                model_version="v1",
+                is_synthetic=False,
+                confidence=0.9,
+            )
+        )
+        db.add(
+            GrammarError(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                skill_tag="verb_tense_past",
+                original="I go",
+                corrected="I went",
+                error_type="wrong_tense",
+                source="demo_rule",
+                provider=None,
+                model_version="demo-grammar-rules-v1",
+                is_synthetic=True,
+                confidence=0.5,
+            )
+        )
+        await db.flush()
+        await analysis_service.update_knowledge(session_id, user_id, db)
+
+    async with factory() as db:
+        stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
+        states = (await db.execute(stmt)).scalars().all()
+        mastery_by_skill = {s.skill_id: s.p_mastery for s in states}
+        assert set(mastery_by_skill) == {"th_sounds"}
+
+
+@pytest.mark.asyncio
+async def test_postgres_real_grammar_only_updates_bkt(postgres_worker_job):
+    factory, _engine, user_id, session_id, job_id = postgres_worker_job
+    alignment = [
+        {"type": "substitution", "expected": "TH", "actual": "S", "position": 0}
+    ]
+    async with factory() as db, db.begin():
+        await ensure_test_skills(db)
+        db.add(
+            PronunciationAssessment(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                overall_score=75.0,
+                phoneme_alignment=alignment,
+                source="demo_mock",
+                provider=None,
+                model_version="demo-phoneme-rules-v1",
+                is_synthetic=True,
+                confidence=0.0,
+            )
+        )
+        db.add(
+            GrammarError(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                skill_tag="verb_tense_past",
+                original="I go",
+                corrected="I went",
+                error_type="wrong_tense",
+                source="provider",
+                provider="llm",
+                model_version="v1",
+                is_synthetic=False,
+                confidence=0.9,
+            )
+        )
+        await db.flush()
+        await analysis_service.update_knowledge(session_id, user_id, db)
+
+    async with factory() as db:
+        stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
+        states = (await db.execute(stmt)).scalars().all()
+        assert {s.skill_id for s in states} == {"verb_tense_past"}
+
+    async with factory() as db, db.begin():
+        clear_stmt = delete(KnowledgeState).where(KnowledgeState.user_id == user_id)
+        await db.execute(clear_stmt)
+        assert await analysis_jobs.claim_next_job(db) == job_id
+        await analysis_jobs.execute_claimed_job(job_id, db)
+
+    async with factory() as db:
+        stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
+        states = (await db.execute(stmt)).scalars().all()
+        assert {s.skill_id for s in states} == {"verb_tense_past"}
+
+
+@pytest.mark.asyncio
+async def test_postgres_both_real_sources_update_bkt(postgres_worker_job):
+    factory, _engine, user_id, session_id, _job_id = postgres_worker_job
+    alignment = [
+        {"type": "substitution", "expected": "TH", "actual": "S", "position": 0}
+    ]
+    async with factory() as db, db.begin():
+        await ensure_test_skills(db)
+        db.add(
+            PronunciationAssessment(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                overall_score=75.0,
+                phoneme_alignment=alignment,
+                source="provider",
+                provider="elsa",
+                model_version="v1",
+                is_synthetic=False,
+                confidence=0.9,
+            )
+        )
+        db.add(
+            GrammarError(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                skill_tag="verb_tense_past",
+                original="I go",
+                corrected="I went",
+                error_type="wrong_tense",
+                source="provider",
+                provider="llm",
+                model_version="v1",
+                is_synthetic=False,
+                confidence=0.9,
+            )
+        )
+        db.add(
+            GrammarError(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                skill_tag="subject_verb_agreement",
+                original="he go",
+                corrected="he goes",
+                error_type="wrong_3p_verb",
+                source="demo_rule",
+                provider=None,
+                model_version="demo-grammar-rules-v1",
+                is_synthetic=True,
+                confidence=0.5,
+            )
+        )
+        await db.flush()
+        await analysis_service.update_knowledge(session_id, user_id, db)
+
+    async with factory() as db:
+        stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
+        states = (await db.execute(stmt)).scalars().all()
+        assert {s.skill_id for s in states} == {"th_sounds", "verb_tense_past"}
+
+
+@pytest.mark.asyncio
+async def test_postgres_no_elsa_runs_grammar(postgres_worker_job, monkeypatch):
+    factory, _engine, user_id, session_id, job_id = postgres_worker_job
+    monkeypatch.setattr(analysis_service.settings, "USE_MOCK_ELSA", False)
+
+    async with factory() as db, db.begin():
+        await ensure_test_skills(db)
+        assert await analysis_jobs.claim_next_job(db) == job_id
+        await analysis_jobs.execute_claimed_job(job_id, db)
+
+    state = await database_snapshot(factory, session_id, job_id)
+    assert state["status"] == AnalysisJobStatus.succeeded
+    assert state["last_error_code"] is None
+    assert (state["assessments"], state["grammar"]) == (0, 1)
+
+    async with factory() as db:
+        knowledge_count = await db.scalar(
+            select(func.count())
+            .select_from(KnowledgeState)
+            .where(KnowledgeState.user_id == user_id)
+        )
+        assert knowledge_count == 0
+
+
+@pytest.mark.asyncio
+async def test_postgres_no_transcript_fails(postgres_worker_job, monkeypatch):
+    factory, _engine, _user_id, session_id, job_id = postgres_worker_job
+    monkeypatch.setattr(analysis_service.settings, "USE_MOCK_ELSA", False)
+
+    async with factory() as db, db.begin():
+        await db.execute(delete(Transcript).where(Transcript.session_id == session_id))
+        assert await analysis_jobs.claim_next_job(db) == job_id
+
+    await analysis_jobs.process_job(job_id, factory)
+
+    state = await database_snapshot(factory, session_id, job_id)
+    assert state["status"] == AnalysisJobStatus.failed
+    assert state["last_error_code"] == "no_user_transcript"
+    assert (state["assessments"], state["grammar"]) == (0, 0)
+
+
+@pytest.mark.asyncio
+async def test_postgres_rerun_grammar_idempotent(postgres_worker_job, monkeypatch):
+    factory, _engine, _user_id, session_id, job_id = postgres_worker_job
+    monkeypatch.setattr(analysis_service.settings, "USE_MOCK_ELSA", False)
+
+    async with factory() as db, db.begin():
+        first = await analysis_service.analyze_session(session_id, db)
+        second = await analysis_service.analyze_session(session_id, db)
+        assert first is not None and first.assessment is None
+        assert second is not None and second.assessment is None
+
+    before = await database_snapshot(factory, session_id, job_id)
+    assert (before["assessments"], before["grammar"]) == (0, 1)
+
+    monkeypatch.setattr(analysis_service.settings, "USE_MOCK_ELSA", True)
+    async with factory() as db, db.begin():
+        third = await analysis_service.analyze_session(session_id, db)
+        fourth = await analysis_service.analyze_session(session_id, db)
+        assert third is not None and third.assessment is not None
+        assert fourth is not None and fourth.assessment is not None
+        assert third.id == fourth.id
+
+    after = await database_snapshot(factory, session_id, job_id)
+    assert (after["assessments"], after["grammar"]) == (1, 1)

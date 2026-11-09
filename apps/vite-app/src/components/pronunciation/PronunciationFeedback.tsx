@@ -11,7 +11,7 @@ import { zhCN } from "@/i18n/zh-CN";
 const t = zhCN.assessment;
 
 interface PronunciationFeedbackProps {
-  assessment: AssessmentResponse;
+  assessment: AssessmentResponse | null;
   grammarErrors: GrammarErrorResponse[];
 }
 
@@ -23,34 +23,43 @@ function getScoreColor(score: number): string {
 }
 
 export function PronunciationFeedback({ assessment, grammarErrors }: PronunciationFeedbackProps) {
-  const scoreColor = getScoreColor(assessment.overall_score);
+  const scoreColor = assessment ? getScoreColor(assessment.overall_score) : "";
 
   return (
     <div className="space-y-6">
-      {/* 得分区 */}
-      <div
-        role="group"
-        className="text-center"
-        aria-label={`${t.scoreLabel}: ${Math.round(assessment.overall_score)}/100`}
-      >
-        {assessment.is_synthetic ? (
-          <div role="note" className="bg-warning-bg text-warning mb-3 rounded-lg px-3 py-2 text-sm">
-            <span className="font-semibold">{t.syntheticBadge}</span>
-            <span className="ml-2">{t.syntheticHint}</span>
+      {assessment ? (
+        <>
+          {/* 得分区 */}
+          <div
+            role="group"
+            className="text-center"
+            aria-label={`${t.scoreLabel}: ${Math.round(assessment.overall_score)}/100`}
+          >
+            {assessment.is_synthetic ? (
+              <div
+                role="note"
+                className="bg-warning-bg text-warning mb-3 rounded-lg px-3 py-2 text-sm"
+              >
+                <span className="font-semibold">{t.syntheticBadge}</span>
+                <span className="ml-2">{t.syntheticHint}</span>
+              </div>
+            ) : null}
+            <p className="text-text-muted text-sm">{t.scoreLabel}</p>
+            <p className={`text-4xl font-bold ${scoreColor}`}>
+              {Math.round(assessment.overall_score)}
+              <span className="text-text-faint text-lg">/100</span>
+            </p>
           </div>
-        ) : null}
-        <p className="text-text-muted text-sm">{t.scoreLabel}</p>
-        <p className={`text-4xl font-bold ${scoreColor}`}>
-          {Math.round(assessment.overall_score)}
-          <span className="text-text-faint text-lg">/100</span>
-        </p>
-      </div>
 
-      {/* 音素可视化 */}
-      <div>
-        <h3 className="text-text-default mb-2 text-sm font-medium">{t.phonemeTitle}</h3>
-        <PhonemeVisualizer alignment={assessment.phoneme_alignment} />
-      </div>
+          {/* 音素可视化 */}
+          <div>
+            <h3 className="text-text-default mb-2 text-sm font-medium">{t.phonemeTitle}</h3>
+            <PhonemeVisualizer alignment={assessment.phoneme_alignment} />
+          </div>
+        </>
+      ) : (
+        <p className="text-text-muted text-center text-sm">{t.pronunciationUnavailable}</p>
+      )}
 
       {/* 语法错误列表 */}
       {grammarErrors.length > 0 && (

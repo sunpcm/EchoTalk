@@ -104,7 +104,7 @@ export function EndedConversation() {
           onRetry={handleRetry}
         />
       )}
-      {loadState === "loaded" && assessment && (
+      {loadState === "loaded" && (
         <div className="w-full max-w-md space-y-8">
           <PronunciationFeedback assessment={assessment} grammarErrors={grammarErrors} />
           {knowledgeStates.length > 0 && (

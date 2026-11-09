@@ -71,6 +71,7 @@ export const zhCN = {
     retry: "重新分析",
     syntheticBadge: "Demo 模拟结果",
     syntheticHint: "仅用于体验，不计入真实学习掌握度",
+    pronunciationUnavailable: "本次未生成发音评估，仅展示语法提示",
     loadError: "加载评估数据失败",
     scoreLabel: "发音评分",
     phonemeTitle: "音素对齐详情",

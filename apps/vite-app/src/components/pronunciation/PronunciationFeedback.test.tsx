@@ -1,8 +1,11 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { EndedConversation } from "@/components/conversation/EndedConversation";
 import { PronunciationFeedback } from "./PronunciationFeedback";
 import type { AssessmentResponse, GrammarErrorResponse } from "@/lib/api";
 import { zhCN } from "@/i18n/zh-CN";
+import { useAssessmentStore } from "@/store/assessment";
+import { useConversationStore } from "@/store/conversation";
 
 const t = zhCN.assessment;
 
@@ -107,5 +110,40 @@ describe("PronunciationFeedback", () => {
     expect(listItems.length).toBe(2);
     expect(listItems[0]).not.toHaveAttribute("tabindex");
     expect(listItems[1]).not.toHaveAttribute("tabindex");
+  });
+
+  it("renders grammar list and unavailable notice in EndedConversation", () => {
+    const originalRefresh = useAssessmentStore.getState().refreshAnalysis;
+    const originalFetchKnowledge = useAssessmentStore.getState().fetchKnowledgeStates;
+    useConversationStore.setState({
+      _sessionState: { phase: "ended", sessionId: "grammar-only-session" },
+      agentError: null,
+    });
+    useAssessmentStore.setState({
+      loadState: "loaded",
+      assessment: null,
+      grammarErrors: mockGrammarErrors,
+      knowledgeStates: [],
+      error: null,
+      refreshAnalysis: vi.fn().mockResolvedValue("succeeded"),
+      fetchKnowledgeStates: vi.fn().mockResolvedValue(undefined),
+    });
+
+    try {
+      render(<EndedConversation />);
+
+      expect(screen.getByText(t.pronunciationUnavailable)).toBeInTheDocument();
+      expect(screen.getByText("He go there yesterday")).toBeInTheDocument();
+      expect(screen.getByText("He went there yesterday")).toBeInTheDocument();
+      expect(screen.queryByText(t.scoreLabel)).not.toBeInTheDocument();
+      expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    } finally {
+      useAssessmentStore.setState({
+        refreshAnalysis: originalRefresh,
+        fetchKnowledgeStates: originalFetchKnowledge,
+      });
+      useAssessmentStore.getState().reset();
+      useConversationStore.setState({ _sessionState: { phase: "idle" }, agentError: null });
+    }
   });
 });
