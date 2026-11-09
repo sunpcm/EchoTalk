@@ -19,7 +19,9 @@
       `USE_MOCK_ELSA=False` 时发音标为不可用、语法独立完成，不再整个 Job 失败；须同时处理
       发音缺失时 assessment 接口 404、前端 `Promise.all` 整体报错与纯语法重跑幂等。验收：
       pytest 覆盖全合成、两种方向的混合来源、两路真实、无发音、无转录、重跑，前端覆盖部分结果。
-- [ ] **livekit-agents 安全升级到 1.6.10**（方案 A-2，GHSA-q77r-q2p5-68vf）：agents 与四个
+- [x] **livekit-agents 安全升级到 1.6.10**（方案 A-2，GHSA-q77r-q2p5-68vf；2026-11-09 本地验收：
+      uv 0.9.18 重锁 107 包、export 一致，pytest 794 passed / 78.88%，脱敏变异 7 例被杀；
+      错误 Key 握手冒烟与真实语音未验，远端 CI 待跑）：agents 与四个
       插件 `==1.6.10`、`livekit==1.1.14`、`livekit-api>=1.2.0`，uv 重生成 lock 与 export，
       不混入 OpenAI 3、Turn Detector 或模型更换；保留 #125 脱敏钩子；验收：三测试树通过；
       本地 LiveKit dev + 故意错误的 Key 触发 Deepgram/Cartesia 握手失败，日志无 Canary 明文
