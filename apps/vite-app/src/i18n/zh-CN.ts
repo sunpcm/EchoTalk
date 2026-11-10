@@ -20,6 +20,7 @@ export const zhCN = {
     endButton: "结束对话",
     retryButton: "再来一次",
     connecting: "正在连接...",
+    startFailed: "暂时无法开始练习，请稍后重试。",
     listening: "正在聆听...",
     speaking: "AI 正在说话...",
     idle: "等待你开讲...",

@@ -101,3 +101,40 @@ test("a refused signaling connection stops at the connection-failed view and ret
     await endSessionForCleanup(page, tracker.getSessionId());
   }
 });
+
+test("a failed token request ends the just-created session and shows a generic message", async ({
+  page,
+}) => {
+  await page.route("**/api/sessions/*/token", (route) =>
+    route.fulfill({ status: 502, json: { detail: "upstream-detail-canary" } }),
+  );
+  const tracker = trackSessionRequests(page);
+
+  try {
+    await page
+      .getByRole("button", { name: /进入练习/ })
+      .first()
+      .click();
+
+    await expect(page.getByText("暂时无法开始练习，请稍后重试。")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
+    // 后端原始 detail 不展示给用户
+    await expect(page.getByText("upstream-detail-canary")).toHaveCount(0);
+
+    expect(tracker.calls.filter((c) => c === "POST /api/sessions")).toHaveLength(1);
+    expect(tracker.calls.filter((c) => c === "GET /api/sessions/:id/token")).toHaveLength(1);
+    expect(tracker.calls.filter((c) => c === "POST /api/sessions/:id/end")).toHaveLength(1);
+    expect(tracker.calls.some((c) => c.endsWith("/dispatch"))).toBe(false);
+
+    // 服务端记录已结束，活动会话中不再出现这条记录
+    const sessionId = tracker.getSessionId();
+    expect(sessionId).not.toBeNull();
+    const detail = await page.request.get(`/api/sessions/${sessionId}`, {
+      headers: { Authorization: "Bearer e2e-dev-token" },
+    });
+    expect(await detail.json()).toMatchObject({ id: sessionId, status: "completed" });
+    await expect(page.getByText(sessionId ?? "missing-session-id")).toHaveCount(0);
+  } finally {
+    await endSessionForCleanup(page, tracker.getSessionId());
+  }
+});

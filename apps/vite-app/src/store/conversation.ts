@@ -9,6 +9,7 @@ import {
   createSession,
   getSessionDetail,
   getSessionToken,
+  ApiError,
   endSession as apiEndSession,
   checkHealthReady,
   getCallCapabilities,
@@ -248,6 +249,17 @@ function normalizeSessionPatch(
         ...projectSessionState(patchedSessionState),
       }
     : patch;
+}
+
+/**
+ * 启动阶段错误文案。400/403 是后端面向用户的业务门禁说明（密钥未验证、套餐限制、文档超限），
+ * 原样展示；其余状态码、网络错误与未知异常统一用通用文案，状态码已由 api 层写入诊断记录。
+ */
+function resolveStartErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && (err.status === 400 || err.status === 403) && err.message) {
+    return err.message;
+  }
+  return zhCN.conversation.startFailed;
 }
 
 export const useConversationStore = create<ConversationStore>((set, get) => {
@@ -648,12 +660,27 @@ export const useConversationStore = create<ConversationStore>((set, get) => {
     }));
     if (!checkOrRelease()) return;
 
+    // 创建成功后记录 id：后续取 Token 失败时由客户端显式结束，避免留下孤儿活动记录
+    let createdSessionId: string | null = null;
+    const endOrphanedSession = async (): Promise<void> => {
+      const orphanId = createdSessionId;
+      createdSessionId = null;
+      if (orphanId === null) return;
+      try {
+        // end 幂等；失败时记录仍在活动会话中，由用户显式结束，不自动重试
+        await apiEndSession(orphanId);
+      } catch {
+        console.error("End orphaned session failed:");
+      }
+    };
+
     try {
       const session = await createSession(mode, docContext);
       if (!checkOrRelease()) return;
       if (typeof session.id !== "string" || session.id.trim() === "") {
-        throw new Error("连接失败");
+        throw new Error(zhCN.conversation.startFailed);
       }
+      createdSessionId = session.id;
 
       setSession({ type: "session_created", sessionId: session.id });
       if (!checkOrRelease()) return;
@@ -667,14 +694,17 @@ export const useConversationStore = create<ConversationStore>((set, get) => {
         wsUrl: ws_url,
       });
       if (!readyState) {
+        await endOrphanedSession();
+        if (!checkOrRelease()) return;
         tracker.cleanup();
         setSession({ type: "reset" }, () => ({
           appView: "dashboard",
-          error: "连接失败",
+          error: zhCN.conversation.startFailed,
         }));
         return;
       }
 
+      createdSessionId = null;
       tracker.cleanup();
       setSession({
         type: "credentials_ready",
@@ -684,11 +714,13 @@ export const useConversationStore = create<ConversationStore>((set, get) => {
       });
     } catch (err) {
       if (!checkOrRelease()) return;
+      await endOrphanedSession();
+      if (!checkOrRelease()) return;
       tracker.cleanup();
       if (get().sessionGen === targetGen) {
         setSession({ type: "reset" }, () => ({
           appView: "dashboard",
-          error: err instanceof Error ? err.message : "连接失败",
+          error: resolveStartErrorMessage(err),
         }));
       }
     }
