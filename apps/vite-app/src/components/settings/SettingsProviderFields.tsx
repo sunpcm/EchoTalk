@@ -86,7 +86,7 @@ export function SettingsProviderFields({
               value={llmModel}
               onChange={(event) => onLlmModelChange(event.target.value)}
               placeholder={t.llmModelPlaceholder}
-              className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+              className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
             />
           </div>
         </ProviderGroup>
@@ -182,7 +182,7 @@ function ProviderGroup({
           id={selectId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="border-border-default bg-surface focus:border-accent-soft-border focus:ring-accent-soft-border w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+          className="border-border-default bg-surface focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -206,7 +206,7 @@ function ProviderGroup({
           value={apiKey}
           onChange={(event) => onKeyChange(event.target.value)}
           placeholder={hasKey ? t.apiKeyConfiguredPlaceholder : t.apiKeyPlaceholder}
-          className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+          className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
         />
       </div>
     </div>

@@ -47,7 +47,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
         {/* 设置按钮 */}
         <button
           onClick={onOpenSettings}
-          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 right-0 rounded-lg p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 right-0 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           title={zhCN.settings.title}
           aria-label={zhCN.settings.title}
         >
@@ -115,7 +115,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
             useConversationStore.setState({ appView: "doc-chat-setup" });
           }}
           style={{ background: "var(--panel-gradient)" }}
-          className="border-accent-soft-border focus-visible:ring-accent flex w-full items-center gap-4 rounded-[20px] border p-5 text-left shadow-[0_8px_26px_-14px_var(--accent-shadow)] transition-colors transition-shadow hover:shadow-[0_12px_30px_-12px_var(--accent-shadow)] focus-visible:ring-2 focus-visible:outline-none"
+          className="border-accent-soft-border focus-visible:outline-accent flex w-full items-center gap-4 rounded-[20px] border p-5 text-left shadow-[0_8px_26px_-14px_var(--accent-shadow)] transition-colors transition-shadow hover:shadow-[0_12px_30px_-12px_var(--accent-shadow)] focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           <div className="bg-surface flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] shadow-[0_4px_10px_-4px_var(--accent-shadow)]">
             <svg
@@ -193,7 +193,7 @@ const App = () => {
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
-      <div className="mx-auto max-w-3xl">
+      <main className="mx-auto max-w-3xl">
         {appView === "dashboard" ? (
           <Dashboard onOpenSettings={() => setDrawerOpen(true)} />
         ) : appView === "doc-chat-setup" ? (
@@ -201,7 +201,7 @@ const App = () => {
         ) : (
           <VoiceInterface />
         )}
-      </div>
+      </main>
       <SettingsDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
   );

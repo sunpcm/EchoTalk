@@ -31,6 +31,8 @@
 @layer components {
   .btn-primary {
     @apply bg-accent hover:bg-accent-hover text-accent-contrast rounded-[14px] px-4 py-2 font-semibold transition-colors;
+    /* 键盘焦点：用 outline，避免与按钮自身 box-shadow 冲突 */
+    @apply focus-visible:outline-accent focus-visible:outline-2 focus-visible:outline-offset-2;
   }
 
   .card {
