@@ -655,6 +655,33 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  // 主路径夹具：只签发明确标注的假 Token 与不可达信令地址，不连接任何真实 LiveKit。
+  const tokenMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/token$/);
+  if (method === "GET" && tokenMatch) {
+    const session = sessions.get(tokenMatch[1]);
+    if (!session) {
+      sendJson(response, 404, { detail: "Session not found" });
+      return;
+    }
+    if (session.status !== "active") {
+      sendJson(response, 409, { detail: "Session is not active" });
+      return;
+    }
+    sendJson(response, 200, { token: "e2e-fake-livekit-token", ws_url: "wss://127.0.0.1:9" });
+    return;
+  }
+
+  const dispatchMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/dispatch$/);
+  if (method === "POST" && dispatchMatch) {
+    const session = sessions.get(dispatchMatch[1]);
+    if (!session) {
+      sendJson(response, 404, { detail: "Session not found" });
+      return;
+    }
+    sendJson(response, 200, { dispatched: true });
+    return;
+  }
+
   const endSessionMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/end$/);
   if (method === "POST" && endSessionMatch) {
     const session = sessions.get(endSessionMatch[1]);

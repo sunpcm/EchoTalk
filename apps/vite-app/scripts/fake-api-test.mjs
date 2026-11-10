@@ -684,6 +684,61 @@ describe("Fake API 契约与真实进程回归测试", () => {
     });
   });
 
+  describe("6b. 会话 Token 与 dispatch 夹具契约", () => {
+    it("活动会话返回假 Token 与不可达信令地址，dispatch 返回 dispatched", async () => {
+      const created = await timedFetch(`${serverInstance.baseUrl}/api/sessions`, {
+        method: "POST",
+        headers: { ...AUTH_HEADER, "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "scenario" }),
+      });
+      assert.strictEqual(created.status, 201);
+      const session = await created.json();
+
+      const token = await timedFetch(`${serverInstance.baseUrl}/api/sessions/${session.id}/token`, {
+        headers: AUTH_HEADER,
+      });
+      assert.strictEqual(token.status, 200);
+      assert.deepStrictEqual(await token.json(), {
+        token: "e2e-fake-livekit-token",
+        ws_url: "wss://127.0.0.1:9",
+      });
+
+      const dispatched = await timedFetch(
+        `${serverInstance.baseUrl}/api/sessions/${session.id}/dispatch`,
+        { method: "POST", headers: AUTH_HEADER },
+      );
+      assert.strictEqual(dispatched.status, 200);
+      assert.deepStrictEqual(await dispatched.json(), { dispatched: true });
+
+      const ended = await timedFetch(`${serverInstance.baseUrl}/api/sessions/${session.id}/end`, {
+        method: "POST",
+        headers: AUTH_HEADER,
+      });
+      assert.strictEqual(ended.status, 200);
+
+      const afterEnd = await timedFetch(
+        `${serverInstance.baseUrl}/api/sessions/${session.id}/token`,
+        { headers: AUTH_HEADER },
+      );
+      assert.strictEqual(afterEnd.status, 409);
+    });
+
+    it("未知会话的 Token 与 dispatch 返回 404，未认证返回 401", async () => {
+      const unknown = "00000000-0000-4000-8000-00000000dead";
+      const token = await timedFetch(`${serverInstance.baseUrl}/api/sessions/${unknown}/token`, {
+        headers: AUTH_HEADER,
+      });
+      assert.strictEqual(token.status, 404);
+      const dispatched = await timedFetch(
+        `${serverInstance.baseUrl}/api/sessions/${unknown}/dispatch`,
+        { method: "POST", headers: AUTH_HEADER },
+      );
+      assert.strictEqual(dispatched.status, 404);
+      const anonymous = await timedFetch(`${serverInstance.baseUrl}/api/sessions/${unknown}/token`);
+      assert.strictEqual(anonymous.status, 401);
+    });
+  });
+
   describe("7. Assessment / Grammar 负向路由与 404", () => {
     const invalidPaths = [
       // lookalike prefix
