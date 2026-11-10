@@ -6,7 +6,7 @@ import {
   resolveLiveKitUrl,
   getLiveKitWsUrl,
   PlatformConfigError,
-} from "./env";
+} from "@/platform";
 
 describe("env utils", () => {
   const originalUserAgent = navigator.userAgent;
