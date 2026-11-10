@@ -15,6 +15,13 @@ interface PronunciationFeedbackProps {
   grammarErrors: GrammarErrorResponse[];
 }
 
+const skillLabels: Record<string, string> = zhCN.weeklyGrammar.skills;
+
+/** 语法技能标签的中文名；未知标签原样显示，不猜测。 */
+function resolveSkillLabel(tag: string): string {
+  return Object.prototype.hasOwnProperty.call(skillLabels, tag) ? skillLabels[tag] : tag;
+}
+
 /** 根据分数返回颜色类 */
 function getScoreColor(score: number): string {
   if (score >= 80) return "text-success";
@@ -78,7 +85,7 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
             {grammarErrors.map((err) => (
               <li key={err.id} className="border-border-default rounded-[14px] border p-3">
                 <span className="bg-surface-alt text-text-muted mr-2 inline-block rounded px-2 py-0.5 text-xs font-medium">
-                  {err.skill_tag}
+                  {resolveSkillLabel(err.skill_tag)}
                 </span>
                 <del
                   aria-label={t.grammarOriginalLabel.replace("{text}", err.original)}

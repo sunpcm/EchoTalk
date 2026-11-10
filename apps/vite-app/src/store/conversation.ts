@@ -1296,7 +1296,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => {
         }
         // 失败 end_failed 显示本地音频停止、服务端待重试，只能显式重试同一 session
         setSession({ type: "fail_end" }, () => ({
-          error: err instanceof Error ? err.message : "结束会话失败，请重试",
+          error: err instanceof Error ? err.message : zhCN.errors.endSession,
         }));
       }
     },

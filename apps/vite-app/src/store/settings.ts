@@ -17,6 +17,7 @@ import {
   arePrincipalsEqual,
   type AuthPrincipal,
 } from "@/lib/auth";
+import { zhCN } from "@/i18n/zh-CN";
 
 /** Phase 8：界面主题 */
 export type ThemeName = "warm" | "cool" | "dark";
@@ -451,7 +452,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         return;
       }
       set({
-        error: err instanceof Error ? err.message : "加载设置失败",
+        error: err instanceof Error ? err.message : zhCN.errors.loadSettings,
       });
     } finally {
       // TH-03 / TH-07: 旧 finally 绝不清理属于新请求或新身份的槽位
@@ -522,7 +523,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
       // 如果后端验证未通过，但 HTTP 请求成功返回了，我们需要视为"校验失败"
       if (settings.is_custom_mode && !settings.is_custom_verified) {
-        const errorMsg = "密钥验证未通过，请检查提供的 API Key 是否有效。";
+        const errorMsg = zhCN.errors.keyValidation;
         if (inFlightUpdate?.id === currentRequestId) {
           inFlightUpdate = null;
         }
@@ -539,7 +540,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       if (inFlightUpdate?.id !== currentRequestId || !isContextValid(currentOwner)) {
         return { success: false, error: "stale" };
       }
-      const errorMessage = err instanceof Error ? err.message : "保存失败";
+      const errorMessage = err instanceof Error ? err.message : zhCN.errors.saveSettings;
       if (inFlightUpdate?.id === currentRequestId) {
         inFlightUpdate = null;
       }

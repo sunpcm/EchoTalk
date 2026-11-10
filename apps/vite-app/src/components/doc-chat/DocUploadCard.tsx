@@ -218,7 +218,7 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
       <div
         role="button"
         tabIndex={0}
-        aria-label="点击选择 .txt 或 .md 文件"
+        aria-label={t.uploadAriaLabel}
         onClick={openFilePicker}
         onKeyDown={handleKeyDown}
         className="border-border-default hover:border-accent-soft-border hover:bg-accent-soft-bg focus-visible:ring-accent-soft-border flex cursor-pointer items-center justify-center rounded-[16px] border-2 border-dashed px-4 py-6 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
@@ -239,8 +239,8 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
             />
           </svg>
           <p className="text-text-muted text-sm">
-            点击选择 <span className="text-accent font-medium">.txt</span> /{" "}
-            <span className="text-accent font-medium">.md</span> 文件
+            {t.uploadPickPrefix} <span className="text-accent font-medium">.txt</span> /{" "}
+            <span className="text-accent font-medium">.md</span> {t.uploadPickSuffix}
           </p>
         </div>
       </div>
@@ -270,7 +270,7 @@ export function DocUploadCard({ value, onChange }: DocUploadCardProps) {
         aria-describedby="doc-upload-char-count"
         value={value}
         onChange={handleTextareaChange}
-        placeholder="或在此直接粘贴文档内容..."
+        placeholder={t.pastePlaceholder}
         rows={10}
         className={`w-full resize-y rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none ${
           isOverLimit
