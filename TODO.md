@@ -1,6 +1,37 @@
 # EchoTalk TODO
 
-> 当前唯一待办清单。完成事项应直接勾选；新增待办需写明验收条件，避免继续散落到阶段文档和源码注释中。
+> 当前唯一待办清单，只保留未完成事项。新增待办需写明验收条件；完成后勾选并移入
+> [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
+> 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
+
+## 2026-11-10 云端评审后续（R2）
+
+来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-05、R2-07、R2-08 已完成，
+证据见该报告 §3.1～§3.3；以下为剩余项，括号内编号对应报告中的发现。
+
+- [ ] **R2-06 统一区块三态**（U-4，P1）：新增 `SectionState` 展示组件，Dashboard 五个区块的加载/空/错误态
+      统一为"标题常驻 + 状态文案 + ≥44px 重试按钮"，并带 `role="status"` / `role="alert"`。验收：五个区块
+      失败时均有可聚焦重试按钮（E2E）；现有区块 Vitest 的行为断言不变。
+- [ ] **R2-09 平台接缝：认证会话、安全存储、麦克风权限**（P-1，P1）：在 `src/platform/` 增加三个接口及
+      Web 实现，`lib/auth.ts` 改为经接口装配；把 `RoomSession.tsx:50` 与 `store/conversation.ts:69` 的
+      平台名判断改为读取适配器能力；删除 `src/utils/env.ts`。验收：`auth.test.ts`、`VoiceInterface.test.tsx`
+      零改动通过；`src/` 中 `platform/` 之外不再出现 `=== "ios"` 这类平台名比较；不新增依赖。
+      原生实现不在本项范围。
+- [ ] **R2-10 硬编码文案收口**（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与 `goalReached` 英文
+      迁入 `src/i18n/`；设置抽屉标题改为"设置"；活动会话行不再展示完整 UUID；推荐卡片与语法提示的技能标签
+      复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、非测试文件中无中文字符串字面量。
+- [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：覆盖 LiveKit 容器背景为主题色、增加
+      场景名与计时页头、手机上字幕优先、`thinking` 使用独立文案。验收：模块桩布局 E2E 覆盖 390 与 1280；
+      真实 LiveKit 下的人工验收单列，未做不得勾选整项。
+- [ ] **R2-12 macOS 构建产物与同步脚本**（P-2，P2；壳工程受 CP-03 阻断）：`build.mjs` 支持
+      `--platform macos` 产出 `dist/macos/<mode>` 与 manifest；新增 `sync-macos.mjs` 的校验逻辑与 `node:test`。
+      验收：`test:build` 新增 macOS 用例通过；拿到 web/ios 产物或 mode 不符时在调用外部工具前失败。
+      不创建 `src-tauri/`。
+- [ ] **R2-13 组件目录按页面边界归位**（P-3，P2；排在 R2-07 之后）：抽出 `Dashboard`，按 §2.4 P-3 的目标结构
+      `git mv`。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
+- [ ] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2）：API 增加基于 `/api/health/ready` 的
+      healthcheck，`echotalk-web` 改为 `condition: service_healthy`，增加一次性迁移服务。验收：云端可做
+      `docker compose config` 校验；整栈启动验证需要 `.env` 与外部依赖，另列为未验证。
 
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
@@ -169,9 +200,15 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 ### Phase 1：分析可靠性
 
+本节事项已全部完成，见[已完成事项归档](./docs/history/todo-done.md)。
+
 ### Phase 2：模拟结果隔离
 
+本节事项已全部完成，见[已完成事项归档](./docs/history/todo-done.md)。
+
 ### Phase 3：鉴权与密钥生命周期
+
+本节事项已全部完成，见[已完成事项归档](./docs/history/todo-done.md)。
 
 ### Phase 4：架构减法
 
@@ -342,6 +379,8 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 ## P0 — 安全边界
 
+本节事项已全部完成，见[已完成事项归档](./docs/history/todo-done.md)。
+
 ## P1 — 功能完整性
 
 周度学习报告已实现最近七个本地自然日的 completed 会话计数与按日只读历史；其余指标
@@ -357,6 +396,8 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 - [ ] 在完整后端与 LiveKit 环境补验 Session、评估页面及深色主题可读性。
 
 ## P2 — 质量与维护
+
+本节事项已全部完成，见[已完成事项归档](./docs/history/todo-done.md)。
 
 ## 三端交付计划（Web / macOS / iOS）
 

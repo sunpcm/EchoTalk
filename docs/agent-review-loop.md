@@ -2,6 +2,8 @@
 
 > 建立日期：2026-10-21。章节编号被 prompt 引用后只追加，不重排。
 > 架构/评审负责范围、接口、独立验收与集成；实施负责代码、测试和交付报告，停在 Review。
+> §1 记录的是 2026-10-21 建立本地循环时的主机路径与 lane，属于当时事实；云端会话按 §20 执行。
+> 单轮回执已移至 [评审回执归档](./history/review-loop-receipts.md)，本手册只保留现行规则。
 
 ## §1 基线、目录与生命周期
 
@@ -401,3 +403,40 @@ tasks null 槽位、其他 pin、runtime、历史记录不改。r0 上述备份/
 ## §19 RESTORE-20261107 资源收口
 
 本节为单轮回执，原文已移至 [评审回执归档](./history/review-loop-receipts.md)；章节编号保留，供既有 prompt 引用。
+
+## §20 云端会话（Claude Code on the web，2026-11-10）
+
+云端容器没有主 checkout 的 `.review/`（prompt、`ev.sh`、证据目录），且会被回收。§1、§5 中依赖
+本地目录的条款按下列方式替代，其余规则（权威顺序、范围边界、不伪造通过、测试库隔离）不变。
+
+- **分支**：只在会话指定的 `claude/...` 分支工作，可以 commit 并 push 到该分支以保存产出；该分支即待评审
+  交付。不 merge 到 main、不 rebase 或改写他人分支、不部署；未经用户要求不创建 PR。
+- **证据**：不写 `.review/`。每条结论在报告或 PR 描述中附实际命令、关键输出与截图路径；评审报告放在
+  `docs/reviews/`。
+- **测试库**：只用容器 `echotalk-test-pg`（PostgreSQL 15.19，库 `echotalk_test`），环境变量
+  `DATABASE_URL` 已指向它。禁止连接 Compose 应用库，不读取或创建 `.env`。预装的 PostgreSQL 16 会让
+  `tests/test_analysis_worker.py` 的版本断言失败，跑 pytest 前先启动容器：
+
+  ```bash
+  service postgresql stop 2>/dev/null; docker start echotalk-test-pg 2>/dev/null || docker run -d --name echotalk-test-pg -e POSTGRES_USER=echotalk -e POSTGRES_PASSWORD=echotalk_test -e POSTGRES_DB=echotalk_test -p 127.0.0.1:5432:5432 postgres:15.19-alpine
+  ```
+
+  Docker 守护进程未运行时先启动 `dockerd`；`docker pull` 遇到 Docker Hub 429 时稍后重试。
+
+- **外部依赖**：不调用真实 Provider、LiveKit 或 IdP；iOS/macOS 没有 Xcode 和设备。相关结论一律标为未验证。
+- **命令**（与 §2 等价，解释器为 `backend/.venv`）：
+
+  | 检查               | 目录            | 命令                                                              |
+  | ------------------ | --------------- | ----------------------------------------------------------------- |
+  | 格式 / lint / 类型 | 仓库根          | `pnpm format:check`、`pnpm exec turbo run lint typecheck --force` |
+  | Vitest             | 仓库根          | `pnpm --filter vite-app test`                                     |
+  | 构建               | 仓库根          | `pnpm exec turbo run build --force`                               |
+  | E2E（Fake API）    | `apps/vite-app` | `pnpm exec playwright test --trace off`                           |
+  | 后端格式 / lint    | `backend`       | `.venv/bin/ruff format --check . && .venv/bin/ruff check .`       |
+  | 迁移               | `backend`       | `.venv/bin/alembic upgrade head && .venv/bin/alembic current`     |
+  | pytest             | `backend`       | `.venv/bin/pytest --cov=. --cov-report=term-missing`              |
+
+- **基线**：开工时先重跑一次并与 [PROJECT_STATUS.md](./PROJECT_STATUS.md) 的"当前验证基线"对照，不符先报告。
+- **Fake API 截图或手动验证**：用与 E2E 不同的端口启动，避免与测试并行冲突，例如
+  `E2E_API_PORT=18282 node e2e/fake-api.mjs` 与
+  `E2E_API_URL=http://127.0.0.1:18282 VITE_AUTH_MODE=dev VITE_DEV_AUTH_TOKEN=e2e-dev-token pnpm dev --host 127.0.0.1 --port 4273 --strictPort`。

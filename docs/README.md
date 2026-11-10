@@ -10,7 +10,7 @@
 
 ## 架构与治理
 
-- [当前状态与变更决策](./PROJECT_STATUS.md)：记录当前功能、验证边界、已合并和未采纳的实现及维护规则。
+- [当前状态与变更决策](./PROJECT_STATUS.md)：当前功能、当前验证基线、已知限制与历史索引。
 - [MVP 技术债修复与重构方案](./MVP_REFACTORING_REMEDIATION_PLAN.md)：定义 MVP 产品化修复的范围、实施顺序、验收和回滚要求；完成状态仍以根目录 `TODO.md` 为准。
 
 - [Agent 评审手册](./agent-review-loop.md)：三端评审循环、测试树、环境和并行边界。
@@ -33,6 +33,9 @@
 | Phase 8：三主题    | [PHASE_8_TECH_STACK.md](./PHASE_8_TECH_STACK.md) | [PHASE_8_MANUAL_TEST.md](./PHASE_8_MANUAL_TEST.md) | [PHASE_8_UI_THEME_UPGRADE.md](./PHASE_8_UI_THEME_UPGRADE.md) |
 
 ## 历史实现资料
+
+`history/` 保存按月的实施记录、已合并与未采纳决策、已完成待办和评审回执；只追加不改写，
+其中的计数与结论只属于当时提交。当前状态一律以 `PROJECT_STATUS.md`、`ARCHITECTURE.md` 和 `TODO.md` 为准。
 
 `archive/` 仅保留 Phase 1–4 仍可辅助排障或理解模块演进的技术说明与回归步骤。归档内容不代表当前配置或项目状态；执行命令前必须对照现有代码和根目录 `README.md`。
 
