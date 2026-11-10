@@ -51,6 +51,7 @@
   --color-success-bg: var(--success-bg);
   --color-success-border: var(--success-border);
   --color-success-text: var(--success-text);
+  --color-success-contrast: var(--success-contrast);
 
   --color-warning: var(--warning);
   --color-warning-bar: var(--warning-bar);
@@ -62,6 +63,7 @@
   --color-danger-bg: var(--danger-bg);
   --color-danger-border: var(--danger-border);
   --color-danger-text: var(--danger-text);
+  --color-danger-contrast: var(--danger-contrast);
 
   --color-mid-green: var(--mid-green);
 }

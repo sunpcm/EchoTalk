@@ -2,6 +2,9 @@
  * EchoTalk 三主题语义化设计 Token（Phase 8.1）
  * warm 写在 :root 上作为默认；cool / dark 用 [data-theme] 覆盖。
  * 运行时切换 <html data-theme="cool|dark"> 即全站生效。
+ * 对比度约定（WCAG 2.1 AA）：作为文字或实心按钮底色使用的 accent / text-muted / text-faint /
+ * success / warning / danger，在各自主题的 bg、surface 与对应浅底上不低于 4.5:1；
+ * 由 e2e/theme-contrast.spec.ts 回归。装饰用的渐变、阴影、边框不在此约定内。
  * 组件不直接引用这些变量，而是通过 theme.css 的 @theme 桥接层用
  * bg-surface / text-muted / bg-accent 这类 utility class。
  */
@@ -14,32 +17,34 @@
   --border: #efe7dc;
   --border-soft: #f0e7da;
   --text: #2c2620;
-  --text-muted: #8a8178;
-  --text-faint: #b0a69a;
-  --accent: #f76b4a;
-  --accent-hover: #e85632;
+  --text-muted: #6e6760;
+  --text-faint: #766f67;
+  --accent: #af4c35;
+  --accent-hover: #963f2b;
   --accent-grad-1: #fb9268;
   --accent-soft-bg: #fdebe3;
   --accent-soft-bg-strong: #fbdccd;
-  --accent-soft-text: #c9482a;
+  --accent-soft-text: #af3f25;
   --accent-soft-border: #f9c7b4;
   --accent-contrast: #ffffff;
   --accent-shadow: rgba(247, 107, 74, 0.45);
   --card-shadow: rgba(80, 50, 20, 0.18);
   --panel-gradient: linear-gradient(105deg, #fdebe3 0%, #fce3d6 55%, #fbefd6 100%);
-  --success: #37a56e;
+  --success: #287850;
   --success-bg: #e4f3ea;
   --success-border: #bee3cd;
   --success-text: #1f5c3d;
+  --success-contrast: #ffffff;
   --warning-bar: #f2a63b;
-  --warning: #b87a17;
+  --warning: #936212;
   --warning-bg: #fbefd6;
   --warning-border: #f0d399;
-  --danger: #e24c4c;
-  --danger-hover: #ce3b3b;
+  --danger: #b93e3e;
+  --danger-hover: #a03434;
   --danger-bg: #fbe7e4;
   --danger-border: #f1c4bd;
   --danger-text: #b83a3a;
+  --danger-contrast: #ffffff;
   --danger-shadow: rgba(226, 76, 76, 0.45);
   --mid-green: #5fbe8a;
 }
@@ -52,9 +57,9 @@
   --border: #dce6f2;
   --border-soft: #e3ecf6;
   --text: #202634;
-  --text-muted: #74808f;
-  --text-faint: #9ba7b5;
-  --accent: #3d6fe0;
+  --text-muted: #59636e;
+  --text-faint: #636b74;
+  --accent: #3663c7;
   --accent-hover: #2e58be;
   --accent-grad-1: #6d93ee;
   --accent-soft-bg: #e1eafb;
@@ -66,19 +71,21 @@
   --card-shadow: rgba(40, 70, 120, 0.16);
   --panel-gradient: linear-gradient(105deg, #e7eefb 0%, #dce7fa 55%, #e1eafb 100%);
   /* 语义色沿用暖色数值：两套浅色主题共享成功/警告/危险色 */
-  --success: #37a56e;
+  --success: #287850;
   --success-bg: #e4f3ea;
   --success-border: #bee3cd;
   --success-text: #1f5c3d;
+  --success-contrast: #ffffff;
   --warning-bar: #f2a63b;
-  --warning: #b87a17;
+  --warning: #936212;
   --warning-bg: #fbefd6;
   --warning-border: #f0d399;
-  --danger: #e24c4c;
-  --danger-hover: #ce3b3b;
+  --danger: #b93e3e;
+  --danger-hover: #a03434;
   --danger-bg: #fbe7e4;
   --danger-border: #f1c4bd;
   --danger-text: #b83a3a;
+  --danger-contrast: #ffffff;
   --danger-shadow: rgba(226, 76, 76, 0.45);
   --mid-green: #5fbe8a;
 }
@@ -92,7 +99,7 @@
   --border-soft: #2b2d33;
   --text: #edebe6;
   --text-muted: #97949e;
-  --text-faint: #726f78;
+  --text-faint: #918f96;
   --accent: #e8a23d;
   --accent-hover: #f2b156;
   --accent-grad-1: #f2c16b;
@@ -108,6 +115,7 @@
   --success-bg: #17301f;
   --success-border: #26492f;
   --success-text: #7bdda8;
+  --success-contrast: #0c1f14;
   --warning-bar: #e0a63a;
   --warning: #e0a63a;
   --warning-bg: #302711;
@@ -117,6 +125,7 @@
   --danger-bg: #32191b;
   --danger-border: #4a2427;
   --danger-text: #f0898d;
+  --danger-contrast: #1c1408;
   --danger-shadow: rgba(229, 100, 106, 0.45);
   --mid-green: #4fa87a;
 }

@@ -888,7 +888,7 @@ export function ActiveSessions() {
             type="button"
             onClick={fetchActiveSessions}
             disabled={loading}
-            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent text-accent-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
           >
             {t.retry}
           </button>
@@ -1022,7 +1022,7 @@ export function ActiveSessions() {
                             data-testid={`retry-end-button-${session.id}`}
                             onClick={() => handleConfirmEnd(session.id)}
                             disabled={isEnding}
-                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                           >
                             {isEnding ? t.ending : t.retryEnd}
                           </button>
@@ -1033,7 +1033,7 @@ export function ActiveSessions() {
                             data-testid={`confirm-end-button-${session.id}`}
                             onClick={() => handleConfirmEnd(session.id)}
                             disabled={isEnding}
-                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                           >
                             {isEnding ? t.ending : t.confirmEnd}
                           </button>
@@ -1092,7 +1092,7 @@ export function ActiveSessions() {
                             data-testid={`retry-resume-button-${session.id}`}
                             onClick={() => handleConfirmResume(session.id)}
                             disabled={isResuming}
-                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent text-accent-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                           >
                             {isResuming ? t.resuming : t.retryResume}
                           </button>
@@ -1103,7 +1103,7 @@ export function ActiveSessions() {
                             data-testid={`confirm-resume-button-${session.id}`}
                             onClick={() => handleConfirmResume(session.id)}
                             disabled={isResuming}
-                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent text-accent-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                           >
                             {isResuming ? t.resuming : t.confirmResume}
                           </button>

@@ -133,7 +133,7 @@ export function ActiveConversation({
 
           <button
             onClick={handleEnd}
-            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger mt-3 w-full rounded-[14px] px-6 py-2 text-white transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast mt-3 w-full rounded-[14px] px-6 py-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
             {tConv.endButton}
           </button>
