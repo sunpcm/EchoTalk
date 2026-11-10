@@ -733,6 +733,10 @@ const server = createServer(async (request, response) => {
   );
   if (method === "GET" && grammarOnlyMatch) {
     const sessionId = grammarOnlyMatch[1];
+    if (sessionId.startsWith("grammar-only-empty")) {
+      sendJson(response, 200, []);
+      return;
+    }
     sendJson(response, 200, [
       {
         id: "77500000-0000-4000-8000-000000000001",

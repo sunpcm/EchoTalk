@@ -665,6 +665,23 @@ describe("Fake API 契约与真实进程回归测试", () => {
         assert.strictEqual(json.length, 0);
       });
     }
+
+    it("grammar-only 返回一条语法记录，grammar-only-empty 返回空数组", async () => {
+      const withHints = await timedFetch(
+        `${serverInstance.baseUrl}/api/assessments/grammar-only/grammar`,
+        { headers: AUTH_HEADER },
+      );
+      assert.strictEqual(withHints.status, 200);
+      assert.strictEqual((await withHints.json()).length, 1);
+
+      for (const id of ["grammar-only-empty", "grammar-only-empty-webkit"]) {
+        const empty = await timedFetch(`${serverInstance.baseUrl}/api/assessments/${id}/grammar`, {
+          headers: AUTH_HEADER,
+        });
+        assert.strictEqual(empty.status, 200);
+        assert.deepStrictEqual(await empty.json(), []);
+      }
+    });
   });
 
   describe("7. Assessment / Grammar 负向路由与 404", () => {

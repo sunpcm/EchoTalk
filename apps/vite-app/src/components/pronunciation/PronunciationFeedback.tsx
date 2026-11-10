@@ -1,6 +1,6 @@
 /**
  * 发音反馈组件。
- * 展示 overall_score、音素可视化、语法错误列表。
+ * 展示 overall_score、音素可视化、语法错误列表；两者皆无时展示中性空态。
  */
 
 import React from "react";
@@ -57,8 +57,15 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
             <PhonemeVisualizer alignment={assessment.phoneme_alignment} />
           </div>
         </>
-      ) : (
+      ) : grammarErrors.length > 0 ? (
         <p className="text-text-muted text-center text-sm">{t.pronunciationUnavailable}</p>
+      ) : (
+        // 无发音评估且无语法提示：不暗示“零错误”，语法检测覆盖有限
+        <div data-testid="assessment-no-feedback" className="space-y-2 text-center">
+          <p className="text-text-default text-base font-semibold">{t.noFeedbackTitle}</p>
+          <p className="text-text-default text-sm">{t.noFeedbackBody}</p>
+          <p className="text-text-muted text-xs">{t.noFeedbackNote}</p>
+        </div>
       )}
 
       {/* 语法错误列表 */}
