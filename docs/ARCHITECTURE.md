@@ -1,22 +1,12 @@
-# EchoTalk 历史架构审计（2026-09-20）
+# EchoTalk 系统架构
 
-> 审计基线：`main@1f9a1b0`，2026-09-20。
+> 最后核对：2026-11-10，`main@22eaf82`。§2 与 §7 的每一行都按当日代码和测试重新核对，
+> 证据见 [2026-11 云端评审](./reviews/2026-11-cloud-review.md) §2.1。
 >
-> 本文保留 `main@1f9a1b0` 的历史审计，不代表当前实现。其 Mock 鉴权、密钥耦合等结论已由后续认证与凭据改造更新；不得据此判断当前发布状态。当前事实见 [PROJECT_STATUS.md](./PROJECT_STATUS.md)、[TODO.md](../TODO.md) 与 [三端门禁](./CROSS_PLATFORM_ARCHITECTURE.md)，以下为原审计内容。
->
-> **当前边界补充（2026-11-01，A76）**：`VoiceInterface` 已拆为 Room 资源/调度层与
-> 对话 UI 层；`agent_error` 只由实际 Room 的 `sessionId/sessionGen` 和当前认证
-> principal/revision 收取，runtime payload 在进入 store 前严格收窄。旧 callback、身份变化、
-> 卸载与终态迟到消息不得写入新会话。详细边界见
-> [CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
->
-> **同 principal 认证刷新补充（2026-11-01，A77 b/r2）**：Room 首次绑定的 principal 与
-> 物理 lifecycle adapter 保持稳定；每次已验证的同 principal 认证通知都建立新的业务监听
-> 归属，旧 SDK/lifecycle/business callback 永久失效。刷新不替换 Room、不停止健康轨或
-> 重发 dispatch。Web 订阅后 hidden/offline 立即失败；native pending 的占位 hidden 只表示
-> 未就绪，必须等 `whenReady` 后重新读取 snapshot 与能力，并按原 10 秒 deadline 结算。
-> 超时、可信 inactive 或能力失效均安全关闭，旧 timer callback 不能清空新句柄。详细边界见
-> [CP-06 Room 同 principal 认证刷新验证](./verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)。
+> 本文描述当前实现和仍然成立的风险。最初的 2026-09-20 审计（`main@1f9a1b0`）由 Git 历史保存；
+> 逐轮实施记录见 [PROJECT_STATUS.md](./PROJECT_STATUS.md)，待办见 [TODO.md](../TODO.md)，
+> 三端门禁见 [CROSS_PLATFORM_ARCHITECTURE.md](./CROSS_PLATFORM_ARCHITECTURE.md)。
+> 代码存在与自动化通过不等于真实 IdP、LiveKit、Provider、设备或部署已验收，这些边界在各节单独标注。
 
 ## 1. 架构结论
 
@@ -52,18 +42,20 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 
 ## 2. 能力状态
 
-| 能力              | 当前状态               | 事实边界                                                                            |
-| ----------------- | ---------------------- | ----------------------------------------------------------------------------------- |
-| Web 客户端        | 已实现                 | `apps/vite-app` 是交付基线；无 React Router，由 Zustand 驱动 Dashboard/Session 视图 |
-| iOS               | 基础接入               | Capacitor 工程、麦克风描述、`AVAudioSession` 已存在；真机全链路和发布未验证         |
-| Android / Desktop | 未实现                 | 仓库没有 Android 工程或 Tauri 工程                                                  |
-| API               | 已实现                 | FastAPI + async SQLAlchemy，统一挂载在 `/api`                                       |
-| 实时语音          | 已实现                 | LiveKit Cloud + 独立 Agent；依赖外部 STT/LLM/TTS Provider                           |
-| 鉴权              | 仅 Mock                | 所有 Bearer Token 当前都映射到同一个固定用户，不能用于多用户或公网生产              |
-| BYOK              | 已实现但受鉴权边界限制 | Key 用 Fernet 加密入库；密钥由 `JWT_SECRET_KEY` 派生                                |
-| 评估 / BKT        | 已实现                 | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态                  |
-| 课程检索          | 已实现                 | 推荐读取版本化 JSON，按 CEFR、技能、priority 与 id 确定性排序                       |
-| 周报              | 未实现                 | 多维学习报告仍是独立产品功能，当前没有任务骨架或业务入口                            |
+| 能力            | 当前状态         | 事实边界                                                                                                                             |
+| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Web 客户端      | 已实现           | `apps/vite-app` 是交付基线；无 React Router，由 Zustand 的 `appView` 切换 Dashboard / DocTalk 设置 / Session 三个视图                |
+| iOS             | 基础接入         | Capacitor 8.5 工程、麦克风描述、`AVAudioSession`、前后台适配已存在；CI 有无签名模拟器编译；真机全链路和发布未验证                    |
+| macOS           | 仅探针           | `tools/macos-m1-native-probe` 是独立 Tauri 2 探测工程，未接入 `apps/vite-app`；正式桌面工程等 CP-03 设备证据                         |
+| Android/Windows | 未实现           | 已明确后置，仓库没有对应工程                                                                                                         |
+| API             | 已实现           | FastAPI + async SQLAlchemy，统一挂载在 `/api`                                                                                        |
+| 实时语音        | 已实现           | LiveKit Cloud + 独立 Agent；依赖外部 STT/LLM/TTS Provider，真实语音质量不由 CI 证明                                                  |
+| 鉴权            | 已实现           | `AUTH_MODE=dev` 用显式 `DEV_AUTH_TOKEN`；`oidc` 校验 issuer/audience/JWKS 签名并按 `(issuer, subject)` 隔离用户；真实 IdP 联调未验收 |
+| BYOK            | 已实现           | Key 用 Fernet 加密入库；密钥来自独立的版本化 `CREDENTIAL_ENCRYPTION_KEYS`，与认证材料无关，支持多版本读取与惰性重加密                |
+| 评估 / BKT      | 已实现           | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态；合成结果不更新真实知识状态；语法仍为 demo 规则                   |
+| 课程检索        | 已实现           | 推荐读取版本化 JSON，按 CEFR、技能、priority 与 id 确定性排序                                                                        |
+| 单端通话占用    | 协议已实现，关闭 | `CALL_LEASE_MODE` 默认 `disabled`；Cloud 模式的客户端接管 UI 与真实媒体撤销未验收                                                    |
+| 周报            | 部分实现         | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3 已上线；练习时长、掌握度环比等指标未实现                       |
 
 ## 3. 运行时与职责
 
@@ -72,8 +64,23 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 - `apps/vite-app`：React 19、TypeScript、Zustand、Tailwind CSS v4，是 Web 与 iOS 共享的唯一 UI 产物。
 - `conversation` store：创建会话、获取 LiveKit Token、结束会话以及连接状态。
 - `assessment` store：结束会话后轮询发音、语法和知识状态。
-- `settings` store：BYOK 配置从 API 水合；主题只保存在 `localStorage`。
-- `VoiceInterface`：选择 Web 代理或原生直连的 LiveKit URL，并监听 `agent_error` DataChannel。
+- `settings` store：BYOK 配置从 API 水合；主题本地优先写入 `localStorage`，并防抖同步到后端
+  `user_settings.theme` 以支持跨设备水合。
+- `lib/auth.ts`：dev Token 或 OIDC Code + PKCE；对外提供认证快照、principal 与单调 revision，
+  请求按 revision 绑定，401 只使对应 revision 失效。当前实现只面向浏览器
+  （`sessionStorage` 与整页重定向），原生系统认证会话与 Keychain 尚无适配。
+- `platform/`：平台探测、API/LiveKit 地址解析、Web 与 iOS 的生命周期适配器。
+- `VoiceInterface`：按会话 `phase` 选择状态视图；`RoomSession` 持有 LiveKit Room 资源与调度，
+  `ActiveConversation` 负责对话 UI 并监听 `agent_error` DataChannel。
+
+`agent_error` 只由实际 Room 的 `sessionId/sessionGen` 和当前认证 principal/revision 收取，runtime
+payload 在进入 store 前严格收窄；旧 callback、身份变化、卸载与终态迟到消息不得写入新会话，见
+[CP-06 Agent 错误消息归属验证](./verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md)。
+
+同 principal 的认证刷新不替换 Room、不停止健康轨、不重发 dispatch；每次已验证的认证通知都建立新的
+业务监听归属，旧 SDK/lifecycle/business callback 永久失效。Web 订阅后 hidden/offline 立即失败；
+native pending 必须等 `whenReady` 后重新读取 snapshot 与能力，并按 10 秒 deadline 结算，见
+[CP-06 Room 同 principal 认证刷新验证](./verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)。
 
 前端 API 路径由 `getApiBaseUrl()` 惰性解析。Web 默认使用同源 `/api`；原生端必须提供 `VITE_API_BASE_URL`，并自动补齐 `/api`。
 
@@ -81,14 +88,15 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 
 FastAPI 保持模块化单体边界，路由只做鉴权、输入输出和流程编排：
 
-| 模块     | 路径                               | 职责                                        |
-| -------- | ---------------------------------- | ------------------------------------------- |
-| 健康检查 | `/api/health`, `/api/health/ready` | 进程存活与数据库就绪检查                    |
-| 会话     | `/api/sessions...`                 | 会话生命周期、LiveKit Token、Agent dispatch |
-| 对话     | `/api/conversation/chat`           | 非实时文本对话                              |
-| 评估     | `/api/assessments...`              | 发音、语法、BKT 状态查询                    |
-| 课程     | `/api/curriculum/next`             | 最弱技能 + 离线目录确定性推荐               |
-| 用户设置 | `/api/user/settings`               | 双轨模式、Provider 与加密 Key 的读写/拨测   |
+| 模块     | 路径                               | 职责                                                                                 |
+| -------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
+| 健康检查 | `/api/health`, `/api/health/ready` | 进程存活；就绪检查需认证并返回稳定原因码                                             |
+| 通话能力 | `/api/call-capabilities`           | 单端占用协议能力发现                                                                 |
+| 会话     | `/api/sessions...`                 | 会话生命周期、列表与活动发现、每日/七天聚合、LiveKit Token、Agent dispatch、通话占用 |
+| 对话     | `/api/conversation/chat`           | 非实时文本对话                                                                       |
+| 评估     | `/api/assessments...`              | 发音、语法、BKT 状态查询、七天语法汇总                                               |
+| 课程     | `/api/curriculum/next`             | 最弱技能 + 离线目录确定性推荐                                                        |
+| 用户设置 | `/api/user/settings`               | 双轨模式、Provider 与加密 Key 的读写/拨测                                            |
 
 `database.get_db()` 在请求成功后提交、异常时回滚。业务服务复用同一个 `AsyncSession`，因此单请求内的关系数据库写入仍处于同一事务边界。
 
@@ -128,15 +136,17 @@ adapter 来源；该验证不改生产源码或 tracked 生成 JSON。
 
 ## 4. 核心数据与所有权
 
-PostgreSQL 当前包含 10 张业务表：
+PostgreSQL 当前包含 12 张业务表（Alembic head `c06_transcript_events`）：
 
 ```text
 users
 ├── user_profiles          1:0..1
-├── user_settings          1:0..1（Provider 配置、加密 API Key、验证状态）
-├── sessions               1:N
-│   ├── transcripts        1:N（文本、角色、情绪状态）
+├── user_settings          1:0..1（Provider 配置、加密 API Key 与 key version、验证状态、主题）
+├── sessions               1:N（可选幂等键）
+│   ├── transcripts        1:N（文本、角色、情绪状态、事件幂等）
 │   ├── session_contexts   1:0..1（DocTalk 原文与自定义 Prompt）
+│   ├── analysis_jobs      1:0..1（状态、尝试次数、稳定错误码）
+│   ├── call_leases        单端通话占用（默认关闭）
 │   ├── pronunciation_assessments
 │   └── grammar_errors
 └── knowledge_states       1:N ── N:1 skills
@@ -213,44 +223,63 @@ lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死�
 `python -m scripts.seed_corpus` 校验。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、
 资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
 
-## 7. 已确认的架构风险
+## 7. 架构风险
+
+状态核对日期 2026-11-10。"部分解决"表示代码已有对应机制但仍有缺口；外部环境相关结论未在真实环境验证。
 
 ### P0：发布阻断
 
-1. **Mock 鉴权**：`get_current_user` 忽略 Authorization 内容；当前所有用户数据实际属于固定测试用户。
-2. **密钥耦合**：`JWT_SECRET_KEY` 同时派生 Fernet Key。随机变更会导致已存 BYOK Key 永久无法解密；默认开发值不能进入公网环境。
-3. **无 TLS 生产入口**：仓库内 Nginx 只监听 80。麦克风、Cookie、原生 ATS 和凭据传输都要求真实 HTTPS/WSS 边界。
+1. **仓库内无 TLS 生产入口**（仍存在）：`apps/vite-app/nginx.conf` 只监听 80，Compose 只暴露
+   `3000:80`。麦克风、原生 ATS 和凭据传输都要求真实 HTTPS/WSS 边界，必须由外层入口终止 TLS。
+   后端已有补偿：OIDC 模式要求 HTTPS issuer/JWKS，并拒绝非本机的 HTTP CORS Origin
+   （`backend/config.py` 的 `validate_runtime`）。实际部署的 TLS 终止未验证。
 
 ### P1：可靠性
 
-1. **分析可观测性仍不足**：持久化 Job 已具备重试、超时恢复与幂等，但队列积压、执行延迟和
-   重试耗尽尚未形成集中告警。
-2. **多 worker 启动竞态**：4 个 Uvicorn worker 都执行测试用户与技能播种；“先查后插”缺少数据库级 upsert，冷启动时可能发生唯一键竞争。
-3. **迁移与启动未编排**：服务可能在旧 Schema 上启动；应由单独的一次性迁移 Job 串行执行，而不是让每个 API worker 自动迁移。
-4. **外部服务单点**：LiveKit Cloud、STT、LLM、TTS 任一不可用都会中断语音链路；当前缺少统一超时预算、熔断指标和降级说明。
-5. **Compose 就绪门禁不足**：Web 只等待 API 容器启动，不等待 `/health/ready`；API 本身也没有容器 healthcheck。
+1. **分析可观测性不足**（仍存在）：持久化 Job 已具备重试、超时恢复与幂等，但队列积压、执行延迟和
+   重试耗尽没有指标或集中告警。
+2. **迁移与启动未编排**（部分解决）：CI 已验证从空库升级到 head；Compose 仍没有一次性迁移服务，
+   API 可能在旧 Schema 上启动。
+3. **外部服务单点**（部分解决）：LLM 客户端与 LiveKit 连接的超时/重试策略已显式化并有测试
+   （`test_llm_client_policy.py`、`test_session_connect_policy.py`）；LiveKit Cloud、STT、LLM、TTS
+   任一不可用仍会中断语音链路，缺少熔断指标和降级说明。
+4. **Compose 就绪门禁不足**（仍存在）：只有 PostgreSQL 有 healthcheck；Web 只等待 API 容器启动，
+   不等待就绪，API 没有容器 healthcheck。
+5. **原生认证未适配**（仍存在）：前端认证只面向浏览器，iOS/macOS 的系统认证会话回跳、Keychain 存储
+   与续期均未实现，属于 CP-04 门禁。
 
 ### P2：维护与交付
 
-1. 教学语料目录变更仍需人工维护版本化数据与优先级；当前没有管理工作台或自动质量评测。
-2. Web Docker 配方已静态统一到 Node 22、Corepack 精确 pnpm 与根 context 允许列表；
-   后端也已按 API/Agent 运行角色分流。CI 尚未构建这些真实镜像，基础镜像 Corepack 签名链、
-   后端角色安装分布、实际 COPY 与服务启动仍未验证。
-3. CI 没有验证 Alembic 从空库升级或 iOS 构建。
-4. 前端 API、状态与页面仍耦合在单一 SPA；在引入更多页面前再评估 Router，不需要现在为“未来可能”抽共享核心。
+1. 教学语料目录变更仍需人工维护版本化数据与优先级；没有管理工作台或自动质量评测。
+2. Web 与后端 Docker 配方已静态统一（Node 22、Corepack 精确 pnpm、API/Agent 角色分流），但 CI 不构建
+   这些镜像，基础镜像签名链、角色安装分布、实际 COPY 与服务启动仍未验证。
+3. 前端 API、状态与页面仍耦合在单一 SPA，视图切换没有 URL。当前三个顶层视图下不引入 Router；
+   出现需要可分享或可刷新保持的页面时再评估，不为"未来可能"抽共享核心。
+4. 浏览器 E2E 使用 Fake API，未覆盖"开始练习 → 取 Token → 进房"主路径；真实 Provider 与设备链路
+   是独立外部验收。
+
+### 已关闭的风险
+
+| 原风险                                | 关闭方式                                                                                                                                                             |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mock 鉴权（原 P0）                    | `backend/dependencies.py` 校验 Bearer 并按 `(issuer, subject)` 映射用户；`backend/auth.py` 校验 OIDC 签名、audience、issuer 与时效；dev 模式无显式 Token 拒绝启动    |
+| 认证密钥派生 BYOK 加密密钥（原 P0）   | `CREDENTIAL_ENCRYPTION_KEYS` 版本化 keyring 与 `backend/utils/crypto.py`；旧派生密钥只经 `LEGACY_CREDENTIAL_DECRYPTION_SECRET` 迁移期只读；OIDC 模式禁止默认开发密钥 |
+| 多 worker 启动播种竞态（原 P1）       | 应用启动不再写库；参考数据由 `python -m seed_reference_data` 以 `ON CONFLICT DO NOTHING` 显式播种                                                                    |
+| CI 未验证空库迁移与 iOS 构建（原 P2） | `test-backend` 从空库升级到 head；`test-ios-build` 与 `test-macos-probe` 纳入聚合门禁                                                                                |
 
 ## 8. 推荐演进顺序
 
-1. **先封安全边界**：真实认证、稳定的加密主密钥策略、HTTPS/WSS、生产配置 fail-fast。
-2. **再补交付可靠性**：一次性迁移 Job、幂等播种、API/Agent/Provider 健康与结构化日志。
-3. **补齐分析任务可观测性**：PostgreSQL Job、幂等、有限重试与补偿入口已完成；继续补队列积压、
-   延迟和失败率告警，并记录课程目录改造后的镜像/冷启动对比。
-4. **完成 iOS 真机闭环**：在真实认证与网络边界上验证，不把模拟器启动等同于可发布。
-5. **按需求扩展 Android/Desktop**：先做平台 Spike，再决定是否维护原生工程；不要提前创建空壳或抽取 `shared-core`。
+1. **补齐生产入口**：HTTPS/WSS 终止、一次性迁移 Job、API healthcheck 与 Compose 就绪门禁。
+2. **补齐分析任务可观测性**：队列积压、延迟和失败率告警。
+3. **完成真实环境验收**：真实 IdP 登录与续期、LiveKit/Provider 全链路、iOS 真机闭环；
+   不把模拟器启动或 Fake API 通过等同于可发布。
+4. **macOS**：先取得 CP-03 设备证据再建立正式 Tauri 工程；不提前创建空壳或抽取 `shared-core`。
+5. **Android/Windows**：后置，按需求先做平台 Spike。
 
 ## 9. 文档更新规则
 
-- 本文只记录当前实现和已经确认的风险，不写阶段待办清单。
+- 本文只记录当前实现和已经确认的风险，不写阶段待办清单，也不追加逐轮实施记录（写入 `PROJECT_STATUS.md`）。
+- 修改 §2 或 §7 时更新页首的核对日期与提交；风险解决后移入「已关闭的风险」并写明关闭方式。
 - 跨端目标与平台门禁写入 `CROSS_PLATFORM_ARCHITECTURE.md`。
 - 可执行任务与验收条件只写入根目录 `TODO.md`。
 - 架构状态变化时，应在同一提交中更新本文、README 摘要和相关验收文档。
