@@ -29,8 +29,8 @@
 
 | 测试树 / 门禁             | 结果                                              | 说明                                         |
 | ------------------------- | ------------------------------------------------- | -------------------------------------------- |
-| Vitest                    | 1149 passed（43 个文件）                          | 分支 HEAD                                    |
-| Playwright E2E            | 232 passed（Chromium + WebKit，Fake API，0 skip） | 分支 HEAD                                    |
+| Vitest                    | 1156 passed（44 个文件）                          | 分支 HEAD                                    |
+| Playwright E2E            | 234 passed（Chromium + WebKit，Fake API，0 skip） | 分支 HEAD                                    |
 | backend pytest            | 809 passed，覆盖率 79.67%                         | `main@22eaf82`；此后分支未改后端代码，未重跑 |
 | Alembic                   | 空库升级到 `c06_transcript_events`                | `main@22eaf82`                               |
 | 格式 / lint / 类型 / 构建 | 通过                                              | 分支 HEAD                                    |
@@ -46,7 +46,7 @@
   [ARCHITECTURE.md §7](./ARCHITECTURE.md)，本文不重复。
 - CI 使用的部分 GitHub Actions 仍基于已弃用的 Node 20 runtime；`ubuntu-latest` 即将迁移到 Ubuntu 26。
   （2026-10 记录，本次未重新核实。）
-- 前端 lint 有 131 条 warning（0 error），主要是 `Unexpected any`。
+- 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
