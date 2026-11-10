@@ -577,7 +577,13 @@ class GatewayTests(unittest.TestCase):
         client = socket.create_connection(relay.server_address, timeout=2)
         client.sendall(b"GET / HTTP/1.1\r\nHost: local\r\n\r\n")
         deadline = time.monotonic() + 2
-        while not any(upstream is not None for upstream in relay.active.values()):
+
+        def upstream_connected():
+            # Worker threads mutate relay.active under relay.lock.
+            with relay.lock:
+                return any(upstream is not None for upstream in relay.active.values())
+
+        while not upstream_connected():
             if time.monotonic() >= deadline:
                 self.fail("gateway did not connect to fixed upstream in time")
         self.finish_relay(relay)
