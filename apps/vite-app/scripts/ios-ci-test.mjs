@@ -165,13 +165,18 @@ if (stage === "cap") {
     if (command === plan.node) return runBounded(command, args, options);
     if (command === "/usr/bin/plutil") return { status: 0, stdout: JSON.stringify(plist) };
     if (command === "/usr/bin/curl") {
-      const artifact = testArtifacts.find((entry) => args.at(-1).endsWith(`/${entry.id}`));
+      const artifact = testArtifacts.find(
+        (entry) =>
+          args.at(-1) ===
+          `https://github.com/ionic-team/capacitor-swift-pm/releases/download/8.5.0/${entry.name}.xcframework.zip`,
+      );
       assert.ok(artifact);
       assert.equal(args[0], "--disable");
       assert.equal(args[args.indexOf("--retry") + 1], "3");
       assert.equal(args[args.indexOf("--retry-max-time") + 1], "240");
       assert.ok(!args.includes("--retry-all-errors"));
-      assert.ok(args.includes("Accept: application/octet-stream"));
+      assert.ok(!args.includes("Accept: application/octet-stream"));
+      assert.ok(args.every((arg) => !arg.includes("api.github.com")));
       put(args[args.indexOf("--output") + 1], artifactBytes(artifact.name));
       return { status: 0 };
     }
@@ -224,22 +229,15 @@ function assertPackageCachePolicy(plan, args) {
 
 test("fixed public assets bind the exact 8.5.0 manifest hashes and cache keys", () => {
   assert.deepEqual(
-    PINNED_ARTIFACTS.map(({ name, id, size, sha256 }) => [name, id, size, sha256]),
+    PINNED_ARTIFACTS.map(({ name, size, sha256 }) => [name, size, sha256]),
     [
-      [
-        "Capacitor",
-        496864201,
-        6605675,
-        "357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130",
-      ],
-      [
-        "Cordova",
-        496864200,
-        1842453,
-        "a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10",
-      ],
+      ["Capacitor", 6605675, "357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130"],
+      ["Cordova", 1842453, "a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10"],
     ],
   );
+  for (const artifact of PINNED_ARTIFACTS) {
+    assert.deepEqual(Object.keys(artifact).sort(), ["name", "size", "sha256"].sort());
+  }
 });
 
 for (const defect of ["http", "checksum", "size", "missing"])

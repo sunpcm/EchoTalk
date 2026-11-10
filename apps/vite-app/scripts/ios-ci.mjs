@@ -51,17 +51,16 @@ const fail = (code, exitCode = 78) => Object.assign(new Error(code), { code, exi
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 // From capacitor-swift-pm Package.swift at the exact revision in validateLock.
-// Public GitHub asset IDs change transport only; SwiftPM still verifies the ZIPs.
+// Prefetch from the same manifest release URL, avoiding api.github.com unauthenticated rate
+// limits (403); SwiftPM still verifies the ZIPs.
 export const PINNED_ARTIFACTS = Object.freeze([
   Object.freeze({
     name: "Capacitor",
-    id: 496864201,
     size: 6605675,
     sha256: "357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130",
   }),
   Object.freeze({
     name: "Cordova",
-    id: 496864200,
     size: 1842453,
     sha256: "a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10",
   }),
@@ -91,6 +90,8 @@ async function prepareArtifacts(plan, artifacts, command) {
   freshDirectory(plan, downloads);
   freshDirectory(plan, cache);
   // No curl config, credentials, inherited proxies or remote filenames.
+  // Downloads directly from the manifest release URL (avoiding unauthenticated api.github.com
+  // 403 limits).
   // Bounded curl retries cover transient GitHub CDN failures (timeouts, 408/429/5xx) only;
   // 4xx and checksum/size mismatches still fail closed. Each retry rewrites the partial
   // file, and only verified bytes become cache entries.
@@ -119,11 +120,9 @@ async function prepareArtifacts(plan, artifacts, command) {
         "5",
         "--retry-max-time",
         "240",
-        "--header",
-        "Accept: application/octet-stream",
         "--output",
         partial,
-        `https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/assets/${artifact.id}`,
+        artifactUrl(artifact),
       ],
       // Last attempt may start just before --retry-max-time and still run --max-time.
       400_000,
