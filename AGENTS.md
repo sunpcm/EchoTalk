@@ -39,7 +39,11 @@ Never commit `.env`, credentials, provider API keys, or user data. Use local env
 - 权威顺序：PRD → 跨系统契约 → 实施计划 → 代码与测试；prompt 是指令，不是事实依据。
 - 修改前核对 prompt 指定的绝对 worktree、分支、HEAD 和工作树状态；不符就报告，不自行 pull、stash、reset 或切分支。
 - 实施只能改指定 lane；主 checkout、其他 lane 及未授权仓库只读。一个 prompt 只执行一轮范围。
-- 实施停在 Review，不 commit、push、pull、rebase、merge、部署或发布。
+- 实施交付停在 Review；独立评审 APPROVED 后可按需 commit 并 push 到该任务分支。不
+  pull、rebase 或改写他人分支，不 merge 到 main、部署或发布，除非用户另行授权。
+- 云端会话（Claude Code on the web）没有本地 `.review/`，容器会被回收：可 commit 并 push 到
+  会话指定的 `claude/...` 分支以保存产出，该分支即待评审交付，合并前须经用户评审；证据写进
+  报告或 PR 描述；测试库只用环境内专用的 PostgreSQL 15.19 容器，不读写 `.env`。
 - 验收命令经 prompt 指定的 ev.sh，证据与报告只写指定本地目录，不读取 reviewer-probes。
 - 独立评审由架构 Agent 亲自执行；不信交付报告，自查 diff、全部测试树与证据，结论为 APPROVED 或 CHANGES REQUESTED。
 - 用户已确认 prompt、报告与证据仅保存在主 checkout 的 `.review/`，不纳入 Git。
