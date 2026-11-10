@@ -3,867 +3,76 @@
  * 消费既有 GET /api/sessions/active 接口，在共享 Dashboard 展示当前已认证账号的活跃会话记录。
  * 提供显式结束记录与显式恢复练习能力（接管暂未开放）。
  * 遵循严格的认证代际隔离、竞态消除及不回显服务端报错策略。
+ *
+ * 本文件只做组装；流程分别位于 active-sessions/ 下的列表、结束、恢复与订阅四个 Hook。
  */
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { listActiveSessions, endSession, type SessionListItem } from "@/lib/api";
-import {
-  getAuthSnapshot,
-  getAuthRevision,
-  subscribeAuthSnapshot,
-  arePrincipalsEqual,
-  type AuthPrincipal,
-  type AuthSnapshot,
-} from "@/lib/auth";
-import { createLifecycleAdapter, type LifecycleAdapter, type WebLifecycleEvent } from "@/platform";
+import React, { useRef } from "react";
+import { arePrincipalsEqual, getAuthRevision } from "@/lib/auth";
 import { useConversationStore } from "@/store/conversation";
 import { isStartingConversationSession } from "@/store/conversationState";
 import { zhCN } from "@/i18n/zh-CN";
+import { ConfirmPanel } from "./active-sessions/ConfirmPanel";
+import { SessionRow } from "./active-sessions/SessionRow";
+import { createActiveSessionsRuntime, type ActiveSessionsRuntime } from "./active-sessions/shared";
+import { useActiveSessionList } from "./active-sessions/useActiveSessionList";
+import { useActiveSessionsLifecycle } from "./active-sessions/useActiveSessionsLifecycle";
+import { useSessionEndFlow } from "./active-sessions/useSessionEndFlow";
+import { useSessionResumeFlow } from "./active-sessions/useSessionResumeFlow";
 
 const t = zhCN.activeSessions;
 
-function resolveModeLabel(mode: string): string {
-  if (Object.prototype.hasOwnProperty.call(t.modes, mode)) {
-    const label = t.modes[mode as keyof typeof t.modes];
-    if (typeof label === "string" && label.length > 0) {
-      return label;
-    }
-  }
-  return t.unknownMode;
-}
-
-function formatStartedAt(startedAt: string): string {
-  try {
-    const d = new Date(startedAt);
-    if (isNaN(d.getTime())) return startedAt;
-    return d.toLocaleString("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return startedAt;
-  }
-}
-
-interface ConfirmIntent {
-  sessionId: string;
-  principal: AuthPrincipal;
-  revision: number;
-}
-
 export function ActiveSessions() {
-  const [snapshot, setSnapshot] = useState<AuthSnapshot>(() => getAuthSnapshot());
-  const [sessions, setSessions] = useState<SessionListItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<boolean>(false);
-  const [queriedIdentity, setQueriedIdentity] = useState<{
-    principal: AuthPrincipal;
-    revision: number;
-  } | null>(null);
-
   const hasReadinessFeedback = useConversationStore(
     (s) => s.readinessIssue !== null || s.recheckingReadiness || s.readinessNotice,
   );
-  const resumeSession = useConversationStore((s) => s.resumeSession);
   const isStarting = useConversationStore((s) => isStartingConversationSession(s));
 
-  // 结束活动记录操作状态
-  const [confirmingSessionId, setConfirmingSessionId] = useState<string | null>(null);
-  const [isEnding, setIsEnding] = useState<boolean>(false);
-  const [endError, setEndError] = useState<boolean>(false);
-
-  // 恢复活动记录操作状态
-  const [resumingConfirmId, setResumingConfirmId] = useState<string | null>(null);
-  const [isResuming, setIsResuming] = useState<boolean>(false);
-  const [resumeError, setResumeError] = useState<boolean>(false);
-
-  // 分页状态
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  const [loadMoreError, setLoadMoreError] = useState<boolean>(false);
-
-  // 跟踪在途请求与并发门禁
-  const activeRequestIdRef = useRef<number>(0);
-  const inFlightRef = useRef<boolean>(false);
-  const loadMoreRequestIdRef = useRef<number>(0);
-  const loadMoreInFlightRef = useRef<boolean>(false);
-  const nextCursorRef = useRef<string | null>(null);
-  nextCursorRef.current = nextCursor;
-  const endRequestIdRef = useRef<number>(0);
-  const endInFlightRef = useRef<boolean>(false);
-  const resumeRequestIdRef = useRef<number>(0);
-  const resumeInFlightRef = useRef<boolean>(false);
-  const activeEndingSessionIdRef = useRef<string | null>(null);
-  const activeResumingSessionIdRef = useRef<string | null>(null);
-  const activeResumeGenRef = useRef<number>(useConversationStore.getState().sessionGen);
-  const endedSessionIdsRef = useRef<Set<string>>(new Set());
-  const confirmIntentRef = useRef<ConfirmIntent | null>(null);
-  const resumeIntentRef = useRef<ConfirmIntent | null>(null);
-  const sessionsRef = useRef<SessionListItem[]>(sessions);
-  sessionsRef.current = sessions;
-
-  const isMountedRef = useRef<boolean>(true);
-  const activePrincipalRef = useRef<AuthPrincipal | null>(snapshot.principal);
-  const activeRevisionRef = useRef<number>(getAuthRevision());
-  const lifecycleAdapterRef = useRef<LifecycleAdapter | null>(null);
-
-  const currentRevision = getAuthRevision();
-  const hasQueried =
-    queriedIdentity !== null &&
-    snapshot.state === "authenticated" &&
-    snapshot.principal !== null &&
-    arePrincipalsEqual(queriedIdentity.principal, snapshot.principal) &&
-    queriedIdentity.revision === currentRevision &&
-    queriedIdentity.revision === activeRevisionRef.current;
-
-  const fetchActiveSessions = useCallback(() => {
-    // 结束在途或启动/恢复在途暂停列表刷新且不排队
-    const currentConvState = useConversationStore.getState();
-    const isStartingNow = isStartingConversationSession(currentConvState);
-
-    if (endInFlightRef.current || resumeInFlightRef.current || isStartingNow) {
-      return;
-    }
-
-    const currentSnap = getAuthSnapshot();
-    const currentRev = getAuthRevision();
-
-    // 认证 loading/anonymous/misconfigured 不发列表请求、不保留上一账号数据
-    if (currentSnap.state !== "authenticated" || !currentSnap.principal) {
-      setSessions([]);
-      setError(false);
-      setLoading(false);
-      setQueriedIdentity(null);
-      return;
-    }
-
-    // 生命周期门禁：仅在 visibility 不是 hidden 且 online 不是 false 时请求
-    // unknown/null 代表未知而不是失败，允许原有发现
-    const adapter = lifecycleAdapterRef.current;
-    if (adapter) {
-      const lifeSnap = adapter.getSnapshot();
-      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) {
-        return;
-      }
-    }
-
-    // 一个已挂载实例同时最多一个有效请求；重试期间禁重复提交
-    if (inFlightRef.current) {
-      return;
-    }
-
-    loadMoreRequestIdRef.current++;
-    loadMoreInFlightRef.current = false;
-    setLoadingMore(false);
-    setLoadMoreError(false);
-    setNextCursor(null);
-
-    inFlightRef.current = true;
-    const reqId = ++activeRequestIdRef.current;
-    const reqPrincipal = currentSnap.principal;
-    const reqRevision = currentRev;
-
-    setLoading(true);
-    setError(false);
-
-    listActiveSessions()
-      .then((data) => {
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        // 门禁检查：组件仍挂载、请求未被后续刷新作废、principal精确匹配、revision一致
-        if (
-          !isMountedRef.current ||
-          reqId !== activeRequestIdRef.current ||
-          latestSnap.state !== "authenticated" ||
-          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-          latestRev !== reqRevision
-        ) {
-          return;
-        }
-
-        // 后端已按 started_at/id 降序；客户端保留顺序，单页去重且防旧列表迟到复活已结束记录
-        const seenIds = new Set<string>();
-        const uniqueItems: SessionListItem[] = [];
-        for (const s of data.items) {
-          if (!endedSessionIdsRef.current.has(s.id) && !seenIds.has(s.id)) {
-            seenIds.add(s.id);
-            uniqueItems.push(s);
-          }
-        }
-        setSessions(uniqueItems);
-        setNextCursor(data.next_cursor);
-        setError(false);
-        setQueriedIdentity({ principal: reqPrincipal, revision: reqRevision });
-      })
-      .catch(() => {
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          !isMountedRef.current ||
-          reqId !== activeRequestIdRef.current ||
-          latestSnap.state !== "authenticated" ||
-          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-          latestRev !== reqRevision
-        ) {
-          return;
-        }
-
-        // 不回显任意服务端错误/正文，仅置错误态
-        setError(true);
-      })
-      .finally(() => {
-        if (reqId === activeRequestIdRef.current) {
-          inFlightRef.current = false;
-        }
-
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          isMountedRef.current &&
-          reqId === activeRequestIdRef.current &&
-          latestSnap.state === "authenticated" &&
-          arePrincipalsEqual(latestSnap.principal, reqPrincipal) &&
-          latestRev === reqRevision
-        ) {
-          setLoading(false);
-        }
-      });
-  }, []);
-
-  const handleLoadMore = () => {
-    const currentConvState = useConversationStore.getState();
-    const isStartingNow = isStartingConversationSession(currentConvState);
-
-    if (
-      endInFlightRef.current ||
-      resumeInFlightRef.current ||
-      isStartingNow ||
-      inFlightRef.current ||
-      loadMoreInFlightRef.current ||
-      !nextCursorRef.current
-    ) {
-      return;
-    }
-
-    const currentSnap = getAuthSnapshot();
-    const currentRev = getAuthRevision();
-    if (currentSnap.state !== "authenticated" || !currentSnap.principal) {
-      return;
-    }
-
-    const adapter = lifecycleAdapterRef.current;
-    if (adapter) {
-      const lifeSnap = adapter.getSnapshot();
-      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) {
-        return;
-      }
-    }
-
-    loadMoreInFlightRef.current = true;
-    const reqId = ++loadMoreRequestIdRef.current;
-    const reqPrincipal = currentSnap.principal;
-    const reqRevision = currentRev;
-    const cursor = nextCursorRef.current;
-
-    setLoadingMore(true);
-    setLoadMoreError(false);
-
-    listActiveSessions({ cursor })
-      .then((data) => {
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          !isMountedRef.current ||
-          reqId !== loadMoreRequestIdRef.current ||
-          latestSnap.state !== "authenticated" ||
-          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-          latestRev !== reqRevision
-        ) {
-          return;
-        }
-
-        setSessions((prev) => {
-          const existingIds = new Set(prev.map((s) => s.id));
-          const newUnique: SessionListItem[] = [];
-          for (const s of data.items) {
-            if (!existingIds.has(s.id) && !endedSessionIdsRef.current.has(s.id)) {
-              existingIds.add(s.id);
-              newUnique.push(s);
-            }
-          }
-          return [...prev, ...newUnique];
-        });
-        setNextCursor(data.next_cursor);
-        setLoadMoreError(false);
-      })
-      .catch(() => {
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          !isMountedRef.current ||
-          reqId !== loadMoreRequestIdRef.current ||
-          latestSnap.state !== "authenticated" ||
-          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-          latestRev !== reqRevision
-        ) {
-          return;
-        }
-
-        setLoadMoreError(true);
-      })
-      .finally(() => {
-        if (reqId === loadMoreRequestIdRef.current) {
-          loadMoreInFlightRef.current = false;
-        }
-
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          isMountedRef.current &&
-          reqId === loadMoreRequestIdRef.current &&
-          latestSnap.state === "authenticated" &&
-          arePrincipalsEqual(latestSnap.principal, reqPrincipal) &&
-          latestRev === reqRevision
-        ) {
-          setLoadingMore(false);
-        }
-      });
-  };
-
-  const handleStartConfirm = (sessionId: string) => {
-    // 结束在途、恢复/新建启动在途时禁重复或替换在途目标
-    if (endInFlightRef.current || resumeInFlightRef.current || isStarting) {
-      return;
-    }
-    const currentSnap = getAuthSnapshot();
-    const currentRev = getAuthRevision();
-    if (currentSnap.state !== "authenticated" || !currentSnap.principal) {
-      return;
-    }
-    resumeRequestIdRef.current++;
-    resumeIntentRef.current = null;
-    // 绑定选择时的认证 principal 与 revision，防止旧意图被后续新认证代际误用
-    confirmIntentRef.current = {
-      sessionId,
-      principal: currentSnap.principal,
-      revision: currentRev,
-    };
-    setConfirmingSessionId(sessionId);
-    setResumingConfirmId(null);
-    setEndError(false);
-  };
-
-  const handleCancelConfirm = () => {
-    if (endInFlightRef.current) {
-      return;
-    }
-    confirmIntentRef.current = null;
-    setConfirmingSessionId(null);
-    setEndError(false);
-  };
-
-  const handleStartResumeConfirm = (sessionId: string) => {
-    // 结束在途、恢复/新建启动在途时禁重复或替换在途目标
-    if (endInFlightRef.current || resumeInFlightRef.current || isStarting) {
-      return;
-    }
-    const currentSnap = getAuthSnapshot();
-    const currentRev = getAuthRevision();
-    if (currentSnap.state !== "authenticated" || !currentSnap.principal) {
-      return;
-    }
-    resumeRequestIdRef.current++;
-    resumeIntentRef.current = {
-      sessionId,
-      principal: currentSnap.principal,
-      revision: currentRev,
-    };
-    setResumingConfirmId(sessionId);
-    setConfirmingSessionId(null);
-    setResumeError(false);
-  };
-
-  const handleCancelResume = () => {
-    if (resumeInFlightRef.current) {
-      return;
-    }
-    resumeIntentRef.current = null;
-    resumeRequestIdRef.current++;
-    setResumingConfirmId(null);
-    setResumeError(false);
-  };
-
-  const handleConfirmResume = async (targetSessionId: string) => {
-    // 1. 在途禁重复提交
-    if (resumeInFlightRef.current || endInFlightRef.current || isStarting) {
-      return;
-    }
-
-    // 2. 校验恢复意图是否存在且目标匹配
-    const intent = resumeIntentRef.current;
-    if (!intent || intent.sessionId !== targetSessionId) {
-      return;
-    }
-
-    // 3. 校验当前认证 principal/revision 必须与意图发起时的代际严格一致
-    const currentSnap = getAuthSnapshot();
-    const currentRev = getAuthRevision();
-    if (
-      currentSnap.state !== "authenticated" ||
-      !currentSnap.principal ||
-      !arePrincipalsEqual(currentSnap.principal, intent.principal) ||
-      currentRev !== intent.revision
-    ) {
-      return;
-    }
-
-    // 4. 校验目标仍属于当前列表
-    const existsInList = sessionsRef.current.some((s) => s.id === targetSessionId);
-    if (!existsInList) {
-      return;
-    }
-
-    // 5. 前台/在线提示门禁：visibility 不是 hidden 且 online 不是 false
-    const adapter = lifecycleAdapterRef.current;
-    if (adapter) {
-      const lifeSnap = adapter.getSnapshot();
-      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) {
-        return;
-      }
-    }
-
-    // 6. 恢复前作废当前列表请求与更多页请求
-    if (inFlightRef.current) {
-      activeRequestIdRef.current++;
-      inFlightRef.current = false;
-      setLoading(false);
-    }
-    if (loadMoreInFlightRef.current) {
-      loadMoreRequestIdRef.current++;
-      loadMoreInFlightRef.current = false;
-      setLoadingMore(false);
-    }
-
-    // 7. 标记恢复在途并绑定操作代际
-    resumeInFlightRef.current = true;
-    const reqId = ++resumeRequestIdRef.current;
-    activeResumingSessionIdRef.current = targetSessionId;
-    activeResumeGenRef.current = useConversationStore.getState().sessionGen;
-    const reqPrincipal = intent.principal;
-    const reqRevision = intent.revision;
-
-    setIsResuming(true);
-    setResumeError(false);
-
-    try {
-      const res = await resumeSession(targetSessionId, {
-        principal: reqPrincipal,
-        revision: reqRevision,
-      });
-
-      const latestSnap = getAuthSnapshot();
-      const latestRev = getAuthRevision();
-
-      // 代际与归属门禁：组件仍挂载、请求未被后续刷新/重试/认证作废、principal精确匹配、revision一致
-      if (
-        !isMountedRef.current ||
-        reqId !== resumeRequestIdRef.current ||
-        latestSnap.state !== "authenticated" ||
-        !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-        latestRev !== reqRevision
-      ) {
-        return;
-      }
-
-      // 明确成功判定：未返回 false 且未抛错（绝不把全局 store.error 当来源判定；失败返回 false 或抛错）
-      const success = res !== false;
-
-      if (success) {
-        resumeIntentRef.current = null;
-        setResumingConfirmId(null);
-        setResumeError(false);
-      } else {
-        setResumeError(true);
-      }
-    } catch {
-      const latestSnap = getAuthSnapshot();
-      const latestRev = getAuthRevision();
-
-      if (
-        !isMountedRef.current ||
-        reqId !== resumeRequestIdRef.current ||
-        latestSnap.state !== "authenticated" ||
-        !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-        latestRev !== reqRevision
-      ) {
-        return;
-      }
-
-      setResumeError(true);
-    } finally {
-      if (reqId === resumeRequestIdRef.current) {
-        resumeInFlightRef.current = false;
-        activeResumingSessionIdRef.current = null;
-      }
-
-      const latestSnap = getAuthSnapshot();
-      const latestRev = getAuthRevision();
-
-      if (
-        isMountedRef.current &&
-        reqId === resumeRequestIdRef.current &&
-        latestSnap.state === "authenticated" &&
-        arePrincipalsEqual(latestSnap.principal, reqPrincipal) &&
-        latestRev === reqRevision
-      ) {
-        setIsResuming(false);
-      }
-    }
-  };
-
-  const handleConfirmEnd = (targetSessionId: string) => {
-    // 1. 在途禁重复提交
-    if (endInFlightRef.current || resumeInFlightRef.current || isStarting) {
-      return;
-    }
-
-    // 2. 校验确认意图是否存在且目标匹配
-    const intent = confirmIntentRef.current;
-    if (!intent || intent.sessionId !== targetSessionId) {
-      return;
-    }
-
-    // 3. 重新校验当前认证 principal/revision 必须与确认意图发起时的代际严格一致
-    const currentSnap = getAuthSnapshot();
-    const currentRev = getAuthRevision();
-    if (
-      currentSnap.state !== "authenticated" ||
-      !currentSnap.principal ||
-      !arePrincipalsEqual(currentSnap.principal, intent.principal) ||
-      currentRev !== intent.revision
-    ) {
-      return;
-    }
-
-    // 4. 校验目标仍属于当前列表
-    const existsInList = sessionsRef.current.some((s) => s.id === targetSessionId);
-    if (!existsInList) {
-      return;
-    }
-
-    // 5. 前台/在线提示门禁：不是 hidden 且不是 offline 才允许发送，unknown/null 沿用未知语义
-    const adapter = lifecycleAdapterRef.current;
-    if (adapter) {
-      const lifeSnap = adapter.getSnapshot();
-      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) {
-        return;
-      }
-    }
-
-    // 6. 结束前作废当前列表请求与更多页请求
-    if (inFlightRef.current) {
-      activeRequestIdRef.current++;
-      inFlightRef.current = false;
-      setLoading(false);
-    }
-    if (loadMoreInFlightRef.current) {
-      loadMoreRequestIdRef.current++;
-      loadMoreInFlightRef.current = false;
-      setLoadingMore(false);
-    }
-
-    // 7. 标记结束请求在途并推进
-    endInFlightRef.current = true;
-    const reqId = ++endRequestIdRef.current;
-    activeEndingSessionIdRef.current = targetSessionId;
-    const reqPrincipal = intent.principal;
-    const reqRevision = intent.revision;
-
-    setIsEnding(true);
-    setEndError(false);
-
-    endSession(targetSessionId)
-      .then((session) => {
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          !isMountedRef.current ||
-          reqId !== endRequestIdRef.current ||
-          latestSnap.state !== "authenticated" ||
-          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-          latestRev !== reqRevision
-        ) {
-          return;
-        }
-
-        // 仅收到 id 与目标匹配且 status=completed 的 Session 响应才确认成功
-        if (session && session.id === targetSessionId && session.status === "completed") {
-          endedSessionIdsRef.current.add(targetSessionId);
-          setSessions((prev) => prev.filter((s) => s.id !== targetSessionId));
-          confirmIntentRef.current = null;
-          setConfirmingSessionId(null);
-          setEndError(false);
-        } else {
-          setEndError(true);
-        }
-      })
-      .catch(() => {
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          !isMountedRef.current ||
-          reqId !== endRequestIdRef.current ||
-          latestSnap.state !== "authenticated" ||
-          !arePrincipalsEqual(latestSnap.principal, reqPrincipal) ||
-          latestRev !== reqRevision
-        ) {
-          return;
-        }
-
-        // 失败保留目标和安全本地化错误，不回显服务端异常/正文
-        setEndError(true);
-      })
-      .finally(() => {
-        if (reqId === endRequestIdRef.current) {
-          endInFlightRef.current = false;
-          activeEndingSessionIdRef.current = null;
-        }
-
-        const latestSnap = getAuthSnapshot();
-        const latestRev = getAuthRevision();
-
-        if (
-          isMountedRef.current &&
-          reqId === endRequestIdRef.current &&
-          latestSnap.state === "authenticated" &&
-          arePrincipalsEqual(latestSnap.principal, reqPrincipal) &&
-          latestRev === reqRevision
-        ) {
-          setIsEnding(false);
-        }
-      });
-  };
-
-  useEffect(() => {
-    let isEffectActive = true;
-    isMountedRef.current = true;
-
-    // 创建独立生命周期适配器
-    const adapter = createLifecycleAdapter();
-    lifecycleAdapterRef.current = adapter;
-
-    const handleLifecycleEvent = (event: WebLifecycleEvent) => {
-      if (!isEffectActive || !isMountedRef.current) return;
-
-      // suspend或online=false立即作废当前列表请求并释放在途槽位、退出loading，保留同一账号已展示列表、不新增错误提示
-      // 契约明确：“结束槽位不能被离线/挂起当列表请求释放；不因suspend/offline释放结束槽位或自动重发已发送POST”
-      // 恢复在途槽位若因挂起/离线被 store 取消，同步释放恢复在途并作废代际归属
-      if (
-        event.type === "suspend" ||
-        event.snapshot.visibility === "hidden" ||
-        event.snapshot.online === false
-      ) {
-        if (inFlightRef.current) {
-          activeRequestIdRef.current++;
-          inFlightRef.current = false;
-          setLoading(false);
-        }
-        loadMoreRequestIdRef.current++;
-        loadMoreInFlightRef.current = false;
-        setLoadingMore(false);
-        setLoadMoreError(false);
-        setNextCursor(null);
-        nextCursorRef.current = null;
-        if (resumeInFlightRef.current) {
-          resumeRequestIdRef.current++;
-          resumeInFlightRef.current = false;
-          activeResumingSessionIdRef.current = null;
-          setIsResuming(false);
-        }
-      }
-
-      // 结束在途或启动/恢复在途暂停列表刷新且不排队
-      if (endInFlightRef.current || resumeInFlightRef.current || isStarting) {
-        return;
-      }
-
-      // resume事件仅visibility为visible且online不是false时刷新
-      if (event.type === "resume") {
-        if (event.snapshot.visibility === "visible" && event.snapshot.online !== false) {
-          fetchActiveSessions();
-        }
-      } else if (event.type === "connectivity") {
-        // connectivity事件仅online为true且visibility不是hidden时刷新
-        if (event.snapshot.online === true && event.snapshot.visibility !== "hidden") {
-          fetchActiveSessions();
-        }
-      }
-    };
-
-    // 先订阅后读取当前快照
-    const unsubscribeLifecycle = adapter.subscribe(handleLifecycleEvent);
-    const initialLifeSnap = adapter.getSnapshot();
-
-    const handleSnapshotChange = (nextSnap: AuthSnapshot) => {
-      if (!isEffectActive || !isMountedRef.current) return;
-
-      const nextRev = getAuthRevision();
-      const prevPrincipal = activePrincipalRef.current;
-      const nextPrincipal = nextSnap.principal;
-
-      const principalChanged = !arePrincipalsEqual(prevPrincipal, nextPrincipal);
-      const revisionChanged = nextRev !== activeRevisionRef.current;
-
-      activePrincipalRef.current = nextPrincipal;
-      activeRevisionRef.current = nextRev;
-      setSnapshot(nextSnap);
-
-      if (nextSnap.state !== "authenticated" || !nextPrincipal) {
-        // 认证失效/退出：立即清除确认和结束/恢复错误、作废旧操作及列表请求
-        activeRequestIdRef.current++;
-        inFlightRef.current = false;
-        loadMoreRequestIdRef.current++;
-        loadMoreInFlightRef.current = false;
-        endRequestIdRef.current++;
-        endInFlightRef.current = false;
-        resumeRequestIdRef.current++;
-        resumeInFlightRef.current = false;
-        activeEndingSessionIdRef.current = null;
-        activeResumingSessionIdRef.current = null;
-        endedSessionIdsRef.current.clear();
-        confirmIntentRef.current = null;
-        resumeIntentRef.current = null;
-        setConfirmingSessionId(null);
-        setResumingConfirmId(null);
-        setIsEnding(false);
-        setIsResuming(false);
-        setEndError(false);
-        setResumeError(false);
-        setSessions([]);
-        setNextCursor(null);
-        setLoadingMore(false);
-        setLoadMoreError(false);
-        setError(false);
-        setLoading(false);
-        setQueriedIdentity(null);
-        return;
-      }
-
-      // 若 principal 变更或同 principal 下 revision 递增（例如同账号退出重登）
-      if (principalChanged || revisionChanged) {
-        activeRequestIdRef.current++;
-        inFlightRef.current = false;
-        loadMoreRequestIdRef.current++;
-        loadMoreInFlightRef.current = false;
-        endRequestIdRef.current++;
-        endInFlightRef.current = false;
-        resumeRequestIdRef.current++;
-        resumeInFlightRef.current = false;
-        activeEndingSessionIdRef.current = null;
-        activeResumingSessionIdRef.current = null;
-        endedSessionIdsRef.current.clear();
-        confirmIntentRef.current = null;
-        resumeIntentRef.current = null;
-        setConfirmingSessionId(null);
-        setResumingConfirmId(null);
-        setIsEnding(false);
-        setIsResuming(false);
-        setEndError(false);
-        setResumeError(false);
-        setSessions([]);
-        setNextCursor(null);
-        setLoadingMore(false);
-        setLoadMoreError(false);
-        setError(false);
-        setLoading(false);
-        setQueriedIdentity(null);
-        fetchActiveSessions();
-      }
-    };
-
-    const unsubscribeAuth = subscribeAuthSnapshot(handleSnapshotChange);
-
-    const unsubscribeStore = useConversationStore.subscribe((state) => {
-      if (!isEffectActive || !isMountedRef.current) return;
-      if (
-        state.connectionState === "checking_health" ||
-        state.connectionState === "connecting" ||
-        state.connectionState === "active"
-      ) {
-        activeResumeGenRef.current = state.sessionGen;
-      }
-      // 当恢复在途期间，若 store 回到 idle 或 ended 且会话代际被作废（例如 reset() / goHome() / store生命周期监听取消回idle），
-      // 说明 store 已取消或重置本次启动，组件必须同步作废对应 UI 代际并释放恢复槽位
-      if (
-        resumeInFlightRef.current &&
-        (state.connectionState === "idle" || state.connectionState === "ended") &&
-        state.sessionGen !== activeResumeGenRef.current
-      ) {
-        resumeRequestIdRef.current++;
-        resumeInFlightRef.current = false;
-        activeResumingSessionIdRef.current = null;
-        setIsResuming(false);
-      }
-    });
-
-    const initialSnap = getAuthSnapshot();
-    activePrincipalRef.current = initialSnap.principal;
-    activeRevisionRef.current = getAuthRevision();
-    setSnapshot(initialSnap);
-
-    if (initialSnap.state === "authenticated" && initialSnap.principal) {
-      if (initialLifeSnap.visibility !== "hidden" && initialLifeSnap.online !== false) {
-        fetchActiveSessions();
-      } else {
-        setLoading(false);
-      }
-    } else {
-      setSessions([]);
-      setError(false);
-      setLoading(false);
-      setQueriedIdentity(null);
-    }
-
-    return () => {
-      isEffectActive = false;
-      isMountedRef.current = false;
-      // 卸载时作废在途请求与操作，消除 StrictMode 下的残留阻断
-      activeRequestIdRef.current++;
-      inFlightRef.current = false;
-      loadMoreRequestIdRef.current++;
-      loadMoreInFlightRef.current = false;
-      endRequestIdRef.current++;
-      endInFlightRef.current = false;
-      resumeRequestIdRef.current++;
-      resumeInFlightRef.current = false;
-      activeEndingSessionIdRef.current = null;
-      activeResumingSessionIdRef.current = null;
-      confirmIntentRef.current = null;
-      resumeIntentRef.current = null;
-      unsubscribeStore();
-      unsubscribeAuth();
-      unsubscribeLifecycle();
-      adapter.dispose();
-      lifecycleAdapterRef.current = null;
-    };
-  }, [fetchActiveSessions]);
+  // 三个流程共用的互斥门禁与生命周期适配器
+  const runtimeRef = useRef<ActiveSessionsRuntime>(null as unknown as ActiveSessionsRuntime);
+  if (runtimeRef.current === null) {
+    runtimeRef.current = createActiveSessionsRuntime();
+  }
+
+  const list = useActiveSessionList(runtimeRef);
+  const end = useSessionEndFlow(runtimeRef, list, isStarting);
+  const resume = useSessionResumeFlow(runtimeRef, list, isStarting);
+  const { snapshot, activeRevision } = useActiveSessionsLifecycle(
+    runtimeRef,
+    { list, end, resume },
+    isStarting,
+  );
 
   // 未认证状态（loading/anonymous/misconfigured）不渲染活动记录
   if (snapshot.state !== "authenticated" || !snapshot.principal) {
     return null;
   }
+
+  const { sessions, loading, error, queriedIdentity, nextCursor, loadingMore, loadMoreError } =
+    list;
+  const { confirmingSessionId, isEnding, endError } = end;
+  const { resumingConfirmId, isResuming, resumeError } = resume;
+
+  const currentRevision = getAuthRevision();
+  const hasQueried =
+    queriedIdentity !== null &&
+    arePrincipalsEqual(queriedIdentity.principal, snapshot.principal) &&
+    queriedIdentity.revision === currentRevision &&
+    queriedIdentity.revision === activeRevision;
+
+  // 结束与恢复确认互斥：打开一个时收起另一个
+  const handleStartEndConfirm = (sessionId: string) => {
+    if (end.beginConfirm(sessionId)) {
+      resume.dismissForEndConfirm();
+    }
+  };
+  const handleStartResumeConfirm = (sessionId: string) => {
+    if (resume.beginConfirm(sessionId)) {
+      end.hidePanel();
+    }
+  };
+
+  const isActionInFlight = isEnding || isResuming || isStarting;
 
   return (
     <section aria-labelledby="active-sessions-title" className="space-y-3">
@@ -886,7 +95,7 @@ export function ActiveSessions() {
           <p className="leading-relaxed font-medium break-words">{t.loadError}</p>
           <button
             type="button"
-            onClick={fetchActiveSessions}
+            onClick={list.fetchActiveSessions}
             disabled={loading}
             className="bg-accent hover:bg-accent-hover focus-visible:ring-accent text-accent-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
           >
@@ -910,208 +119,72 @@ export function ActiveSessions() {
         <>
           <ul className="space-y-2" data-testid="active-sessions-list">
             {sessions.map((session) => {
-              const modeLabel = resolveModeLabel(session.mode);
               const isConfirmingEnd = confirmingSessionId === session.id;
               const isConfirmingResume = resumingConfirmId === session.id;
-              const isActionInFlight = isEnding || isResuming || isStarting;
 
               return (
-                <li
+                <SessionRow
                   key={session.id}
-                  data-testid={`active-session-item-${session.id}`}
-                  className="bg-surface-alt flex flex-col gap-2.5 rounded-[12px] p-3 text-sm"
+                  session={session}
+                  showActions={!isConfirmingEnd && !isConfirmingResume}
+                  actionsDisabled={isActionInFlight}
+                  onResume={() => handleStartResumeConfirm(session.id)}
+                  onEnd={() => handleStartEndConfirm(session.id)}
                 >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          data-testid={`session-mode-${session.id}`}
-                          className="text-accent bg-accent-soft-bg shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
-                        >
-                          {modeLabel}
-                        </span>
-                        <span
-                          data-testid={`session-id-${session.id}`}
-                          className="text-text-muted font-mono text-xs break-all"
-                          title={session.id}
-                        >
-                          {session.id}
-                        </span>
-                      </div>
-                      <time
-                        dateTime={session.started_at}
-                        data-testid={`session-started-at-${session.id}`}
-                        className="text-text-faint text-xs"
-                      >
-                        {formatStartedAt(session.started_at)}
-                      </time>
-                    </div>
-                    {!isConfirmingEnd && !isConfirmingResume && (
-                      <div className="flex shrink-0 flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`resume-session-button-${session.id}`}
-                          onClick={() => handleStartResumeConfirm(session.id)}
-                          disabled={isActionInFlight}
-                          className="text-accent hover:text-accent-hover bg-accent-soft-bg hover:bg-accent-soft-bg/80 focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {t.resumeRecord}
-                        </button>
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`end-session-button-${session.id}`}
-                          onClick={() => handleStartConfirm(session.id)}
-                          disabled={isActionInFlight}
-                          className="text-danger hover:text-danger-hover bg-danger-bg hover:bg-danger-bg/80 focus-visible:ring-danger inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {t.endRecord}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
                   {isConfirmingEnd && (
-                    <div
-                      data-testid={`end-confirm-panel-${session.id}`}
-                      className="bg-surface-alt border-border-soft mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
-                    >
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex flex-wrap items-baseline gap-1.5">
-                          <span className="text-text-muted shrink-0 font-medium">
-                            {t.targetIdLabel}
-                          </span>
-                          <span
-                            data-testid={`confirm-session-id-${session.id}`}
-                            className="text-text-default font-mono font-semibold break-all"
-                          >
-                            {session.id}
-                          </span>
-                        </div>
-                        <p className="text-text-muted leading-relaxed break-words">
-                          {t.endConfirmDisclaimer}
-                        </p>
-                      </div>
-
-                      {endError && (
-                        <div
-                          role="alert"
-                          data-testid={`end-error-${session.id}`}
-                          className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
-                        >
-                          {t.endError}
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`cancel-end-button-${session.id}`}
-                          onClick={handleCancelConfirm}
-                          disabled={isEnding}
-                          className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {t.cancelEnd}
-                        </button>
-                        {endError ? (
-                          <button
-                            type="button"
-                            tabIndex={0}
-                            data-testid={`retry-end-button-${session.id}`}
-                            onClick={() => handleConfirmEnd(session.id)}
-                            disabled={isEnding}
-                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                          >
-                            {isEnding ? t.ending : t.retryEnd}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            tabIndex={0}
-                            data-testid={`confirm-end-button-${session.id}`}
-                            onClick={() => handleConfirmEnd(session.id)}
-                            disabled={isEnding}
-                            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                          >
-                            {isEnding ? t.ending : t.confirmEnd}
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    <ConfirmPanel
+                      sessionId={session.id}
+                      tone="danger"
+                      disclaimer={t.endConfirmDisclaimer}
+                      errorMessage={endError ? t.endError : null}
+                      hasFailed={endError}
+                      busy={isEnding}
+                      labels={{
+                        cancel: t.cancelEnd,
+                        confirm: t.confirmEnd,
+                        retry: t.retryEnd,
+                        busy: t.ending,
+                      }}
+                      testIds={{
+                        panel: `end-confirm-panel-${session.id}`,
+                        targetId: `confirm-session-id-${session.id}`,
+                        error: `end-error-${session.id}`,
+                        cancel: `cancel-end-button-${session.id}`,
+                        confirm: `confirm-end-button-${session.id}`,
+                        retry: `retry-end-button-${session.id}`,
+                      }}
+                      onCancel={end.cancelConfirm}
+                      onConfirm={() => end.confirmEnd(session.id)}
+                    />
                   )}
 
                   {isConfirmingResume && (
-                    <div
-                      data-testid={`resume-confirm-panel-${session.id}`}
-                      className="bg-surface-alt border-border-soft mt-1 flex flex-col gap-2.5 rounded-lg border p-3 text-xs"
-                    >
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex flex-wrap items-baseline gap-1.5">
-                          <span className="text-text-muted shrink-0 font-medium">
-                            {t.targetIdLabel}
-                          </span>
-                          <span
-                            data-testid={`confirm-resume-session-id-${session.id}`}
-                            className="text-text-default font-mono font-semibold break-all"
-                          >
-                            {session.id}
-                          </span>
-                        </div>
-                        <p className="text-text-muted leading-relaxed break-words">
-                          {t.resumeConfirmDisclaimer}
-                        </p>
-                      </div>
-
-                      {resumeError && !hasReadinessFeedback && (
-                        <div
-                          role="alert"
-                          data-testid={`resume-error-${session.id}`}
-                          className="text-danger-text bg-danger-bg rounded px-2.5 py-1.5 leading-relaxed font-medium break-words"
-                        >
-                          {t.resumeError}
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap items-center justify-start gap-2 pt-1 sm:justify-end">
-                        <button
-                          type="button"
-                          tabIndex={0}
-                          data-testid={`cancel-resume-button-${session.id}`}
-                          onClick={handleCancelResume}
-                          disabled={isResuming}
-                          className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-3 py-2 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                        >
-                          {t.cancelResume}
-                        </button>
-                        {resumeError ? (
-                          <button
-                            type="button"
-                            tabIndex={0}
-                            data-testid={`retry-resume-button-${session.id}`}
-                            onClick={() => handleConfirmResume(session.id)}
-                            disabled={isResuming}
-                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent text-accent-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                          >
-                            {isResuming ? t.resuming : t.retryResume}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            tabIndex={0}
-                            data-testid={`confirm-resume-button-${session.id}`}
-                            onClick={() => handleConfirmResume(session.id)}
-                            disabled={isResuming}
-                            className="bg-accent hover:bg-accent-hover focus-visible:ring-accent text-accent-contrast inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                          >
-                            {isResuming ? t.resuming : t.confirmResume}
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    <ConfirmPanel
+                      sessionId={session.id}
+                      tone="accent"
+                      disclaimer={t.resumeConfirmDisclaimer}
+                      errorMessage={resumeError && !hasReadinessFeedback ? t.resumeError : null}
+                      hasFailed={resumeError}
+                      busy={isResuming}
+                      labels={{
+                        cancel: t.cancelResume,
+                        confirm: t.confirmResume,
+                        retry: t.retryResume,
+                        busy: t.resuming,
+                      }}
+                      testIds={{
+                        panel: `resume-confirm-panel-${session.id}`,
+                        targetId: `confirm-resume-session-id-${session.id}`,
+                        error: `resume-error-${session.id}`,
+                        cancel: `cancel-resume-button-${session.id}`,
+                        confirm: `confirm-resume-button-${session.id}`,
+                        retry: `retry-resume-button-${session.id}`,
+                      }}
+                      onCancel={resume.cancelConfirm}
+                      onConfirm={() => void resume.confirmResume(session.id)}
+                    />
                   )}
-                </li>
+                </SessionRow>
               );
             })}
           </ul>
@@ -1131,7 +204,7 @@ export function ActiveSessions() {
                 type="button"
                 tabIndex={0}
                 data-testid="load-more-active-button"
-                onClick={handleLoadMore}
+                onClick={list.loadMore}
                 disabled={loadingMore || isEnding || isResuming || isStarting}
                 className="text-text-muted hover:text-text-default border-border-soft focus-visible:ring-accent inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border px-4 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
               >
