@@ -15,7 +15,8 @@
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)，标明
       `6bda2cd`/`ef6cb53` 的 run 因 #118 回退而无 iOS job（#128 起恢复 `test-ios-build`），
       required check 配置未核。只改文档。
-- [ ] **会后分析按来源门控**（方案 C-1，#120）：BKT 只吃 `is_synthetic=False` 的观察；
+- [x] **会后分析按来源门控**（方案 C-1，#120；2026-11-09 本地验收：pytest 809、Vitest 1142、E2E 180，变异 7/7 被杀；
+      语法仍为 demo 规则，BKT 需 SGEC 落地后才有真实信号；遗留：无发音且无语法错误时的文案待定）：BKT 只吃 `is_synthetic=False` 的观察；
       `USE_MOCK_ELSA=False` 时发音标为不可用、语法独立完成，不再整个 Job 失败；须同时处理
       发音缺失时 assessment 接口 404、前端 `Promise.all` 整体报错与纯语法重跑幂等。验收：
       pytest 覆盖全合成、两种方向的混合来源、两路真实、无发音、无转录、重跑，前端覆盖部分结果。
@@ -27,12 +28,13 @@
       本地 LiveKit dev + 故意错误的 Key 触发 Deepgram/Cartesia 握手失败，日志无 Canary 明文
       （无需真实 Key，外网访问与服务启动需用户另行授权）；离线回归、错误 Key 冒烟、真实语音分开报告。
 - [x] **python-jose 迁移 PyJWT**（方案 B；2026-11-09 本地验收：lock 107→102 移除 python-jose/ecdsa/rsa/pyasn1/six，
-      pytest 801 passed，auth 变异 4/5 被杀、1 例等价；遗留：PyJWT 下限可上调、防御分支无测试）：改 `auth.py` 与测试，并在 API 依赖组显式声明 PyJWT、
+      pytest 801 passed，auth 变异 4/5 被杀、1 例等价；遗留两项已于同日补齐：下限上调至 2.13.0（PyJWK alg 绑定起始版本）、防御分支回归）：改 `auth.py` 与测试，并在 API 依赖组显式声明 PyJWT、
       删除 `python-jose`，同步 lock/export；与 1.6.10 升级共用依赖文件，须顺序生成。验收：补伪造
       HS256 + RSA `kid` 回归，401/503 语义不变。
 - [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长
       ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。
-- [ ] **核销 LiveKit 消息路径 SDK 类型忽略**（P2 既有项）：当前消息路径已用公开属性和类型收窄，
+- [x] **核销 LiveKit 消息路径 SDK 类型忽略**（P2 既有项；2026-11-09 按 1.6.10 源码取证：消息路径只用公开类型字段
+      `ConversationItemAddedEvent.item`→`ChatMessage.role/text_content: str | None`，无 type: ignore；未跑类型检查器）：当前消息路径已用公开属性和类型收窄，
       唯一命中 `log_redaction.py` 的 `method-assign` 不在范围内；待 1.6.10 固定后取得类型证据再勾选。
 
 **被 Key 或外部条件阻断：**
@@ -529,7 +531,7 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 - [x] 按主要容器补齐主题颜色过渡，避免子元素瞬间切色（A35 本地独立评审通过）；
       为 #root 注入 theme-transitions 作用域，补齐主要容器、卡片、设置抽屉及显式文本 250ms ease 颜色过渡，
       保持 box-shadow 150ms 与 hover 能力，兼容 reduce 偏好与 WAAPI 插值中间态验证，见 [主要容器主题过渡验证](./docs/verification/cross-platform/CP-05-THEME-TRANSITIONS.md)。
-- [ ] 移除生产 LiveKit SDK 消息访问路径的 SDK 类型忽略，改用类型收窄或兼容适配层；
+- [x] 移除生产 LiveKit SDK 消息访问路径的 SDK 类型忽略（2026-11-09 核销，证据同上方候选项），改用类型收窄或兼容适配层；
       验收只限定真实生产消息读取及消费路径，并取得当前 SDK 类型与调用证据。无关测试文件中的
       类型忽略不构成本项产品缺陷，也不能据此勾选本项。
 

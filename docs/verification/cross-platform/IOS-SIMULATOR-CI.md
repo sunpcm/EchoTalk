@@ -191,14 +191,14 @@ r0 禁缓存没有修复故障，不是成功的原生验收。
 主控于 2026-11-08T10:11Z 观察到普通 Cordova release 下载 URL 返回 HTTP/2 504；
 随后两个公开 asset API 均无凭据下载成功，大小与 SHA256 精确匹配下表。
 [精确 revision 的 Package.swift](https://github.com/ionic-team/capacitor-swift-pm/blob/4f71d0b979f2f957326f04353eca7604ee937e1e/Package.swift)
-仍是 URL/checksum 契约，asset ID/大小同时来自
+仍是 URL/checksum 契约，大小来自
 [8.5.0 官方 release 元数据](https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/tags/8.5.0)。
 实施方只读了官方源码；上述真实 HTTP 和下载结果由主控提供。
 
-| binaryTarget | 公开 asset ID | bytes   | SHA256                                                             |
-| ------------ | ------------- | ------- | ------------------------------------------------------------------ |
-| Capacitor    | 496864201     | 6605675 | `357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130` |
-| Cordova      | 496864200     | 1842453 | `a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10` |
+| binaryTarget | bytes   | SHA256                                                             |
+| ------------ | ------- | ------------------------------------------------------------------ |
+| Capacitor    | 6605675 | `357220fe6dad73cb78bc1dc83e16e89d59c3d7dac8f9b17545a5be64bba25130` |
+| Cordova      | 1842453 | `a3dc72b5a559948d548f0ee2926b989492acc1023a0c86a1bf85477587f83a10` |
 
 [Swift 6.2 BinaryArtifacts 源码](https://github.com/swiftlang/swift-package-manager/blob/swift-6.2-RELEASE/Sources/Workspace/Workspace%2BBinaryArtifacts.swift)
 584–602 行向固定 destination 下载，设置最多 3 次 HTTP 尝试且仅接受 200；
@@ -210,12 +210,14 @@ r0 禁缓存没有修复故障，不是成功的原生验收。
 [SwiftPM #10138](https://github.com/swiftlang/swift-package-manager/issues/10138)
 描述的跨进程缓存并发是另一种已知来源，不能仅凭相同错误认定本次也属于该原因。
 
-prepare 先串行调用 `/usr/bin/curl`，固定公开
-`https://api.github.com/repos/ionic-team/capacitor-swift-pm/releases/assets/<id>`，
-设置 `Accept: application/octet-stream`、禁用 curl 配置、只允许 HTTPS 重定向、
-HTTP 失败非零、连接超时 20 秒、单次下载超时 120 秒。curl 原生有限重试 3 次（间隔 5 秒、
-`--retry-max-time 240`），只覆盖超时与 408/429/5xx 等瞬时错误，不加 `--retry-all-errors`；
-子进程超时 400 秒。2026-11-08 main `5c28e1b` 曾因单次 504 且重试 0 失败，故改为有限重试；
+prepare 串行调用 `/usr/bin/curl`，固定使用 Package.swift 中同一个公开 release 下载 URL
+`https://github.com/ionic-team/capacitor-swift-pm/releases/download/8.5.0/<name>.xcframework.zip`，
+禁用 curl 配置、只允许 HTTPS 重定向、HTTP 失败非零、连接超时 20 秒、单次下载超时 120 秒。
+curl 原生有限重试 3 次（间隔 5 秒、`--retry-max-time 240`），只覆盖超时与 408/429/5xx
+等瞬时错误，不加 `--retry-all-errors`；子进程超时 400 秒。2026-11-08 main `5c28e1b`
+曾因单次 504 且重试 0 失败，故改为有限重试；2026-11-10 远端 main `6990100`
+（run 42642796049）因无凭据 api.github.com 限流返回 403，403 不在重试范围内；
+有限重试已覆盖原 release URL 的 504 风险，故改回 release 下载 URL，且仍不传 token。
 重试会重写同一 partial 文件，发布前的大小与 SHA256 校验不变。
 只使用既有白名单环境，不传 token/凭据，不增加动态元数据请求。
 每个输出先写 lane `.cache/ios-ci/artifact-downloads/<name>.zip.partial`。
@@ -230,8 +232,9 @@ SwiftPM 原 manifest/checksum 校验不变。prepare 成功后和 build 启动�
 Package.swift、Package.resolved、pnpm 锁、版本/SDK、隔离 checkout/DerivedData、
 完整输出、无签名和原生 Mach-O/plist/public 验证均保持。
 
-离线 Node 以小型合成字节验证 API 输出消费、坏大小/hash/缺文件、非零下载、已有/symlink
-缓存拒绝、prepare 无成功回执及 build 前漂移拒绝；生产 CLI 无 URL/checksum 覆盖入口。
+离线 Node 以小型合成字节验证固定 release URL 下载输出消费、坏大小/hash/缺文件、
+非零下载、已有/symlink 缓存拒绝、prepare 无成功回执及 build 前漂移拒绝；
+生产 CLI 无 URL/checksum 覆盖入口。
 这些替身不证明真实下载/SPM/原生编译成功。主控独立 scratch 真实 SPM 探针在 git clone
 阶段 120 秒超时，尚未进入 ZIP；属于本机网络阻断，不是本候选 prepare 通过。
 最终必须验远端 prepare + compile 和原生产物；不因 API 两次下载成功而宣布 CI 已通过。

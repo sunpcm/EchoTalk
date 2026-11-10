@@ -94,3 +94,14 @@ test("shows unsupported without offering a futile retry", async ({ page }) => {
   await expect(page.getByRole("button", { name: "重新分析" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "返回主页" })).toBeEnabled();
 });
+
+test("renders grammar-only feedback when pronunciation is unavailable", async ({ page }) => {
+  await showEndedSession(page, "grammar-only");
+
+  await expect(page.getByText("本次未生成发音评估，仅展示语法提示")).toBeVisible();
+  await expect(page.getByText("语法提示 (1)")).toBeVisible();
+  await expect(page.getByText("I go")).toBeVisible();
+  await expect(page.getByText("I went")).toBeVisible();
+  await expect(page.getByText("发音评分")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "返回主页" })).toBeEnabled();
+});

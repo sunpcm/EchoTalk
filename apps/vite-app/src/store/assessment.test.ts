@@ -3,6 +3,16 @@ import * as api from "@/lib/api";
 import { useAssessmentStore } from "./assessment";
 
 vi.mock("@/lib/api", () => ({
+  ApiError: class ApiError extends Error {
+    status: number;
+    detail: string;
+    constructor(status: number, detail: string) {
+      super(`API ${status}: ${detail}`);
+      this.name = "ApiError";
+      this.status = status;
+      this.detail = detail;
+    }
+  },
   getAnalysisStatus: vi.fn(),
   retryAnalysis: vi.fn(),
   getAssessment: vi.fn(),
@@ -68,6 +78,61 @@ describe("assessment store", () => {
       assessment,
       grammarErrors: [],
       error: null,
+    });
+  });
+
+  it("treats assessment 404 as unavailable while loading grammar errors", async () => {
+    const grammarErrors: api.GrammarErrorResponse[] = [
+      {
+        id: "grammar-1",
+        session_id: "session-1",
+        skill_tag: "verb_tense_past",
+        original: "I go",
+        corrected: "I went",
+        error_type: "wrong_tense",
+        source: "demo_rule",
+        provider: null,
+        model_version: "demo-grammar-rules-v1",
+        is_synthetic: true,
+        confidence: 0.5,
+        created_at: "2026-09-21T00:00:00Z",
+      },
+    ];
+    vi.mocked(api.getAnalysisStatus).mockResolvedValue({
+      ...baseJob,
+      status: "succeeded",
+      finished_at: "2026-09-21T00:00:01Z",
+    });
+    vi.mocked(api.getAssessment).mockRejectedValue(new api.ApiError(404, "评估结果不存在"));
+    vi.mocked(api.getGrammarErrors).mockResolvedValue(grammarErrors);
+
+    await expect(useAssessmentStore.getState().refreshAnalysis("session-1")).resolves.toBe(
+      "succeeded",
+    );
+    expect(useAssessmentStore.getState()).toMatchObject({
+      loadState: "loaded",
+      assessment: null,
+      grammarErrors,
+      error: null,
+    });
+  });
+
+  it("sets loadState to error when grammar request fails with non-404 error", async () => {
+    vi.mocked(api.getAnalysisStatus).mockResolvedValue({
+      ...baseJob,
+      status: "succeeded",
+      finished_at: "2026-09-21T00:00:01Z",
+    });
+    vi.mocked(api.getAssessment).mockRejectedValue(new api.ApiError(404, "评估结果不存在"));
+    vi.mocked(api.getGrammarErrors).mockRejectedValue(new api.ApiError(500, "Server error"));
+
+    await expect(useAssessmentStore.getState().refreshAnalysis("session-1")).rejects.toThrow(
+      "API 500: Server error",
+    );
+    expect(useAssessmentStore.getState()).toMatchObject({
+      loadState: "error",
+      assessment: null,
+      error: "API 500: Server error",
     });
   });
 

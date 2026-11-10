@@ -166,13 +166,12 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
     if session is None:
         raise AnalysisExecutionError("session_missing", "Session no longer exists")
 
-    assessment = await analyze_session(job.session_id, db)
-    if assessment is None:
+    analysis_result = await analyze_session(job.session_id, db)
+    if analysis_result is None:
         raise AnalysisExecutionError(
             "no_user_transcript", "Session has no user transcript to analyze"
         )
-    if not assessment.is_synthetic:
-        await update_knowledge(job.session_id, session.user_id, db)
+    await update_knowledge(job.session_id, session.user_id, db)
 
     transition_job(job, AnalysisJobStatus.succeeded)
     job.last_error_code = None

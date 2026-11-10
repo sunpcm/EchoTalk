@@ -5,6 +5,7 @@
 
 import { create } from "zustand";
 import {
+  ApiError,
   getAssessment,
   getAnalysisStatus,
   getGrammarErrors,
@@ -60,6 +61,16 @@ interface AssessmentStore {
 }
 
 let assessmentGeneration = 0;
+
+function isNotFoundError(err: unknown): boolean {
+  return (
+    (err instanceof ApiError && err.status === 404) ||
+    (typeof err === "object" &&
+      err !== null &&
+      "status" in err &&
+      (err as { status?: unknown }).status === 404)
+  );
+}
 
 export const useAssessmentStore = create<AssessmentStore>((set) => ({
   loadState: "idle",
@@ -120,7 +131,12 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
       }
 
       const [assessment, grammarErrors] = await Promise.all([
-        getAssessment(sessionId),
+        getAssessment(sessionId).catch((err: unknown) => {
+          if (isNotFoundError(err)) {
+            return null;
+          }
+          throw err;
+        }),
         getGrammarErrors(sessionId),
       ]);
 

@@ -675,7 +675,7 @@ const server = createServer(async (request, response) => {
     const queuedStatus = analysisJobs.get(sessionId);
     const status = queuedStatus
       ? queuedStatus
-      : sessionId.startsWith("analysis-success")
+      : sessionId.startsWith("analysis-success") || sessionId.startsWith("grammar-only")
         ? "succeeded"
         : sessionId.startsWith("analysis-failure")
           ? "failed"
@@ -725,6 +725,30 @@ const server = createServer(async (request, response) => {
       finished_at: null,
       updated_at: new Date().toISOString(),
     });
+    return;
+  }
+
+  const grammarOnlyMatch = pathname.match(
+    /^\/api\/assessments\/(grammar-only(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?)\/grammar$/,
+  );
+  if (method === "GET" && grammarOnlyMatch) {
+    const sessionId = grammarOnlyMatch[1];
+    sendJson(response, 200, [
+      {
+        id: "77500000-0000-4000-8000-000000000001",
+        session_id: sessionId,
+        skill_tag: "verb_tense_past",
+        original: "I go",
+        corrected: "I went",
+        error_type: "wrong_tense",
+        source: "demo_rule",
+        provider: null,
+        model_version: "demo-grammar-rules-v1",
+        is_synthetic: true,
+        confidence: 0.5,
+        created_at: new Date().toISOString(),
+      },
+    ]);
     return;
   }
 

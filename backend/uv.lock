@@ -404,7 +404,7 @@ agent = [
 api = [
     { name = "alembic", specifier = ">=1.14.0,<2.0.0" },
     { name = "fastapi", specifier = ">=0.115.0,<1.0.0" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.0,<3.0.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.13.0,<3.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0,<1.0.0" },
 ]
 dev = [

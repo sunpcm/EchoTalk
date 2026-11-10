@@ -291,3 +291,30 @@ async def test_oidc_verifier_returns_503_when_jwks_fetch_fails():
         with pytest.raises(HTTPException) as error:
             await verifier.verify(token)
         assert error.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_oidc_verifier_maps_unexpected_key_errors_to_401():
+    private, public_jwk = _keypair()
+    token = jwt.encode(
+        _claims(),
+        private,
+        algorithm="RS256",
+        headers={"kid": "test-key"},
+    )
+    verifier = OIDCVerifier()
+    verifier._get_jwks = AsyncMock(return_value={"keys": [public_jwk]})
+
+    with (
+        patch("auth.settings.OIDC_ISSUER", "https://id.example.test"),
+        patch("auth.settings.OIDC_AUDIENCE", "echotalk"),
+    ):
+        with patch("auth.PyJWK.from_dict", side_effect=ValueError("x")):
+            with pytest.raises(HTTPException) as error:
+                await verifier.verify(token)
+            assert error.value.status_code == 401
+
+        with patch("auth.PyJWK.from_dict", side_effect=TypeError("x")):
+            with pytest.raises(HTTPException) as error:
+                await verifier.verify(token)
+            assert error.value.status_code == 401
