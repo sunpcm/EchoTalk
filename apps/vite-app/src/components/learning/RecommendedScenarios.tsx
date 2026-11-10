@@ -3,11 +3,12 @@
  * 挂载时请求 GET /api/curriculum/next，渲染 1-3 个推荐场景卡片。
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getRecommendedCurriculum } from "@/lib/api";
 import type { CurriculumRecommendation, CurriculumNextResponse } from "@/lib/api";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
+import { SectionState } from "./SectionState";
 import { formatTitle } from "@/utils/format";
 
 const t = zhCN.dashboard;
@@ -115,22 +116,32 @@ export function RecommendedScenarios() {
   const connectionState = useConversationStore((s) => s.connectionState);
   const isChecking = connectionState === "checking_health";
 
-  useEffect(() => {
-    let cancelled = false;
+  // 请求代际：重试或卸载后，旧响应不得写回
+  const requestIdRef = useRef(0);
+
+  const loadRecommendations = useCallback(() => {
+    const requestId = ++requestIdRef.current;
+    const isCurrent = () => requestId === requestIdRef.current;
+    setLoading(true);
+    setError(false);
     getRecommendedCurriculum()
       .then((res) => {
-        if (!cancelled) setData(res);
+        if (isCurrent()) setData(res);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (isCurrent()) setError(true);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (isCurrent()) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    loadRecommendations();
+    return () => {
+      requestIdRef.current++;
+    };
+  }, [loadRecommendations]);
 
   const handleEnter = (scenario: CurriculumRecommendation) => {
     setSelectedScenario(scenario);
@@ -138,20 +149,23 @@ export function RecommendedScenarios() {
   };
 
   if (loading) {
-    return (
-      <div className="text-text-faint py-8 text-center">
-        <div className="border-border-default mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
-        {t.loading}
-      </div>
-    );
+    return <SectionState title={t.recommendTitle} kind="loading" message={t.loading} />;
   }
 
   if (error || !data) {
-    return <div className="text-text-faint py-8 text-center text-sm">{t.loadError}</div>;
+    return (
+      <SectionState
+        title={t.recommendTitle}
+        kind="error"
+        message={t.loadError}
+        onRetry={loadRecommendations}
+        retryLabel={t.retry}
+      />
+    );
   }
 
   if (data.recommendations.length === 0) {
-    return <div className="text-text-faint py-8 text-center text-sm">{t.noRecommendations}</div>;
+    return <SectionState title={t.recommendTitle} kind="empty" message={t.noRecommendations} />;
   }
 
   return (

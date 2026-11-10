@@ -108,6 +108,7 @@ export const zhCN = {
     focusSkills: "重点技能",
     enterPractice: "进入练习",
     checkingService: "检测服务中...",
+    retry: "重试",
     goHome: "返回主页",
     dailyProgressTitle: "今日进度",
     goalReached: "已达成今日目标！",

@@ -134,3 +134,27 @@ test("the app exposes exactly one main landmark containing the page heading", as
     "AI 英语口语练习",
   );
 });
+
+test("every failed dashboard section keeps its title and offers a 44px retry button", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route(/\/api\/(sessions|assessments|curriculum)/, (route) =>
+    route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
+  );
+  await page.goto("/");
+  await expect(page.getByText("七天语法记录加载失败，请重试")).toBeVisible();
+
+  for (const title of ["活动会话", "今日专属推荐", "今日进度", "最近七天", "最近七天语法记录"]) {
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  }
+
+  const retryButtons = page.locator("main").getByRole("button", { name: /重试/ });
+  await expect(retryButtons).toHaveCount(5);
+  for (const button of await retryButtons.all()) {
+    const box = await button.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(43.5);
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(43.5);
+  }
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(5);
+});
