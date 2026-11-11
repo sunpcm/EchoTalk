@@ -25,6 +25,8 @@ A1（PR #139）、A2（PR #140）已于 2026-11-11 完成，实施与验证记�
       不回显服务端错误。语义以现有四个组件的实际行为为准，逐条指到代码行；差异之处列出并请用户裁定。
       同时回答"自研还是封装现成库"，给出理由。验收：契约文档 + 一组不依赖具体组件的契约测试；
       本项不迁移任何组件。
+      设计草案已准备且完成独立内容核查；等待用户确认，Hook 及契约测试尚未实现。
+      草案见 [FRONTEND_DATA_LAYER_CONTRACT.md](./docs/FRONTEND_DATA_LAYER_CONTRACT.md)。
 - [ ] **A4b～A4e 数据区块迁移到 data 层**（Sonnet；依赖 A4a 已确认）：按 `WeeklyGrammar` → `WeeklyProgress` →
       `DailyProgress` → `ActiveSessions`（其 `active-sessions/useActiveSessionList.ts`）的顺序，每轮只迁一个。
       验收：该组件对应的 `*.test.tsx` 与相关 E2E **零改动**通过；组件内不再自行维护请求 id、认证订阅与
