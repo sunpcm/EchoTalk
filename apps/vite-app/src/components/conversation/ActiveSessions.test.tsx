@@ -4,7 +4,7 @@ import { render, screen, act, fireEvent, waitFor } from "@testing-library/react"
 import { ActiveSessions } from "./ActiveSessions";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
-import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { zhCN } from "@/i18n/zh-CN";
 
 const fakeAppListeners = new Set<(state: { isActive: boolean }) => void>();
@@ -55,7 +55,7 @@ describe("ActiveSessions Component", () => {
       principal: { issuer: "https://auth.example.com", subject: "user-1" },
     };
     currentRevision = 1;
-    useConversationStore.getState().goHome();
+    useAppStore.getState().goHome();
 
     vi.spyOn(auth, "getAuthSnapshot").mockImplementation(() => currentSnapshot);
     vi.spyOn(auth, "getAuthRevision").mockImplementation(() => currentRevision);
@@ -2059,7 +2059,7 @@ describe("ActiveSessions Component", () => {
 
       it("displays inline resume confirmation without window.confirm and allows cancellation without store call or network request", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const confirmSpy = vi.spyOn(window, "confirm");
 
         render(<ActiveSessions />);
@@ -2112,7 +2112,7 @@ describe("ActiveSessions Component", () => {
 
       it("blocks resume request (zero store call) when principal changes between start confirm and confirm click before auth event broadcast (RESUME-01)", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
 
         render(<ActiveSessions />);
         await act(async () => {
@@ -2135,7 +2135,7 @@ describe("ActiveSessions Component", () => {
 
       it("blocks resume request (zero store call) when revision increments between start confirm and confirm click before auth event broadcast (RESUME-01)", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
 
         render(<ActiveSessions />);
         await act(async () => {
@@ -2155,9 +2155,7 @@ describe("ActiveSessions Component", () => {
 
       it("blocks resume confirmation when visibility is hidden or offline, and allows when visible and online", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi
-          .spyOn(useConversationStore.getState(), "resumeSession")
-          .mockResolvedValue(true);
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession").mockResolvedValue(true);
 
         render(<ActiveSessions />);
         await act(async () => {
@@ -2218,7 +2216,7 @@ describe("ActiveSessions Component", () => {
         expect(listSpy).toHaveBeenCalledTimes(2);
 
         const resumeDeferred = createDeferred<boolean>();
-        vi.spyOn(useConversationStore.getState(), "resumeSession").mockReturnValueOnce(
+        vi.spyOn(useAppStore.getState(), "resumeSession").mockReturnValueOnce(
           resumeDeferred.promise,
         );
 
@@ -2261,7 +2259,7 @@ describe("ActiveSessions Component", () => {
         expect(listSpy).toHaveBeenCalledTimes(1);
 
         const resumeDeferred = createDeferred<boolean>();
-        vi.spyOn(useConversationStore.getState(), "resumeSession").mockReturnValueOnce(
+        vi.spyOn(useAppStore.getState(), "resumeSession").mockReturnValueOnce(
           resumeDeferred.promise,
         );
 
@@ -2286,7 +2284,7 @@ describe("ActiveSessions Component", () => {
       it("disables other rows and prevents replacing in-flight target while resume is in-flight", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
         const resumeDeferred = createDeferred<boolean>();
-        vi.spyOn(useConversationStore.getState(), "resumeSession").mockReturnValueOnce(
+        vi.spyOn(useAppStore.getState(), "resumeSession").mockReturnValueOnce(
           resumeDeferred.promise,
         );
 
@@ -2315,7 +2313,7 @@ describe("ActiveSessions Component", () => {
 
       it("retains target on resume failure, shows localized safe error, allows retry with same ID, and allows cancel", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferred1 = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferred1.promise);
 
@@ -2361,7 +2359,7 @@ describe("ActiveSessions Component", () => {
 
       it("clears resume confirmation and error immediately upon logout / account switch / revision bump", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferredOld = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferredOld.promise);
 
@@ -2412,9 +2410,7 @@ describe("ActiveSessions Component", () => {
 
       it("operates normally with resume session under React StrictMode", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi
-          .spyOn(useConversationStore.getState(), "resumeSession")
-          .mockResolvedValue(true);
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession").mockResolvedValue(true);
 
         render(
           <StrictMode>
@@ -2442,7 +2438,7 @@ describe("ActiveSessions Component", () => {
 
       it("preserves new in-flight resume when old resume finishes late after revision bump (same principal)", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferredOld = createDeferred<boolean>();
         const deferredNew = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
@@ -2516,7 +2512,7 @@ describe("ActiveSessions Component", () => {
 
       it("preserves new in-flight resume when old resume finishes late after principal switch", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferredOld = createDeferred<boolean>();
         const deferredNew = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
@@ -2584,7 +2580,7 @@ describe("ActiveSessions Component", () => {
 
       it("releases UI resume slot and enables cancel / new recovery when cancelled by pagehide", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferredOld = createDeferred<boolean>();
         const deferredNew = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
@@ -2647,7 +2643,7 @@ describe("ActiveSessions Component", () => {
 
       it("releases UI resume slot and enables controls when cancelled by offline", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferredOld = createDeferred<boolean>();
         const deferredNew = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
@@ -2704,7 +2700,7 @@ describe("ActiveSessions Component", () => {
 
       it("releases UI resume slot when store.reset is called during pending resume", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferredOld = createDeferred<boolean>();
         const deferredNew = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
@@ -2724,7 +2720,7 @@ describe("ActiveSessions Component", () => {
 
         // 触发 store.reset()
         act(() => {
-          useConversationStore.getState().reset();
+          useAppStore.getState().reset();
         });
 
         // 控件可用：取消按钮恢复可点击
@@ -2754,7 +2750,7 @@ describe("ActiveSessions Component", () => {
 
       it("releases UI resume slot when store.goHome is called during pending resume", async () => {
         vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
-        const resumeSpy = vi.spyOn(useConversationStore.getState(), "resumeSession");
+        const resumeSpy = vi.spyOn(useAppStore.getState(), "resumeSession");
         const deferredOld = createDeferred<boolean>();
         const deferredNew = createDeferred<boolean>();
         resumeSpy.mockReturnValueOnce(deferredOld.promise).mockReturnValueOnce(deferredNew.promise);
@@ -2774,7 +2770,7 @@ describe("ActiveSessions Component", () => {
 
         // 触发 store.goHome()
         act(() => {
-          useConversationStore.getState().goHome();
+          useAppStore.getState().goHome();
         });
 
         // 控件可用：取消按钮可点击
@@ -3602,8 +3598,8 @@ describe("ActiveSessions Component", () => {
       // 重试成功后，进入 session 视图并关闭恢复面板
       expect(detailSpy).toHaveBeenCalledTimes(2);
       expect(tokenSpy).toHaveBeenCalledTimes(1);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().sessionId).toBe(id);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe(id);
       expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
     });
 
@@ -3696,7 +3692,7 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
-      expect(useConversationStore.getState().readinessIssue).toMatchObject({
+      expect(useAppStore.getState().readinessIssue).toMatchObject({
         code: "unknown",
         message: zhCN.practiceReadiness.fallback,
         canOpenSettings: false,
@@ -3704,7 +3700,7 @@ describe("ActiveSessions Component", () => {
       expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
       expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
       act(() => {
-        useConversationStore.setState({ readinessIssue: null, readinessNotice: true });
+        useAppStore.setState({ readinessIssue: null, readinessNotice: true });
       });
       expect(screen.queryByTestId(`resume-error-${id}`)).not.toBeInTheDocument();
       expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
@@ -3856,7 +3852,7 @@ describe("ActiveSessions Component", () => {
 
       // 触发 store.reset()
       act(() => {
-        useConversationStore.getState().reset();
+        useAppStore.getState().reset();
       });
 
       // UI 槽位立即释放，取消按钮恢复可用
@@ -3914,7 +3910,7 @@ describe("ActiveSessions Component", () => {
       // 组件自身展示专用局部错误
       expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
       // store 的全局错误由 store 状态机自身管理，ActiveSessions 严禁反向抹除为 null
-      expect(useConversationStore.getState().error).toBe(t.resumeError);
+      expect(useAppStore.getState().error).toBe(t.resumeError);
     });
 
     it("subscriber-triggered reset during failure suppresses local error emission (RESUME23-01 / RESUME23-02)", async () => {
@@ -3943,7 +3939,7 @@ describe("ActiveSessions Component", () => {
 
       // 模拟外部订阅或用户操作在在途期间执行 reset() 作废代际
       act(() => {
-        useConversationStore.getState().reset();
+        useAppStore.getState().reset();
       });
 
       // 随后异步详情查询失败返回

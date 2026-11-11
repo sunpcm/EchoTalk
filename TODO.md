@@ -33,6 +33,10 @@ A1（PR #139）、A2（PR #140）已于 2026-11-11 完成，实施与验证记�
       进入 DocTalk 需要先 `reset()` 会话再改视图。新增独立的导航切片，会话 store 不再持有页面概念；
       不引入 Router。验收：`store/conversation.ts` 不再包含 `appView`；测试与 E2E 中对 `appView` 的引用机械
       替换，行为断言不变；三测试树计数不降。
+      实现已就绪（单一物理原子容器 + 窄 façade）；本地验收：主控完整 15 项门禁 14 项 exit 0
+      （Vitest 1161/45、pytest 809/80.19%、lint 132/0、FakeAPI 75/API 类型 8/构建脚本 21、0 skip），
+      macOS E2E 233 pass/1 fail（仍 a11y Provider select 高度 23px）；待目标 Linux CI 与最终
+      Review 通过后勾选。见 [A5 导航切片验证](./docs/verification/cross-platform/A5-NAVIGATION-SLICE.md)。
 - [ ] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖
       `lib`/`store`/`components`，`lib` 不得依赖 `store`/`components`，data 层不得依赖 `components`。
       验收：规则为 error 级；现有代码零违规或逐条修正；故意加一条反向 import 时 lint 失败。
