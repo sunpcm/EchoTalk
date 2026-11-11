@@ -371,10 +371,11 @@ function validateSchema(value, schema, root, instancePath, violations) {
     if (hasOwn(schema, "format") && SUPPORTED_FORMATS.has(schema.format)) {
       validateFormat(value, schema.format, violations, instancePath);
     }
-    if (hasOwn(schema, "minLength") && value.length < schema.minLength) {
+    const length = [...value].length;
+    if (hasOwn(schema, "minLength") && length < schema.minLength) {
       addViolation(violations, instancePath, "minLength", `字符串长度小于 ${schema.minLength}`);
     }
-    if (hasOwn(schema, "maxLength") && value.length > schema.maxLength) {
+    if (hasOwn(schema, "maxLength") && length > schema.maxLength) {
       addViolation(violations, instancePath, "maxLength", `字符串长度大于 ${schema.maxLength}`);
     }
     if (hasOwn(schema, "pattern")) {

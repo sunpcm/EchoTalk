@@ -1734,6 +1734,38 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
     assert.deepEqual(smallYearDate, []);
   });
 
+  const stringLengthCodePointCases = [
+    { name: "单个非 BMP emoji", value: "🙂", minLength2: false, maxLength1: true },
+    { name: "非 BMP emoji 加 ASCII", value: "🙂A", minLength2: true, maxLength1: false },
+    { name: "e 加组合重音", value: "e\u0301", minLength2: true, maxLength1: false },
+    { name: "单个 BMP 中文", value: "中", minLength2: false, maxLength1: true },
+    { name: "单个 ASCII", value: "A", minLength2: false, maxLength1: true },
+  ];
+  for (const testCase of stringLengthCodePointCases) {
+    it(`字符串长度按 Unicode 码点计算：${testCase.name}`, () => {
+      const actual = {
+        minLength: validateJsonSchema(
+          testCase.value,
+          { type: "string", minLength: 2 },
+          openApi,
+        ).map(({ keyword }) => keyword),
+        maxLength: validateJsonSchema(
+          testCase.value,
+          { type: "string", maxLength: 1 },
+          openApi,
+        ).map(({ keyword }) => keyword),
+      };
+      assert.deepEqual(
+        actual,
+        {
+          minLength: testCase.minLength2 ? [] : ["minLength"],
+          maxLength: testCase.maxLength1 ? [] : ["maxLength"],
+        },
+        `${testCase.name} 的长度结果不符合 Unicode 码点语义`,
+      );
+    });
+  }
+
   it("operation 盘点包含全部标准方法并忽略路径级 metadata", () => {
     const syntheticOpenApi = structuredClone(openApi);
     const response = {
