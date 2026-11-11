@@ -9,6 +9,14 @@
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，
 证据见该报告 §3.1～§3.4；以下为剩余项，括号内编号对应报告中的发现。
 
+- [ ] **待用户裁定：活动会话订阅里的"启动在途"取值，以及两处界面文案**（来源：
+      [云端评审](./docs/reviews/2026-11-cloud-review.md) §3.4）：
+      (1) `apps/vite-app/src/components/conversation/active-sessions/useActiveSessionsLifecycle.ts` 中，
+      生命周期事件判断"是否正在启动会话"用的是挂载时的 `isStarting`，订阅期间不更新（拆分前即如此，R2-07
+      按原样保留）；列表刷新本身读取 store 实时值，因此影响限于 resume/connectivity 事件是否触发刷新。
+      (2) 设置抽屉标题"自定义模型设置"是否改为"设置"；(3) 活动会话行是否不再展示完整 UUID。
+      验收：先决定是否修复/修改；修复(1)须先写出能复现的回归用例（挂载后启动态变化再触发 resume 事件），
+      (2)(3)须同步更新相关 Vitest 与 E2E 断言；三测试树通过。
 - [ ] **R2-09 平台接缝：认证会话、安全存储、麦克风权限**（2026-11-10 已删除 `utils/env.ts`；三个平台接口与能力标志待 CP-03/CP-04 设备证据后与原生实现同轮完成）（P-1，P1）：在 `src/platform/` 增加三个接口及
       Web 实现，`lib/auth.ts` 改为经接口装配；把 `RoomSession.tsx:50` 与 `store/conversation.ts:69` 的
       平台名判断改为读取适配器能力；删除 `src/utils/env.ts`。验收：`auth.test.ts`、`VoiceInterface.test.tsx`
