@@ -4,6 +4,12 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
+## 架构演进工作包（阶段 A / B）
+
+A1 后端会话准入规则收拢已完成，见[已完成事项归档](./docs/history/todo-done.md)
+与 [2026-11 实施记录](./docs/history/2026-11.md)。其余工作包定义见
+[PR #138](https://github.com/sunpcm/EchoTalk/pull/138)。
+
 ## 2026-11-10 云端评审后续（R2）
 
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，
