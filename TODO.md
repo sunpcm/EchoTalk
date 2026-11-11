@@ -42,8 +42,10 @@ A1（PR #139）、A2（PR #140）已于 2026-11-11 完成，实施与验证记�
       `pronunciation_assessments`/`grammar_errors` 的关系、保留期与删除策略的选项。列出需要用户决定的问题
       （是否采集音频不在本项范围）。验收：设计文档，含一条线性 Alembic 迁移的草案（以当前 head 为父，
       不执行）；不改代码。
-      状态（2026-11-12）：[设计草案](./docs/LEARNING_EVENTS_DESIGN.md) 已准备且完成独立内容核查；保留期、
-      旧状态/旧 Job 等业务政策待确认；未建表/未执行迁移，完整三树与目标 CI 待完成。
+      状态（2026-11-12）：[设计草案](./docs/LEARNING_EVENTS_DESIGN.md) 候选 `6532ee8cc78f510affef7a1d1782f18ce795dac9`
+      已完成独立内容 Review，绑定该已测试 head 的目标 CI 已通过（Vitest 1156/44、E2E 234/234 零 skip 无 retry、
+      Fake API 75、API 8/构建 21、lint 132/0、pytest 809/80.19%）。当前停 Review 等待用户政策确认；
+      未建表/未执行迁移草案。本轮仅更新文档状态。
 
 ## 2026-11-10 云端评审后续（R2）
 
