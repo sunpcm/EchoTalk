@@ -10,17 +10,10 @@
 阶段 C（预发布环境）与 D（原生端）需要用户先提供环境或设备，不在此列。
 每个工作包单独一轮、单独分支与 PR；括号内是建议的模型档位。通用验收：三测试树通过且计数不降
 （当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果。
-建议顺序：A1 → A2 → A3 → A4a → A4b…；A5、B1 可与之并行。
+A1（PR #139）、A2（PR #140）已于 2026-11-11 完成，实施与验证记录见
+[已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
+建议顺序：A3 → A4a → A4b…；A5、B1 可与之并行，A6 依赖 A4 完成。
 
-- [ ] **A1 后端会话准入规则收拢**（Sonnet；规划 §3.3）：`backend/routers/sessions.py` 的 `get_session_token`
-      与 `dispatch_agent` 各自内联了一遍"用户不存在 / 未配置密钥 / 密钥未验证 / 套餐限制"检查，结束会话的
-      状态检查也有两处。抽成一个服务函数或依赖，路由只做编排。验收：HTTP 状态码与 `detail` 文案逐字不变；
-      `backend/tests/` 既有用例**零改动**通过；`export_openapi.py --check` 无漂移；pytest 计数不降。
-- [ ] **A2 前端接口类型全部改用生成类型**（Sonnet；§3.2）：`apps/vite-app/src/lib/api.ts` 仍有约 20 个手写
-      `export interface`（`Session`、`TokenResponse`、`AssessmentResponse` 等），而列表与周度接口已使用
-      `api.generated.ts`。逐个替换为 `ApiSchemas[...]` 派生类型；生成类型比手写宽松或字段不一致时，
-      在报告中列出差异并保留必要的收窄，不擅自改后端。验收：`lib/api.ts` 不再有与 OpenAPI schema 同名的
-      手写接口；`check:api-types` 通过；调用方只因类型更准确而改动；Vitest 与 E2E 计数不降。
 - [ ] **A3 Fake API 接受 OpenAPI 契约校验**（Sonnet 或 Opus；§3.2）：在 `apps/vite-app/scripts/fake-api-test.mjs`
       增加一组用例，用仓库内 `backend/openapi.json` 校验 `e2e/fake-api.mjs` 各路由成功响应的结构，并输出
       "OpenAPI 有而 Fake API 没有"的路由清单。不新增运行时依赖时优先；确需 JSON Schema 校验库须先在报告中
