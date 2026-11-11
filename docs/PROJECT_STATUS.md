@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-10，分支 `claude/cloud-review-2026-11`（基于 `main@22eaf82`）。
+> 最后核对：2026-11-11，`main@ee5018a`（PR #136、#137 合并后）。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -27,14 +27,17 @@
 
 2026-11-10 在云端容器实跑（Node 22.23.4、pnpm 10.26.0、Python 3.12、PostgreSQL 15.19 专用测试库）：
 
-| 测试树 / 门禁             | 结果                                              | 说明                                         |
-| ------------------------- | ------------------------------------------------- | -------------------------------------------- |
-| Vitest                    | 1156 passed（44 个文件）                          | 分支 HEAD                                    |
-| Playwright E2E            | 234 passed（Chromium + WebKit，Fake API，0 skip） | 分支 HEAD                                    |
-| backend pytest            | 809 passed，覆盖率 79.67%                         | `main@22eaf82`；此后分支未改后端代码，未重跑 |
-| Alembic                   | 空库升级到 `c06_transcript_events`                | `main@22eaf82`                               |
-| 格式 / lint / 类型 / 构建 | 通过                                              | 分支 HEAD                                    |
-| Fake API 契约             | 75 passed                                         | 分支 HEAD                                    |
+| 测试树 / 门禁             | 结果                                              | 说明                                        |
+| ------------------------- | ------------------------------------------------- | ------------------------------------------- |
+| Vitest                    | 1156 passed（44 个文件）                          | `main@ee5018a`                              |
+| Playwright E2E            | 234 passed（Chromium + WebKit，Fake API，0 skip） | `main@ee5018a`                              |
+| backend pytest            | 809 passed，覆盖率 79.67%                         | `main@22eaf82` 云端实跑；此后后端代码未改动 |
+| Alembic                   | 空库升级到 `c06_transcript_events`                | `main@22eaf82`                              |
+| 格式 / lint / 类型 / 构建 | 通过                                              | `main@ee5018a`                              |
+| Fake API 契约             | 75 passed                                         | `main@ee5018a`                              |
+
+PR #137（head `ef3b4fd`）的远端 CI 六项检查全部通过：`test-frontend`、`test-backend`、`test-ios-build`、
+`test-macos-probe`、`mass-deletion-guard` 与聚合 `CI`。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)；本次评审的证据与截图见
