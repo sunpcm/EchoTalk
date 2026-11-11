@@ -56,8 +56,9 @@ PR #140 的 CI 与 [PR Guard run 43031743003](https://github.com/sunpcm/EchoTalk
 
 - 架构层面的风险（无 TLS 入口、分析可观测性、Compose 就绪门禁、原生认证未适配等）统一维护在
   [ARCHITECTURE.md §7](./ARCHITECTURE.md)，本文不重复。
-- CI 使用的部分 GitHub Actions 仍基于已弃用的 Node 20 runtime；`ubuntu-latest` 即将迁移到 Ubuntu 26。
-  （2026-10 记录，本次未重新核实。）
+- CI 前端固定使用与锁文件一致的 Playwright 1.62.1 / Ubuntu 26.04 官方预装镜像及 digest，
+  避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
+  并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - macOS 本地 WebKit 已知一例 Provider select 高度为 23px，本地与远端表现不同；PR #140 说明已记录该事实，
