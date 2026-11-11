@@ -15,6 +15,9 @@ import { getZonedWeekWindows } from "./localDayWindow";
 
 type ApiSchemas = ApiComponents["schemas"];
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
+type OptionalNonNullable<T> = {
+  [K in keyof T]?: NonNullable<T[K]>;
+};
 
 let cachedBaseUrl: string | null = null;
 export function getBaseUrl(): string {
@@ -121,25 +124,20 @@ async function request<T>(
 // ─── 会话相关类型 ───
 
 /** 会话对象类型 */
-export interface Session {
-  id: string;
-  user_id: string;
-  mode: string;
-  status: string;
-  started_at: string;
-  ended_at: string | null;
+export type Session = Omit<
+  WithRequired<ApiSchemas["SessionResponse"], "ended_at">,
+  "transcripts"
+> & {
   transcripts: Transcript[];
-}
+};
 
 /** 转录记录类型 */
-export interface Transcript {
-  id: number;
-  session_id: string;
+export type Transcript = Omit<
+  WithRequired<ApiSchemas["TranscriptResponse"], "audio_url">,
+  "role"
+> & {
   role: "user" | "assistant";
-  content: string;
-  audio_url: string | null;
-  timestamp_ms: number;
-}
+};
 
 /** 令牌响应类型 */
 export interface TokenResponse {
@@ -150,82 +148,50 @@ export interface TokenResponse {
 // ─── 评估相关类型 ───
 
 /** 音素对齐条目 */
-export interface PhonemeAlignmentItem {
-  position: number;
-  phoneme: string;
-  expected: string | null;
-  actual: string | null;
+export type PhonemeAlignmentItem = Omit<ApiSchemas["PhonemeAlignmentItem"], "type"> & {
   type: "correct" | "substitution" | "deletion" | "insertion";
-}
+};
 
 /** 发音评估响应 */
-export interface AssessmentResponse {
-  id: string;
-  session_id: string;
-  overall_score: number;
+export type AssessmentResponse = Omit<
+  WithRequired<
+    ApiSchemas["AssessmentResponse"],
+    "confidence" | "model_version" | "provider" | "provider_response_ref"
+  >,
+  "phoneme_alignment"
+> & {
   phoneme_alignment: PhonemeAlignmentItem[];
-  source: string;
-  provider: string | null;
-  model_version: string | null;
-  is_synthetic: boolean;
-  confidence: number | null;
-  provider_response_ref: string | null;
-  created_at: string;
-}
+};
 
 /** 语法错误响应 */
-export interface GrammarErrorResponse {
-  id: string;
-  session_id: string;
-  skill_tag: string;
-  original: string;
-  corrected: string;
-  error_type: string;
-  source: string;
-  provider: string | null;
-  model_version: string | null;
-  is_synthetic: boolean;
-  confidence: number | null;
-  created_at: string;
-}
+export type GrammarErrorResponse = WithRequired<
+  ApiSchemas["GrammarErrorResponse"],
+  "confidence" | "model_version" | "provider"
+>;
 
 /** 知识状态响应 */
-export interface KnowledgeStateResponse {
-  id: string;
-  user_id: string;
-  skill_id: string;
-  skill_name: string;
+export type KnowledgeStateResponse = Omit<
+  ApiSchemas["KnowledgeStateResponse"],
+  "skill_category"
+> & {
   skill_category: "pronunciation" | "grammar";
-  p_mastery: number;
-  updated_at: string;
-}
+};
 
 /** 技能定义响应 */
-export interface SkillResponse {
-  id: string;
-  name: string;
+export type SkillResponse = Omit<
+  WithRequired<ApiSchemas["SkillResponse"], "description">,
+  "category"
+> & {
   category: "pronunciation" | "grammar";
-  description: string | null;
-}
+};
 
 // ─── 课程推荐相关类型 ───
 
 /** 单个课程推荐 */
-export interface CurriculumRecommendation {
-  scenario_name: string;
-  difficulty_cefr: string;
-  category: string;
-  focus_skills: string[];
-  system_prompt_template: string;
-}
+export type CurriculumRecommendation = ApiSchemas["CurriculumRecommendation"];
 
 /** 课程推荐响应 */
-export interface CurriculumNextResponse {
-  weakest_skill: string;
-  weakest_skill_mastery: number;
-  target_level: string;
-  recommendations: CurriculumRecommendation[];
-}
+export type CurriculumNextResponse = ApiSchemas["CurriculumNextResponse"];
 
 /** 会话列表项（不含转录）；保留客户端要求 ended_at 必须存在的既有契约。 */
 export type SessionListItem = WithRequired<ApiSchemas["SessionListItem"], "ended_at">;
@@ -251,16 +217,12 @@ export type WeeklyGrammarSkillTag = WeeklyGrammarItem["skill_tag"];
 
 export type AnalysisJobStatus = "pending" | "running" | "succeeded" | "failed";
 
-export interface AnalysisStatusResponse {
-  session_id: string;
+export type AnalysisStatusResponse = Omit<
+  WithRequired<ApiSchemas["AnalysisStatusResponse"], "error_code" | "started_at" | "finished_at">,
+  "status"
+> & {
   status: AnalysisJobStatus;
-  attempt_count: number;
-  error_code: string | null;
-  retryable: boolean;
-  started_at: string | null;
-  finished_at: string | null;
-  updated_at: string;
-}
+};
 
 // ─── 通话能力 API ───
 
@@ -312,10 +274,7 @@ export async function getCallCapabilities(
 
 // ─── 通话占用 API（CP-02 §9） ───
 
-export interface CallLeaseOwner {
-  device_id: string;
-  generation: number;
-}
+export type CallLeaseOwner = Pick<ApiSchemas["CallHeartbeatRequest"], "device_id" | "generation">;
 
 /** 从生成契约派生字段，同时保留客户端对成功状态的窄字面量约束。 */
 export type CallLeaseResponse = Omit<ApiSchemas["CallLeaseResponse"], "state"> & {
@@ -608,17 +567,12 @@ export function checkHealthReady(options?: ApiRequestOptions): Promise<HealthRea
 // ─── 会话 API ───
 
 /** 文档对话上下文 */
-export interface DocContext {
-  content_type: string;
-  raw_text: string;
-  prompt: string;
-}
+export type DocContext = ApiSchemas["DocContext"];
 
 /** 创建会话请求体 */
-export interface CreateSessionBody {
-  mode: string;
+export type CreateSessionBody = Omit<ApiSchemas["SessionCreate"], "doc_context"> & {
   doc_context?: DocContext;
-}
+};
 
 /** 创建会话 */
 export function createSession(
@@ -1045,36 +999,19 @@ export function getRecommendedCurriculum(
 // ─── 用户设置相关类型 ───
 
 /** 用户双轨制配置（GET 响应） */
-export interface UserSettingsResponse {
-  is_custom_mode: boolean;
-  is_custom_verified?: boolean;
-  subscription_tier?: string;
-  theme: "warm" | "cool" | "dark";
-  stt_provider: string | null;
-  llm_provider: string | null;
-  llm_model: string | null;
-  tts_provider: string | null;
-  has_stt_key: boolean;
-  has_llm_key: boolean;
-  has_tts_key: boolean;
+type GeneratedUserSettingsResponse = WithRequired<
+  ApiSchemas["UserSettingsResponse"],
+  "stt_provider" | "llm_provider" | "llm_model" | "tts_provider"
+>;
 
-  stt_status: "verified" | "error" | "unconfigured";
-  llm_status: "verified" | "error" | "unconfigured";
-  tts_status: "verified" | "error" | "unconfigured";
-}
+export type UserSettingsResponse = Omit<
+  GeneratedUserSettingsResponse,
+  "is_custom_verified" | "subscription_tier"
+> &
+  Partial<Pick<GeneratedUserSettingsResponse, "is_custom_verified" | "subscription_tier">>;
 
 /** 用户双轨制配置更新（PUT 请求体） */
-export interface UserSettingsUpdate {
-  is_custom_mode?: boolean;
-  theme?: "warm" | "cool" | "dark";
-  stt_provider?: "deepgram";
-  llm_provider?: "siliconflow" | "openrouter";
-  llm_model?: string;
-  tts_provider?: "cartesia";
-  stt_key?: string;
-  llm_key?: string;
-  tts_key?: string;
-}
+export type UserSettingsUpdate = OptionalNonNullable<ApiSchemas["UserSettingsUpdate"]>;
 
 // ─── 用户设置 API ───
 

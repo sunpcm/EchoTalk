@@ -6,8 +6,8 @@
 
 ## 架构演进工作包（阶段 A / B）
 
-A1 后端会话准入规则收拢已完成，见[已完成事项归档](./docs/history/todo-done.md)
-与 [2026-11 实施记录](./docs/history/2026-11.md)。其余工作包定义见
+A1 后端会话准入规则收拢与 A2 前端 API 类型派生已完成，见
+[已完成事项归档](./docs/history/todo-done.md)与 [2026-11 实施记录](./docs/history/2026-11.md)。其余工作包定义见
 [PR #138](https://github.com/sunpcm/EchoTalk/pull/138)。
 
 ## 2026-11-10 云端评审后续（R2）

@@ -12,6 +12,14 @@
       沿用原有准入范围。结果：收敛既有重复检查，保留检查顺序及两条路由不同的已结束文案；
       验证记录见 [2026-11 实施记录](./2026-11.md)。
 
+## 2026-11-11 架构演进 A2（前端 API 类型统一由 OpenAPI 派生）
+
+- [x] **A2 前端 API 类型收口**：将 `apps/vite-app/src/lib/api.ts` 中已有 OpenAPI schema
+      的业务类型改为 `ApiSchemas[...]` 派生，保留既有 required、nullable 与 union 收窄；
+      `TokenResponse`、`HealthReadyResponse`、`ApiRequestOptions` 及未建模端点响应维持原声明。
+      结果：Node 22 类型检查与生成类型字节检查通过，运行时、生成文件、后端、测试、fixture、
+      依赖和锁文件零改动；验证记录见 [2026-11 实施记录](./2026-11.md)。
+
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
 - [x] **会后分析按来源门控**（方案 C-1，#120；2026-11-09 本地验收：pytest 809、Vitest 1142、E2E 180，变异 7/7 被杀；
