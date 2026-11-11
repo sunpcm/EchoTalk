@@ -2,6 +2,16 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+## 2026-11-11 架构演进 A1（会话准入纯抽取）
+
+- [x] **A1 后端会话准入规则收拢**：将 `backend/routers/sessions.py` 中 `get_session_token`
+      两分支重复的「用户不存在/未配置密钥/密钥未验证/套餐限制」准入，与
+      `get_session_token`/`dispatch_agent` disabled 分支两处「已结束会话」状态校验，收拢到
+      `backend/services/session_admission.py`（`verify_session_admission`、
+      `get_active_session_or_raise`），路由仅编排，HTTP 码与 detail 逐字不变，`dispatch_agent`
+      沿用原有准入范围。结果：收敛既有重复检查，保留检查顺序及两条路由不同的已结束文案；
+      验证记录见 [2026-11 实施记录](./2026-11.md)。
+
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
 - [x] **会后分析按来源门控**（方案 C-1，#120；2026-11-09 本地验收：pytest 809、Vitest 1142、E2E 180，变异 7/7 被杀；

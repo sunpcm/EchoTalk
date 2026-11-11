@@ -25,7 +25,6 @@ from dependencies import get_current_user
 from models.analysis import AnalysisJob
 from models.call_lease import CallLease, CallLeaseState
 from models.session import Session, SessionContext, SessionMode, SessionStatus
-from models.user import SubscriptionTier, User
 from schemas.call_lease import (
     CallClaimRequest,
     CallHeartbeatRequest,
@@ -55,6 +54,10 @@ from services.call_leases import (
     release_call_lease,
     revoke_cloud_participant,
     verify_call_lease_for_token_or_dispatch,
+)
+from services.session_admission import (
+    get_active_session_or_raise,
+    verify_session_admission,
 )
 from services.session_idempotency import (
     compute_session_fingerprint,
@@ -597,66 +600,17 @@ async def get_session_token(
         token_ttl = timedelta(seconds=ttl_seconds)
         participant_identity = f"{user_id}:{lease.generation}"
 
-        # Phase 6 鉴权与设置检查
-        user_stmt = (
-            select(User).where(User.id == user_id).options(selectinload(User.settings))
-        )
-        user_result = await db.execute(user_stmt)
-        user_obj = user_result.scalar_one_or_none()
-        if not user_obj:
-            raise HTTPException(status_code=401, detail="User not found.")
-        settings_obj = user_obj.settings
-        if not settings_obj:
-            raise HTTPException(
-                status_code=400, detail="请先在设置中完成模型与密钥配置。"
-            )
-        if settings_obj.is_custom_mode:
-            if not settings_obj.is_custom_verified:
-                raise HTTPException(
-                    status_code=400,
-                    detail="自备密钥未验证或验证失败，请先完成密钥验证。",
-                )
-        else:
-            if user_obj.subscription_tier == SubscriptionTier.free:
-                raise HTTPException(
-                    status_code=403, detail="高级服务器线路仅限 VIP 用户使用。"
-                )
+        await verify_session_admission(db, user_id=user_id)
     else:
         # disabled 模式严格保持原有逻辑与顺序
-        user_stmt = (
-            select(User).where(User.id == user_id).options(selectinload(User.settings))
-        )
-        user_result = await db.execute(user_stmt)
-        user_obj = user_result.scalar_one_or_none()
-        if not user_obj:
-            raise HTTPException(status_code=401, detail="User not found.")
-        settings_obj = user_obj.settings
-        if not settings_obj:
-            raise HTTPException(
-                status_code=400, detail="请先在设置中完成模型与密钥配置。"
-            )
-        if settings_obj.is_custom_mode:
-            if not settings_obj.is_custom_verified:
-                raise HTTPException(
-                    status_code=400,
-                    detail="自备密钥未验证或验证失败，请先完成密钥验证。",
-                )
-        else:
-            if user_obj.subscription_tier == SubscriptionTier.free:
-                raise HTTPException(
-                    status_code=403, detail="高级服务器线路仅限 VIP 用户使用。"
-                )
+        await verify_session_admission(db, user_id=user_id)
 
-        stmt = select(Session).where(
-            Session.id == session_id,
-            Session.user_id == user_id,
+        session = await get_active_session_or_raise(
+            db,
+            session_id=session_id,
+            user_id=user_id,
+            ended_detail="会话已结束，无法生成令牌",
         )
-        result = await db.execute(stmt)
-        session = result.scalar_one_or_none()
-        if session is None:
-            raise HTTPException(status_code=404, detail="会话不存在")
-        if session.status != SessionStatus.active:
-            raise HTTPException(status_code=400, detail="会话已结束，无法生成令牌")
 
         participant_identity = str(current_user.id)
 
@@ -726,17 +680,12 @@ async def dispatch_agent(
         return {"dispatched": True}
 
     # disabled 模式保持原行为（先查 Session，无 3 秒超时包装）
-    stmt = select(Session).where(
-        Session.id == session_id,
-        Session.user_id == current_user.id,
+    session = await get_active_session_or_raise(
+        db,
+        session_id=session_id,
+        user_id=current_user.id,
+        ended_detail="会话已结束",
     )
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-
-    if session is None:
-        raise HTTPException(status_code=404, detail="会话不存在")
-    if session.status != SessionStatus.active:
-        raise HTTPException(status_code=400, detail="会话已结束")
 
     room_name = str(session.id)
 
