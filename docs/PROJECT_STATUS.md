@@ -1,6 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-10，分支 `claude/cloud-review-2026-11`（基于 `main@22eaf82`）。
+> 最后核对：2026-11-11，PR #140 head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`
+> （已并入现 `main@196f2ba`；PR #139、#140 均已合并）。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -25,29 +26,43 @@
 
 ## 当前验证基线
 
-2026-11-10 在云端容器实跑（Node 22.23.4、pnpm 10.26.0、Python 3.12、PostgreSQL 15.19 专用测试库）：
+当前远端测试基线来自 PR #140（head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`）的
+[GitHub Actions run 43031742949](https://github.com/sunpcm/EchoTalk/actions/runs/43031742949)；以下数字绑定该
+PR head 的 CI 日志，不表示在现 main 上直接执行。2026-11-10 的旧基线（`ee5018a`/`22eaf82`）仅作为当时
+[2026-11 云端评审](./reviews/2026-11-cloud-review.md)的记录，不与当前状态混用。
 
-| 测试树 / 门禁             | 结果                                              | 说明                                         |
-| ------------------------- | ------------------------------------------------- | -------------------------------------------- |
-| Vitest                    | 1156 passed（44 个文件）                          | 分支 HEAD                                    |
-| Playwright E2E            | 234 passed（Chromium + WebKit，Fake API，0 skip） | 分支 HEAD                                    |
-| backend pytest            | 809 passed，覆盖率 79.67%                         | `main@22eaf82`；此后分支未改后端代码，未重跑 |
-| Alembic                   | 空库升级到 `c06_transcript_events`                | `main@22eaf82`                               |
-| 格式 / lint / 类型 / 构建 | 通过                                              | 分支 HEAD                                    |
-| Fake API 契约             | 75 passed                                         | 分支 HEAD                                    |
+对应 job 日志：[frontend 130560259103](https://github.com/sunpcm/EchoTalk/actions/runs/43031742949/job/130560259103)、
+[backend 130560258676](https://github.com/sunpcm/EchoTalk/actions/runs/43031742949/job/130560258676)。
+
+| 测试树 / 门禁            | PR #140 实际结果                                  | 日志     |
+| ------------------------ | ------------------------------------------------- | -------- |
+| Vitest                   | 1156 passed（44 个文件，0 skip）                  | frontend |
+| Playwright E2E           | 234 passed（Chromium + WebKit，Fake API，0 skip） | frontend |
+| API 类型生成器           | 8 passed                                          | frontend |
+| 构建脚本                 | 21 passed                                         | frontend |
+| Fake API 契约            | 75 passed                                         | frontend |
+| backend pytest           | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁） | backend  |
+| Alembic                  | 空库迁移通过，至 `c06_transcript_events`          | backend  |
+| schema / metadata / Ruff | 相关步骤通过                                      | backend  |
+
+PR #140 的 CI 与 [PR Guard run 43031743003](https://github.com/sunpcm/EchoTalk/actions/runs/43031743003)
+共六项检查全部成功：`test-frontend`、`test-backend`、`test-ios-build`、`test-macos-probe`、
+`mass-deletion-guard` 与聚合 `CI`。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
-命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)；本次评审的证据与截图见
-[2026-11 云端评审](./reviews/2026-11-cloud-review.md)。
+命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)；当前数字对应上文 PR #140 run/job 日志。
 
 ## 已知限制和近期风险
 
 - 架构层面的风险（无 TLS 入口、分析可观测性、Compose 就绪门禁、原生认证未适配等）统一维护在
   [ARCHITECTURE.md §7](./ARCHITECTURE.md)，本文不重复。
-- CI 使用的部分 GitHub Actions 仍基于已弃用的 Node 20 runtime；`ubuntu-latest` 即将迁移到 Ubuntu 26。
-  （2026-10 记录，本次未重新核实。）
+- CI 前端固定使用与锁文件一致的 Playwright 1.62.1 / Ubuntu 26.04 官方预装镜像及 digest，
+  避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
+  并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
+- macOS 本地 WebKit 已知一例 Provider select 高度为 23px，本地与远端表现不同；PR #140 说明已记录该事实，
+  不构成该轮 CI 失败。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策
