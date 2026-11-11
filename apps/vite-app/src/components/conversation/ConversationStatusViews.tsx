@@ -134,7 +134,7 @@ export function RoomUnavailableView() {
     <div className="flex flex-col items-center gap-4 py-12">
       <div className="bg-danger-bg text-danger-text w-full max-w-sm rounded-[20px] p-6 text-center text-sm">
         <p className="font-semibold">{tConv.errorTitle}</p>
-        <p className="mt-1">无法获取有效的 WebSocket 服务器地址，请检查 VITE_API_BASE_URL 配置。</p>
+        <p className="mt-1">{tConv.roomUnavailable}</p>
       </div>
       <button onClick={goHome} className="btn-primary px-6 py-2.5">
         {tDash.goHome}

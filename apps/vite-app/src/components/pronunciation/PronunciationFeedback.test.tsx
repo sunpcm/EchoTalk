@@ -112,6 +112,33 @@ describe("PronunciationFeedback", () => {
     expect(listItems[1]).not.toHaveAttribute("tabindex");
   });
 
+  it("shows a neutral saved notice when there is neither pronunciation nor grammar feedback", () => {
+    render(<PronunciationFeedback assessment={null} grammarErrors={[]} />);
+
+    expect(screen.getByText(t.noFeedbackTitle)).toBeInTheDocument();
+    expect(screen.getByText(t.noFeedbackBody)).toBeInTheDocument();
+    expect(screen.getByText(t.noFeedbackNote)).toBeInTheDocument();
+    // 不再承诺“仅展示语法提示”，也不渲染空的语法标题或评分
+    expect(screen.queryByText(t.pronunciationUnavailable)).not.toBeInTheDocument();
+    expect(screen.queryByText(t.scoreLabel)).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("keeps the grammar-only notice when grammar hints exist without pronunciation", () => {
+    render(<PronunciationFeedback assessment={null} grammarErrors={mockGrammarErrors} />);
+
+    expect(screen.getByText(t.pronunciationUnavailable)).toBeInTheDocument();
+    expect(screen.queryByTestId("assessment-no-feedback")).not.toBeInTheDocument();
+  });
+
+  it("does not show the no-feedback notice when pronunciation exists without grammar hints", () => {
+    render(<PronunciationFeedback assessment={mockAssessment} grammarErrors={[]} />);
+
+    expect(screen.getByText(t.scoreLabel)).toBeInTheDocument();
+    expect(screen.queryByTestId("assessment-no-feedback")).not.toBeInTheDocument();
+    expect(screen.queryByText(t.pronunciationUnavailable)).not.toBeInTheDocument();
+  });
+
   it("renders grammar list and unavailable notice in EndedConversation", () => {
     const originalRefresh = useAssessmentStore.getState().refreshAnalysis;
     const originalFetchKnowledge = useAssessmentStore.getState().fetchKnowledgeStates;

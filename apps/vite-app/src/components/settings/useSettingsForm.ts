@@ -198,7 +198,7 @@ export function useSettingsForm({ open, settings, updateSettings }: UseSettingsF
 
   const toggleCustomMode = useCallback(() => {
     if (draft.isCustomMode && settings?.subscription_tier === "free") {
-      alert("该功能仅限 VIP 用户使用（或引导升级）。由于您是普通用户，请继续使用自定义模式。");
+      alert(t.vipOnlyNotice);
       return;
     }
     setDraft((current) => ({ ...current, isCustomMode: !current.isCustomMode }));

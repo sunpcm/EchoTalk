@@ -1,6 +1,6 @@
 /**
  * 发音反馈组件。
- * 展示 overall_score、音素可视化、语法错误列表。
+ * 展示 overall_score、音素可视化、语法错误列表；两者皆无时展示中性空态。
  */
 
 import React from "react";
@@ -13,6 +13,13 @@ const t = zhCN.assessment;
 interface PronunciationFeedbackProps {
   assessment: AssessmentResponse | null;
   grammarErrors: GrammarErrorResponse[];
+}
+
+const skillLabels: Record<string, string> = zhCN.weeklyGrammar.skills;
+
+/** 语法技能标签的中文名；未知标签原样显示，不猜测。 */
+function resolveSkillLabel(tag: string): string {
+  return Object.prototype.hasOwnProperty.call(skillLabels, tag) ? skillLabels[tag] : tag;
 }
 
 /** 根据分数返回颜色类 */
@@ -57,8 +64,15 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
             <PhonemeVisualizer alignment={assessment.phoneme_alignment} />
           </div>
         </>
-      ) : (
+      ) : grammarErrors.length > 0 ? (
         <p className="text-text-muted text-center text-sm">{t.pronunciationUnavailable}</p>
+      ) : (
+        // 无发音评估且无语法提示：不暗示“零错误”，语法检测覆盖有限
+        <div data-testid="assessment-no-feedback" className="space-y-2 text-center">
+          <p className="text-text-default text-base font-semibold">{t.noFeedbackTitle}</p>
+          <p className="text-text-default text-sm">{t.noFeedbackBody}</p>
+          <p className="text-text-muted text-xs">{t.noFeedbackNote}</p>
+        </div>
       )}
 
       {/* 语法错误列表 */}
@@ -71,7 +85,7 @@ export function PronunciationFeedback({ assessment, grammarErrors }: Pronunciati
             {grammarErrors.map((err) => (
               <li key={err.id} className="border-border-default rounded-[14px] border p-3">
                 <span className="bg-surface-alt text-text-muted mr-2 inline-block rounded px-2 py-0.5 text-xs font-medium">
-                  {err.skill_tag}
+                  {resolveSkillLabel(err.skill_tag)}
                 </span>
                 <del
                   aria-label={t.grammarOriginalLabel.replace("{text}", err.original)}

@@ -251,7 +251,7 @@ export function AnswerRecommendations() {
                   className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex min-h-[44px] w-full flex-col justify-center rounded-[12px] border p-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:p-3"
                 >
                   <div className="flex w-full items-start gap-2">
-                    <span className="bg-success mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
+                    <span className="bg-success text-success-contrast mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold">
                       {i + 1}
                     </span>
                     <span className="min-w-0 flex-1 text-sm leading-snug [overflow-wrap:anywhere] break-words whitespace-normal">

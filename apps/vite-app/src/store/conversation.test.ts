@@ -668,7 +668,87 @@ describe("useConversationStore", () => {
       const state = useConversationStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
-      expect(state.error).toBe("Failed to create session");
+      // 非业务门禁错误不向用户展示原始异常文本
+      expect(state.error).toBe(zhCN.conversation.startFailed);
+      // 会话未创建成功，不存在需要结束的记录
+      expect(api.endSession).not.toHaveBeenCalled();
+    });
+
+    it("shows backend gate messages for 400/403 but a generic message for other statuses", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+
+      for (const [status, message, expected] of [
+        [
+          400,
+          "自备密钥未验证或验证失败，请先完成密钥验证。",
+          "自备密钥未验证或验证失败，请先完成密钥验证。",
+        ],
+        [403, "高级服务器线路仅限 VIP 用户使用。", "高级服务器线路仅限 VIP 用户使用。"],
+        [404, "No fake route for GET /api/sessions/x/token", zhCN.conversation.startFailed],
+        [502, "upstream stack trace", zhCN.conversation.startFailed],
+      ] as const) {
+        useConversationStore.getState().reset();
+        vi.mocked(api.createSession).mockRejectedValueOnce(new api.ApiError(status, message));
+
+        await useConversationStore.getState().startSession("free_talk");
+
+        expect(useConversationStore.getState().error).toBe(expected);
+        expect(useConversationStore.getState().appView).toBe("dashboard");
+      }
+    });
+
+    it("ends the just-created session when the token request fails, then returns to the dashboard", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "orphan-session-1",
+      } as Awaited<ReturnType<typeof api.createSession>>);
+      vi.mocked(api.getSessionToken).mockRejectedValue(new api.ApiError(502, "LiveKit down"));
+      vi.mocked(api.endSession).mockResolvedValue({} as Awaited<ReturnType<typeof api.endSession>>);
+
+      await useConversationStore.getState().startSession("scenario");
+
+      expect(api.endSession).toHaveBeenCalledTimes(1);
+      expect(api.endSession).toHaveBeenCalledWith("orphan-session-1");
+      // 只结束一次，不重建会话、不重取 Token
+      expect(api.createSession).toHaveBeenCalledTimes(1);
+      expect(api.getSessionToken).toHaveBeenCalledTimes(1);
+
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.sessionId).toBeNull();
+      expect(state.token).toBeNull();
+      expect(state.error).toBe(zhCN.conversation.startFailed);
+    });
+
+    it("still reports the start failure when ending the orphaned session also fails", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "orphan-session-2",
+      } as Awaited<ReturnType<typeof api.createSession>>);
+      vi.mocked(api.getSessionToken).mockRejectedValue(new Error("network"));
+      vi.mocked(api.endSession).mockRejectedValue(new Error("end failed"));
+
+      await useConversationStore.getState().startSession("scenario");
+
+      expect(api.endSession).toHaveBeenCalledTimes(1);
+      const state = useConversationStore.getState();
+      expect(state.connectionState).toBe("idle");
+      expect(state.appView).toBe("dashboard");
+      expect(state.error).toBe(zhCN.conversation.startFailed);
+    });
+
+    it("does not end the session when credentials are ready", async () => {
+      vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
+      vi.mocked(api.createSession).mockResolvedValue({
+        id: "healthy-session",
+      } as Awaited<ReturnType<typeof api.createSession>>);
+      vi.mocked(api.getSessionToken).mockResolvedValue({ token: "t", ws_url: "wss://lk.test" });
+
+      await useConversationStore.getState().startSession("scenario");
+
+      expect(api.endSession).not.toHaveBeenCalled();
+      expect(useConversationStore.getState().sessionId).toBe("healthy-session");
     });
 
     it("handles createSession / getSessionToken error with fallback message for non-Error", async () => {
@@ -680,7 +760,7 @@ describe("useConversationStore", () => {
       const state = useConversationStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
-      expect(state.error).toBe("连接失败");
+      expect(state.error).toBe(zhCN.conversation.startFailed);
     });
 
     it("drops stale health check result after goHome without polluting dashboard", async () => {

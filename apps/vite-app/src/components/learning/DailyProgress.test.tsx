@@ -98,7 +98,7 @@ describe("DailyProgress component", () => {
       const progressbar = screen.getByRole("progressbar");
       expect(progressbar).toHaveAttribute("aria-valuenow", "20");
       expect(progressbar).toHaveAttribute("aria-valuetext", "130 / 20");
-      expect(screen.getByText("Goal reached!")).toBeInTheDocument();
+      expect(screen.getByText("已达成今日目标！")).toBeInTheDocument();
       expect(screen.getByTestId("load-more-daily-button")).toBeInTheDocument();
     });
 

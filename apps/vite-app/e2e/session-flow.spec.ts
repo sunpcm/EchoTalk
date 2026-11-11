@@ -105,3 +105,16 @@ test("renders grammar-only feedback when pronunciation is unavailable", async ({
   await expect(page.getByText("发音评分")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "返回主页" })).toBeEnabled();
 });
+
+test("shows a neutral saved notice when neither pronunciation nor grammar feedback exists", async ({
+  page,
+}) => {
+  await showEndedSession(page, "grammar-only-empty");
+
+  await expect(page.getByText("本次练习已保存")).toBeVisible();
+  await expect(page.getByText("暂时没有可展示的发音评估和语法提示。")).toBeVisible();
+  await expect(page.getByText("当前语法检测覆盖有限，未检出不代表没有问题。")).toBeVisible();
+  await expect(page.getByText("本次未生成发音评估，仅展示语法提示")).toHaveCount(0);
+  await expect(page.getByText("发音评分")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "返回主页" })).toBeEnabled();
+});

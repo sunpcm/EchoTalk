@@ -17,6 +17,7 @@ import {
   type GrammarErrorResponse,
   type KnowledgeStateResponse,
 } from "@/lib/api";
+import { zhCN } from "@/i18n/zh-CN";
 
 /** 评估数据加载状态 */
 export type AssessmentLoadState =
@@ -164,7 +165,7 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
       if (assessmentGeneration === gen) {
         set({
           loadState: "error",
-          error: err instanceof Error ? err.message : "加载评估数据失败",
+          error: err instanceof Error ? err.message : zhCN.errors.loadAssessment,
         });
       }
       throw err;
@@ -188,7 +189,7 @@ export const useAssessmentStore = create<AssessmentStore>((set) => ({
       if (assessmentGeneration === gen) {
         set({
           loadState: "error",
-          error: err instanceof Error ? err.message : "重试分析失败",
+          error: err instanceof Error ? err.message : zhCN.errors.retryAnalysis,
         });
       }
       throw err;

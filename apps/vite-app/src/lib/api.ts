@@ -3,7 +3,7 @@
  * 所有对 FastAPI 后端的请求通过此模块统一管理。
  */
 
-import { getApiBaseUrl } from "@/utils/env";
+import { getApiBaseUrl } from "@/platform";
 import { getAccessToken, getAuthRevision, invalidateAuthSession } from "@/lib/auth";
 import { zhCN } from "@/i18n/zh-CN";
 import { logDiagnostic } from "@/lib/diagnostics";

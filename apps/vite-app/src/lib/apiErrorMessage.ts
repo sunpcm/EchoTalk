@@ -1,7 +1,9 @@
 /**
  * API 错误响应消息解析纯函数。
- * 纯计算模块，无网络、无 DOM、无认证与全局状态依赖。
+ * 纯计算模块，无网络、无 DOM、无认证与全局状态依赖；兜底文案取自静态语言包。
  */
+
+import { zhCN } from "@/i18n/zh-CN";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -20,7 +22,7 @@ function getFirstTruthyString(record: Record<string, unknown>): string | null {
  * 严格保持 FastAPI / HTTPException / 422 验证异常及业务诊断既有优先级与兜底语义。
  */
 export function getApiErrorMessage(status: number, body: unknown): string {
-  let message = `请求失败: ${status}`;
+  let message = zhCN.errors.requestFailed.replace("{status}", () => String(status));
   if (isRecord(body)) {
     if (typeof body.detail === "string") {
       // 1. 标准 FastAPI 异常 (HTTPException(detail="xxx"))
@@ -29,6 +31,7 @@ export function getApiErrorMessage(status: number, body: unknown): string {
       // 2. FastAPI 验证异常 (422 Unprocessable Entity - validation errors)
       const firstError = body.detail[0];
       if (isRecord(firstError) && typeof firstError.msg === "string") {
+        const msg = firstError.msg;
         let errorLoc = "Unknown";
         if (Array.isArray(firstError.loc)) {
           const isAllValid = firstError.loc.every(
@@ -38,7 +41,9 @@ export function getApiErrorMessage(status: number, body: unknown): string {
             errorLoc = firstError.loc.join(".");
           }
         }
-        message = `数据验证失败 (${errorLoc}): ${firstError.msg}`;
+        message = zhCN.errors.validationFailed
+          .replace("{loc}", () => errorLoc)
+          .replace("{msg}", () => msg);
       }
     } else if (isRecord(body.detail)) {
       // 3. 嵌套的自定义字典对象 (如 /health/ready 的 detail: { errors: {...} })

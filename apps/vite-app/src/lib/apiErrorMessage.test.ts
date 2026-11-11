@@ -290,4 +290,13 @@ describe("getApiErrorMessage", () => {
       expect(Object.isFrozen(frozenBody.detail)).toBe(true);
     });
   });
+
+  describe("占位符替换不解释服务端文本中的 $ 序列", () => {
+    it("keeps $& and $1 in validation messages literally", () => {
+      const body = { detail: [{ loc: ["body", "$&"], msg: "cost is $1 or $& (see $`)" }] };
+      expect(getApiErrorMessage(422, body)).toBe(
+        "数据验证失败 (body.$&): cost is $1 or $& (see $`)",
+      );
+    });
+  });
 });

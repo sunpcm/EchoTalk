@@ -44,7 +44,7 @@ export function DocChatSetup() {
     try {
       await startSession("doc_chat", docContext);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建会话失败");
+      setError(err instanceof Error ? err.message : t.createFailed);
     }
   };
 

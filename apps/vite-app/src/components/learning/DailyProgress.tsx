@@ -18,6 +18,7 @@ import {
 import { getLocalDayWindow } from "@/lib/localDayWindow";
 import { createLifecycleAdapter, type LifecycleAdapter, type WebLifecycleEvent } from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
+import { SectionState } from "./SectionState";
 
 const t = zhCN.dashboard;
 
@@ -453,25 +454,19 @@ export function DailyProgress() {
   }
 
   if (loading) {
-    return <div className="text-text-faint py-4 text-center text-sm">{t.loading}</div>;
+    return <SectionState title={t.dailyProgressTitle} kind="loading" message={t.loading} />;
   }
 
   if (error || (!stats && !loading)) {
     if (error) {
       return (
-        <div
-          role="alert"
-          className="text-text-faint flex items-center justify-center py-4 text-center text-sm"
-        >
-          <span>{t.loadError}</span>
-          <button
-            type="button"
-            onClick={fetchDailyData}
-            className="text-accent ml-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-xs hover:underline focus-visible:outline-none"
-          >
-            {zhCN.activeSessions.retry}
-          </button>
-        </div>
+        <SectionState
+          title={t.dailyProgressTitle}
+          kind="error"
+          message={t.loadError}
+          onRetry={fetchDailyData}
+          retryLabel={t.retry}
+        />
       );
     }
     return null;

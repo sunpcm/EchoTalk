@@ -10,7 +10,7 @@
 
 ## 架构与治理
 
-- [当前状态与变更决策](./PROJECT_STATUS.md)：记录当前功能、验证边界、已合并和未采纳的实现及维护规则。
+- [当前状态与变更决策](./PROJECT_STATUS.md)：当前功能、当前验证基线、已知限制与历史索引。
 - [MVP 技术债修复与重构方案](./MVP_REFACTORING_REMEDIATION_PLAN.md)：定义 MVP 产品化修复的范围、实施顺序、验收和回滚要求；完成状态仍以根目录 `TODO.md` 为准。
 
 - [Agent 评审手册](./agent-review-loop.md)：三端评审循环、测试树、环境和并行边界。
@@ -18,7 +18,7 @@
 
 ## 当前架构与验收
 
-- [历史系统架构审计](./ARCHITECTURE.md)：2026-09-20 基线快照；当前状态以 PROJECT_STATUS、TODO 和代码为准。
+- [系统架构](./ARCHITECTURE.md)：当前运行时、数据所有权、部署拓扑与仍然成立的风险（2026-11-10 按代码核对）。
 - [三端架构与交付门禁](./CROSS_PLATFORM_ARCHITECTURE.md)：Web/iOS/macOS 当前事实与交付目标。
 - [macOS MVP 开发计划](./MACOS_MVP_DEVELOPMENT_PLAN.md)：M1 可行性至 M5 分发的分阶段门禁；正式 `apps/vite-app/src-tauri/` 仍属 M2，旧最低 OS 候选不构成兼容承诺，最新支持口径见当前状态。
 - [macOS M1 原生认证验证](./verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)：auth-only 探针已记录安装包真实冷暖回跳及取消场景；API/媒体、真实 Provider 5 分钟 5 轮与设备测试尚欠，不代表 M1 整体通过。
@@ -33,6 +33,9 @@
 | Phase 8：三主题    | [PHASE_8_TECH_STACK.md](./PHASE_8_TECH_STACK.md) | [PHASE_8_MANUAL_TEST.md](./PHASE_8_MANUAL_TEST.md) | [PHASE_8_UI_THEME_UPGRADE.md](./PHASE_8_UI_THEME_UPGRADE.md) |
 
 ## 历史实现资料
+
+`history/` 保存按月的实施记录、已合并与未采纳决策、已完成待办和评审回执；只追加不改写，
+其中的计数与结论只属于当时提交。当前状态一律以 `PROJECT_STATUS.md`、`ARCHITECTURE.md` 和 `TODO.md` 为准。
 
 `archive/` 仅保留 Phase 1–4 仍可辅助排障或理解模块演进的技术说明与回归步骤。归档内容不代表当前配置或项目状态；执行命令前必须对照现有代码和根目录 `README.md`。
 
