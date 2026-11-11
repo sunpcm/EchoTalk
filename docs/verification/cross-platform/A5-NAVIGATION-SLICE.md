@@ -2,7 +2,7 @@
 
 > 实施轮次：A5
 > 日期：2026-11-12
-> 状态：实现与本地门禁已就绪；主控已实际执行完整 15 项门禁（14 项 exit 0）；macOS E2E 仍 1 处既有失败；待目标 Linux CI 与最终 Review
+> 状态：代码 18 文件冻结于 head 3413912；草稿 PR #145 已发布，目标 Linux CI 与代码独立 Review 已通过；停用户 Review、未合并
 
 ## 1. 目标与边界
 
@@ -17,7 +17,8 @@
 
 - [conversation.ts](../../../apps/vite-app/src/store/conversation.ts) 改为兼容 façade，
   对外只暴露 `ConversationSlice`（别名 `ConversationStore`），不再完整 re-export
-  `AppStore`，因此调用方无法经它读取 `appView` 或 `goHome` 等外壳动作。
+  `AppStore`，因此在 TypeScript 类型检查下不公开 `appView` 或 `goHome` 等外壳动作。
+  这层收窄是类型视图边界：共享物理容器的运行时状态仍是 `AppStore`，接口收窄不等于运行时字段隔离。
 - [appStore.ts](../../../apps/vite-app/src/store/appStore.ts) 是唯一物理容器：
   `useAppStore = create<AppStore>`，组合 `initialNavigationSlice` 与
   `createConversationSlice`。`useNavigationStore` 与 `useConversationStore` 都指向这同一个
@@ -57,7 +58,7 @@ coordinator 的 `isRoomOwningState: (state) => state.appView === "session"` 仍�
 
 `reset` / `goHome` 语义与 resume 凭据/视图原子发布在
 [navigation.test.ts](../../../apps/vite-app/src/store/navigation.test.ts) 有新增覆盖；DocChat
-设置入口行为由既有 App 回归覆盖，本增量不另加多余测试。
+设置入口行为由既有 App 回归覆盖。
 
 ## 6. 窄 façade 的 setState replace 语义
 
@@ -90,6 +91,8 @@ coordinator 的 `isRoomOwningState: (state) => state.appView === "session"` 仍�
 
 ## 8. 门禁与验收状态
 
+实施侧本地验证（node 22.13.1 + pnpm 10.26.0）：
+
 - typecheck（`tsc --noEmit`）：exit 0。
 - store 子集（navigation + conversation）：125 passed（含 2 个新增 replace 回归）。
 - 迁移组件/库子集（App + ActiveSessions + VoiceInterface + DocChatSetup + user-state）：
@@ -99,12 +102,18 @@ coordinator 的 `isRoomOwningState: (state) => state.appView === "session"` 仍�
 - 前端全量单测（`vitest run`，非 E2E/浏览器/DB）：45 files / 1161 passed（较返修前 1159
   新增 2 个 replace 回归，计数不降）。
 
-主控停写后实际执行最终产品写集完整 15 项门禁，源码逐 hash 未变：
+主控本地门禁（macOS，完整 15 项门禁 14 项 exit 0，源码逐 hash 未变）：
 
-- 14 项 exit 0；Vitest 1161 / 45 files；backend pytest 809 / 80.19%（单元 / mock /
-  合成 PG 集成，非 809 全 PG）；lint 132 warning / 0 error；FakeAPI 75 / API 类型 8 /
-  构建脚本 21；0 skip。
+- Vitest 1161 / 45 files；backend pytest 809 / 80.19%（单元 / mock / 合成 PG 集成，非
+  809 全 PG）；lint 132 warning / 0 error；FakeAPI 75 / API 类型 8 / 构建脚本 21；0 skip。
 - macOS E2E 233 pass / 1 fail，仍为 a11y Provider select 高度 23px（WebKit）的既有失败。
 
-状态为「实现与本地门禁已就绪」，非整卡已完成；目标 Linux CI 与最终 Review 仍待。
-后续只更新文档记录；真实外部服务与设备验收未执行。
+目标 Linux CI 回执（已测试 head 3413912，草稿 [PR #145](https://github.com/sunpcm/EchoTalk/pull/145)）：
+
+- CI [run 43080936815](https://github.com/sunpcm/EchoTalk/actions/runs/43080936815) 与
+  Guard [run 43080936655](https://github.com/sunpcm/EchoTalk/actions/runs/43080936655) 全绿；
+  Vitest 1161/45、E2E 234/234 零 skip 无 Retry、FakeAPI 75/API 类型 8/构建脚本 21、
+  lint 132/0、pytest 809/80.19%（混合单元/mock/PG）；代码 18 文件未改。
+
+状态为「代码已测试、Review 通过」而非整卡已完成；停用户 Review、未合并。真实外部服务
+与设备验收未执行。
