@@ -14,6 +14,13 @@ jobs:
     # Keep the historical check name stable for existing branch protection.
     name: test-frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      # Match the locked Playwright version and the existing Ubuntu 26.04 runner.
+      image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
+      options: --user 1001 --ipc=host
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -54,8 +61,17 @@ jobs:
       - name: Build
         run: pnpm exec turbo run build --force
 
-      - name: Install Playwright Browsers
-        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Verify preinstalled Playwright browsers
+        run: |
+          node <<'NODE'
+          const assert = require("node:assert/strict");
+          const { existsSync } = require("node:fs");
+          const { chromium, webkit } = require("@playwright/test");
+          assert.equal(require("@playwright/test/package.json").version, "1.62.1");
+          for (const browser of [chromium, webkit]) {
+            assert.ok(existsSync(browser.executablePath()), `${browser.name()} executable missing`);
+          }
+          NODE
         working-directory: apps/vite-app
 
       - name: E2E Test (Playwright)
