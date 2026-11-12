@@ -137,8 +137,13 @@ B1 后续数据库验证只使用独立合成资源，不借用 cp00、应用库
 TypeScript 生成器由主控代跑。主控已在该合成库中重放现有迁移至 `c06_transcript_events`，并验证
 既有基线：Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108
 passed、类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；本机全量 E2E 为
-233 passed/1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`。B1 新增表及功能
-尚未实施，因此尚未验证其功能；B1-0 只完成文档写回。
+233 passed/1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`；这组数字只属于
+该历史时点。B1-1（ORM/迁移/schema）已在专用合成 PostgreSQL 验证；B1-2 已实现同事务事件写入、
+幂等、用户锁与 BKT 合成隔离，独立代码 Review APPROVED，目标套件 116 passed/0 skip/exit 0，
+完整 backend 844 passed/3 warnings/0 skip/80.82%。当前停在 B1-2 Review（用户审阅待），提交/推送
+结果见本次交付回执；不创建 PR、不合并。B1-3～B1-5 未实施。最新状态见
+[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
+[`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
 B1-4/B1-5 若增加 HTTP 接口，同一卡必须同步 Fake API 成功响应 fixture、Node 契约测试和现有 A3
 operation 覆盖审计。更新 canonical OpenAPI 和 TypeScript 类型只属于必要生成步骤，不能代替 Fake

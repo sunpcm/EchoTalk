@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A6（PR #155）代码 `87e0fd5` 的六项 CI 与原始日志已复核，
-> Vitest1206/49、Linux E2E234、pytest809/80.19%、108/8/21 通过；最终归档与合并状态见 PR。
+> 最后核对：2026-11-12。当前 Linux 基线仍按 A6（PR #155）代码 `87e0fd5` 的历史快照记录；
+> B1-2 的合成 PostgreSQL、完整本机门禁与独立代码 Review 结果见下文，B1-2 仍等待用户审阅。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -106,7 +106,7 @@ worker head fixture 适配，最终本机门禁和专用合成 PostgreSQL 结果
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）政策确认、分卡与 B1-1 schema 验证
+### B1（学习事件台账）B1-2 合成 PG 与独立代码 Review 完成
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -137,23 +137,27 @@ GREEN `4 passed / 0 skip / exit 0`、current/downgrade 回 c06 后清除表/索�
 得到 `1 error` RED 后，已改为读取仓库 Alembic 源码 `get_current_head()` 并严格比较数据库
 `alembic_version`；原 DB/user/PG15.19/DSN guard 不变。
 
-本轮最终完整门禁已结束：format、force lint、typecheck、build、Vitest、build-script、Fake API、
-API typecheck、类型生成器、Ruff、schema、metadata 与 backend 均 `exit 0`。当前计数为 Vitest
-`1206 passed / 49 files`、build-script `21`、Fake API `108`、API 类型生成器 `8`、backend
-`813 passed / 3 warnings`；lint 为 `132 warning / 0 error`，与本轮 baseline 相同。完整
-Chromium+WebKit 零 retry 为 `233 passed / 1 failed / exit 1`，唯一失败仍是既有 WebKit Provider
-select `336×23 < 44px`；DocTalk 通过且无新增失败，因此不能称本机全树全绿。PG schema 为
-`4 passed / 0 skip / exit 0`，空库升级和往返 `exit 0`，ORM/PG metadata compare 为零差异；临时
-移除 shape 约束后测试变红，原约束已恢复并校验，源码未改。上方 809/1206 与浏览器失败继续明确保留
-为历史快照。
+B1-2 已实现同事务事件写入、幂等、用户锁与 BKT 合成隔离，独立代码 Review 结论为 APPROVED。
+专用合成 PostgreSQL 目标套件为 `116 passed / 0 skip / exit 0`；完整 backend 为
+`844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。Vitest `1206 passed / 49 files`、
+build-script `21`、Fake API `108`、API 类型生成器 `8` 均 `exit 0`；强制 lint/typecheck/build
+`exit 0`，lint 为 `132 warning / 0 error`；Ruff 格式/规则、schema 与 metadata 导出校验均
+`exit 0`。15 项完整门禁中 14 项 `exit 0`，Chromium+WebKit 零 retry 为
+`233 passed / 1 failed / 0 skip / exit 1`，唯一失败仍是与既有基线相同的 WebKit Provider select
+`336×23 < 44px`，DocTalk 通过，不能称本机全树全绿；聚合入口 `exit 0` 不表示 E2E 通过。
 
-生产库未执行迁移或切换；事务写入、基线工具、JSON 导出、整账号删除、生产切换、真实数据处理和
-上线均未实施。当前停在 B1-1 Review；按用户要求本轮暂停，B1-2～B1-5 尚未实施。其顺序、
+独立探针确认用户锁、实际 `apply_seq` 相反观察、原始 ordinal、缺观察拒绝、未知模型 `NULL`、
+不复制 alignment、三类完成冲突，以及 10 条观察/3 个知识状态/知识状态单次读取/unmapped 计数均
+`exit 0`。17 个既有迁移字节未改动。B1-0 的 `809 passed / 80.19%` 和 B1-1 的 `813` 是历史基线；
+当前 B1-2 backend 为 `844 passed / 80.82%`，Vitest 当前仍为 `1206 passed / 49 files`。
+
+当前停在 B1-2 Review（用户审阅待），提交/推送结果见本次交付回执；不创建 PR、不合并。生产
+DDL/切换/部署/真实数据、真实 Provider/LiveKit/IdP/设备均未验证；B1-3～B1-5 尚未实施。其顺序、
 依赖和验收见 [`TODO.md`](../TODO.md)，设计政策与实现门禁见
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。B1-4/B1-5 如新增 HTTP 接口，必须同卡
 补齐 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计，不能以 OpenAPI/TS 更新或
 扩大 missing/空 schema 豁免代替。仓库 CI 仅监听 `main`/`master` push 与 PR；任务分支 push
-不触发远端 CI，当前仍未执行。本批不修改工作流，以主控本地完整门禁和专用合成 PostgreSQL 留证。
+不触发远端 CI，当前仍未执行。本批未修改工作流，以主控本地完整门禁和专用合成 PostgreSQL 留证。
 
 ## 已知限制和近期风险
 

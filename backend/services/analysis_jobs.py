@@ -12,7 +12,6 @@ from models.session import Session
 from services.analysis_service import (
     AnalysisServiceError,
     analyze_session,
-    update_knowledge,
 )
 
 logger = logging.getLogger(__name__)
@@ -171,7 +170,18 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
         raise AnalysisExecutionError(
             "no_user_transcript", "Session has no user transcript to analyze"
         )
-    await update_knowledge(job.session_id, session.user_id, db)
+
+    from services.learning_events import write_learning_events
+
+    await write_learning_events(
+        job=job,
+        session=session,
+        user_id=session.user_id,
+        assessment=analysis_result.assessment,
+        grammar_errors=analysis_result.grammar_errors,
+        coverage=analysis_result.coverage,
+        db=db,
+    )
 
     transition_job(job, AnalysisJobStatus.succeeded)
     job.last_error_code = None

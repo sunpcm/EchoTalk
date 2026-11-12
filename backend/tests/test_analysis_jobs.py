@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
+from models.learning_event import LearningEvent
 from models.session import (
     Session,
     SessionMode,
@@ -133,6 +134,7 @@ async def postgres_job():
                 user_id=user_id,
                 mode=SessionMode.pronunciation,
                 status=SessionStatus.completed,
+                ended_at=utc_now(),
             )
         )
         db.add(
@@ -167,6 +169,9 @@ async def postgres_job():
         yield session_factory, user_id, session_id, job_id
     finally:
         async with session_factory() as db, db.begin():
+            await db.execute(
+                delete(LearningEvent).where(LearningEvent.user_id == user_id)
+            )
             await db.execute(
                 delete(GrammarError).where(GrammarError.session_id == session_id)
             )

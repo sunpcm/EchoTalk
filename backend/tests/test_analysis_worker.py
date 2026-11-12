@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
+from models.learning_event import LearningEvent
 from models.session import (
     Session,
     SessionMode,
@@ -703,6 +704,7 @@ async def postgres_worker_job(monkeypatch):
                     user_id=user_id,
                     mode=SessionMode.pronunciation,
                     status=SessionStatus.completed,
+                    ended_at=utc_now(),
                 )
             )
             await db.flush()
@@ -724,6 +726,9 @@ async def postgres_worker_job(monkeypatch):
             if identity_verified:
                 async with factory() as db, db.begin():
                     sessions = select(Session.id).where(Session.user_id == user_id)
+                    await db.execute(
+                        delete(LearningEvent).where(LearningEvent.user_id == user_id)
+                    )
                     await db.execute(
                         delete(GrammarError).where(
                             GrammarError.session_id.in_(sessions)
@@ -1033,7 +1038,7 @@ async def test_postgres_all_synthetic_skips_knowledge(postgres_worker_job):
 
 @pytest.mark.asyncio
 async def test_postgres_real_pronunciation_only_updates_bkt(postgres_worker_job):
-    factory, _engine, user_id, session_id, _job_id = postgres_worker_job
+    factory, _engine, user_id, session_id, job_id = postgres_worker_job
     alignment = [
         {"type": "substitution", "expected": "TH", "actual": "S", "position": 0}
     ]
@@ -1068,7 +1073,8 @@ async def test_postgres_real_pronunciation_only_updates_bkt(postgres_worker_job)
             )
         )
         await db.flush()
-        await analysis_service.update_knowledge(session_id, user_id, db)
+        assert await analysis_jobs.claim_next_job(db) == job_id
+        await analysis_jobs.execute_claimed_job(job_id, db)
 
     async with factory() as db:
         stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
@@ -1114,16 +1120,6 @@ async def test_postgres_real_grammar_only_updates_bkt(postgres_worker_job):
             )
         )
         await db.flush()
-        await analysis_service.update_knowledge(session_id, user_id, db)
-
-    async with factory() as db:
-        stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
-        states = (await db.execute(stmt)).scalars().all()
-        assert {s.skill_id for s in states} == {"verb_tense_past"}
-
-    async with factory() as db, db.begin():
-        clear_stmt = delete(KnowledgeState).where(KnowledgeState.user_id == user_id)
-        await db.execute(clear_stmt)
         assert await analysis_jobs.claim_next_job(db) == job_id
         await analysis_jobs.execute_claimed_job(job_id, db)
 
@@ -1131,11 +1127,43 @@ async def test_postgres_real_grammar_only_updates_bkt(postgres_worker_job):
         stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
         states = (await db.execute(stmt)).scalars().all()
         assert {s.skill_id for s in states} == {"verb_tense_past"}
+        event_count = await db.scalar(
+            select(func.count())
+            .select_from(LearningEvent)
+            .where(LearningEvent.analysis_job_id == job_id)
+        )
+
+    # A succeeded job is terminal: it cannot be re-claimed or re-executed, and
+    # the rejected attempt must not add events or knowledge states.
+    async with factory() as db, db.begin():
+        assert await analysis_jobs.claim_next_job(db) is None
+        with pytest.raises(analysis_jobs.InvalidAnalysisTransition):
+            await analysis_jobs.execute_claimed_job(job_id, db)
+
+    async with factory() as db:
+        states = (
+            (
+                await db.execute(
+                    select(KnowledgeState).where(KnowledgeState.user_id == user_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert {s.skill_id for s in states} == {"verb_tense_past"}
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(LearningEvent)
+                .where(LearningEvent.analysis_job_id == job_id)
+            )
+            == event_count
+        )
 
 
 @pytest.mark.asyncio
 async def test_postgres_both_real_sources_update_bkt(postgres_worker_job):
-    factory, _engine, user_id, session_id, _job_id = postgres_worker_job
+    factory, _engine, user_id, session_id, job_id = postgres_worker_job
     alignment = [
         {"type": "substitution", "expected": "TH", "actual": "S", "position": 0}
     ]
@@ -1185,7 +1213,8 @@ async def test_postgres_both_real_sources_update_bkt(postgres_worker_job):
             )
         )
         await db.flush()
-        await analysis_service.update_knowledge(session_id, user_id, db)
+        assert await analysis_jobs.claim_next_job(db) == job_id
+        await analysis_jobs.execute_claimed_job(job_id, db)
 
     async with factory() as db:
         stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)

@@ -2,12 +2,15 @@
 
 > 历史交付：本设计随 PR #150 交付并合入，当时仅完成设计，主控独立审阅 APPROVED。
 > 当前政策：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；设计已定稿，B1 已拆卡并进入实施。
-> 当前实现状态：B1-1 的 `LearningEvent` ORM/注册、`b1_learning_events` 迁移及 schema 回归已在
-> 本轮专用合成 PostgreSQL 验证。ORM 的 `idempotency_key` 唯一约束与 migration 同名一致；
-> `algorithm_params` 使用 `JSONB(none_as_null=True)`，使 Python `None` 绑定为 SQL `NULL`。
-> 生产库未执行 DDL、切换或真实数据处理。本轮最终门禁及本机 E2E 的唯一既有失败见
-> [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；不能据此称本机全树全绿。
-> 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实外部服务接入不在本项内。
+> 当前实现状态：B1-1 的 `LearningEvent` ORM/注册、`b1_learning_events` 迁移及 schema 回归已
+> 在专用合成 PostgreSQL 验证。B1-2 已实现 §3–§5 的同事务事件写入、幂等、用户锁与 BKT 合成
+> 隔离，独立代码 Review 为 APPROVED；专用合成 PostgreSQL 目标套件 `116 passed / 0 skip /
+exit 0`，完整 backend `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。15 项完整门禁中
+> 14 项 `exit 0`，E2E `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败仍是既有
+> WebKit Provider select `336×23 < 44px`，DocTalk 通过，不能称本机全树全绿。当前停在 B1-2
+> Review，用户审阅仍待；B1-3～B1-5 尚未实施。生产库未执行 DDL、切换或真实数据处理。
+> 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实
+> 外部服务接入不在本项内。
 
 ## 1. 结论与边界
 
@@ -21,29 +24,39 @@
   [analysis_service.py#L149](../backend/services/analysis_service.py#L149)、
   [analysis_service.py#L237](../backend/services/analysis_service.py#L237)。本文不声称已有真实信号。
 
-## 2. 当前代码事实
+## 2. B1-0 设计前代码事实（历史快照）
+
+本节记录设计方案形成前的既有行为，用于解释为什么需要 §3–§5；这些不是 B1-2 的当前实现。
 
 1. Job 对 `session_id` 唯一；领取时递增 `attempt_count`，成功后不能回 pending [analysis.py#L42](../backend/models/analysis.py#L42)、
-   [analysis_jobs.py#L74](../backend/services/analysis_jobs.py#L74)。
-2. `SKIP LOCKED` 只防止同一 Job 被并发领取，不保证同一用户的不同 Job 串行 [analysis_jobs.py#L113](../backend/services/analysis_jobs.py#L113)、
+   [analysis_jobs.py#L74](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_jobs.py#L74)。
+2. `SKIP LOCKED` 只防止同一 Job 被并发领取，不保证同一用户的不同 Job 串行 [analysis_jobs.py#L113](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_jobs.py#L113)、
    [test_analysis_jobs.py#L198](../backend/tests/test_analysis_jobs.py#L198)。
-3. 执行事务先锁 Job，再写结果、更新知识状态并置 succeeded；异常后原事务回滚，另事务记失败 [analysis_jobs.py#L158](../backend/services/analysis_jobs.py#L158)、
-   [analysis_jobs.py#L223](../backend/services/analysis_jobs.py#L223)。
+3. 执行事务先锁 Job，再写结果、更新知识状态并置 succeeded；异常后原事务回滚，另事务记失败 [analysis_jobs.py#L158](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_jobs.py#L158)、
+   [analysis_jobs.py#L223](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_jobs.py#L223)。
 4. 外部取消会回滚未提交结果，Job 暂时保持 running，之后走 stale recovery
    [test_analysis_worker.py#L972](../backend/tests/test_analysis_worker.py#L972)。
-5. 发音和语法当前都以“该 session 已有结果”为幂等条件；同一 Job 重复执行不会重复插入 [analysis_service.py#L110](../backend/services/analysis_service.py#L110)、
-   [analysis_service.py#L212](../backend/services/analysis_service.py#L212)、[test_analysis_worker.py#L1234](../backend/tests/test_analysis_worker.py#L1234)。
-6. BKT 只读 `is_synthetic=false`；发音按 JSON 数组顺序更新，语法查询当前没有 `ORDER BY` [analysis_service.py#L298](../backend/services/analysis_service.py#L298)、
-   [analysis_service.py#L303](../backend/services/analysis_service.py#L303)、
-   [analysis_service.py#L291](../backend/services/analysis_service.py#L291)。
+5. 发音和语法当前都以“该 session 已有结果”为幂等条件；同一 Job 重复执行不会重复插入 [analysis_service.py#L110](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_service.py#L110)、
+   [analysis_service.py#L212](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_service.py#L212)、[test_analysis_worker.py#L1234](../backend/tests/test_analysis_worker.py#L1234)。
+6. BKT 只读 `is_synthetic=false`；发音按 JSON 数组顺序更新，语法查询当前没有 `ORDER BY` [analysis_service.py#L298](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_service.py#L298)、
+   [analysis_service.py#L303](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_service.py#L303)、
+   [analysis_service.py#L291](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_service.py#L291)。
 7. `knowledge_states` 读取没有 `FOR UPDATE`；同用户不同 Job 可能覆盖状态或并发创建，最终由 `(user_id, skill_id)` 唯一约束兜底
-   [analysis_service.py#L326](../backend/services/analysis_service.py#L326)、
+   [analysis_service.py#L326](https://github.com/sunpcm/EchoTalk/blob/b6a5cdde5249dccd4583397ddccddf2668ef5379/backend/services/analysis_service.py#L326)、
    [knowledge.py#L113](../backend/models/knowledge.py#L113)。
-8. 本卡前 Alembic head 为 `c06_transcript_events`，其父为 `c05_query_indexes`；B1-1 在专用合成库
-   upgrade 后当前 head 为 `b1_learning_events`，父 revision 为 `c06_transcript_events`。转录
+8. B1-0 设计前 Alembic head 为 `c06_transcript_events`，其父为 `c05_query_indexes`；转录
    `event_id` 只做会话内去重，不是观察或 BKT 顺序
    [c06_transcript_events.py#L16](../backend/alembic/versions/c06_transcript_events.py#L16)、
    [session.py#L128](../backend/models/session.py#L128)。
+
+**当前实现路径（2026-11-12，B1-2 独立代码 Review APPROVED）**：
+[`execute_claimed_job`](../backend/services/analysis_jobs.py) 在同一事务调用
+[`write_learning_events`](../backend/services/learning_events.py)。writer 在用户行锁下校验 Job/Session/User
+与全部候选来源归属，按发音数组顺序和语法 `(skill_tag, error_type)` 顺序规范观察；完成与观察
+事件按规范幂等键写入，冲突时按全局键重读并校验完整载荷。`occurred_at` 使用
+`sessions.ended_at`，仅对新插入、非合成且映射到有效技能的观察按 `apply_seq` 更新 BKT，计算与完成
+事件共享冻结的 `bkt-v1` 四参数。上述行为已由专用合成 PostgreSQL 目标套件与独立探针覆盖；当前停在
+B1-2 Review，用户审阅仍待。
 
 ## 3. 事件模型与幂等键
 
@@ -297,8 +310,9 @@ CHECK 审计：两个观察分支都显式要求 `source_ordinal IS NOT NULL`；
 6. 本版不开放成功后的重新分析；失败重试与只读重算保留。
 7. 现有四参数冻结为 `bkt-v1`；新版本不改写旧事件。
 
-政策确认不等于整批实施完成。B1-1 的 ORM、迁移文件和 schema 回归已在专用合成 PostgreSQL 验证，
-本机最终门禁及 E2E 边界见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；但生产库未执行
-DDL，事务写入、切换工具、JSON 导出或整账号删除代码仍未实现，也没有生产切换、真实数据处理或
-上线证据。按用户要求本轮暂停，B1-2～B1-5 的写集、依赖和验收见
-[`TODO.md`](../TODO.md)；生产切换和真实数据留待后续明确授权，音频采集及真实外部服务不在本范围。
+政策确认不等于整批实施完成。B1-1 的 ORM、迁移和 schema 回归，以及 B1-2 的同事务事件写入与 BKT
+隔离均已实现；B1-2 独立代码 Review APPROVED，专用合成 PostgreSQL 目标套件 `116 passed / 0 skip /
+exit 0`，完整门禁与唯一既有 E2E 失败的边界见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)。
+当前停在 B1-2 Review，用户审阅仍待；B1-3～B1-5 的基线工具、JSON 导出和整账号删除尚未实施。生产库
+未执行 DDL，也没有生产切换、真实数据处理或上线证据。其顺序、依赖和验收见 [`TODO.md`](../TODO.md)；
+生产切换和真实数据留待后续明确授权，音频采集及真实外部服务不在本范围。

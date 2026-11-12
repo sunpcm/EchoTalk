@@ -21,6 +21,24 @@
       [PROJECT_STATUS B1 小节](../../docs/PROJECT_STATUS.md)，不能称本机全树全绿。生产库未执行。
       无业务写入、切换、导出、删除、依赖或 UI 变更。
 
+## 2026-11-12 B1 学习事件实施（B1-2）
+
+- [x] **B1-2 同事务事件写入、幂等、用户锁与 BKT 隔离**（依赖 B1-1）：成功 Job 在同一事务写
+      `analysis_completed`、mapped observation、评估结果、BKT 状态和 `succeeded`；用户行锁覆盖
+      幂等校验、事件插入、状态读取与更新。切换后旧 `pending` 和按现有重试规则可处理的 `failed`
+      Job 走同一新事务，成功旧 Job 不回填；`occurred_at=sessions.ended_at`，BKT 按 `apply_seq`。
+      验收覆盖重复/并发重试、跨用户/Session 来源交叉、全合成隔离、失败回滚和旧状态路由；并发
+      事务只产生一次观察和一次 BKT 更新，`bkt-v1` 四参数冻结；本版不开放成功后重新分析。失败
+      重试仍可用；只读重算的政策保留，工具由尚未实施的 B1-3 交付。
+      结果：专用合成 PostgreSQL 目标套件 `116 passed / 0 skip / exit 0`；完整 backend
+      `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。用户锁、实际 `apply_seq` 相反观察、
+      原始 ordinal、缺观察拒绝、未知模型 `NULL`、不复制 alignment、三类完成冲突，以及 10 条观察/
+      3 个技能/知识状态单次读取/unmapped 计数探针均 `exit 0`。15 项完整门禁中 14 项 `exit 0`，
+      E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是与历史基线相同的
+      WebKit Provider select `336×23 < 44px`，DocTalk 通过，不能称本机全树全绿。独立代码 Review
+      结论为 APPROVED。当前停在 B1-2 Review（用户审阅待），提交/推送结果见本次交付回执；不创建
+      PR、不合并。
+
 ## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
 
 - [x] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖

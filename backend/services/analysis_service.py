@@ -7,7 +7,8 @@
 import logging
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +18,6 @@ from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
 from models.session import Transcript, TranscriptRole
 from services.knowledge.bkt_model import BKTParams, update_mastery
-from services.knowledge.skill_updater import phoneme_error_to_skill
 from services.pronunciation.phoneme_aligner import (
     align_phonemes,
     compute_pronunciation_score,
@@ -25,6 +25,17 @@ from services.pronunciation.phoneme_aligner import (
 from time_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+# Frozen BKT version and its four parameters.  These are the only values used
+# for derived ``knowledge_states`` updates and are recorded verbatim on the
+# completed event so the version fact cannot drift from the computation.
+FROZEN_BKT_VERSION = "bkt-v1"
+FROZEN_BKT_PARAMS = {
+    "p_init": 0.1,
+    "p_transit": 0.2,
+    "p_slip": 0.1,
+    "p_guess": 0.2,
+}
 
 try:
     import pronouncing
@@ -46,6 +57,8 @@ class SessionAnalysisResult:
     """Result of session analysis when user transcripts exist."""
 
     assessment: PronunciationAssessment | None = None
+    grammar_errors: list[GrammarError] = field(default_factory=list)
+    coverage: dict[str, Any] = field(default_factory=dict)
 
     @property
     def id(self) -> uuid.UUID | None:
@@ -167,8 +180,44 @@ async def analyze_session(
         logger.info("会话 %s 未启用发音评估服务，跳过发音评估", session_id)
 
     # 4. 语法错误检测（独立幂等）
-    await _detect_grammar_errors(session_id, full_text, db)
-    return SessionAnalysisResult(assessment=assessment)
+    grammar_errors = await _detect_grammar_errors(session_id, full_text, db)
+
+    coverage = _build_coverage(assessment, grammar_errors)
+    return SessionAnalysisResult(
+        assessment=assessment,
+        grammar_errors=grammar_errors,
+        coverage=coverage,
+    )
+
+
+def _build_coverage(
+    assessment: PronunciationAssessment | None,
+    grammar_errors: Sequence[GrammarError],
+) -> dict[str, Any]:
+    """Return per-direction coverage facts for the completed event details."""
+    first_grammar = grammar_errors[0] if grammar_errors else None
+    return {
+        "pronunciation": {
+            "status": "evaluated" if assessment is not None else "not_called",
+            "source": assessment.source if assessment is not None else None,
+            "provider": assessment.provider if assessment is not None else None,
+            "model_version": assessment.model_version
+            if assessment is not None
+            else None,
+            "is_synthetic": assessment.is_synthetic if assessment is not None else None,
+        },
+        "grammar": {
+            "status": "evaluated",
+            "source": first_grammar.source if first_grammar is not None else None,
+            "provider": first_grammar.provider if first_grammar is not None else None,
+            "model_version": first_grammar.model_version
+            if first_grammar is not None
+            else None,
+            "is_synthetic": first_grammar.is_synthetic
+            if first_grammar is not None
+            else None,
+        },
+    }
 
 
 # ───── 语法错误检测 ─────
@@ -207,16 +256,29 @@ _GRAMMAR_RULES = [
 
 async def _detect_grammar_errors(
     session_id: uuid.UUID, text: str, db: AsyncSession
-) -> None:
-    """基于规则的语法错误检测（mock 模式），对同一会话保持独立幂等。"""
-    existing_result = await db.execute(
-        select(GrammarError.id).where(GrammarError.session_id == session_id).limit(1)
+) -> list[GrammarError]:
+    """基于规则的语法错误检测（mock 模式），对同一会话保持独立幂等。
+
+    Returns the grammar errors for this session, either the already-persisted
+    rows (idempotent) or the newly created rows from the demo rule engine.
+    """
+    existing = (
+        (
+            await db.execute(
+                select(GrammarError)
+                .where(GrammarError.session_id == session_id)
+                .order_by(GrammarError.skill_tag, GrammarError.error_type)
+            )
+        )
+        .scalars()
+        .all()
     )
-    if existing_result.scalar_one_or_none() is not None:
+    if existing:
         logger.info("会话 %s 已有语法错误记录，跳过重复写入", session_id)
-        return
+        return list(existing)
 
     detected: set[str] = set()  # 避免同一 skill_tag 重复
+    created: list[GrammarError] = []
 
     for rule in _GRAMMAR_RULES:
         if rule["skill_tag"] in detected:
@@ -241,6 +303,7 @@ async def _detect_grammar_errors(
                 confidence=0.5,
             )
             db.add(error)
+            created.append(error)
             detected.add(rule["skill_tag"])
 
     if detected:
@@ -250,6 +313,7 @@ async def _detect_grammar_errors(
             session_id,
             list(detected),
         )
+    return created
 
 
 def _grammar_correction(original: str, error_type: str) -> str:
@@ -268,76 +332,42 @@ def _grammar_correction(original: str, error_type: str) -> str:
 # ───── BKT 知识状态更新 ─────
 
 
-async def update_knowledge(
-    session_id: uuid.UUID,
+async def _apply_bkt_updates(
+    *,
     user_id: uuid.UUID,
+    observations: Sequence[dict[str, Any]],
     db: AsyncSession,
 ) -> None:
+    """Apply frozen ``bkt-v1`` updates for already-validated observations.
+
+    ``observations`` are the newly inserted non-synthetic observations in
+    ``apply_seq`` order.  This helper only writes ``knowledge_states``; it must
+    not re-read source tables or decide which direction was evaluated.
     """
-    根据发音评估和语法错误更新 BKT 知识状态。
-
-    1. 读取 PronunciationAssessment 和 GrammarErrors
-    2. 映射每个错误到 skill_id
-    3. 调用 BKT update_mastery 更新掌握概率
-    4. 写入 KnowledgeState
-    """
-    # 1. 读取评估数据
-    stmt = select(PronunciationAssessment).where(
-        PronunciationAssessment.session_id == session_id
-    )
-    result = await db.execute(stmt)
-    assessment = result.scalar_one_or_none()
-
-    stmt = select(GrammarError).where(GrammarError.session_id == session_id)
-    result = await db.execute(stmt)
-    grammar_errors = result.scalars().all()
-
-    # 2. 按来源门控收集非合成技能观察数据 {skill_id: [correct/incorrect, ...]}
-    observations: dict[str, list[bool]] = {}
-
-    if (
-        assessment is not None
-        and not assessment.is_synthetic
-        and assessment.phoneme_alignment
-    ):
-        for entry in assessment.phoneme_alignment:
-            skill_id = phoneme_error_to_skill(entry)
-            if skill_id:
-                observations.setdefault(skill_id, []).append(entry["type"] == "correct")
-
-    for error in grammar_errors:
-        if not error.is_synthetic:
-            observations.setdefault(error.skill_tag, []).append(False)
-
-    if not observations:
-        logger.info("会话 %s 无可更新的技能", session_id)
+    real = [obs for obs in observations if obs.get("is_synthetic") is not True]
+    if not real:
         return
 
-    # 3. 验证所有 skill_id 存在于 skills 表
-    all_skill_ids = list(observations.keys())
-    stmt = select(Skill.id).where(Skill.id.in_(all_skill_ids))
-    result = await db.execute(stmt)
+    skill_ids = list({obs["skill_id"] for obs in real})
+    result = await db.execute(select(Skill.id).where(Skill.id.in_(skill_ids)))
     valid_skills = {row[0] for row in result.all()}
-
     if not valid_skills:
-        logger.info("会话 %s 无有效技能需更新", session_id)
         return
 
-    # 4. 批量查询用户在 valid_skills 中的现有 KnowledgeState，避免 N+1 查询
-    stmt = select(KnowledgeState).where(
-        KnowledgeState.user_id == user_id,
-        KnowledgeState.skill_id.in_(valid_skills),
+    result = await db.execute(
+        select(KnowledgeState).where(
+            KnowledgeState.user_id == user_id,
+            KnowledgeState.skill_id.in_(valid_skills),
+        )
     )
-    result = await db.execute(stmt)
-    existing_states = {state.skill_id: state for state in result.scalars().all()}
+    states = {state.skill_id: state for state in result.scalars().all()}
 
-    params = BKTParams()
-
-    for skill_id, obs_list in observations.items():
+    params = BKTParams(**FROZEN_BKT_PARAMS)
+    for obs in real:
+        skill_id = obs["skill_id"]
         if skill_id not in valid_skills:
             continue
-
-        state = existing_states.get(skill_id)
+        state = states.get(skill_id)
         if state is None:
             state = KnowledgeState(
                 id=uuid.uuid4(),
@@ -346,16 +376,8 @@ async def update_knowledge(
                 p_mastery=params.p_init,
             )
             db.add(state)
-            existing_states[skill_id] = state
-
-        # 逐条观察更新
-        for correct in obs_list:
-            state.p_mastery = update_mastery(state.p_mastery, correct, params)
+            states[skill_id] = state
+        state.p_mastery = update_mastery(state.p_mastery, obs["correct"], params)
         state.updated_at = utc_now()
 
     await db.flush()
-    logger.info(
-        "知识状态更新完成: session=%s, skills=%s",
-        session_id,
-        list(observations.keys()),
-    )

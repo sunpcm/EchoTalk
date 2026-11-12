@@ -129,8 +129,11 @@ backend 路由  ──导出──▶  openapi.json  ──生成──▶  前�
 - 本版不开放成功后的重新分析；失败重试和只读重算保留。现有四参数冻结为 `bkt-v1`，新版本不得
   改写旧事件。
 
-设计政策已经确认；B1-1 的 ORM、迁移与 schema 已在本轮专用合成 PostgreSQL 验证，B1-2～B1-5
-仍未实施。生产迁移/切换、真实数据、备份策略及会话音频切片采集都不在本批范围。
+设计政策已经确认；B1-1 的 ORM、迁移与 schema 已在专用合成 PostgreSQL 验证，B1-2 已实现同事务
+事件写入、幂等、用户锁与 BKT 合成隔离。B1-2 独立代码 Review 为 APPROVED，专用合成 PostgreSQL
+目标套件 `116 passed / 0 skip / exit 0`；完整 backend 为 `844 passed / 3 warnings / 0 skip`、
+覆盖率 `80.82%`。当前停在 B1-2 Review，用户审阅仍待；B1-3～B1-5 仍未实施。生产迁移/切换、真实
+数据、备份策略及会话音频切片采集都不在本批范围。
 
 ### 3.5 平台：能力接口，按证据推进
 
@@ -186,7 +189,8 @@ HTTP 接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation 
 OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missing/空 schema 豁免。本批不新增
 产品 UI 或真实依赖。
 
-当前停在 B1-1 Review；按用户要求本轮暂停，B1-2～B1-5 尚未实施。
+当前 B1-2 已实现并通过独立代码 Review 与专用合成 PostgreSQL 验收，停在 B1-2 Review（用户审阅
+待）；B1-3～B1-5 尚未实施。
 
 1. **B1-1 模型、新增迁移与约束**：已建立 `learning_events` 的 ORM、identity、CHECK、唯一约束、
    外键、索引与新增迁移，旧迁移只增不改。本轮专用合成 PostgreSQL 已完成空库 upgrade 至 b1、
@@ -195,6 +199,8 @@ OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missin
    `JSONB(none_as_null=True)` 将 Python `None` 绑定为 SQL `NULL`。生产库未执行。
 2. **B1-2 同事务事件写入与 BKT 隔离**：成功 Job 的事件、评估、状态和 Job 成功态原子提交；用户锁确保
    同用户顺序，幂等键保证重试不重复；退出条件是并发、交叉来源、全合成和失败回滚测试通过。
+   （2026-11-12 状态：已实现；独立代码 Review APPROVED，专用合成 PostgreSQL 目标套件
+   `116 passed / 0 skip / exit 0`；当前停在 B1-2 Review，用户审阅仍待。）
 3. **B1-3 基线工具与只读校验**：生成幂等 `legacy_unknown` 快照，并在单一 `REPEATABLE READ READ ONLY`
    快照内按 watermark 重算校验；退出条件是切换顺序、并发边界和重算差异的合成库测试通过，不运行
    生产切换。
