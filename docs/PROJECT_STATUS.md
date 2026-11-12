@@ -1,8 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A4a PR #149 的 source `250a582` 六项 CI 与 PR Guard 已通过，
-> squash 后 `main@3daa0a4` 与 source 整树一致。A4b 独立本地验收通过：Vitest 1206/49、
-> 三处真实变异被原 WG 测试捕获、分钟相位探针通过；最终 Linux CI 待运行。
+> 最后核对：2026-11-12，A4b（PR #151）代码 head `496326c` 的六项 CI 与原始日志已复核，
+> Vitest 1206/49、Linux E2E234、pytest809/80.19% 通过；三处原测试变异被捕获。
+> A4b 已完成单组件代码验收，后续文档收口 head 与合并状态见 PR #151。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -27,10 +27,10 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线绑定已合并的 A4a source `250a582d562f68df30af0b6f81bbe7abce3bf2ba`：
-[CI run 43153684622](https://github.com/sunpcm/EchoTalk/actions/runs/43153684622) 与
-[PR Guard run 43153684739](https://github.com/sunpcm/EchoTalk/actions/runs/43153684739) 六项通过；
-squash 后的 `main@3daa0a4c7de7a056f9cf768e0df0f7f0eca4fd5e` 与该 source 整树相同。
+当前 Linux 测试基线绑定 A4b（PR #151）已复核代码 head `496326c7ae8a9b96fbedbcbb60b5167891cfc881`：
+[CI run 43157307810](https://github.com/sunpcm/EchoTalk/actions/runs/43157307810) 与
+[PR Guard run 43157307820](https://github.com/sunpcm/EchoTalk/actions/runs/43157307820) 六项通过。
+本表数字绑定上述原始日志；后续仅文档收口，最终 head 的完整验收与合并状态见 PR #151。
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
@@ -69,14 +69,13 @@ A4a 在 `main@0ea16a4` 上新增最小只读查询 controller、React hook、契
 随后 squash 为 `3daa0a4c7de7a056f9cf768e0df0f7f0eca4fd5e`，source/main 整树一致。A4a 未引入依赖、
 未迁移组件。
 
-### A4b（WeeklyGrammar 数据查询迁移）本地验收通过，待 CI
+### A4b（WeeklyGrammar 数据查询迁移，PR #151）代码验收完成
 
-`WeeklyGrammar` 的认证、生命周期、请求槽、timer 与过期响应判断已移到实际消费 controller/hook
-的 data 查询；原 JSX/文案/ARIA/class 一致，仅转发 retry。R1 修复 focus 后分钟检查相位漂移，
-独立探针验证原第 60 秒检查保留。146 个测试/fixture/config 文件逐 SHA256 不变；原 WG 14 项、
-原 data 45 项与全量 Vitest 1206/49 通过，lint/typecheck/build 强制执行、0 cache，format 通过。
-认证 revision、挂起门禁、分钟检查三处真实变异分别使原 WG 1/2/1 项断言失败，源码已逐字恢复。
-本候选的 E2E/backend 本机未运行，须由新 PR 的完整 Linux CI 实跑；最终 CI 通过后才归档 A4b。
+组件仅渲染与 retry 转发，认证、生命周期、请求槽与 timer 移入实际消费 controller/hook 的 data
+查询；summary 原子提交，原 JSX/文案/ARIA/class 保持。R1 修复 focus 后分钟检查相位漂移，
+独立探针确认第 60 秒检查保留。146 个测试/fixture/config 文件 SHA256 不变；原 WG14、data45、
+全量 Vitest1206/49 与 Linux E2E234/pytest809 通过。认证 revision、挂起门禁、分钟检查三处
+真实变异分别触发原 WG1/2/1 项断言失败，源码已恢复。真实服务/设备边界仍未验证。
 
 ### A5（导航切片，PR #148）合并收口
 

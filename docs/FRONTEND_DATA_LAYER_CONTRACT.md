@@ -1,13 +1,14 @@
 # 前端 Data 层契约设计（A4a）
 
-> 状态：**A4a PR #149 已合并；A4b 已通过独立本地复审，Vitest 1206/49、三处原测试变异与
-> 分钟相位探针通过，最终 Linux CI 待运行**。
+> 状态：**A4a PR #149 已合并；A4b（PR #151）已完成 WeeklyGrammar 单组件代码验收**。
+> 代码 head `496326c` 的六项 CI、Vitest1206/49、E2E234、pytest809 均已回读；三处原测试变异
+> 与分钟相位探针通过。文档收口最终 head 与合并状态见 PR #151。
 > A4a 补修 source `250a582d562f68df30af0b6f81bbe7abce3bf2ba` 的 Linux CI 与 PR Guard 六项通过，
 > squash 后 `main@3daa0a4c7de7a056f9cf768e0df0f7f0eca4fd5e` 与 source 整树一致。最小只读查询控制器（`apps/vite-app/src/data/readonly-query.ts`）、
 > React hook（`apps/vite-app/src/data/use-readonly-query.ts`）与四份不依赖业务组件的契约测试
 > （`readonly-query.test.ts`、`use-readonly-query.test.tsx`、`readonly-query-regression.test.ts`、
 > `use-readonly-query-regression.test.tsx`，共 45 项）均已合并。A4b 只迁移 `WeeklyGrammar`，
-> `WeeklyProgress`、`DailyProgress`、`ActiveSessions` 仍属于后续轮次；A4b 本地验收不代替最终 CI 或真实服务验收。
+> `WeeklyProgress`、`DailyProgress`、`ActiveSessions` 仍属于后续轮次；A4b 自动化验收不代替真实服务或设备验收。
 
 ## 1. 范围与前提
 
