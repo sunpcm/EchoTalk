@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 async function showEndedSession(page: import("@playwright/test").Page, sessionId: string) {
   await page.evaluate(async (id) => {
-    const { useConversationStore } = await import("/src/store/conversation.ts");
-    useConversationStore.setState({
+    const { useAppStore } = await import("/src/store/appStore.ts");
+    useAppStore.setState({
       appView: "session",
       connectionState: "ended",
       sessionId: id,

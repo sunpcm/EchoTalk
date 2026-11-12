@@ -2,12 +2,17 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DocChatSetup } from "./DocChatSetup";
 import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { zhCN } from "@/i18n/zh-CN";
 
 const t = zhCN.docChat;
 
 vi.mock("@/store/conversation", () => ({
   useConversationStore: vi.fn(),
+}));
+
+vi.mock("@/store/appStore", () => ({
+  useAppStore: vi.fn(),
 }));
 
 describe("DocChatSetup", () => {
@@ -21,8 +26,10 @@ describe("DocChatSetup", () => {
         selector({
           startSession: mockStartSession,
           connectionState: "idle",
-          goHome: mockGoHome,
         }),
+    );
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (selector: (state: { goHome: () => void }) => unknown) => selector({ goHome: mockGoHome }),
     );
   });
 

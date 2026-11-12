@@ -1,4 +1,5 @@
 import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { zhCN } from "@/i18n/zh-CN";
 
 const tConv = zhCN.conversation;
@@ -7,7 +8,7 @@ const tDash = zhCN.dashboard;
 /** idle 状态不应在 session 视图出现，作为安全回退 */
 export function IdleView() {
   const error = useConversationStore((state) => state.error);
-  const goHome = useConversationStore((state) => state.goHome);
+  const goHome = useAppStore((state) => state.goHome);
 
   return (
     <div className="flex flex-col items-center gap-6 py-12">
@@ -26,7 +27,7 @@ export function IdleView() {
 
 /** 调度失败视图：AI 服务启动未确认，音频已停止 */
 export function DispatchFailedView() {
-  const goHome = useConversationStore((state) => state.goHome);
+  const goHome = useAppStore((state) => state.goHome);
 
   return (
     <div className="flex flex-col items-center gap-6 py-8" data-testid="dispatch-failed-view">
@@ -72,7 +73,7 @@ export function ConnectingView() {
 
 /** 结束中视图：卸载房间后的即时状态展示 */
 export function EndingView() {
-  const goHome = useConversationStore((state) => state.goHome);
+  const goHome = useAppStore((state) => state.goHome);
 
   return (
     <div className="flex flex-col items-center gap-4 py-12 text-center" data-testid="ending-view">
@@ -89,7 +90,7 @@ export function EndingView() {
 /** 结束失败视图：音频已停止，待重试 */
 export function EndFailedView() {
   const endSession = useConversationStore((state) => state.endSession);
-  const goHome = useConversationStore((state) => state.goHome);
+  const goHome = useAppStore((state) => state.goHome);
   const error = useConversationStore((state) => state.error);
 
   return (
@@ -128,7 +129,7 @@ export function EndFailedView() {
 
 /** 无有效 WebSocket 地址时展示安全失败视图。 */
 export function RoomUnavailableView() {
-  const goHome = useConversationStore((state) => state.goHome);
+  const goHome = useAppStore((state) => state.goHome);
 
   return (
     <div className="flex flex-col items-center gap-4 py-12">
@@ -145,7 +146,7 @@ export function RoomUnavailableView() {
 
 /** 连接中断/失败视图：语音连接已中断，音频已停止 */
 export function ConnectionFailedView() {
-  const goHome = useConversationStore((state) => state.goHome);
+  const goHome = useAppStore((state) => state.goHome);
 
   return (
     <div className="flex flex-col items-center gap-6 py-8" data-testid="connection-failed-view">

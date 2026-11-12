@@ -1,8 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A3（PR #141）最终 head
-> `b1d375611d10f0380bc30f42af486c404b1c21c0` 已以 squash commit `main@a7841b7` 合入；
-> PR #139、#140、#141 均已合并。
+> 最后核对：2026-11-12，A3 文档 PR #147 六项 CI 已成功，并以
+> `main@f834538c724440d9fbfe7faefaea90233acdb9fd` 合入；A5 候选已基于该 main 完成本地复验，
+> 交付 PR 与最终 CI 待主控执行。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -36,7 +36,7 @@
 
 | 测试树 / 门禁  | A3 最终 head 实际结果                             | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
-| Vitest         | 1156 passed（44 个文件）                          | frontend |
+| Vitest         | 1161 passed（45 个文件；A5 本地复验，见下节）     | frontend |
 | Playwright E2E | 234 passed（0 skip、无 retry）                    | frontend |
 | Fake API 契约  | 108 passed                                        | frontend |
 | API 类型生成器 | 8 passed                                          | frontend |
@@ -58,6 +58,17 @@ A3 最终 head `b1d375611d10f0380bc30f42af486c404b1c21c0` 的 Linux CI 与 PR Gu
 并从根目录 `TODO.md` 移出。PR #144 重复草稿保持关闭，其旧回执只绑定 `ed9439a`，不影响本轮
 最终证据。本次只关闭自动化契约核对；真实 Provider、IdP、LiveKit、设备、语音链路和生产部署
 仍未验收。
+
+### A5（导航切片）待最终 PR CI
+
+A5 将 `appView` 移入独立导航切片，并与会话切片组合在同一个物理原子容器；会话模块不再暴露
+页面概念，也未引入 Router。当前 18 个应用文件已基于 `main@f834538` 整合并通过本地复验：
+Vitest 1161/45，lint 与 typecheck `--force` 成功且 0 cache（lint 132 warnings / 0 errors）。
+8 份既有测试的 340 个 case 与 1624 个 expect 相关调用 AST 不变；DocChatSetup 仅拆
+`store` mock 与 `beforeEach` 所有权，其余 7 份 runtime AST 等同，契约和行为未改变。
+
+本轮未在 A5 新 head 运行 E2E、backend 或 Linux CI，当前也不存在新交付 PR；表内其他行仍绑定
+A3 最终 head。A5 是否完成以交付 PR 的检查为准，不把旧 PR #145 结果冒充本轮通过。
 
 ## 已知限制和近期风险
 
