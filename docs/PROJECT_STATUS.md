@@ -58,33 +58,23 @@ A3 的历史证据继续按快照绑定：PR #141 原 head
 通过。上表则继续绑定 PR #140 head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`，其中 Fake
 API 为 75 passed；这些历史结果互不替换。
 
-### A3 Unicode/OpenAPI 候选验证（PR #144）
+### A3 接续 PR #141 当前状态
 
-A3 候选 [PR #144](https://github.com/sunpcm/EchoTalk/pull/144) 的 head 为
-`ed9439a3d342bc3815f82ce1408fe6a71ebc5eac`。该 head 的
-[CI run 43079241779](https://github.com/sunpcm/EchoTalk/actions/runs/43079241779) 与
-[PR Guard run 43079241710](https://github.com/sunpcm/EchoTalk/actions/runs/43079241710)
-均 completed/success；以下数值只绑定该 head 的两份 job 日志：
+原 `claude/A3-fake-api-contract` 已由 `437f6ff8cae70e15ce9549fcc7843008986d8b43` 普通快进到
+已测 head `265d4da58ab9ee7ee5c03597fac1e8b39ada1a93`；PR #141 的冲突已消除，仍未合并。该
+head 的 [CI run 43131599387](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387) 与
+[PR Guard run 43131599446](https://github.com/sunpcm/EchoTalk/actions/runs/43131599446) 六项
+检查全部 success。[frontend job 130896798756](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387/job/130896798756)
+记录 Vitest 1156 passed（44 files）、Fake API 108/108、API 类型生成 8 passed、构建脚本
+21 passed、Playwright E2E 234/234（0 skip、无 Retry）、lint 132 warnings/0 errors；
+[backend job 130896798708](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387/job/130896798708)
+记录 pytest 809 passed、覆盖率 80.19%。这些结果只绑定 `265d4da`，后续提交的 CI 与 Guard
+以 PR #141 GitHub Checks 为准。
 
-- [frontend job 130727099367](https://github.com/sunpcm/EchoTalk/actions/runs/43079241779/job/130727099367)：
-  Vitest 1156 passed（44 files）、Fake API 108/108、API 类型生成 8 passed、构建脚本 21 passed、
-  lint 132 warnings/0 errors、Playwright E2E 234/234（0 skip，日志无 Retry 标记）。
-- [backend job 130727098626](https://github.com/sunpcm/EchoTalk/actions/runs/43079241779/job/130727098626)：
-  pytest collected 809/passed 809、覆盖率 80.19%；套件包含单元、mock 与专用 PostgreSQL
-  集成测试。
-
-Unicode 两文件补丁与 main 整合候选已通过独立内容 Review。用户现已授权将上述候选追加到原 PR
-#141 分支 `claude/A3-fake-api-contract` 并运行 CI。本节点停在 Review，主控负责发布；发布后的
-head 与最终 CI 回执尚未提供，因此不预告未来提交 hash 或未发布链接，也不得把 `ed9439a` 的回执
-转记为接续后的 PR #141 结果。
-
-历史计数始终绑定各自 head：上文 PR #140 的完整基线（含 Fake API 75 passed）只对应
-`ed3ac8bafd294b3823b48613935dcf7db5149dc9`；本节 PR #144 的 Vitest 1156、Fake API 108/108、
-API 类型生成 8、构建脚本 21、Playwright E2E 234/234、lint 132 warnings/0 errors 与 backend
-pytest 809 passed/80.19% 覆盖只对应 `ed9439a3d342bc3815f82ce1408fe6a71ebc5eac`。原 PR #141
-head `437f6ff8cae70e15ce9549fcc7843008986d8b43` 及本地 macOS/Linux ARM64 E2E 失败继续作为
-历史事实保留。A3 整卡未勾选、未合并，接续后的 PR #141 CI 尚待完成，远端 CI 通过也不等于整卡或
-真实外部服务验收。
+PR #144 重复草稿已关闭，分支与历史保留；其验证结果仍只绑定
+`ed9439a3d342bc3815f82ce1408fe6a71ebc5eac`，PR #140 基线只绑定
+`ed3ac8bafd294b3823b48613935dcf7db5149dc9`。A3 整卡保持未勾选，停用户 Review；PR #141
+未合并，部署与真实外部服务验收均未完成。
 
 ## 已知限制和近期风险
 

@@ -19,14 +19,12 @@ A1（PR #139）、A2（PR #140）已于 2026-11-11 完成，实施与验证记�
       "OpenAPI 有而 Fake API 没有"的路由清单。不新增运行时依赖时优先；确需 JSON Schema 校验库须先在报告中
       说明并等用户同意。验收：现有 Fake API 响应全部通过校验或逐条列为已知偏差；缺失路由清单写入报告；
       故意改坏一个 Fake 响应字段时测试失败。
-      当前接续状态：用户已授权将这份已独立评审候选追加到原
-      `claude/A3-fake-api-contract` 并运行 CI；本节点已停在 Review，等待主控发布及该 head 的最终
-      CI 回执，整卡仍未勾选、未合并。历史数字分别绑定：PR #140 head
-      `ed3ac8bafd294b3823b48613935dcf7db5149dc9` 的 Fake API 为 75 passed；PR #144 head
-      `ed9439a3d342bc3815f82ce1408fe6a71ebc5eac` 的 Fake API 为 108/108，其 CI 与 PR Guard
-      已通过，但均不得转记为接续后 PR #141 的结果。原 head
-      `437f6ff8cae70e15ce9549fcc7843008986d8b43` 及本地 macOS、Linux ARM64 E2E 失败继续作为
-      历史事实保留；新 PR #141 的 CI 尚未完成。
+      当前状态：原 `claude/A3-fake-api-contract` 已由 `437f6ff` 普通快进到已测 head
+      `265d4da58ab9ee7ee5c03597fac1e8b39ada1a93`；PR #141 的冲突已消除，仍未合并。该 head 的
+      CI 与 PR Guard 六项检查全部 success；分项结果和绑定边界见
+      [PROJECT_STATUS](./docs/PROJECT_STATUS.md#a3-接续-pr-141-当前状态)。后续提交检查以 PR #141
+      GitHub Checks 为准。PR #144 重复草稿已关闭，分支与历史保留。A3 整卡保持未勾选，停用户
+      Review，不自批。
 - [ ] **A4a 前端 data 层契约与契约测试**（Opus 或更强模型；§3.1；**先出设计，用户确认后再实现**）：
       新增 `docs/` 下的 data 层契约文档，定义带认证代际与前后台门禁的查询 Hook 的语义：发起时绑定
       principal 与 revision、hidden/offline 不请求、迟到响应丢弃、认证变化清空重查、分页去重、显式重试、
