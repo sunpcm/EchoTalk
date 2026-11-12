@@ -13,11 +13,15 @@
 A1（PR #139）、A2（PR #140）、A3（PR #141/#147）、A5（PR #148）及 B1 设计（PR #150）已完成。
 完成记录见 [已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
 B1 只交付设计，建表与迁移执行仍等待用户政策确认。
-A4a（PR #149）已完成本地实施与独立评审；默认键补充纠错后，45 项契约测试、7 项独立探针与
-全量 Vitest 1206/49 通过，lint/typecheck/build 强制执行通过；补修 head 的最终 CI 待运行。
-A4a 尚未迁移业务组件。建议顺序：A4b…；A6 依赖 A4 完成。
+A4a（PR #149）source `250a582` 的六项 CI 与 PR Guard 已通过，随后以整树一致的
+`main@3daa0a4` 合入。A4b 已通过 R1 独立本地复审、全量前端测试与三处变异，最终 Linux CI 待运行；剩余
+A4c～A4e 继续按 `WeeklyProgress` → `DailyProgress` → `ActiveSessions` 顺序实施，A6 依赖 A4 完成。
 
-- [ ] **A4b～A4e 数据区块迁移到 data 层**（Sonnet；依赖 A4a 已确认）：按 `WeeklyGrammar` → `WeeklyProgress` →
+- [ ] **A4b WeeklyGrammar 单组件迁移**（依赖 A4a 已确认）：把认证、生命周期、请求槽、timer 与
+      过期响应判断迁到 data 层，保留原 JSX/文案/ARIA/class/重试行为和本地午夜/focus/60 秒 context
+      检查。验收：原 `WeeklyGrammar.test.tsx` 与相关 E2E **零改动**通过；关键防线 3 处以上变异
+      被原测试捕获；独立复审与最终 CI 通过后才归档。
+- [ ] **A4c～A4e 数据区块迁移到 data 层**（Sonnet；依赖 A4a 已确认）：按 `WeeklyProgress` →
       `DailyProgress` → `ActiveSessions`（其 `active-sessions/useActiveSessionList.ts`）的顺序，每轮只迁一个。
       验收：该组件对应的 `*.test.tsx` 与相关 E2E **零改动**通过；组件内不再自行维护请求 id、认证订阅与
       生命周期门禁；对关键防线做 3 处以上变异并在报告中列出是否被杀。

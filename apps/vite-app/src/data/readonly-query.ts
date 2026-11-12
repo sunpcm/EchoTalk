@@ -37,6 +37,7 @@ export interface QueryProfile<C, D> {
   gate?(snapshot: WebLifecycleSnapshot): boolean;
   sameContext?(a: C, b: C): boolean;
   nextContextChange?(now: number): number | null;
+  contextCheckIntervalMs?: number;
   resetOnFirstPage?: boolean;
   preserveOnSuspend?: boolean;
   clearPrimaryErrorOnSuspend?: boolean;
