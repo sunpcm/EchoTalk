@@ -10,21 +10,10 @@
 阶段 C（预发布环境）与 D（原生端）需要用户先提供环境或设备，不在此列。
 每个工作包单独一轮、单独分支与 PR；括号内是建议的模型档位。通用验收：三测试树通过且计数不降
 （当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果。
-A1（PR #139）、A2（PR #140）已于 2026-11-11 完成，实施与验证记录见
+A1（PR #139）、A2（PR #140）、A3（PR #141）已完成。A1–A3 的实施与验证记录见
 [已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
-建议顺序：A3 → A4a → A4b…；A5、B1 可与之并行，A6 依赖 A4 完成。
+建议顺序：A4a → A4b…；A5、B1 可与之并行，A6 依赖 A4 完成。
 
-- [ ] **A3 Fake API 接受 OpenAPI 契约校验**（Sonnet 或 Opus；§3.2）：在 `apps/vite-app/scripts/fake-api-test.mjs`
-      增加一组用例，用仓库内 `backend/openapi.json` 校验 `e2e/fake-api.mjs` 各路由成功响应的结构，并输出
-      "OpenAPI 有而 Fake API 没有"的路由清单。不新增运行时依赖时优先；确需 JSON Schema 校验库须先在报告中
-      说明并等用户同意。验收：现有 Fake API 响应全部通过校验或逐条列为已知偏差；缺失路由清单写入报告；
-      故意改坏一个 Fake 响应字段时测试失败。
-      当前状态：原 `claude/A3-fake-api-contract` 已由 `437f6ff` 普通快进到已测 head
-      `265d4da58ab9ee7ee5c03597fac1e8b39ada1a93`；PR #141 的冲突已消除，仍未合并。该 head 的
-      CI 与 PR Guard 六项检查全部 success；分项结果和绑定边界见
-      [PROJECT_STATUS](./docs/PROJECT_STATUS.md#a3-接续-pr-141-当前状态)。后续提交检查以 PR #141
-      GitHub Checks 为准。PR #144 重复草稿已关闭，分支与历史保留。A3 整卡保持未勾选，停用户
-      Review，不自批。
 - [ ] **A4a 前端 data 层契约与契约测试**（Opus 或更强模型；§3.1；**先出设计，用户确认后再实现**）：
       新增 `docs/` 下的 data 层契约文档，定义带认证代际与前后台门禁的查询 Hook 的语义：发起时绑定
       principal 与 revision、hidden/offline 不请求、迟到响应丢弃、认证变化清空重查、分页去重、显式重试、
