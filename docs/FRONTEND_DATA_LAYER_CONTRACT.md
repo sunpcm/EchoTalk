@@ -1,14 +1,18 @@
 # 前端 Data 层契约设计（A4a）
 
-> 状态：**A4a PR #149 已合并；A4b（PR #151）已完成 WeeklyGrammar 单组件代码验收**。
-> 代码 head `496326c` 的六项 CI、Vitest1206/49、E2E234、pytest809 均已回读；三处原测试变异
-> 与分钟相位探针通过。文档收口最终 head 与合并状态见 PR #151。
-> A4a 补修 source `250a582d562f68df30af0b6f81bbe7abce3bf2ba` 的 Linux CI 与 PR Guard 六项通过，
-> squash 后 `main@3daa0a4c7de7a056f9cf768e0df0f7f0eca4fd5e` 与 source 整树一致。最小只读查询控制器（`apps/vite-app/src/data/readonly-query.ts`）、
+> 状态：**A4a PR #149 与 A4b PR #151 已合并**。A4b 最终 source
+> `7659808f34a9f0a26254eb21f13efafe9c6c8ace` 的 CI `43158276662` 与 PR Guard
+> `43158276685` 六项通过，原始日志为 Vitest 1206/49、Linux E2E 234（0 skip/retry）、pytest
+> 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；squash 后
+> `main@25988673a5cb5342d6ddde5c3c92b9e3b002399b` 与 source 整树一致。A4a 的 source
+> `250a582d562f68df30af0b6f81bbe7abce3bf2ba` 也经六项 CI 通过并合入
+> `main@3daa0a4c7de7a056f9cf768e0df0f7f0eca4fd5e`。最小只读查询控制器（`apps/vite-app/src/data/readonly-query.ts`）、
 > React hook（`apps/vite-app/src/data/use-readonly-query.ts`）与四份不依赖业务组件的契约测试
 > （`readonly-query.test.ts`、`use-readonly-query.test.tsx`、`readonly-query-regression.test.ts`、
-> `use-readonly-query-regression.test.tsx`，共 45 项）均已合并。A4b 只迁移 `WeeklyGrammar`，
-> `WeeklyProgress`、`DailyProgress`、`ActiveSessions` 仍属于后续轮次；A4b 自动化验收不代替真实服务或设备验收。
+> `use-readonly-query-regression.test.tsx`，共 45 项）均已合并。A4b 只迁移 `WeeklyGrammar`。
+> A4c `WeeklyProgress` 现有实现候选使用两个 controller 组合，原 WP 31/31 与 data 契约 45/45
+> 定向通过，但仍在 Review，未计入后续轮次验收；`DailyProgress`、`ActiveSessions` 也尚未迁移。
+> 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提
 
@@ -170,6 +174,13 @@ interface ReadQuery<C, D> extends QueryHandle {
 `contextCheckIntervalMs` 只周期执行 `reconcile()`；日期、时区、principal 或 auth revision
 实际变化时才 refresh，缺省时不创建 interval。分钟 interval 从首次启用时保持自己的相位；focus、
 context 变化或午夜重排只更新 `setTimeout`，仅 interval 频率实际变化时才重建 interval。
+
+一个组件需要“上游概览 → 下游分页”依赖链时，可以在同一个 React effect 内共享一套认证、
+生命周期与计时器订阅，再创建两个彼此独立的 `createReadQuery` controller。上游成功提交
+principal、revision、窗口与数据后，下游 `resolveContext` 才能读取这份不可变提交并变为 eligible。
+旧下游结算发现身份或窗口漂移时，先 `reconcile()` 上游并刷新；上游提交后下游才可读取新窗口。
+下游正常成功、失败或分页完成时，上游与下游 `reconcile()` 均返回 false 必须直接 no-op，不能额外
+刷新上游。hidden/offline 时本地合法选择仍可更新，但 controller gate 必须阻止网络请求。
 
 ## 5. 关键差异与已确认处理
 
