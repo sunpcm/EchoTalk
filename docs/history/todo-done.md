@@ -2,6 +2,15 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+## 2026-11-12 架构演进 A4b（WeeklyGrammar 数据查询迁移）
+
+- [x] **A4b WeeklyGrammar 单组件迁移**：组件只渲染/转发 retry，认证、生命周期、请求槽、timer
+      与过期响应判断由 data controller/hook 承担。原 JSX/文案/ARIA/class 保持；146 个
+      测试/fixture/config 文件 SHA256 不变。代码 head `496326c`（PR #151）六项 CI 与原始日志已核实：
+      Vitest1206/49、E2E234（0 skip/retry）、pytest809/80.19%、Fake108/gen8/build21。
+      auth revision、suspend 门禁、分钟检查三处真实变异均被原 WG14 项测试捕获；R1 分钟相位
+      探针真实 RED→GREEN，源码恢复。未新增依赖、未改变产品行为或数据库；真实服务/设备未验。
+
 ## 2026-11-12 架构演进 A4a（只读 data 层本地收口）
 
 > 本节的完成指契约、最小 controller/hook、契约测试、本地门禁与独立评审已收口；最终仍以交付

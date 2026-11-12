@@ -38,7 +38,8 @@ export function useReadOnlyQuery<C, D>(
   const [state, setState] = useState<QueryState<D>>(createEmptyQueryState);
   const queryRef = useRef<ReadQuery<C, D> | null>(null);
   const optionsInitializedRef = useRef(false);
-  const rescheduleContextCheckRef = useRef<(() => void) | null>(null);
+  const rescheduleMidnightRef = useRef<(() => void) | null>(null);
+  const syncContextCheckIntervalRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const { profile, fetcher, classifyError } = optionsRef.current;
@@ -82,38 +83,52 @@ export function useReadOnlyQuery<C, D>(
     });
 
     let midnight: ReturnType<typeof setTimeout> | undefined;
-    const scheduleContextCheck = (): void => {
+    let contextCheck: ReturnType<typeof setInterval> | undefined;
+    let activeContextCheckIntervalMs: number | undefined;
+    const checkContext = (): void => {
+      if (query.reconcile()) {
+        query.refresh();
+        rescheduleMidnight();
+      }
+    };
+    const rescheduleMidnight = (): void => {
       clearTimeout(midnight);
       const next = optionsRef.current.profile.nextContextChange?.(Date.now());
       if (next != null && next > 0) {
         midnight = setTimeout(() => {
           query.reconcile();
           query.refresh();
-          scheduleContextCheck();
+          rescheduleMidnight();
         }, next);
       }
     };
-    rescheduleContextCheckRef.current = scheduleContextCheck;
-    const checkContext = (): void => {
-      if (query.reconcile()) {
-        query.refresh();
-        scheduleContextCheck();
-      }
+    const syncContextCheckInterval = (): void => {
+      const configured = optionsRef.current.profile.contextCheckIntervalMs;
+      const next = configured != null && configured > 0 ? configured : undefined;
+      if (next === activeContextCheckIntervalMs) return;
+      if (contextCheck !== undefined) clearInterval(contextCheck);
+      contextCheck = next === undefined ? undefined : setInterval(checkContext, next);
+      activeContextCheckIntervalMs = next;
     };
+    rescheduleMidnightRef.current = rescheduleMidnight;
+    syncContextCheckIntervalRef.current = syncContextCheckInterval;
     window.addEventListener("focus", checkContext);
 
     query.refresh();
-    scheduleContextCheck();
+    rescheduleMidnight();
+    syncContextCheckInterval();
 
     return () => {
       clearTimeout(midnight);
+      if (contextCheck !== undefined) clearInterval(contextCheck);
       window.removeEventListener("focus", checkContext);
       unsubscribeAuth();
       unsubscribeLifecycle();
       adapter.dispose();
       query.dispose();
       queryRef.current = null;
-      rescheduleContextCheckRef.current = null;
+      rescheduleMidnightRef.current = null;
+      syncContextCheckIntervalRef.current = null;
     };
   }, []);
 
@@ -126,7 +141,8 @@ export function useReadOnlyQuery<C, D>(
     if (!query) return;
     query.updateOptions(options.profile, options.fetcher, options.classifyError);
     if (query.reconcile()) query.refresh();
-    rescheduleContextCheckRef.current?.();
+    rescheduleMidnightRef.current?.();
+    syncContextCheckIntervalRef.current?.();
   }, [options.profile, options.fetcher, options.classifyError]);
 
   return {

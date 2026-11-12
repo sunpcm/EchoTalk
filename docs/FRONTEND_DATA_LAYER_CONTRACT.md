@@ -1,11 +1,14 @@
 # 前端 Data 层契约设计（A4a）
 
-> 状态：**A4a 本地实施快照与独立评审已完成；GitHub P2 默认键补充纠错已完成主控复验，等待最终
-> 交付 PR CI**。最小只读查询控制器（`apps/vite-app/src/data/readonly-query.ts`）、
+> 状态：**A4a PR #149 已合并；A4b（PR #151）已完成 WeeklyGrammar 单组件代码验收**。
+> 代码 head `496326c` 的六项 CI、Vitest1206/49、E2E234、pytest809 均已回读；三处原测试变异
+> 与分钟相位探针通过。文档收口最终 head 与合并状态见 PR #151。
+> A4a 补修 source `250a582d562f68df30af0b6f81bbe7abce3bf2ba` 的 Linux CI 与 PR Guard 六项通过，
+> squash 后 `main@3daa0a4c7de7a056f9cf768e0df0f7f0eca4fd5e` 与 source 整树一致。最小只读查询控制器（`apps/vite-app/src/data/readonly-query.ts`）、
 > React hook（`apps/vite-app/src/data/use-readonly-query.ts`）与四份不依赖业务组件的契约测试
 > （`readonly-query.test.ts`、`use-readonly-query.test.tsx`、`readonly-query-regression.test.ts`、
-> `use-readonly-query-regression.test.tsx`，共 45 项）均已落地。A4a 交付时四个业务组件尚未迁移；
-> 组件迁移属于 A4b～A4e。本状态不代表已发布，也不把本地验证改写成最终 PR CI。
+> `use-readonly-query-regression.test.tsx`，共 45 项）均已合并。A4b 只迁移 `WeeklyGrammar`，
+> `WeeklyProgress`、`DailyProgress`、`ActiveSessions` 仍属于后续轮次；A4b 自动化验收不代替真实服务或设备验收。
 
 ## 1. 范围与前提
 
@@ -111,7 +114,8 @@ interface QueryProfile<C, D> {
   resolveContext(): ContextResolution<C>; // eligible:false=无资格（未认证等）；AS 合法 context 可为 null
   gate?: ReadGate; // 注入式业务门禁；true=允许，false=拒绝（不发、不排队、静默非错误态）
   sameContext?(a: C, b: C): boolean;
-  nextContextChange?(now: number): number | null;
+  nextContextChange?(now: number): number | null; // 返回传给 setTimeout 的延时，不是 epoch
+  contextCheckIntervalMs?: number; // 可选分钟级 context-only 复检
   resetOnFirstPage?: boolean;
   page?: PagePolicy<C, D>;
   preserveOnSuspend?: boolean; // WG=false（phase 隐藏）、WP/DP/AS=true
@@ -161,6 +165,11 @@ interface ReadQuery<C, D> extends QueryHandle {
 该控制器持有实例内状态、不共享缓存；React hook 在 options 重建时更新同一控制器，只有 origin 真正变化才重查，
 因此相同语义的新 profile/fetcher 对象不会多发请求，后续操作使用最新回调。`Fetcher` 决定是否把 cancellation token 传给 API。
 错误统一映射为 `http`/`parse`/`network` 的本地分类，不携带服务端正文；门禁关闭不属于错误分类。
+
+`nextContextChange(now)` 返回相对延时毫秒数，hook 直接交给 `setTimeout`。可选的
+`contextCheckIntervalMs` 只周期执行 `reconcile()`；日期、时区、principal 或 auth revision
+实际变化时才 refresh，缺省时不创建 interval。分钟 interval 从首次启用时保持自己的相位；focus、
+context 变化或午夜重排只更新 `setTimeout`，仅 interval 频率实际变化时才重建 interval。
 
 ## 5. 关键差异与已确认处理
 
@@ -265,7 +274,7 @@ WP 是 weekly 成功后释放自身槽位、再启动单日 history 的依赖链
 | Pagination   | 首页重置、更多页追加；按配置去重；重复 cursor 按配置失败；窗口/状态校验按配置执行；more 失败保留 cursor 并允许显式重试；挂起按配置移除或保留 cursor                                                                                                     |
 | Merge policy | WP 历史链式加载、DP 并行 all-or-nothing、AS 的 tombstone 均作为策略测试，不要求实现细节相同                                                                                                                                                             |
 | Retry/error  | 显式 retry 重新过全部 gate；失败只产生 `http`/`parse`/`network` 本地安全分类；不出现 API body/message；各阶段错误不互相覆盖；门禁关闭不制造新错误；各阶段旧错误清除/保留按 profile（WG/WP 清空、DP/AS 清 loadMoreError 保留首屏 error）                 |
-| Time         | 本地午夜/时区变化立即清旧 context；离线跨午夜不发网络；恢复后按新 context 请求                                                                                                                                                                          |
+| Time         | 本地午夜/时区变化立即清旧 context；offline 跨午夜不发网络；恢复后按新 context 请求；可选分钟检查仅在 context 变化时 refresh                                                                                                                             |
 | AS profile   | 启动/结束/恢复互锁列表与更多页；结束成功后的 tombstone 阻止旧页复活；挂起不释放写操作槽位；事件里的启动判断按已保留的待裁定行为单独标注                                                                                                                 |
 
 ## 9. 未决问题（独立，不在 A4a 内裁定）
