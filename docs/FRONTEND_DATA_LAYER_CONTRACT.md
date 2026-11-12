@@ -10,8 +10,9 @@
 > React hook（`apps/vite-app/src/data/use-readonly-query.ts`）与四份不依赖业务组件的契约测试
 > （`readonly-query.test.ts`、`use-readonly-query.test.tsx`、`readonly-query-regression.test.ts`、
 > `use-readonly-query-regression.test.tsx`，共 45 项）均已合并。A4b 只迁移 `WeeklyGrammar`。
-> A4c `WeeklyProgress` 现有实现候选使用两个 controller 组合，原 WP 31/31 与 data 契约 45/45
-> 定向通过，但仍在 Review，未计入后续轮次验收；`DailyProgress`、`ActiveSessions` 也尚未迁移。
+> A4c `WeeklyProgress` 使用两个 controller 组合，PR #152 代码 head `a350dd5` 的六项 CI
+> 与原始日志已复核：Vitest1206/49、Linux E2E234、pytest809/80.19%；原测试零改、三处变异均被捕获。
+> 最终收尾提交及合并状态见 PR；`DailyProgress`、`ActiveSessions` 尚未迁移。
 > 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提

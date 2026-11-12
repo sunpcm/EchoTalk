@@ -2,6 +2,22 @@
 
 > 原文自 `docs/agent-review-loop.md` 搬运（2026-11-10），章节编号与内容不变，仅相对链接上移一层。现行规则见 [Agent 评审手册](../agent-review-loop.md)。
 
+### 2026-11-12 A4c PR #152 主控独立评审与 Linux 全量验证
+
+A4c PR #152 代码 head `a350dd53463f9bc32ef556c9399d13ef1446dc4f` 的
+[CI 43161640998](https://github.com/sunpcm/EchoTalk/actions/runs/43161640998) 与
+[PR Guard 43161641062](https://github.com/sunpcm/EchoTalk/actions/runs/43161641062) 六项成功。
+主控已读原始日志：Vitest1206/49、Linux E2E234（Chromium/WebKit各117，0 skip/retry）、
+pytest809/3 warnings/80.19%、Fake API108、类型生成器8、构建脚本21。
+146份原测试/fixture/config逐字不变；界面JSX条件、文案、ARIA/class的AST一致，仅四项事件转发。
+额外6项React/jsdom行为探针在原实现与候选均通过；忽略auth revision、关闭重复cursor、移除历史
+窗口下界三处真实变异分别触发原WP31中1项断言失败，源码原字节恢复。主控独立Review APPROVED。
+
+本次将A4c完成条目移入归档；后续文档收尾提交仍须完整CI通过后才合并，最终状态见PR。
+原本地E2E233/1只属于开工快照，当前候选本机E2E/backend未运行，以上为Linux真实全量验证。
+没有用户可见变化、新依赖、HTTP/文案/数据库/迁移改动；真实Provider、LiveKit、IdP、设备与部署未验证。
+A4d/e/A6仍未完成。此前“待Review/未commit”等历史段落保留为当时快照，不再代表当前状态。
+
 ### 2026-11-12 A4b 最终合入与 A4c WeeklyProgress 实施自测
 
 A4b（PR #151）最终 source `7659808f34a9f0a26254eb21f13efafe9c6c8ace` 的
