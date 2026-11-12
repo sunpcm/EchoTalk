@@ -15,9 +15,10 @@ A1（PR #139）、A2（PR #140）、A3（PR #141/#147）、A5（PR #148）及 B1
 B1 只交付设计，建表与迁移执行仍等待用户政策确认。
 A4a（PR #149）source `250a582` 的六项 CI 与 PR Guard 已通过，随后以整树一致的
 `main@3daa0a4` 合入。A4b（PR #151）最终 source `7659808` 的六项 CI 与原始日志均已复核，
-并以整树一致的 `main@2598867` 合入并归档。A4c（PR #152）代码 head `a350dd5` 六项 CI
-与原始日志已复核并归档；最终收尾提交及合并状态见 PR。剩余 A4d～A4e 按
-`DailyProgress` → `ActiveSessions` 顺序实施，A6 依赖 A4 完成。
+并以整树一致的 `main@2598867` 合入并归档。A4c（PR #152）最终 source `d47c3aa` 的六项
+CI 与原始日志已复核，并以整树一致的 `main@5c7ab36` 合入。A4d 当前候选已迁移
+`DailyProgress`，定向测试通过并停在 Review，尚未归档；A4e 随后迁移 `ActiveSessions`，
+A6 依赖 A4 完成。
 
 - [ ] **A4d～A4e 数据区块迁移到 data 层**（Sonnet；依赖 A4a 已确认）：按 `DailyProgress` →
       `ActiveSessions`（其 `active-sessions/useActiveSessionList.ts`）的顺序，每轮只迁一个。

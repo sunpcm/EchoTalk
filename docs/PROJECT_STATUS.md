@@ -1,8 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A4c（PR #152）代码 head `a350dd5` 的六项 CI 与原始日志已复核，
-> Vitest1206/49、Linux E2E234、pytest809/80.19% 通过；原测试零改、三处变异均被捕获。
-> 最终文档收尾提交与合并状态见 PR。
+> 最后核对：2026-11-12，A4c（PR #152）最终 source `d47c3aa` 的六项 CI 与原始日志已复核，
+> Vitest1206/49、Linux E2E234、pytest809/80.19% 通过；squash 后 `main@5c7ab36` 与 source
+> 整树一致。A4d 候选当前停在 Review，不代表最终 CI 或合并。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -27,10 +27,10 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线绑定 A4c（PR #152）代码 head `a350dd53463f9bc32ef556c9399d13ef1446dc4f`：
-[CI run 43161640998](https://github.com/sunpcm/EchoTalk/actions/runs/43161640998) 与
-[PR Guard run 43161641062](https://github.com/sunpcm/EchoTalk/actions/runs/43161641062) 六项通过。
-原始日志已回读；后续仅文档收尾，最终提交与合并状态见 PR #152。
+当前 Linux 测试基线绑定 A4c（PR #152）最终 source `d47c3aa`：
+[CI run 43162885071](https://github.com/sunpcm/EchoTalk/actions/runs/43162885071) 与
+[PR Guard run 43162885101](https://github.com/sunpcm/EchoTalk/actions/runs/43162885101) 六项通过；
+squash 后为整树一致的 `main@5c7ab36`。下表不绑定 A4d 候选或候选自测。
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
@@ -49,7 +49,7 @@
 1161/45、E2E 234、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
 `437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
 为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
-不替换上表绑定 A4c 代码 head 的 Linux CI。
+不替换上表绑定 A4c 最终 source 的 Linux CI。
 
 ### A3（PR #141）合并收口
 
@@ -76,12 +76,14 @@ JSX/文案/ARIA/class 和 146 个测试/fixture/config 文件保持不变。原 
 Vitest1206/49、Linux E2E234（0 skip/retry）与 pytest809/80.19% 通过；三处真实变异均被原 WG
 断言捕获。最终 source `7659808` 六项 CI 后合入 `main@2598867`。真实服务/设备边界仍未验证。
 
-### A4c（WeeklyProgress 数据查询迁移，PR #152）代码验收完成
+### A4c（WeeklyProgress 数据查询迁移，PR #152）合并收口
 
 两个 controller 共用一套订阅；原 WP31、data45、146 份测试/fixture/config 与界面 AST 保持。
 主控全量 Vitest1206/49、六项 CI、Linux E2E234（0 skip/retry）、pytest809/80.19% 通过；
-额外 React/jsdom 探针6/6，认证 revision、重复 cursor、日窗口下界三处变异均被原 WP 断言捕获。
-只做行为等价抽取，未改变依赖、HTTP、数据库或外部服务边界；真实服务/设备仍未验证。
+额外 React/jsdom 探针6/6，认证 revision、重复 cursor、日窗口下界三处变异均被原 WP 断言捕获；
+最终 source `d47c3aa` 的 CI `43162885071` 与 PR Guard `43162885101` 成功后，以整树一致的
+`main@5c7ab36` 合入。只做行为等价抽取，未改变依赖、HTTP、数据库或外部服务边界；
+真实服务/设备仍未验证。A4d 的 `DailyProgress` 候选复用同一 controller，当前仅完成定向自测，停在 Review，尚待主控变异、完整三树与最终 CI。
 
 ### A5（导航切片，PR #148）合并收口
 

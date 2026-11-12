@@ -43,6 +43,7 @@ export interface QueryProfile<C, D> {
   clearPrimaryErrorOnSuspend?: boolean;
   abortTransport?: boolean;
   concurrent?: "ignore" | "override";
+  settlementDrift?: "revalidate" | "discard";
   page?: PagePolicy<C, D>;
 }
 
@@ -189,6 +190,9 @@ export function createReadQuery<C, D>(
     return sameContext(a.context, b.context);
   };
 
+  const isSamePrincipal = (a: AuthPrincipal, b: AuthPrincipal): boolean =>
+    a.issuer === b.issuer && a.subject === b.subject;
+
   const abortAll = (): void => {
     primarySeq++;
     moreSeq++;
@@ -248,6 +252,19 @@ export function createReadQuery<C, D>(
     return allowed;
   };
 
+  const isPrimarySettlementCurrent = (seq: number): boolean => {
+    if (currentProfile.settlementDrift !== "discard" || origin === null) {
+      return isPrimaryCurrent(seq);
+    }
+    if (disposed || seq !== primarySeq) return false;
+    const principal = source.getPrincipal();
+    return (
+      principal !== null &&
+      isSamePrincipal(origin.principal, principal) &&
+      origin.revision === source.getRevision()
+    );
+  };
+
   const isMoreCurrent = (seq: number): boolean => {
     if (disposed || seq !== moreSeq) return false;
     if (!isSameOrigin(origin, readOrigin())) {
@@ -266,19 +283,32 @@ export function createReadQuery<C, D>(
     return allowed;
   };
 
+  const isMoreSettlementCurrent = (seq: number): boolean => {
+    if (currentProfile.settlementDrift !== "discard" || origin === null) {
+      return isMoreCurrent(seq);
+    }
+    if (disposed || seq !== moreSeq) return false;
+    const principal = source.getPrincipal();
+    return (
+      principal !== null &&
+      isSamePrincipal(origin.principal, principal) &&
+      origin.revision === source.getRevision()
+    );
+  };
+
   const failPrimary = (seq: number, error: unknown): void => {
-    if (!isPrimaryCurrent(seq)) return;
+    if (!isPrimarySettlementCurrent(seq)) return;
     const kind = classifyError(error);
-    if (!isPrimaryCurrent(seq)) return;
+    if (!isPrimarySettlementCurrent(seq)) return;
     primaryInFlight = false;
     primaryAbort = null;
     publish({ ...state, phase: "error", errorKind: kind });
   };
 
   const failMore = (seq: number, error: unknown): void => {
-    if (!isMoreCurrent(seq)) return;
+    if (!isMoreSettlementCurrent(seq)) return;
     const kind = classifyError(error);
-    if (!isMoreCurrent(seq)) return;
+    if (!isMoreSettlementCurrent(seq)) return;
     moreInFlight = false;
     moreAbort = null;
     publish({ ...state, more: "error", moreErrorKind: kind });
@@ -330,10 +360,10 @@ export function createReadQuery<C, D>(
 
     request
       .then((page) => {
-        if (!isPrimaryCurrent(seq)) return;
+        if (!isPrimarySettlementCurrent(seq)) return;
         if (currentProfile.page?.validatePage)
           currentProfile.page.validatePage(page.items, currentOrigin.context);
-        if (!isPrimaryCurrent(seq)) return;
+        if (!isPrimarySettlementCurrent(seq)) return;
         publish({
           ...state,
           items: dedupe(page.items),
@@ -398,10 +428,10 @@ export function createReadQuery<C, D>(
 
     request
       .then((page) => {
-        if (!isMoreCurrent(seq)) return;
+        if (!isMoreSettlementCurrent(seq)) return;
         if (currentProfile.page?.validatePage)
           currentProfile.page.validatePage(page.items, currentOrigin.context);
-        if (!isMoreCurrent(seq)) return;
+        if (!isMoreSettlementCurrent(seq)) return;
         const repeated =
           currentProfile.page?.detectRepeatedCursor === true &&
           (page.nextCursor === cursor ||
