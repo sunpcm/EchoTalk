@@ -1,8 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A5 交付 PR #148（head `ae13222`）的 Linux CI run
-> `43145122085` 与 PR Guard run `43145122060` 均成功；其 squash commit
-> `0ea16a455bd8ed6fd9a209e337f92615b5e594d0` 与已复核 head 整树一致。
+> 最后核对：2026-11-12，B1 设计 PR #150 已合入 `main@4ee8b35`；其 source `3b418e8`
+> 的完整 CI 六项成功，且与 main 整树一致。A4a PR #149 的补修本地复验为 45 项契约、
+> 7 项独立探针与全量 Vitest 1206/49 通过，补修 head 的最终交付 PR CI 待运行。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -27,16 +27,16 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线来自 A5 交付 PR #148 的已复核 head `ae13222` 与
-[CI run 43145122085](https://github.com/sunpcm/EchoTalk/actions/runs/43145122085)；该 head 的
-[PR Guard run 43145122060](https://github.com/sunpcm/EchoTalk/actions/runs/43145122060)
-亦成功，并以 squash commit `0ea16a455bd8ed6fd9a209e337f92615b5e594d0` 合入 main。
-整树与 `main@0ea16a4` 一致。下表中的数字绑定该最终 PR head 的 Linux CI 日志，不表示在本机
-或当前 main 上直接重跑；B1 只新增设计文档，没有代码或测试变化，计数不变。
+当前 Linux 测试基线来自 B1（PR #150）最终 head
+`3b418e87608ee961570625f8b0c54042ace6f583` 的
+[CI run 43152122060](https://github.com/sunpcm/EchoTalk/actions/runs/43152122060) 与
+[PR Guard run 43152122194](https://github.com/sunpcm/EchoTalk/actions/runs/43152122194)，六项成功。
+该 head 与 squash 后 `main@4ee8b35` 整树一致。下表仅 Vitest 行使用 A4a 补修本地复验；
+其余行绑定 B1 最终 head 的 Linux CI 原始日志，不将本地结果冒充 CI。
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
-| Vitest         | 1161 passed（45 个文件）                          | frontend |
+| Vitest         | 1206 passed（49 个文件；A4a 补修本地复验）        | frontend |
 | Playwright E2E | 234 passed（0 skip、无 retry）                    | frontend |
 | Fake API 契约  | 108 passed                                        | frontend |
 | API 类型生成器 | 8 passed                                          | frontend |
@@ -49,7 +49,7 @@
 历史基线继续按快照绑定：PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
 `437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
 为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
-不替换上表绑定 A5 PR #148 最终 head 的 Linux CI。
+不替换上表绑定 B1 PR #150 最终 head 的 Linux CI。
 
 ### A3（PR #141）合并收口
 
@@ -58,6 +58,13 @@ A3 最终 head `b1d375611d10f0380bc30f42af486c404b1c21c0` 的 Linux CI 与 PR Gu
 并从根目录 `TODO.md` 移出。PR #144 重复草稿保持关闭，其旧回执只绑定 `ed9439a`，不影响本轮
 最终证据。本次只关闭自动化契约核对；真实 Provider、IdP、LiveKit、设备、语音链路和生产部署
 仍未验收。
+
+### A4a（只读 data 层）本地实施与独立评审完成
+
+A4a 在 `main@0ea16a4` 上新增最小只读查询 controller、React hook、契约文档与 45 项不依赖业务
+组件的契约测试。GitHub P2 的官方 RED 为新增 3 项失败、原 42 项通过；默认键局部补修后
+45 项契约、全量 Vitest 1206/49 与独立探针 7/7 通过。lint/typecheck/build 使用 `--force`，
+3 项任务实际执行、0 cache 通过。A4a 未引入依赖、未迁移组件；补修 head 的 Linux/PR CI 待运行。
 
 ### A5（导航切片，PR #148）合并收口
 
@@ -77,7 +84,8 @@ APPROVED；Python 草案经 `ast.parse` 成功，父 revision 已核对存在。
 
 本次仅交付设计，未建表、未创建迁移文件、未执行 DDL。legacy 基线切换、旧 pending/failed Job、
 retention、未来重分析身份与 `bkt-v1` 参数冻结仍等待用户政策确认；A4a 方案 A 不属于 B1 授权。
-当前 B1 新 head 的 CI 尚未运行，不能表述为已通过。
+PR #150 的六项 CI 已通过，原始日志确认 Vitest 1161/45、E2E 234、pytest 809/80.19%，
+且已合入 `main@4ee8b35`；B1 仍仅设计交付。
 
 ## 已知限制和近期风险
 

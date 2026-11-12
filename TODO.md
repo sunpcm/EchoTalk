@@ -10,17 +10,13 @@
 阶段 C（预发布环境）与 D（原生端）需要用户先提供环境或设备，不在此列。
 每个工作包单独一轮、单独分支与 PR；括号内是建议的模型档位。通用验收：三测试树通过且计数不降
 （当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果。
-A1（PR #139）、A2（PR #140）、A3（PR #141/#147）、A5（PR #148）已完成，B1 设计交付已获
-主控 APPROVED。完成记录见 [已完成事项归档](./docs/history/todo-done.md)及
-[2026-11 实施记录](./docs/history/2026-11.md)。B1 只归档设计，建表与迁移执行仍等待用户政策确认。
-建议顺序：A4a → A4b…；A6 依赖 A4 完成。
+A1（PR #139）、A2（PR #140）、A3（PR #141/#147）、A5（PR #148）及 B1 设计（PR #150）已完成。
+完成记录见 [已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
+B1 只交付设计，建表与迁移执行仍等待用户政策确认。
+A4a（PR #149）已完成本地实施与独立评审；默认键补充纠错后，45 项契约测试、7 项独立探针与
+全量 Vitest 1206/49 通过，lint/typecheck/build 强制执行通过；补修 head 的最终 CI 待运行。
+A4a 尚未迁移业务组件。建议顺序：A4b…；A6 依赖 A4 完成。
 
-- [ ] **A4a 前端 data 层契约与契约测试**（Opus 或更强模型；§3.1；**先出设计，用户确认后再实现**）：
-      新增 `docs/` 下的 data 层契约文档，定义带认证代际与前后台门禁的查询 Hook 的语义：发起时绑定
-      principal 与 revision、hidden/offline 不请求、迟到响应丢弃、认证变化清空重查、分页去重、显式重试、
-      不回显服务端错误。语义以现有四个组件的实际行为为准，逐条指到代码行；差异之处列出并请用户裁定。
-      同时回答"自研还是封装现成库"，给出理由。验收：契约文档 + 一组不依赖具体组件的契约测试；
-      本项不迁移任何组件。
 - [ ] **A4b～A4e 数据区块迁移到 data 层**（Sonnet；依赖 A4a 已确认）：按 `WeeklyGrammar` → `WeeklyProgress` →
       `DailyProgress` → `ActiveSessions`（其 `active-sessions/useActiveSessionList.ts`）的顺序，每轮只迁一个。
       验收：该组件对应的 `*.test.tsx` 与相关 E2E **零改动**通过；组件内不再自行维护请求 id、认证订阅与
