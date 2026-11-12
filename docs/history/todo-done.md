@@ -2,6 +2,9 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+> 2026-11-12 补充：下方 A3 条目保留原 head `437f6ff` 的当时记录。独立 Review 发现 Unicode 长度边界问题，
+> 修正候选与最新 main 的整合尚待目标 CI，当前状态以 [TODO.md](../../TODO.md) 未勾选项为准。
+
 ## 2026-11-11 架构演进 A1（会话准入纯抽取）
 
 - [x] **A1 后端会话准入规则收拢**：将 `backend/routers/sessions.py` 中 `get_session_token`
@@ -19,6 +22,19 @@
       `TokenResponse`、`HealthReadyResponse`、`ApiRequestOptions` 及未建模端点响应维持原声明。
       结果：Node 22 类型检查与生成类型字节检查通过，运行时、生成文件、后端、测试、fixture、
       依赖和锁文件零改动；验证记录见 [2026-11 实施记录](./2026-11.md)。
+
+## 2026-11-11 架构演进 A3（Fake API 成功响应契约核对）
+
+- [x] **A3 Fake API 成功响应契约核对**：在 `apps/vite-app/scripts/fake-api-test.mjs`
+      保留既有 75 项行为断言，新增真实子进程 HTTP 成功响应套件，并以
+      `backend/openapi.json` 对当前 26 个 operation 做覆盖分类和字段校验；新增零依赖、
+      测试侧 OpenAPI 子集校验器，未知关键字、断链 `$ref` 与无法校验的约束失败关闭。
+      结果：固定列出 5 个 Fake API 缺失 operation、4 个空 schema 成功响应与 3 个精确偏差；
+      缺失项由真实 Fake fallback 守护，并补齐全部标准 HTTP 方法、自有属性、日期和未知能力
+      回归；主审实跑 103 passed（75 既有 + 28 新增，0 skip/cancel），独立边界探针
+      10/10 通过，四处真实变异全部被新增用例抓到并逐字恢复源码。
+      未改 Fake API、产品运行时代码、OpenAPI、生成文件、依赖或锁文件；完整记录见
+      [2026-11 实施记录](./2026-11.md)。
 
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
