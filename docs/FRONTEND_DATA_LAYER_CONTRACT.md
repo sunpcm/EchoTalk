@@ -1,6 +1,6 @@
 # 前端 Data 层契约设计（A4a）
 
-> 状态：**A4a PR #149 与 A4b PR #151 已合并**。A4b 最终 source
+> 状态：**A4a PR #149、A4b PR #151 与 A4c PR #152 已合并**。A4b 最终 source
 > `7659808f34a9f0a26254eb21f13efafe9c6c8ace` 的 CI `43158276662` 与 PR Guard
 > `43158276685` 六项通过，原始日志为 Vitest 1206/49、Linux E2E 234（0 skip/retry）、pytest
 > 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；squash 后
@@ -10,9 +10,13 @@
 > React hook（`apps/vite-app/src/data/use-readonly-query.ts`）与四份不依赖业务组件的契约测试
 > （`readonly-query.test.ts`、`use-readonly-query.test.tsx`、`readonly-query-regression.test.ts`、
 > `use-readonly-query-regression.test.tsx`，共 45 项）均已合并。A4b 只迁移 `WeeklyGrammar`。
-> A4c `WeeklyProgress` 使用两个 controller 组合，PR #152 代码 head `a350dd5` 的六项 CI
-> 与原始日志已复核：Vitest1206/49、Linux E2E234、pytest809/80.19%；原测试零改、三处变异均被捕获。
-> 最终收尾提交及合并状态见 PR；`DailyProgress`、`ActiveSessions` 尚未迁移。
+> A4c `WeeklyProgress` 使用两个 controller 组合。最终 source `d47c3aa` 的
+> CI `43162885071` 与 PR Guard `43162885101` 通过，原始日志为 Vitest 1206/49、Linux E2E
+> 234（117+117，0 skip/retry）、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本
+> 21；squash 后 `main@5c7ab366dcb500b91f15d550673987d0664bbc7d` 与 source 整树一致。
+> A4d `DailyProgress` 代码 head `05e76fe`（PR #153）六项 CI 与原始日志已复核，
+> Vitest1206/49、Linux E2E234、pytest809/80.19%，四处原测试变异被捕获；已完成归档，
+> 最终收尾提交与合并状态见 PR。`ActiveSessions` 尚未迁移。
 > 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提
@@ -127,6 +131,7 @@ interface QueryProfile<C, D> {
   clearPrimaryErrorOnSuspend?: boolean;
   abortTransport?: boolean; // WG/WP=true、DP/AS=false
   concurrent?: "ignore" | "override";
+  settlementDrift?: "revalidate" | "discard"; // 默认 revalidate；DP 使用 discard
 }
 
 interface PagePolicy<C, D> {
@@ -176,12 +181,25 @@ interface ReadQuery<C, D> extends QueryHandle {
 实际变化时才 refresh，缺省时不创建 interval。分钟 interval 从首次启用时保持自己的相位；focus、
 context 变化或午夜重排只更新 `setTimeout`，仅 interval 频率实际变化时才重建 interval。
 
+`settlementDrift` 只约束已经发起传输后的 success/error 结算。默认 `revalidate` 保留完整
+origin/gate 复核；DP 使用 `discard`：disposed、请求 seq、当前 authenticated principal 与
+auth revision 仍匹配才结算；认证漂移只丢弃，不自动 `reconcile()` 或 refresh；日窗口/
+lifecycle 不新增为结算门禁。transport 发起前的 seq、origin 与 gate 复核不受该选项影响。
+
 一个组件需要“上游概览 → 下游分页”依赖链时，可以在同一个 React effect 内共享一套认证、
 生命周期与计时器订阅，再创建两个彼此独立的 `createReadQuery` controller。上游成功提交
 principal、revision、窗口与数据后，下游 `resolveContext` 才能读取这份不可变提交并变为 eligible。
 旧下游结算发现身份或窗口漂移时，先 `reconcile()` 上游并刷新；上游提交后下游才可读取新窗口。
 下游正常成功、失败或分页完成时，上游与下游 `reconcile()` 均返回 false 必须直接 no-op，不能额外
 刷新上游。hidden/offline 时本地合法选择仍可更新，但 controller gate 必须阻止网络请求。
+
+`DailyProgress` 使用一个专用 React hook 直接消费 `createReadQuery`，只保留一套认证、生命周期
+与午夜 `+100ms` timer 订阅；不配置 focus 或分钟 interval。首屏把并行聚合与列表结果包装为同一个
+判别联合 Page，summary 与 rows 在 controller 的一个 success 分支原子发布，more 沿用发起时窗口并
+只追加 rows。相同 authenticated 代际的广播只更新 snapshot；principal/auth revision 变化才重查。
+DP profile 使用 `preserveOnSuspend:true`、`clearPrimaryErrorOnSuspend:false`、
+`abortTransport:false`、`concurrent:"override"` 与 `settlementDrift:"discard"`，保留原始 API
+参数、精确字符串 ID 去重、非物理取消及挂起可见数据语义。
 
 ## 5. 关键差异与已确认处理
 

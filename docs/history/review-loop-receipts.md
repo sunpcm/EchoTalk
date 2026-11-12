@@ -2,6 +2,39 @@
 
 > 原文自 `docs/agent-review-loop.md` 搬运（2026-11-10），章节编号与内容不变，仅相对链接上移一层。现行规则见 [Agent 评审手册](../agent-review-loop.md)。
 
+### 2026-11-12 A4d PR #153 主控完整验证
+
+A4d PR #153 代码 head `05e76fec5e66a946eba6fcb227c6944d9950b140` 的
+[CI 43166753495](https://github.com/sunpcm/EchoTalk/actions/runs/43166753495) 与
+[PR Guard 43166753508](https://github.com/sunpcm/EchoTalk/actions/runs/43166753508) 六项成功。
+主控回读原始日志：Vitest1206/49、Linux E2E234（Chromium/WebKit各117，0 skip/retry）、
+pytest809/3 warnings/80.19%、Fake108/gen8/build21；强制lint/typecheck/build实际执行、无缓存冒充。
+146份原测试/fixture/config逐字不变，全部渲染分支、计算、JSX/文案/ARIA/class与事件AST一致。
+私有React/jsdom对照8/8、源重入4/4通过。四处真实变异被原DP23捕获：去重4fail/19pass、
+移除suspend14fail/9pass、旧more代际14fail/9pass、24h夹值1fail/22pass；首个对应断言分别为
+重复ID、挂起收起分页、迟到页拒绝、25h DST，后续级联失败不另算独立缺陷；源码原字节恢复。
+主控独立Review APPROVED。共享discard策略只调整结算，仍校验当前认证与epoch，启动transport
+前完整防线不变；日窗口/lifecycle不新增为结算门禁，旧DP触发点、原参数和非物理取消保持。
+
+本次完成A4d归档；仅文档收尾的最终head仍须完整CI后才合并，最终状态见PR。此前候选/待Review
+历史只代表当时快照。当前候选本机E2E/backend未运行，以上为Linux全量CI；开工本机233/1仍为
+既有macOS WebKit336×23px问题，不计为通过。无产品行为、依赖、HTTP、数据库结构或新增迁移变化；
+真实Provider、LiveKit、IdP、设备与部署未验证。A4e/A6仍未实施。
+
+### 2026-11-12 A4d DailyProgress 候选实施停在 Review
+
+A4d 本轮 clone 为 `/private/tmp/echotalk-autonomous-20261112/A4d`，分支
+`claude/A4d-daily-progress`，HEAD `5c7ab366dcb500b91f15d550673987d0664bbc7d`。实现直接
+消费 `createReadQuery`，组件只保留 JSX 与事件转发；DP 专用 hook 持有一套认证、lifecycle 与
+午夜 `+100ms` 订阅，无 focus/分钟 interval。summary 与 rows 先在原参数 `Promise.all` 中合为一个
+Page，再在 controller 的单次 success 分支原子发布。
+
+原 DP23、data45、WG/WP45、AS116、Vite typecheck、目标 ESLint 与 Prettier 已通过，证据仅写
+`.review/reports/architecture-batch-20261112/A4d-implementation-evidence/`。本候选未跑
+E2E/服务/数据库，未做主控级三树、真实变异或最终 CI，未 commit/push/merge，A4d 未勾完成。
+A4c 最终快照更正为 source `d47c3aa`、CI `43162885071`、PR Guard `43162885101`、main
+`5c7ab36`；source 与 main 整树一致。
+
 ### 2026-11-12 A4c PR #152 主控独立评审与 Linux 全量验证
 
 A4c PR #152 代码 head `a350dd53463f9bc32ef556c9399d13ef1446dc4f` 的
