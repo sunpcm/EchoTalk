@@ -199,16 +199,15 @@ export function createReadQuery<C, D>(
     moreAbort = null;
   };
 
-  const keyOfItem = (item: D): string =>
-    currentProfile.page?.keyOf ? currentProfile.page.keyOf(item) : String(item);
-  const dedupeKeyOf = (item: D): string =>
-    currentProfile.page?.dedupeKey ? currentProfile.page.dedupeKey(item) : keyOfItem(item);
-
   const dedupe = (items: D[]): D[] => {
+    const page = currentProfile.page;
+    if (!page?.keyOf) return [...items];
+    const keyOf = page.keyOf;
+    const dedupeKeyOf = page.dedupeKey ?? keyOf;
     const seen = new Set<string>();
     const out: D[] = [];
     for (const item of items) {
-      const id = keyOfItem(item);
+      const id = keyOf(item);
       if (removedKeys.has(id)) continue;
       const key = dedupeKeyOf(item);
       if (seen.has(key)) continue;
@@ -438,8 +437,10 @@ export function createReadQuery<C, D>(
 
   const removeItem = (key: string): void => {
     if (disposed) return;
+    const page = currentProfile.page;
+    if (!page?.keyOf) return;
     removedKeys.add(key);
-    publish({ ...state, items: state.items.filter((item) => keyOfItem(item) !== key) });
+    publish({ ...state, items: state.items.filter((item) => page.keyOf(item) !== key) });
   };
 
   const pauseRead = (): void => {

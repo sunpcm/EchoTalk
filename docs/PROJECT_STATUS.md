@@ -2,7 +2,8 @@
 
 > 最后核对：2026-11-12，A5 已由 PR #148 合入
 > `main@0ea16a455bd8ed6fd9a209e337f92615b5e594d0`。A4a 已在该 main 上完成本地实施快照与
-> 独立评审；最终交付 PR CI 尚未运行。
+> 独立评审；GitHub P2 默认键补充纠错经主控复验：45 项契约、7 项独立探针与全量 Vitest
+> 1206/49 通过；新 head 的最终交付 PR CI 尚未运行。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -36,7 +37,7 @@
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
-| Vitest         | 1203 passed（49 个文件；A4a 本地复验，见下节）    | frontend |
+| Vitest         | 1206 passed（49 个文件；A4a 补修本地复验）        | frontend |
 | Playwright E2E | 234 passed（0 skip、无 retry）                    | frontend |
 | Fake API 契约  | 108 passed                                        | frontend |
 | API 类型生成器 | 8 passed                                          | frontend |
@@ -61,9 +62,10 @@ A3 最终 head `b1d375611d10f0380bc30f42af486c404b1c21c0` 的 Linux CI 与 PR Gu
 
 ### A4a（只读 data 层）本地实施与独立评审完成
 
-A4a 在 `main@0ea16a4` 上新增最小只读查询 controller、React hook、契约文档与 42 项不依赖业务
-组件的契约测试；全量 Vitest 为 1203 passed / 49 files，独立探针 4/4 通过，lint、typecheck 与
-build 的本地门禁通过。A4a 未引入依赖、未迁移组件；最终交付 PR 的 Linux CI 仍待运行。
+A4a 在 `main@0ea16a4` 上新增最小只读查询 controller、React hook、契约文档与 45 项不依赖业务
+组件的契约测试。GitHub P2 的官方 RED 为新增 3 项失败、原 42 项通过；默认键局部补修后
+45 项契约、全量 Vitest 1206/49 与独立探针 7/7 通过。lint/typecheck/build 使用 `--force`，
+3 项任务实际执行、0 cache 通过。A4a 未引入依赖、未迁移组件；补修 head 的 Linux/PR CI 待运行。
 
 ### A5（导航切片）已合入最新 main
 

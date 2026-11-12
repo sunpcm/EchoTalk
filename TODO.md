@@ -12,8 +12,9 @@
 （当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果。
 A1（PR #139）、A2（PR #140）、A3（PR #141）已完成。A1–A3 的实施与验证记录见
 [已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
-A4a 已完成本地实施与独立评审，42 项契约测试、独立探针及最新 main 上的本地全量门禁通过；
-最终交付 PR CI 尚未运行。实施记录已归档，A4a 交付时未迁移任何业务组件。A5 导航切片已由
+A4a（PR #149）已完成本地实施与独立评审；默认键补充纠错完成真实 RED 后，45 项契约测试、
+7 项独立探针及全量 Vitest 1206/49 均通过，lint/typecheck/build 强制执行通过。补修 head 的 CI 待运行。
+实施记录已归档，A4a 交付时未迁移任何业务组件。A5 导航切片已由
 PR #148 合入最新 main `0ea16a455bd8ed6fd9a209e337f92615b5e594d0`。
 建议顺序：A4b…；B1 可与之并行，A6 依赖 A4 完成。
 

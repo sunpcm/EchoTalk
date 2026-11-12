@@ -812,3 +812,79 @@ describe("readonly-query 同步回调与传输代际 R2 回归", () => {
     expect(states.length).toBe(stateCount);
   });
 });
+
+describe("readonly-query 未配置 page 的默认键回归", () => {
+  interface UnkeyedItem {
+    label: string;
+  }
+
+  const source = (): ReadQuerySource => ({
+    getPrincipal: () => principalOf(),
+    getRevision: () => 1,
+    getLifecycle: () => visibleLifecycle(),
+  });
+
+  it("未配置 page 时首屏完整保留三个对象", async () => {
+    const firstPage: UnkeyedItem[] = [{ label: "alpha" }, { label: "beta" }, { label: "gamma" }];
+    const fetcher = vi
+      .fn<Fetcher<null, UnkeyedItem>>()
+      .mockResolvedValue({ items: firstPage, nextCursor: null });
+    const query = createReadQuery<null, UnkeyedItem>(
+      { resolveContext: () => ({ eligible: true, context: null }) },
+      fetcher,
+      source(),
+      () => undefined,
+    );
+
+    query.refresh();
+    await flush();
+
+    expect(query.getState().items).toEqual(firstPage);
+  });
+
+  it("未配置 page 时更多页对象完整追加且不被任意去重", async () => {
+    const firstPage: UnkeyedItem[] = [{ label: "first" }];
+    const morePage: UnkeyedItem[] = [{ label: "second" }, { label: "third" }];
+    const fetcher = vi
+      .fn<Fetcher<null, UnkeyedItem>>()
+      .mockImplementation(async (_context, options) =>
+        options.cursor === null
+          ? { items: firstPage, nextCursor: "next" }
+          : { items: morePage, nextCursor: null },
+      );
+    const query = createReadQuery<null, UnkeyedItem>(
+      { resolveContext: () => ({ eligible: true, context: null }) },
+      fetcher,
+      source(),
+      () => undefined,
+    );
+
+    query.refresh();
+    await flush();
+    query.loadMore();
+    await flush();
+
+    expect(query.getState().items).toEqual([...firstPage, ...morePage]);
+    expect(query.getState().cursor).toBeNull();
+  });
+
+  it("未配置 page 时 removeItem 不得以对象字符串误删无键对象", async () => {
+    const item: UnkeyedItem = { label: "unkeyed" };
+    const fetcher = vi
+      .fn<Fetcher<null, UnkeyedItem>>()
+      .mockResolvedValue({ items: [item], nextCursor: null });
+    const query = createReadQuery<null, UnkeyedItem>(
+      { resolveContext: () => ({ eligible: true, context: null }) },
+      fetcher,
+      source(),
+      () => undefined,
+    );
+
+    query.refresh();
+    await flush();
+    expect(query.getState().items).toEqual([item]);
+
+    query.removeItem(String(item));
+    expect(query.getState().items).toEqual([item]);
+  });
+});

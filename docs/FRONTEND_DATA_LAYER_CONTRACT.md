@@ -1,10 +1,10 @@
 # 前端 Data 层契约设计（A4a）
 
-> 状态：**A4a 本地实施快照与独立评审已完成，最终交付 PR CI 待运行**。最小只读查询控制器
-> （`apps/vite-app/src/data/readonly-query.ts`）、
+> 状态：**A4a 本地实施快照与独立评审已完成；GitHub P2 默认键补充纠错已完成主控复验，等待最终
+> 交付 PR CI**。最小只读查询控制器（`apps/vite-app/src/data/readonly-query.ts`）、
 > React hook（`apps/vite-app/src/data/use-readonly-query.ts`）与四份不依赖业务组件的契约测试
 > （`readonly-query.test.ts`、`use-readonly-query.test.tsx`、`readonly-query-regression.test.ts`、
-> `use-readonly-query-regression.test.tsx`，共 42 项）均已落地。A4a 交付时四个业务组件尚未迁移；
+> `use-readonly-query-regression.test.tsx`，共 45 项）均已落地。A4a 交付时四个业务组件尚未迁移；
 > 组件迁移属于 A4b～A4e。本状态不代表已发布，也不把本地验证改写成最终 PR CI。
 
 ## 1. 范围与前提
@@ -74,7 +74,8 @@ A4a 定义一个最小的"只读查询控制器"，而不是完整服务端状�
   dispose、切 origin 或关 gate 都不得继续发起旧轮请求。
 - **Page policy**：由查询声明首页重置、追加、ID key、cursor 记录、重复 cursor 检测、窗口校验、tombstone。
   重复 cursor 在追加前原子失败，不改 items/cursor/cursor 消费历史，并保留同一 cursor 的显式重试能力。
-  当前四策略原样保留。
+  未配置 `page`/显式 `keyOf` 时不去重，首屏与更多页均保留全部原始条目；此时 `removeItem` 没有安全
+  身份，静默 no-op 且不记录 tombstone。当前四策略原样保留。
 - **Suspend policy**：由查询声明挂起时保留或退出可见数据、是否清 cursor、是否保留错误；默认不新增错误。
 - **Retry**：只显式重试；lifecycle/auth 触发的是重新 reconcile，不是自动循环重试；重试重新读取当前 origin 与 gate。
 - **Error**：只返回本地安全错误分类（`http`/`parse`/`network`），不透出服务端正文；文案由组件经 i18n 映射。
