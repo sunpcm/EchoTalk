@@ -8,6 +8,7 @@ from .base import Base
 from .call_lease import CallLease, CallLeaseState
 from .exercise import GrammarError, PronunciationAssessment
 from .knowledge import KnowledgeState, Skill
+from .learning_event import LearningEvent
 from .session import Session, SessionContext, Transcript
 from .user import (
     LLMProvider,
@@ -35,6 +36,7 @@ __all__ = [
     "Transcript",
     "Skill",
     "KnowledgeState",
+    "LearningEvent",
     "PronunciationAssessment",
     "GrammarError",
 ]

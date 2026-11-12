@@ -31,7 +31,7 @@
 [PR Guard 43180144203](https://github.com/sunpcm/EchoTalk/actions/runs/43180144203) 六项成功。
 主控已亲读原始日志；后续仅 Markdown 归档，最终 head 的门禁与合并回执见 PR。
 
-| 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
+| 测试树 / 门禁  | A6 历史快照（本轮 B1 结果另见下文）               | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
 | Vitest         | 1206 passed（49 个文件；含原 45 项契约）          | frontend |
 | Playwright E2E | 234 passed（0 skip、无 retry）                    | frontend |
@@ -40,7 +40,8 @@
 | 构建脚本       | 21 passed                                         | frontend |
 | backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁） | backend  |
 
-这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
+表内旧计数只绑定 A6 历史快照，不能与下方 B1 本轮结果混用；两者都不能代替真实 LiveKit、
+第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。
 
 历史基线继续按快照绑定：B1 source `3b418e8` 的 [CI run 43152122060](https://github.com/sunpcm/EchoTalk/actions/runs/43152122060)
@@ -97,14 +98,15 @@ force lint/typecheck/build零缓存、1206/49及上述六CI通过；全批冷启
 额外本机首轮全量232/2仍记失败：已知WebKit336×23px及一次DocTalk标题未出现。旧新普通/8会话预置
 合计80次零重试定向均通过，旧新完整重放各233/1、DocTalk均通过，唯一失败仍为上述高度；
 首次232/2独立保留为P2待查观察，根因未明，不归因基线、环境或本卡回归，本机全树均不计通过。
-真实Provider/LiveKit/IdP、设备与生产环境未验；B1仍只交付设计，未实施草案。
+真实Provider/LiveKit/IdP、设备与生产环境未验；B1-1 已交付 ORM、新增迁移、schema 回归与
+worker head fixture 适配，最终本机门禁和专用合成 PostgreSQL 结果见本文 B1 小节。
 
 ### A5（导航切片，PR #148）合并收口
 
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）政策确认与分卡准备
+### B1（学习事件台账）政策确认、分卡与 B1-1 schema 验证
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -120,18 +122,38 @@ IdP、不增加单会话删除；本人结构化 JSON 导出保留来源/合成/
 Provider 完整原始响应；本版不开放成功后的重新分析；现有四参数冻结为 `bkt-v1` 且新版本不改写
 旧事件。备份/法定特殊保留的生产方案和音频采集仍另批处理。
 
-主控已在专用合成 PostgreSQL 中重放现有迁移至 `c06_transcript_events`，并验证既有基线：
+主控已在专用合成 PostgreSQL 中重放现有迁移至 `c06_transcript_events`，并验证以下历史基线：
 Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108 passed、
 类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；本机全量 E2E 为 233 passed/
-1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`。该证据只覆盖既有代码；当前仍
-没有 B1 产品源码、ORM、迁移文件、DDL、事件写入、基线工具、JSON 导出或整账号删除实现，因此
-B1 新增表及功能尚未实施，也未验证其功能。当前没有生产切换、真实数据处理或上线。后续
-B1-1～B1-5 的顺序、依赖和验收见 [`TODO.md`](../TODO.md)，设计政策与实现门禁见
+1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`。上述旧数字只属于该历史基线，
+不与本轮新增结果相加或替代。
+B1-1 随后完成 RED（主控实跑 4 failed/0 skipped、exit 1）并新增 `LearningEvent` ORM/注册、
+`b1_learning_events` 迁移与 schema/约束回归；两个 observation 分支兼容 `model_version=NULL`，
+16 个旧迁移未改动。主控随后在本轮专用合成 PostgreSQL 完成空库 upgrade 至 b1、PG schema
+GREEN `4 passed / 0 skip / exit 0`、current/downgrade 回 c06 后清除表/索引/identity、reupgrade
+至 b1 exit 0，以及独立真实 PG 与 ORM 元数据 compare 零差异 exit 0。ORM 的 `idempotency_key`
+唯一约束与 migration 同名一致；`algorithm_params` 使用 `JSONB(none_as_null=True)`，将 Python
+`None` 绑定为 SQL `NULL`。既有 worker PostgreSQL fixture 原固定 `c06_transcript_events`，主控实跑
+得到 `1 error` RED 后，已改为读取仓库 Alembic 源码 `get_current_head()` 并严格比较数据库
+`alembic_version`；原 DB/user/PG15.19/DSN guard 不变。
+
+本轮最终完整门禁已结束：format、force lint、typecheck、build、Vitest、build-script、Fake API、
+API typecheck、类型生成器、Ruff、schema、metadata 与 backend 均 `exit 0`。当前计数为 Vitest
+`1206 passed / 49 files`、build-script `21`、Fake API `108`、API 类型生成器 `8`、backend
+`813 passed / 3 warnings`；lint 为 `132 warning / 0 error`，与本轮 baseline 相同。完整
+Chromium+WebKit 零 retry 为 `233 passed / 1 failed / exit 1`，唯一失败仍是既有 WebKit Provider
+select `336×23 < 44px`；DocTalk 通过且无新增失败，因此不能称本机全树全绿。PG schema 为
+`4 passed / 0 skip / exit 0`，空库升级和往返 `exit 0`，ORM/PG metadata compare 为零差异；临时
+移除 shape 约束后测试变红，原约束已恢复并校验，源码未改。上方 809/1206 与浏览器失败继续明确保留
+为历史快照。
+
+生产库未执行迁移或切换；事务写入、基线工具、JSON 导出、整账号删除、生产切换、真实数据处理和
+上线均未实施。当前停在 B1-1 Review；按用户要求本轮暂停，B1-2～B1-5 尚未实施。其顺序、
+依赖和验收见 [`TODO.md`](../TODO.md)，设计政策与实现门禁见
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。B1-4/B1-5 如新增 HTTP 接口，必须同卡
 补齐 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计，不能以 OpenAPI/TS 更新或
-扩大 missing/空 schema 豁免代替。仓库 CI 仅监听 `main`/`master` push 与 PR；任务分支只 push、
-不开 PR，因此远端 CI 不会自动触发。本批不修改工作流，以主控本地完整门禁和专用合成 PostgreSQL
-留证，远端 CI 如实记为未执行。
+扩大 missing/空 schema 豁免代替。仓库 CI 仅监听 `main`/`master` push 与 PR；任务分支 push
+不触发远端 CI，当前仍未执行。本批不修改工作流，以主控本地完整门禁和专用合成 PostgreSQL 留证。
 
 ## 已知限制和近期风险
 

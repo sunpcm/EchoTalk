@@ -4,23 +4,30 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-## 2026-11-12 B1 学习事件实施（政策已确认，代码未执行）
+## 2026-11-12 B1 学习事件实施（B1-1 Review；B1-2～B1-5 未实施）
 
 设计见 [B1 学习事件台账设计](./docs/LEARNING_EVENTS_DESIGN.md)。用户已于 2026-11-12 确认
-七项数据生命周期、切换、导出和删除政策；B1-0 只完成文档写回与拆卡，当前没有产品源码、ORM、
-迁移、DDL、API 或生成物改动，也没有生产切换或真实数据处理。
+七项数据生命周期、切换、导出和删除政策；B1-0 完成文档写回与拆卡，B1-1 已新增 ORM、注册、
+新增迁移与 schema/约束回归并归档。主控已在本轮专用合成 PostgreSQL 完成空库 upgrade 至
+`b1_learning_events`、PG schema GREEN `4 passed / 0 skip / exit 0`、downgrade 回
+`c06_transcript_events` 后清除表/索引/identity 并 reupgrade 至 b1、ORM 元数据与真实 PG
+compare 零差异；生产库未执行迁移或切换。既有 worker PostgreSQL fixture 原先固定
+`c06_transcript_events`，主控实跑得到 `1 error` RED 后，已改为读取仓库 Alembic 源码
+`get_current_head()` 并严格比较数据库 `alembic_version`；原 DB/user/PG15.19/DSN guard 不变。
 
-后续按 B1-1～B1-5 顺序逐卡推进。每卡先有可失败的测试再写实现；原迁移只增不改，不弱化既有
+本轮最终完整门禁已结束：工程门禁、Vitest `1206 passed / 49 files`、backend
+`813 passed / 3 warnings` 以及 schema/metadata 等均 `exit 0`；Chromium+WebKit 为
+`233 passed / 1 failed / exit 1`，唯一失败仍是既有 WebKit Provider select
+`336×23 < 44px`，DocTalk 通过，无新增失败，不能称本机全树全绿。完整数字见
+[PROJECT_STATUS 的 B1 小节](./docs/PROJECT_STATUS.md)。当前停在 B1-1 Review；按用户要求
+本轮暂停，B1-2～B1-5 尚未实施。
+
+后续按 B1-2～B1-5 顺序逐卡推进。每卡先有可失败的测试再写实现；原迁移只增不改，不弱化既有
 测试。生产切换、真实数据和音频采集不在本批范围。B1-4/B1-5 如新增 HTTP 接口，写集必须同时
 包含对应 Fake API 成功响应 fixture、Node 契约测试和现有 A3 operation 覆盖审计更新；更新
 OpenAPI/TypeScript 不能替代真实成功响应契约，不能静默扩大 missing/空 schema 豁免。不新增产品
 UI 或真实依赖。
 
-- [ ] **B1-1 模型、新增迁移与约束**（依赖 B1-0）：新增 `learning_events` ORM 和一条以
-      `c06_transcript_events` 为父 revision 的新迁移，落实 identity `apply_seq`、事件形状 CHECK、
-      幂等键唯一、完成 Job 唯一、来源外键 `ON DELETE RESTRICT` 和查询索引；不修改任何旧迁移。
-      验收：先编写能复现缺失模型/迁移/约束的失败测试；实现后在专用空合成库执行
-      upgrade/current，验证 CHECK、唯一约束、索引、FK 和 downgrade 边界；原后端测试计数不降。
 - [ ] **B1-2 同事务事件写入、幂等、用户锁与 BKT 隔离**（依赖 B1-1）：成功 Job 在同一事务写
       `analysis_completed`、mapped observation、评估结果、BKT 状态和 `succeeded`；用户行锁覆盖
       幂等校验、事件插入、状态读取与更新。切换后旧 `pending` 和按现有重试规则可处理的 `failed`

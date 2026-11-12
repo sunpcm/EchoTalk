@@ -2,6 +2,25 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+## 2026-11-12 B1 学习事件实施（B1-1）
+
+- [x] **B1-1 模型、新增迁移与约束**（依赖 B1-0）：新增 `LearningEvent` ORM 并注册，新增以
+      `c06_transcript_events` 为父 revision 的 `b1_learning_events` 迁移，落实 identity
+      `apply_seq`、事件形状 CHECK、幂等键唯一、完成 Job 唯一、来源外键 `ON DELETE RESTRICT`
+      和四个查询索引；16 个旧迁移未改动。pronunciation/grammar observation 允许
+      `model_version=NULL`，兼容既有 `legacy_mock`/`legacy_rule` 回填与旧 pending 来源，不写伪版本。
+      主控 RED 实跑为 4 failed/0 skipped、exit 1，失败均对应缺失 ORM/迁移/表。实现节点未连接
+      PG、未执行迁移或测试。随后主控在本轮专用合成 PostgreSQL 完成空库 upgrade 至 b1、PG schema
+      GREEN `4 passed / 0 skip / exit 0`、current/downgrade 回 c06 后清除表/索引/identity、
+      reupgrade 至 b1 exit 0，以及独立真实 PG 与 ORM 元数据 compare 零差异 exit 0。ORM 的
+      `idempotency_key` 唯一约束与 migration 同名一致；`JSONB(none_as_null=True)` 将 Python
+      `None` 绑定为 SQL `NULL`。既有 worker PostgreSQL fixture 原固定 `c06_transcript_events`，
+      主控实跑得到 `1 error` RED 后，已改为读取仓库 Alembic 源码 `get_current_head()` 并严格比较
+      数据库 `alembic_version`；原 DB/user/PG15.19/DSN guard 不变。本轮最终门禁、backend 813、
+      本机 E2E `233 passed / 1 failed / exit 1` 及唯一既有 WebKit 失败见
+      [PROJECT_STATUS B1 小节](../../docs/PROJECT_STATUS.md)，不能称本机全树全绿。生产库未执行。
+      无业务写入、切换、导出、删除、依赖或 UI 变更。
+
 ## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
 
 - [x] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖

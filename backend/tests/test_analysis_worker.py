@@ -15,6 +15,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from alembic.script import ScriptDirectory
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -672,6 +673,9 @@ def test_database_guard_rejects_other_targets_without_connecting(
 @pytest.fixture
 async def postgres_worker_job(monkeypatch):
     database_url = require_test_database_url()
+    source_head = ScriptDirectory(
+        str(Path(__file__).resolve().parents[1] / "alembic")
+    ).get_current_head()
     engine = create_async_engine(database_url, pool_pre_ping=True)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     user_id, session_id, job_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -688,7 +692,7 @@ async def postgres_worker_job(monkeypatch):
             assert identity == (database_url.database, database_url.username, "150019")
             assert (
                 await db.scalar(text("SELECT version_num FROM alembic_version"))
-                == "c06_transcript_events"
+                == source_head
             )
             identity_verified = True
             db.add(User(id=user_id, email=f"worker-{user_id}@example.invalid"))

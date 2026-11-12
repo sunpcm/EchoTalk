@@ -1,8 +1,12 @@
 # EchoTalk 学习事件台账设计（B1 Approved Design）
 
 > 历史交付：本设计随 PR #150 交付并合入，当时仅完成设计，主控独立审阅 APPROVED。
-> 当前政策：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；设计已定稿，B1 已拆卡准备实施。
-> 当前实现状态：尚未修改产品源码或测试，未创建 ORM/迁移文件，未执行 DDL，未切换生产，未动真实数据。
+> 当前政策：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；设计已定稿，B1 已拆卡并进入实施。
+> 当前实现状态：B1-1 的 `LearningEvent` ORM/注册、`b1_learning_events` 迁移及 schema 回归已在
+> 本轮专用合成 PostgreSQL 验证。ORM 的 `idempotency_key` 唯一约束与 migration 同名一致；
+> `algorithm_params` 使用 `JSONB(none_as_null=True)`，使 Python `None` 绑定为 SQL `NULL`。
+> 生产库未执行 DDL、切换或真实数据处理。本轮最终门禁及本机 E2E 的唯一既有失败见
+> [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；不能据此称本机全树全绿。
 > 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实外部服务接入不在本项内。
 
 ## 1. 结论与边界
@@ -35,7 +39,9 @@
 7. `knowledge_states` 读取没有 `FOR UPDATE`；同用户不同 Job 可能覆盖状态或并发创建，最终由 `(user_id, skill_id)` 唯一约束兜底
    [analysis_service.py#L326](../backend/services/analysis_service.py#L326)、
    [knowledge.py#L113](../backend/models/knowledge.py#L113)。
-8. 当前 Alembic head 为 `c06_transcript_events`，其父为 `c05_query_indexes`；转录 `event_id` 只做会话内去重，不是观察或 BKT 顺序
+8. 本卡前 Alembic head 为 `c06_transcript_events`，其父为 `c05_query_indexes`；B1-1 在专用合成库
+   upgrade 后当前 head 为 `b1_learning_events`，父 revision 为 `c06_transcript_events`。转录
+   `event_id` 只做会话内去重，不是观察或 BKT 顺序
    [c06_transcript_events.py#L16](../backend/alembic/versions/c06_transcript_events.py#L16)、
    [session.py#L128](../backend/models/session.py#L128)。
 
@@ -168,9 +174,12 @@ baseline_snapshot         baseline:{cutover_revision}:{user_id}:{skill_id}
 导出、整账号硬删及其 API 尚未实现。实现时必须保持跨用户隔离、事务原子性和失败回滚，并用合成
 PostgreSQL 验证；生产数据、生产备份和外部 IdP 均不在当前授权内。
 
-## 8. 单条线性 Alembic 草案（不执行）
+## 8. 单条线性 Alembic 形状（本轮专用合成库已验证）
 
-父 revision 固定为当前 head `c06_transcript_events`。以下仅是 Markdown 草案，没有创建迁移文件。
+父 revision 固定为 `c06_transcript_events`，实际新增文件为
+`backend/alembic/versions/b1_learning_events.py`。本轮主控已从空合成库 upgrade 至
+`b1_learning_events`，验证 current、downgrade 回 `c06_transcript_events` 后清除表/索引/identity，
+并 reupgrade 至 b1；生产库未执行迁移。
 
 ```python
 """add append-only learning event ledger"""
@@ -224,14 +233,14 @@ def upgrade() -> None:
             AND grammar_error_id IS NULL AND skill_id IS NOT NULL
             AND source_ordinal IS NOT NULL AND source_ordinal >= 0
             AND observation_correct IS NOT NULL AND observation_code IS NOT NULL
-            AND model_version IS NOT NULL AND is_synthetic IS NOT NULL AND algorithm_version IS NULL
+            AND is_synthetic IS NOT NULL AND algorithm_version IS NULL
             AND algorithm_params IS NULL AND p_mastery_snapshot IS NULL AND cutover_revision IS NULL)
             OR (event_type='grammar_observation' AND session_id IS NOT NULL
             AND analysis_job_id IS NOT NULL AND pronunciation_assessment_id IS NULL
             AND grammar_error_id IS NOT NULL AND skill_id IS NOT NULL
             AND source_ordinal IS NOT NULL AND source_ordinal >= 0
             AND observation_correct IS FALSE AND observation_code IS NOT NULL
-            AND model_version IS NOT NULL AND is_synthetic IS NOT NULL AND algorithm_version IS NULL
+            AND is_synthetic IS NOT NULL AND algorithm_version IS NULL
             AND algorithm_params IS NULL AND p_mastery_snapshot IS NULL AND cutover_revision IS NULL)
             OR (event_type='baseline_snapshot' AND session_id IS NULL
             AND analysis_job_id IS NULL AND pronunciation_assessment_id IS NULL
@@ -268,6 +277,11 @@ CHECK 审计：两个观察分支都显式要求 `source_ordinal IS NOT NULL`；
 因此 NULL 不会穿透。`confidence` 与 `p_mastery_snapshot` 是可空字段，但各自的范围 CHECK 已用
 `IS NULL OR` 保护；其余非空要求均以 `IS NOT NULL` 或分支内 `IS NULL` 表达。
 
+兼容审计：两个 observation 分支均允许 `model_version=NULL`。既有
+`a5c6d7e8f901_add_assessment_provenance` 只为旧行回填 `legacy_mock`/`legacy_rule` source，
+未回填 model_version；旧 pending 也可能已有被 `_detect_grammar_errors` 复用的 legacy_rule。
+事件必须保留该未知事实，不得写入 `unknown` 等伪版本。
+
 ## 9. 已确认政策与实施门禁
 
 用户于 2026-11-12 明确确认以下七项，本文后续实现不得改变其语义：
@@ -283,6 +297,8 @@ CHECK 审计：两个观察分支都显式要求 `source_ordinal IS NOT NULL`；
 6. 本版不开放成功后的重新分析；失败重试与只读重算保留。
 7. 现有四参数冻结为 `bkt-v1`；新版本不改写旧事件。
 
-政策确认不等于实现完成。当前仍没有 ORM、迁移文件、DDL、事务写入、切换工具、JSON 导出或整账号
-删除代码，也没有生产切换、真实数据处理或上线证据。B1-1～B1-5 的写集、依赖和验收见
+政策确认不等于整批实施完成。B1-1 的 ORM、迁移文件和 schema 回归已在专用合成 PostgreSQL 验证，
+本机最终门禁及 E2E 边界见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；但生产库未执行
+DDL，事务写入、切换工具、JSON 导出或整账号删除代码仍未实现，也没有生产切换、真实数据处理或
+上线证据。按用户要求本轮暂停，B1-2～B1-5 的写集、依赖和验收见
 [`TODO.md`](../TODO.md)；生产切换和真实数据留待后续明确授权，音频采集及真实外部服务不在本范围。
