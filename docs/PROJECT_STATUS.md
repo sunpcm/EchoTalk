@@ -1,7 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-11，PR #140 head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`
-> （已并入现 `main@196f2ba`；PR #139、#140 均已合并）。
+> 最后核对：2026-11-12，A3（PR #141）最终 head
+> `b1d375611d10f0380bc30f42af486c404b1c21c0` 已以 squash commit `main@a7841b7` 合入；
+> PR #139、#140、#141 均已合并。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -26,55 +27,37 @@
 
 ## 当前验证基线
 
-当前远端测试基线来自 PR #140（head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`）的
-[GitHub Actions run 43031742949](https://github.com/sunpcm/EchoTalk/actions/runs/43031742949)；以下数字绑定该
-PR head 的 CI 日志，不表示在现 main 上直接执行。2026-11-10 的旧基线（`ee5018a`/`22eaf82`）仅作为当时
-[2026-11 云端评审](./reviews/2026-11-cloud-review.md)的记录，不与当前状态混用。
+当前 Linux 测试基线来自 A3（PR #141）最终 head
+`b1d375611d10f0380bc30f42af486c404b1c21c0` 的
+[CI run 43134694256](https://github.com/sunpcm/EchoTalk/actions/runs/43134694256)。
+该最终 head 的 [PR Guard run 43134694336](https://github.com/sunpcm/EchoTalk/actions/runs/43134694336)
+亦成功；随后代码树以 squash commit `a7841b7` 合入 main。下表中的数字绑定最终 PR head
+的 Linux CI 日志，不表示在本机或现 main 上直接重跑。
 
-对应 job 日志：[frontend 130560259103](https://github.com/sunpcm/EchoTalk/actions/runs/43031742949/job/130560259103)、
-[backend 130560258676](https://github.com/sunpcm/EchoTalk/actions/runs/43031742949/job/130560258676)。
-
-| 测试树 / 门禁            | PR #140 实际结果                                  | 日志     |
-| ------------------------ | ------------------------------------------------- | -------- |
-| Vitest                   | 1156 passed（44 个文件，0 skip）                  | frontend |
-| Playwright E2E           | 234 passed（Chromium + WebKit，Fake API，0 skip） | frontend |
-| API 类型生成器           | 8 passed                                          | frontend |
-| 构建脚本                 | 21 passed                                         | frontend |
-| Fake API 契约            | 75 passed                                         | frontend |
-| backend pytest           | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁） | backend  |
-| Alembic                  | 空库迁移通过，至 `c06_transcript_events`          | backend  |
-| schema / metadata / Ruff | 相关步骤通过                                      | backend  |
-
-PR #140 的 CI 与 [PR Guard run 43031743003](https://github.com/sunpcm/EchoTalk/actions/runs/43031743003)
-共六项检查全部成功：`test-frontend`、`test-backend`、`test-ios-build`、`test-macos-probe`、
-`mass-deletion-guard` 与聚合 `CI`。
+| 测试树 / 门禁  | A3 最终 head 实际结果                             | 日志     |
+| -------------- | ------------------------------------------------- | -------- |
+| Vitest         | 1156 passed（44 个文件）                          | frontend |
+| Playwright E2E | 234 passed（0 skip、无 retry）                    | frontend |
+| Fake API 契约  | 108 passed                                        | frontend |
+| API 类型生成器 | 8 passed                                          | frontend |
+| 构建脚本       | 21 passed                                         | frontend |
+| backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁） | backend  |
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
-命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)；当前数字对应上文 PR #140 run/job 日志。
+命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。
 
-A3 的历史证据继续按快照绑定：PR #141 原 head
-`437f6ff8cae70e15ce9549fcc7843008986d8b43` 记录 Fake API 103 passed；修正提交 `45e5212`
-的本地快照记录 108 passed（0 skip）。本地 macOS 和 Linux ARM64 完整 E2E 均有失败，不能计为
-通过。上表则继续绑定 PR #140 head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`，其中 Fake
-API 为 75 passed；这些历史结果互不替换。
+历史基线继续按快照绑定：PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
+`437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
+为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
+不替换上表绑定 A3 最终 head 的 Linux CI。
 
-### A3 接续 PR #141 当前状态
+### A3（PR #141）合并收口
 
-原 `claude/A3-fake-api-contract` 已由 `437f6ff8cae70e15ce9549fcc7843008986d8b43` 普通快进到
-已测 head `265d4da58ab9ee7ee5c03597fac1e8b39ada1a93`；PR #141 的冲突已消除，仍未合并。该
-head 的 [CI run 43131599387](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387) 与
-[PR Guard run 43131599446](https://github.com/sunpcm/EchoTalk/actions/runs/43131599446) 六项
-检查全部 success。[frontend job 130896798756](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387/job/130896798756)
-记录 Vitest 1156 passed（44 files）、Fake API 108/108、API 类型生成 8 passed、构建脚本
-21 passed、Playwright E2E 234/234（0 skip、无 Retry）、lint 132 warnings/0 errors；
-[backend job 130896798708](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387/job/130896798708)
-记录 pytest 809 passed、覆盖率 80.19%。这些结果只绑定 `265d4da`，后续提交的 CI 与 Guard
-以 PR #141 GitHub Checks 为准。
-
-PR #144 重复草稿已关闭，分支与历史保留；其验证结果仍只绑定
-`ed9439a3d342bc3815f82ce1408fe6a71ebc5eac`，PR #140 基线只绑定
-`ed3ac8bafd294b3823b48613935dcf7db5149dc9`。A3 整卡保持未勾选，停用户 Review；PR #141
-未合并，部署与真实外部服务验收均未完成。
+A3 最终 head `b1d375611d10f0380bc30f42af486c404b1c21c0` 的 Linux CI 与 PR Guard 均成功，
+随后由 PR #141 squash 合入 `main@a7841b7486b14af01e535e5e3f4e0472c621d198`。A3 整卡已关闭
+并从根目录 `TODO.md` 移出。PR #144 重复草稿保持关闭，其旧回执只绑定 `ed9439a`，不影响本轮
+最终证据。本次只关闭自动化契约核对；真实 Provider、IdP、LiveKit、设备、语音链路和生产部署
+仍未验收。
 
 ## 已知限制和近期风险
 
@@ -85,8 +68,8 @@ PR #144 重复草稿已关闭，分支与历史保留；其验证结果仍只绑
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
-- macOS 本地 WebKit 已知一例 Provider select 高度为 23px，本地与远端表现不同；PR #140 说明已记录该事实，
-  不构成该轮 CI 失败。
+- 本机 E2E 开工基线为 233 passed / 1 failed，仍是已记录的 WebKit Provider select 高度
+  336×23px 问题，没有新增失败；最终 A3 基线以 Linux CI 为准。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策
