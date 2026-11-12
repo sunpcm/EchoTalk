@@ -1,8 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A4d（PR #153）代码 head `05e76fe` 的六项 CI 与原始日志已复核，
-> Vitest1206/49、Linux E2E234、pytest809/80.19% 通过；四处原测试变异均被捕获。
-> 最终文档收尾提交与合并状态见 PR。
+> 最后核对：2026-11-12，A6（PR #155）代码 `87e0fd5` 的六项 CI 与原始日志已复核，
+> Vitest1206/49、Linux E2E234、pytest809/80.19%、108/8/21 通过；最终归档与合并状态见 PR。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -27,10 +26,10 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线绑定 A4d（PR #153）代码 head `05e76fec5e66a946eba6fcb227c6944d9950b140`：
-[CI run 43166753495](https://github.com/sunpcm/EchoTalk/actions/runs/43166753495) 与
-[PR Guard run 43166753508](https://github.com/sunpcm/EchoTalk/actions/runs/43166753508) 六项通过。
-原始日志已回读；后续仅文档收尾，最终提交与合并状态见 PR #153。
+当前 Linux 测试基线绑定 A6（PR #155）代码 `87e0fd5432fe649e3ee91e8851c61c7d281986cc`：
+[CI 43180144291](https://github.com/sunpcm/EchoTalk/actions/runs/43180144291) 与
+[PR Guard 43180144203](https://github.com/sunpcm/EchoTalk/actions/runs/43180144203) 六项成功。
+主控已亲读原始日志；后续仅 Markdown 归档，最终 head 的门禁与合并回执见 PR。
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
@@ -49,7 +48,7 @@
 1161/45、E2E 234、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
 `437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
 为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
-不替换上表绑定 A4d 代码 head 的 Linux CI。
+不替换上表绑定 A6 代码 `87e0fd5` 的 Linux CI。
 
 ### A3（Fake API 契约校验，PR #141/#147）合并收口
 
@@ -82,12 +81,23 @@ Vitest1206/49、Linux E2E234（0 skip/retry）与 pytest809/80.19% 通过；三�
 保留单套认证/lifecycle/午夜+100ms、原读取时点与summary+rows原子发布；146原测试/渲染AST不变。
 私有8行为/4重入、4原DP变异、1206/49、Linux234、pytest809/80.19%通过；source130bbb6六CI后合入整树一致maina1afaca。真实服务/设备未验。
 
-### A4e（ActiveSessions 只读迁移，PR #154）代码验收完成
+### A4e（ActiveSessions 只读迁移，PR #154）合并收口
 
 Data controller持有分页/请求归属/tombstone，UI/写流程/单订阅中枢与146原测试逐字保全。
 R1统一内部cursor，取消/失败组合的两项回归RED→GREEN；主控9项、补充13项/DP6与3原AS变异通过。
 代码fb47cf4六CI原始日志确认1206/49、Linux234零skip/retry、pytest809/80.19%、108/8/21。
-本候选本机233/1仍为既有WebKit高度差异，不算通过；无行为/依赖/HTTP/数据库变化。
+最终b69c527六CI通过并已真实合入；本机233/1仍为既有WebKit高度差异，不计为通过。
+
+### A6（分层依赖门禁，PR #155）代码验收完成
+
+零依赖error规则落实三组禁止边；用户清理整体移至store，四份完整AST仅import/mock路径规范化后相同，
+其余144份测试/fixture/config逐字保全。真实依赖7→0，主控22项、补充19项及真实逆向import失败验证通过。
+force lint/typecheck/build零缓存、1206/49及上述六CI通过；全批冷启动总审APPROVED。
+重构前后7份构建产物逐字节相同；无用户行为、HTTP、文案、依赖或数据库结构变化。
+额外本机首轮全量232/2仍记失败：已知WebKit336×23px及一次DocTalk标题未出现。旧新普通/8会话预置
+合计80次零重试定向均通过，旧新完整重放各233/1、DocTalk均通过，唯一失败仍为上述高度；
+首次232/2独立保留为P2待查观察，根因未明，不归因基线、环境或本卡回归，本机全树均不计通过。
+真实Provider/LiveKit/IdP、设备与生产环境未验；B1仍只交付设计，未实施草案。
 
 ### A5（导航切片，PR #148）合并收口
 

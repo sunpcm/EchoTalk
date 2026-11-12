@@ -13,7 +13,7 @@
 六项success，主控亲读日志：1206/49、Chromium117+WebKit117=234零skip/retry、
 pytest809/3warnings/80.19%、Fake108/gen8/build21。146原测试与6份UI/写/订阅文件逐字不变。
 候选本机双浏览器实际233/1，仅既有WebKit Provider select336x23px高度失败；不当通过。
-TODO已勾选归档；最终文档收尾提交与合并状态见PR，无真实服务/设备或部署验收。
+TODO已勾选归档；最终文档收尾`b69c527`六项CI通过并已真实合入，无真实服务/设备或部署验收。
 
 ### 2026-11-12 A4e ActiveSessions 候选实施停在 Review
 
@@ -344,6 +344,20 @@ PG 新回归只删除自身随机 fixture 的记录；不修改业务 stale/重�
 `R/worker/runtime-after-services-checks-r1/summary.json` 及
 `R/worker/runtime-after-r1/cleanup/cleanup.json`。产品测试PG仍保留给最终pytest，
 不能据此写本轮全部资源已清或最终组合全绿；后续整体状态以新 `R/report.md` 为权威。
+
+## 2026-11-12 A6 分层依赖门禁代码验收
+
+代码`87e0fd5`（PR #155）零依赖本地ESLint error仅落实既定三组禁止边。
+lib/user-state与原测试整体移至store，AuthGate仅机械改import/mock；无registry/bus。
+主控四份完整AST保全、144份原测试/fixture/config逐字不变，依赖实际7→0；
+22项与补充19项分层检查通过，真实逆向import产生severity2/fatal0并逐字恢复。
+六CI43180144291/Guard43180144203亲读：1206/49、Linux234零skip/retry、
+pytest809/3warnings/80.19%、Fake108/gen8/build21；force三门禁零缓存。
+九卡冷启动第三方总审APPROVED；7份构建产物重构前后逐字节相同。
+补充本机首轮232/2不是通过，含已知高度及一次未定位DocTalk观察；旧新普通/8会话预置
+80次零重试定向均通过，旧新完整重放各233/1，唯一失败均为同一控件高度，DocTalk均通过。
+首次232/2不追认为通过；DocTalk列P2待查，未证明基线/环境/本卡回归，补充复核解除额外merge HOLD。
+无行为/HTTP/文案/依赖/数据库变更；外部服务、设备未验。A6勾选归档，最终head门禁及合并见PR。
 
 ## §18 七天语法 + 宿主 HTTP / api 资源与 runner 边界（2026-11-05 收口）
 

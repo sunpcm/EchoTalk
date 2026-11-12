@@ -2,8 +2,8 @@
 
 > 实施轮次：A5
 > 日期：2026-11-12
-> 状态：18 个应用文件已在 `main@f834538` 上机械整合，本地复验与文档收口完成；
-> 新交付 PR 尚未创建，最终 E2E、backend 与 Linux CI 以交付 PR 检查为准
+> 状态：PR #148 已合并：source `ae13222` → main `0ea16a4`。当时六项 CI 为
+> Vitest1161/45、Linux E2E234、pytest809/80.19%；本文保留初稿快照。
 
 ## 1. 目标与边界
 
@@ -84,7 +84,7 @@ coordinator 的 `isRoomOwningState: (state) => state.appView === "session"` 仍�
 - [ConversationStatusViews.tsx](../../../apps/vite-app/src/components/conversation/ConversationStatusViews.tsx)、
   [EndedConversation.tsx](../../../apps/vite-app/src/components/conversation/EndedConversation.tsx)、
   [DocChatSetup.tsx](../../../apps/vite-app/src/components/doc-chat/DocChatSetup.tsx)、
-  [user-state.ts](../../../apps/vite-app/src/lib/user-state.ts) 的 `goHome` 改走 `useAppStore`，
+  [user-state.ts](../../../apps/vite-app/src/store/user-state.ts) 的 `goHome` 改走 `useAppStore`，
   会话字段仍走 `useConversationStore`。
 
 既有单测与 E2E 仅对状态归属与 import 做机械替换（`useConversationStore` → `useAppStore`），
@@ -92,8 +92,8 @@ coordinator 的 `isRoomOwningState: (state) => state.appView === "session"` 仍�
 
 ## 8. 门禁与验收状态
 
-当前候选基于 `main@f834538c724440d9fbfe7faefaea90233acdb9fd`。该 main 已包含 A3 文档
-PR #147 的六项成功检查。A5 的 18 个应用文件保持冻结，本轮只更新实施文档及归档：
+本节是初稿快照，基于 `main@f834538c724440d9fbfe7faefaea90233acdb9fd`。该 main 已包含
+A3 文档 PR #147 的六项成功检查。A5 的 18 个应用文件保持冻结，本轮只更新实施文档及归档：
 
 - Vitest：1161 passed / 45 files。
 - lint 与 typecheck：使用 `--force` 成功，0 cache；lint 为 132 warnings / 0 errors。
@@ -101,8 +101,8 @@ PR #147 的六项成功检查。A5 的 18 个应用文件保持冻结，本轮�
 - DocChatSetup 只拆分 `store` mock 与 `beforeEach` 所有权；其余 7 份 runtime AST 等同。
 - 导航归属、合同及用户可见行为没有改变。
 
-当前新交付 PR 尚未创建，A5 新 head 的 E2E、backend 与 Linux CI 尚未运行，不能把它们记为
-当前通过；最终结果以交付 PR 的检查为准。
+PR #148 最终由 source `ae13222` 合入 `main@0ea16a4`，当时六项 CI 复核为 Vitest1161/45、
+Linux E2E234、pytest809/80.19%；本节旧计数只属于初稿快照，不改写历史结果。
 
 ### 历史 PR #145 回执
 

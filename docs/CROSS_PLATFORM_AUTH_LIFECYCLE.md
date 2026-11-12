@@ -8,7 +8,7 @@
 
 新增`AuthPrincipal {issuer:string, subject:string}`及`AuthSnapshot {state:AuthState, principal:AuthPrincipal|null}`；authenticated必须有principal，其余principal为null。OIDC身份只取现有oidc-client-ts已验证User.profile的非空iss/sub，不能靠email或自行解码access_token识别账号；按原始issuer/subject精确比较，内部键可用JSON数组编码，禁止歧义拼接。缺身份或配置不全受控失败；过期/退出匿名。显式DEV Token使用固定仅本地dev principal，不扩大production认证。
 
-新增`initializeAuthSnapshot()`、`subscribeAuthSnapshot(listener)`；保留现有`initializeAuth():Promise<AuthState>`、`subscribeAuth(listener)`、token provider/getAccessToken/登录退出导出兼容。Auth模块不导入store或API，避免auth→store→api→auth循环。可以另建`lib/user-state.ts`集中清理，由AuthGate调用。
+新增`initializeAuthSnapshot()`、`subscribeAuthSnapshot(listener)`；保留现有`initializeAuth():Promise<AuthState>`、`subscribeAuth(listener)`、token provider/getAccessToken/登录退出导出兼容。Auth模块不导入store或API，避免auth→store→api→auth循环。由`store/user-state.ts`集中清理，AuthGate调用。
 
 认证事件单调revision；新增`getAuthRevision()`供请求绑定，`invalidateAuthSession(expectedRevision)`只使当前匹配revision失效。初始化异步结果/异常若已被较新的认证事件或初始化操作超越，不能回写当前快照或恢复私有视图。取消订阅后不再更新。必须覆盖StrictMode重挂载，避免重复监听及旧初始化污染。初始化与事件身份快照均不能含access_token或刷新凭据，不新增日志里的身份/Token。
 

@@ -3,9 +3,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { AuthGate } from "./AuthGate";
 import * as auth from "@/lib/auth";
-import * as userState from "@/lib/user-state";
+import * as userState from "@/store/user-state";
 
-vi.mock("@/lib/user-state", () => ({
+vi.mock("@/store/user-state", () => ({
   clearUserSessionData: vi.fn(),
 }));
 

@@ -16,9 +16,8 @@
 > 21；squash 后 `main@5c7ab366dcb500b91f15d550673987d0664bbc7d` 与 source 整树一致。
 > A4d `DailyProgress` 代码 head `05e76fe`（PR #153）六项 CI 与原始日志已复核，
 > Vitest1206/49、Linux E2E234、pytest809/80.19%，四处原测试变异被捕获；已完成归档，
-> 最终收尾提交与合并状态见 PR。A4e `ActiveSessions` R1 代码 `fb47cf4`（PR #154）
-> 主控9项与补充独立13项对照通过，六CI确认1206/49、Linux234、pytest809/80.19%；
-> 已完成归档，最终收尾提交与合并状态见 PR。
+> 已完成归档。A4e R1 代码 `fb47cf4`（PR #154）六CI确认1206/49、Linux234、
+> pytest809/80.19%、108/8/21；最终 `b69c527` 六CI通过并已真实合入。
 > 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提
@@ -336,3 +335,13 @@ WP 是 weekly 成功后释放自身槽位、再启动单日 history 的依赖链
   也不把它规范成永久正确行为，留给后续业务问题单独裁定。
 - 差异点 1/2/3（挂起可见数据、abort 传输、分页统一）按 §5/§7 的方案 A 保留现状，不再请求
   A4a 确认；未来是否统一属于后续独立范围。
+
+## 10. 分层依赖工程门禁（A6）
+
+根 `eslint.config.js` 的 `echotalk/no-cross-layer-imports` 为 error：
+`platform` 不得依赖 `lib/store/components`，`lib` 不得依赖 `store/components`，
+`data` 不得依赖 `components`；不增加其他禁止方向或豁免。规则覆盖别名和规范化相对路径，
+包括类型导入/重导出、动态静态字面量及 import 类型；未知运行时表达式不猜测目标。
+
+用户清理编排位于 `store/user-state.ts`，由 AuthGate 调用；顺序仍为诊断清理、goHome、
+settings.reset、assessment.reset，不引入 reset registry/bus。验收及限制见 PR #155。

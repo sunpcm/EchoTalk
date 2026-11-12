@@ -4,27 +4,6 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-## 架构演进工作包（阶段 A / B）
-
-来源：[架构演进规划](./docs/ARCHITECTURE_ROADMAP.md) §3、§4。这里只列**不依赖外部条件、现在就能开工**的工作包；
-阶段 C（预发布环境）与 D（原生端）需要用户先提供环境或设备，不在此列。
-每个工作包单独一轮、单独分支与 PR；括号内是建议的模型档位。通用验收：三测试树通过且计数不降
-（当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果。
-A1（PR #139）、A2（PR #140）、A3（PR #141/#147）、A5（PR #148）及 B1 设计（PR #150）已完成。
-完成记录见 [已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
-B1 只交付设计，建表与迁移执行仍等待用户政策确认。
-A4a（PR #149）source `250a582` 的六项 CI 与 PR Guard 已通过，随后以整树一致的
-`main@3daa0a4` 合入。A4b（PR #151）最终 source `7659808` 的六项 CI 与原始日志均已复核，
-并以整树一致的 `main@2598867` 合入并归档。A4c（PR #152）最终 source `d47c3aa` 的六项
-CI 与原始日志已复核，并以整树一致的 `main@5c7ab36` 合入。A4d（PR #153）代码 head
-`130bbb6` 六项 CI 与原始日志已复核，并以整树一致的 `main@a1afaca` 合入并归档。A4e 的
-`ActiveSessions` 代码 head `fb47cf4`（PR #154）六项 CI 与原始日志已复核并归档；
-R1 两处分页回归已闭环，最终收尾提交与合并状态见 PR。A6 依赖 A4 完成。
-
-- [ ] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖
-      `lib`/`store`/`components`，`lib` 不得依赖 `store`/`components`，data 层不得依赖 `components`。
-      验收：规则为 error 级；现有代码零违规或逐条修正；故意加一条反向 import 时 lint 失败。
-
 ## 2026-11-10 云端评审后续（R2）
 
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，

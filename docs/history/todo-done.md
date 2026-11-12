@@ -2,6 +2,18 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
+
+- [x] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖
+      `lib`/`store`/`components`，`lib` 不得依赖 `store`/`components`，data 层不得依赖 `components`。
+      验收：规则为 error 级；现有代码零违规或逐条修正；故意加一条反向 import 时 lint 失败。
+      结果：零依赖error规则覆盖既定三组禁止边，清理入口移至store且顺序/断言不变；
+      现有7违规归零，主控22项/补充19项分层检查、真实逆向import失败并恢复，
+      四份AST与144份保护文件保全；代码`87e0fd5`（PR #155）六CI确认
+      Vitest1206/49、Linux E2E234、pytest809/80.19%、Fake108/gen8/build21。
+      追加本机首轮232/2、后续旧新完整各233/1与Linux234分开记录；
+      DocTalk80次及完整对照未复现，P2待查观察保留，不计本机通过，详见当前状态及PR。
+
 ## 2026-11-12 架构演进 A4e（ActiveSessions 只读列表迁移）
 
 - [x] **A4e ActiveSessions 只读列表迁移到 data 层**（Sonnet；依赖 A4a 已确认）：迁移
