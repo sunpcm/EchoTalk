@@ -3,12 +3,8 @@
  * 列表、结束、恢复三个流程通过同一个 runtime 对象互斥，不各自持有对方的状态。
  */
 
-import {
-  arePrincipalsEqual,
-  getAuthRevision,
-  getAuthSnapshot,
-  type AuthPrincipal,
-} from "@/lib/auth";
+import type { ActiveSessionsIdentity } from "@/data/use-active-sessions-query";
+import { arePrincipalsEqual, getAuthRevision, getAuthSnapshot } from "@/lib/auth";
 import type { LifecycleAdapter } from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
@@ -27,10 +23,7 @@ export function createActiveSessionsRuntime(): ActiveSessionsRuntime {
 }
 
 /** 请求或确认意图发起时绑定的认证身份。 */
-export interface AuthIdentity {
-  principal: AuthPrincipal;
-  revision: number;
-}
+export type AuthIdentity = ActiveSessionsIdentity;
 
 export interface ConfirmIntent extends AuthIdentity {
   sessionId: string;

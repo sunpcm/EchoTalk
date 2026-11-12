@@ -2,6 +2,21 @@
 
 > 原文自 `docs/agent-review-loop.md` 搬运（2026-11-10），章节编号与内容不变，仅相对链接上移一层。现行规则见 [Agent 评审手册](../agent-review-loop.md)。
 
+### 2026-11-12 A4e ActiveSessions 候选实施停在 Review
+
+A4e 在 `/private/tmp/echotalk-autonomous-20261112/A4e`、`claude/A4e-active-sessions@a1afacaf`
+上新增 Data-owned active-sessions query，真实消费 `createReadQuery`，并把原列表 hook 收薄。
+认证、请求槽与分页由 controller 持有；生命周期仍只由既有订阅中枢驱动，end/resume 所有权、
+写互锁、最近一次 React 呈现行的 `hasSession` 和 ended tombstone 保持。
+
+共享 controller 仅新增 cancel-only API，AS 使用 `abortTransport:false`、
+`settlementDrift:"discard"`、同源在途忽略与保留挂起数据；静默身份漂移丢弃旧结算，不自动查询
+新用户，lifecycle 不新增为结算门禁。原 AS116、data45、WG/WP/DP68、typecheck、lint 与格式通过，
+全部证据经指定 `ev.sh`；五份关键原测试与 HEAD 字节一致，测试/fixture/E2E/config 零改动。
+
+未跑 E2E、服务、数据库、主控完整三树或真实变异，未 commit/push/merge。初稿剩余正式返修 `0/2`，
+交付停在 Review，A4e 保持未完成。
+
 ### 2026-11-12 A4d PR #153 主控完整验证
 
 A4d PR #153 代码 head `05e76fec5e66a946eba6fcb227c6944d9950b140` 的

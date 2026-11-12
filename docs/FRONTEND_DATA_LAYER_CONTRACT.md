@@ -16,7 +16,8 @@
 > 21；squash 后 `main@5c7ab366dcb500b91f15d550673987d0664bbc7d` 与 source 整树一致。
 > A4d `DailyProgress` 代码 head `05e76fe`（PR #153）六项 CI 与原始日志已复核，
 > Vitest1206/49、Linux E2E234、pytest809/80.19%，四处原测试变异被捕获；已完成归档，
-> 最终收尾提交与合并状态见 PR。`ActiveSessions` 尚未迁移。
+> 最终收尾提交与合并状态见 PR。A4e `ActiveSessions` data hook 初稿已落并停在 Review，
+> 尚未合并。
 > 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提
@@ -131,7 +132,7 @@ interface QueryProfile<C, D> {
   clearPrimaryErrorOnSuspend?: boolean;
   abortTransport?: boolean; // WG/WP=true、DP/AS=false
   concurrent?: "ignore" | "override";
-  settlementDrift?: "revalidate" | "discard"; // 默认 revalidate；DP 使用 discard
+  settlementDrift?: "revalidate" | "discard"; // 默认 revalidate；DP/AS 使用 discard
 }
 
 interface PagePolicy<C, D> {
@@ -145,6 +146,7 @@ interface QueryHandle {
   refresh(): void; // 重新读取当前 origin 与 gate
   loadMore(): void;
   removeItem(key: string): void;
+  cancel(): void; // 仅作废在途并退出相应 loading，保留数据、cursor、错误与 tombstone
   retry(): void;
   dispose(): void;
 }
@@ -182,7 +184,7 @@ interface ReadQuery<C, D> extends QueryHandle {
 context 变化或午夜重排只更新 `setTimeout`，仅 interval 频率实际变化时才重建 interval。
 
 `settlementDrift` 只约束已经发起传输后的 success/error 结算。默认 `revalidate` 保留完整
-origin/gate 复核；DP 使用 `discard`：disposed、请求 seq、当前 authenticated principal 与
+origin/gate 复核；DP/AS 使用 `discard`：disposed、请求 seq、当前 authenticated principal 与
 auth revision 仍匹配才结算；认证漂移只丢弃，不自动 `reconcile()` 或 refresh；日窗口/
 lifecycle 不新增为结算门禁。transport 发起前的 seq、origin 与 gate 复核不受该选项影响。
 
@@ -200,6 +202,17 @@ principal、revision、窗口与数据后，下游 `resolveContext` 才能读取
 DP profile 使用 `preserveOnSuspend:true`、`clearPrimaryErrorOnSuspend:false`、
 `abortTransport:false`、`concurrent:"override"` 与 `settlementDrift:"discard"`，保留原始 API
 参数、精确字符串 ID 去重、非物理取消及挂起可见数据语义。
+
+`ActiveSessions` 的专用 data hook 直接消费 `createReadQuery`，不增加认证或生命周期订阅；既有
+`useActiveSessionsLifecycle` 仍为唯一订阅中枢，结束/恢复写操作及共享 runtime 互锁保持原归属。
+AS 使用 `resetOnFirstPage:false`、`concurrent:"ignore"`、`settlementDrift:"discard"` 与
+`abortTransport:false`；首屏零参数、分页仅传 cursor，精确 ID 去重与 ended tombstone 由 controller
+持有。业务互锁或生命周期不允许时，适配入口原样 no-op，避免把拒绝读取误当作 suspend 清 cursor。
+
+`cancel()` 只处理在途槽位：作废旧结果并退出相应 loading，保留 items/cursor/error/tombstone；
+区别于会清 cursor/more 错误的 `suspend()` 与不可复用的 `dispose()`。AS 取消前清除待提交身份，
+不会把取消误记为首屏成功；queriedIdentity 只在有效首屏成功提交时更新。`hasSession` 继续读取
+最近一次 React 已呈现的行，不能替换为 controller 已结算但尚未呈现的数据。
 
 ## 5. 关键差异与已确认处理
 
