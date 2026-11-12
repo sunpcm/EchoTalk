@@ -14,8 +14,9 @@
 > CI `43162885071` 与 PR Guard `43162885101` 通过，原始日志为 Vitest 1206/49、Linux E2E
 > 234（117+117，0 skip/retry）、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本
 > 21；squash 后 `main@5c7ab366dcb500b91f15d550673987d0664bbc7d` 与 source 整树一致。
-> A4d 已将 `DailyProgress` 迁到专用 data hook，当前停在 Review，尚不代表最终 CI 或合并；
-> `ActiveSessions` 尚未迁移。
+> A4d `DailyProgress` 代码 head `05e76fe`（PR #153）六项 CI 与原始日志已复核，
+> Vitest1206/49、Linux E2E234、pytest809/80.19%，四处原测试变异被捕获；已完成归档，
+> 最终收尾提交与合并状态见 PR。`ActiveSessions` 尚未迁移。
 > 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提

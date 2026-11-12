@@ -2,6 +2,15 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+## 2026-11-12 架构演进 A4d（DailyProgress 数据查询迁移）
+
+- [x] **A4d DailyProgress 单组件迁移**：专用Data hook实际消费controller，首屏summary+rows
+      原子Page、单套认证/lifecycle/午夜+100ms，保留原读取时点、非物理取消和挂起错误策略。
+      原DP23/data45、146份测试/fixture/config及全渲染分支AST不变；代码head `05e76fe`（PR #153）
+      六项CI原始日志确认Vitest1206/49、Linux E2E234（0 skip/retry）、pytest809/80.19%、
+      Fake108/gen8/build21。四处真实变异均被原DP断言捕获，私有行为8/8、重入4/4通过。
+      无用户可见行为、依赖或数据库变化，真实外部服务与设备未验证。
+
 ## 2026-11-12 架构演进 A4c（WeeklyProgress 数据查询迁移）
 
 - [x] **A4c WeeklyProgress 单组件迁移**：两个真实 controller 共享单套 auth/lifecycle/focus/clock，
