@@ -16,8 +16,8 @@
 > 21；squash 后 `main@5c7ab366dcb500b91f15d550673987d0664bbc7d` 与 source 整树一致。
 > A4d `DailyProgress` 代码 head `05e76fe`（PR #153）六项 CI 与原始日志已复核，
 > Vitest1206/49、Linux E2E234、pytest809/80.19%，四处原测试变异被捕获；已完成归档，
-> 最终收尾提交与合并状态见 PR。A4e `ActiveSessions` data hook 初稿已落并停在 Review，
-> 尚未合并。
+> 最终收尾提交与合并状态见 PR。A4e `ActiveSessions` data hook 初稿已完成 R1 内部 cursor
+> 修复并停在 Review，尚未合并。
 > 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提
@@ -85,7 +85,9 @@ A4a 定义一个最小的"只读查询控制器"，而不是完整服务端状�
   AS 使用 primary/more。新首屏 refresh 立即使旧 more success/error/finally 失效；旧回调不得写回或释放新 more 槽。
   primary/more 在发布 loading 后、调用 transport 前再次校验 disposed、请求 epoch、origin 身份与 gate；同步通知内
   dispose、切 origin 或关 gate 都不得继续发起旧轮请求。
-- **Page policy**：由查询声明首页重置、追加、ID key、cursor 记录、重复 cursor 检测、窗口校验、tombstone。
+- **Page policy**：由查询声明首页是否重置 items、是否仅清 cursor、追加、ID key、cursor 记录、
+  重复 cursor 检测、窗口校验、tombstone。首页开始清 cursor 而保留 items 时，取消或失败后不得重新公开、
+  继续消费刷新前的旧 cursor。
   重复 cursor 在追加前原子失败，不改 items/cursor/cursor 消费历史，并保留同一 cursor 的显式重试能力。
   未配置 `page`/显式 `keyOf` 时不去重，首屏与更多页均保留全部原始条目；此时 `removeItem` 没有安全
   身份，静默 no-op 且不记录 tombstone。当前四策略原样保留。
@@ -127,6 +129,7 @@ interface QueryProfile<C, D> {
   nextContextChange?(now: number): number | null; // 返回传给 setTimeout 的延时，不是 epoch
   contextCheckIntervalMs?: number; // 可选分钟级 context-only 复检
   resetOnFirstPage?: boolean;
+  clearCursorOnFirstPage?: boolean; // 保留 items，但首页开始时清内部 cursor
   page?: PagePolicy<C, D>;
   preserveOnSuspend?: boolean; // WG=false（phase 隐藏）、WP/DP/AS=true
   clearPrimaryErrorOnSuspend?: boolean;
@@ -205,9 +208,11 @@ DP profile 使用 `preserveOnSuspend:true`、`clearPrimaryErrorOnSuspend:false`�
 
 `ActiveSessions` 的专用 data hook 直接消费 `createReadQuery`，不增加认证或生命周期订阅；既有
 `useActiveSessionsLifecycle` 仍为唯一订阅中枢，结束/恢复写操作及共享 runtime 互锁保持原归属。
-AS 使用 `resetOnFirstPage:false`、`concurrent:"ignore"`、`settlementDrift:"discard"` 与
-`abortTransport:false`；首屏零参数、分页仅传 cursor，精确 ID 去重与 ended tombstone 由 controller
-持有。业务互锁或生命周期不允许时，适配入口原样 no-op，避免把拒绝读取误当作 suspend 清 cursor。
+AS 使用 `resetOnFirstPage:false`、`clearCursorOnFirstPage:true`、`concurrent:"ignore"`、
+`settlementDrift:"discard"` 与 `abortTransport:false`；首屏 refresh 开始即清内部 cursor 而保留 items，
+使取消或失败后 more 不再消费刷新前 cursor。首屏零参数、分页仅传 cursor，精确 ID 去重与 ended
+tombstone 由 controller 持有。业务互锁或生命周期不允许时，适配入口原样 no-op，避免把拒绝读取误当作
+suspend 清 cursor。
 
 `cancel()` 只处理在途槽位：作废旧结果并退出相应 loading，保留 items/cursor/error/tombstone；
 区别于会清 cursor/more 错误的 `suspend()` 与不可复用的 `dispose()`。AS 取消前清除待提交身份，

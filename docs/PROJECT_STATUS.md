@@ -83,7 +83,8 @@ Vitest1206/49、Linux E2E234（0 skip/retry）与 pytest809/80.19% 通过；三�
 146份原测试/fixture/config与所有渲染分支AST不变；私有8场景与4重入探针通过。原DP23、data45、
 全量Vitest1206/49与Linux E2E234（0 skip/retry）、pytest809/80.19%通过；去重、挂起、旧more
 代际、25h午夜四处真实变异均被原DP断言捕获。无用户可见行为或依赖/HTTP/数据库变化。A4e
-`ActiveSessions` data hook 初稿已落并停在 Review，尚未完成全量 CI 或合并。
+`ActiveSessions` data hook 已完成 R1 内部 cursor 修复，正式返修预算 1/2，停在 Review；
+尚未完成全量 CI 或合并。
 
 ### A5（导航切片，PR #148）合并收口
 

@@ -17,6 +17,18 @@ A4e 在 `/private/tmp/echotalk-autonomous-20261112/A4e`、`claude/A4e-active-ses
 未跑 E2E、服务、数据库、主控完整三树或真实变异，未 commit/push/merge。初稿剩余正式返修 `0/2`，
 交付停在 Review，A4e 保持未完成。
 
+### 2026-11-12 A4e R1 内部 cursor 修复停在 Review
+
+补充独立评审复现两处分页回归后，A4e 从 `1d95614485148ed3e920700904f95ff97aaefc73` 执行正式
+返修 1/2。`createReadQuery` 新增默认关闭的 `clearCursorOnFirstPage`；AS 开启后，首页 refresh
+开始时只清内部 cursor、保留 items，取消后保持 cursor=null，失败后 more 不再复用刷新前 cursor。
+Data hook 直接公开 controller cursor，移除包装层重复状态。取消 more 仍保留合法 cursor，原测试、
+写互锁、单订阅、非物理取消、tombstone 与 last-rendered `hasSession` 语义保持。
+
+R1 另编号证据经指定 `ev.sh`：原 AS116、data45、WG/WP/DP68、typecheck、lint（132 个既有
+warning、0 error）与目标格式通过；146 份原测试/fixture/config/E2E 未改。未跑服务、数据库、
+E2E、主控全量或真实变异，未 commit/push/merge。交付停在 Review，A4e 保持未完成。
+
 ### 2026-11-12 A4d PR #153 主控完整验证
 
 A4d PR #153 代码 head `05e76fec5e66a946eba6fcb227c6944d9950b140` 的

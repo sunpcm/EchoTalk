@@ -43,6 +43,7 @@ export interface ActiveSessionsQueryView {
 const activeSessionsProfile: QueryProfile<null, SessionListItem> = {
   resolveContext: () => ({ eligible: true, context: null }),
   resetOnFirstPage: false,
+  clearCursorOnFirstPage: true,
   preserveOnSuspend: true,
   clearPrimaryErrorOnSuspend: false,
   abortTransport: false,
@@ -67,7 +68,6 @@ export function useActiveSessionsQuery(
   optionsRef.current = options;
   const [state, setState] = useState<QueryState<SessionListItem>>(createEmptyQueryState);
   const [queriedIdentity, setQueriedIdentity] = useState<ActiveSessionsIdentity | null>(null);
-  const [displayedCursor, setDisplayedCursor] = useState<string | null>(null);
   const queryRef = useRef<ReadQuery<null, SessionListItem> | null>(null);
   const pendingPrimaryIdentityRef = useRef<ActiveSessionsIdentity | null>(null);
 
@@ -100,22 +100,10 @@ export function useActiveSessionsQuery(
       },
       (next) => {
         const primarySettled = previousState.phase === "loading" && next.phase === "ready";
-        const moreSettled = previousState.more === "loading" && next.more === "ready";
 
         if (primarySettled && pendingPrimaryIdentityRef.current) {
           setQueriedIdentity(pendingPrimaryIdentityRef.current);
           pendingPrimaryIdentityRef.current = null;
-        }
-
-        if (
-          next.phase === "loading" ||
-          next.phase === "idle" ||
-          next.phase === "error" ||
-          next.paused
-        ) {
-          setDisplayedCursor(null);
-        } else if (primarySettled || moreSettled) {
-          setDisplayedCursor(next.cursor);
         }
 
         previousState = next;
@@ -161,14 +149,12 @@ export function useActiveSessionsQuery(
 
   const suspendRequests = (): void => {
     pendingPrimaryIdentityRef.current = null;
-    setDisplayedCursor(null);
     queryRef.current?.suspend();
   };
 
   const resetForAuthChange = (): void => {
     pendingPrimaryIdentityRef.current = null;
     setQueriedIdentity(null);
-    setDisplayedCursor(null);
     queryRef.current?.reconcile();
   };
 
@@ -192,7 +178,7 @@ export function useActiveSessionsQuery(
     loading: state.phase === "loading",
     error: state.phase === "error",
     queriedIdentity,
-    nextCursor: displayedCursor,
+    nextCursor: state.cursor,
     loadingMore: state.more === "loading",
     loadMoreError: state.more === "error",
     fetchActiveSessions,

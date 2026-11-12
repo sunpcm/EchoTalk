@@ -39,6 +39,7 @@ export interface QueryProfile<C, D> {
   nextContextChange?(now: number): number | null;
   contextCheckIntervalMs?: number;
   resetOnFirstPage?: boolean;
+  clearCursorOnFirstPage?: boolean;
   preserveOnSuspend?: boolean;
   clearPrimaryErrorOnSuspend?: boolean;
   abortTransport?: boolean;
@@ -342,6 +343,8 @@ export function createReadQuery<C, D>(
     };
     if (currentProfile.resetOnFirstPage) {
       patch.items = [];
+    }
+    if (currentProfile.resetOnFirstPage || currentProfile.clearCursorOnFirstPage) {
       patch.cursor = null;
     }
     publish({ ...state, ...patch });

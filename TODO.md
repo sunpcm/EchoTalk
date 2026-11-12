@@ -18,7 +18,8 @@ A4a（PR #149）source `250a582` 的六项 CI 与 PR Guard 已通过，随后以
 并以整树一致的 `main@2598867` 合入并归档。A4c（PR #152）最终 source `d47c3aa` 的六项
 CI 与原始日志已复核，并以整树一致的 `main@5c7ab36` 合入。A4d（PR #153）代码 head
 `130bbb6` 六项 CI 与原始日志已复核，并以整树一致的 `main@a1afaca` 合入并归档。A4e 的
-`ActiveSessions` data hook 初稿已落并在 Review，尚未合并；A6 依赖 A4 完成。
+`ActiveSessions` data hook 已完成 R1 内部 cursor 修复，正式返修预算 1/2，停在 Review；A6 依赖
+A4 完成。
 
 - [ ] **A4e ActiveSessions 只读列表迁移到 data 层**（Sonnet；依赖 A4a 已确认）：迁移
       `active-sessions/useActiveSessionList.ts`，结束/恢复写操作归属与互锁保持。验收：原
