@@ -2,6 +2,18 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+## 2026-11-12 架构演进 A4e（ActiveSessions 只读列表迁移）
+
+- [x] **A4e ActiveSessions 只读列表迁移到 data 层**（Sonnet；依赖 A4a 已确认）：迁移
+      `active-sessions/useActiveSessionList.ts`，结束/恢复写操作归属与互锁保持。验收：原
+      `ActiveSessions.test.tsx` 与相关 E2E **零改动**通过；读侧不再自行维护请求 id、认证订阅与
+      生命周期门禁；关键防线做 3 处以上真实变异并列出是否被原测试捕获。
+      结果：真实Data controller持有请求归属/分页/去重/tombstone，6份UI/写流程/订阅中枢逐字不变；
+      146份原测试/fixture/config零改。R1修复取消/失败后的旧cursor复用；主控9项与补充独立13项
+      对照通过，原AS116三处变异均被捕获，额外cursor私有变异抓到两项回归。代码head
+      `fb47cf4`（PR #154）六CI原始日志确认1206/49、Linux234（0 skip/retry）、
+      pytest809/80.19%、Fake108/gen8/build21；无依赖/HTTP/数据库变化，真实服务/设备未验。
+
 ## 2026-11-12 架构演进 A4d（DailyProgress 数据查询迁移）
 
 - [x] **A4d DailyProgress 单组件迁移**：专用Data hook实际消费controller，首屏summary+rows

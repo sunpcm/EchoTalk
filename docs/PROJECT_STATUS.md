@@ -77,12 +77,17 @@ Vitest1206/49、Linux E2E234（0 skip/retry）与 pytest809/80.19% 通过；三�
 `main@5c7ab36` 合入。只做行为等价抽取，未改变依赖、HTTP、数据库或外部服务边界；
 真实服务/设备仍未验证。
 
-### A4d（DailyProgress 数据查询迁移，PR #153）代码验收完成
+### A4d（DailyProgress 数据查询迁移，PR #153）合并收口
 
-专用hook单套认证/lifecycle/午夜+100ms，保留原读取时点、非物理取消与汇总/列表原子发布。
-146份原测试/fixture/config与所有渲染分支AST不变；私有8场景与4重入探针通过。原DP23、data45、
-全量Vitest1206/49与Linux E2E234（0 skip/retry）、pytest809/80.19%通过；去重、挂起、旧more
-代际、25h午夜四处真实变异均被原DP断言捕获。无用户可见行为或依赖/HTTP/数据库变化。
+保留单套认证/lifecycle/午夜+100ms、原读取时点与summary+rows原子发布；146原测试/渲染AST不变。
+私有8行为/4重入、4原DP变异、1206/49、Linux234、pytest809/80.19%通过；source130bbb6六CI后合入整树一致maina1afaca。真实服务/设备未验。
+
+### A4e（ActiveSessions 只读迁移，PR #154）代码验收完成
+
+Data controller持有分页/请求归属/tombstone，UI/写流程/单订阅中枢与146原测试逐字保全。
+R1统一内部cursor，取消/失败组合的两项回归RED→GREEN；主控9项、补充13项/DP6与3原AS变异通过。
+代码fb47cf4六CI原始日志确认1206/49、Linux234零skip/retry、pytest809/80.19%、108/8/21。
+本候选本机233/1仍为既有WebKit高度差异，不算通过；无行为/依赖/HTTP/数据库变化。
 
 ### A5（导航切片，PR #148）合并收口
 

@@ -2,6 +2,46 @@
 
 > 原文自 `docs/agent-review-loop.md` 搬运（2026-11-10），章节编号与内容不变，仅相对链接上移一层。现行规则见 [Agent 评审手册](../agent-review-loop.md)。
 
+### 2026-11-12 A4e R1 独立复核与完整 CI
+
+旧候选1d95614六CI虽绿，补充独立对照发现取消缓存首页刷新恢复旧cursor、失败后more仍用旧cursor
+两处回归；主控另写公开hook对照复现，原9/9、旧候选2失败/7通过。R1统一cursor后9/9，
+补充独立AS13/13、DP6/6通过；三处原AS变异再次捕获（1/1/5失败），额外关闭新cursor策略
+使两项私有回归再失败；全部源字节还原。原失败与APPROVED撤回历史保留，正式返修1/2。
+
+代码fb47cf4fa0d50c51bb2fadc7c2eb92de501e0844（PR #154）的CI43174202760与Guard43174202732
+六项success，主控亲读日志：1206/49、Chromium117+WebKit117=234零skip/retry、
+pytest809/3warnings/80.19%、Fake108/gen8/build21。146原测试与6份UI/写/订阅文件逐字不变。
+候选本机双浏览器实际233/1，仅既有WebKit Provider select336x23px高度失败；不当通过。
+TODO已勾选归档；最终文档收尾提交与合并状态见PR，无真实服务/设备或部署验收。
+
+### 2026-11-12 A4e ActiveSessions 候选实施停在 Review
+
+A4e 在 `/private/tmp/echotalk-autonomous-20261112/A4e`、`claude/A4e-active-sessions@a1afacaf`
+上新增 Data-owned active-sessions query，真实消费 `createReadQuery`，并把原列表 hook 收薄。
+认证、请求槽与分页由 controller 持有；生命周期仍只由既有订阅中枢驱动，end/resume 所有权、
+写互锁、最近一次 React 呈现行的 `hasSession` 和 ended tombstone 保持。
+
+共享 controller 仅新增 cancel-only API，AS 使用 `abortTransport:false`、
+`settlementDrift:"discard"`、同源在途忽略与保留挂起数据；静默身份漂移丢弃旧结算，不自动查询
+新用户，lifecycle 不新增为结算门禁。原 AS116、data45、WG/WP/DP68、typecheck、lint 与格式通过，
+全部证据经指定 `ev.sh`；五份关键原测试与 HEAD 字节一致，测试/fixture/E2E/config 零改动。
+
+未跑 E2E、服务、数据库、主控完整三树或真实变异，未 commit/push/merge。初稿剩余正式返修 `0/2`，
+交付停在 Review，A4e 保持未完成。
+
+### 2026-11-12 A4e R1 内部 cursor 修复停在 Review
+
+补充独立评审复现两处分页回归后，A4e 从 `1d95614485148ed3e920700904f95ff97aaefc73` 执行正式
+返修 1/2。`createReadQuery` 新增默认关闭的 `clearCursorOnFirstPage`；AS 开启后，首页 refresh
+开始时只清内部 cursor、保留 items，取消后保持 cursor=null，失败后 more 不再复用刷新前 cursor。
+Data hook 直接公开 controller cursor，移除包装层重复状态。取消 more 仍保留合法 cursor，原测试、
+写互锁、单订阅、非物理取消、tombstone 与 last-rendered `hasSession` 语义保持。
+
+R1 另编号证据经指定 `ev.sh`：原 AS116、data45、WG/WP/DP68、typecheck、lint（132 个既有
+warning、0 error）与目标格式通过；146 份原测试/fixture/config/E2E 未改。未跑服务、数据库、
+E2E、主控全量或真实变异，未 commit/push/merge。交付停在 Review，A4e 保持未完成。
+
 ### 2026-11-12 A4d PR #153 主控完整验证
 
 A4d PR #153 代码 head `05e76fec5e66a946eba6fcb227c6944d9950b140` 的

@@ -39,6 +39,7 @@ export interface QueryProfile<C, D> {
   nextContextChange?(now: number): number | null;
   contextCheckIntervalMs?: number;
   resetOnFirstPage?: boolean;
+  clearCursorOnFirstPage?: boolean;
   preserveOnSuspend?: boolean;
   clearPrimaryErrorOnSuspend?: boolean;
   abortTransport?: boolean;
@@ -69,6 +70,7 @@ export interface QueryHandle {
   loadMore(): void;
   retry(): void;
   removeItem(key: string): void;
+  cancel(): void;
   dispose(): void;
 }
 
@@ -341,6 +343,8 @@ export function createReadQuery<C, D>(
     };
     if (currentProfile.resetOnFirstPage) {
       patch.items = [];
+    }
+    if (currentProfile.resetOnFirstPage || currentProfile.clearCursorOnFirstPage) {
       patch.cursor = null;
     }
     publish({ ...state, ...patch });
@@ -474,6 +478,23 @@ export function createReadQuery<C, D>(
     publish({ ...state, items: state.items.filter((item) => page.keyOf(item) !== key) });
   };
 
+  const cancel = (): void => {
+    if (disposed) return;
+    const canceledPrimary = primaryInFlight;
+    const canceledMore = moreInFlight;
+    if (!canceledPrimary && !canceledMore) return;
+
+    abortAll();
+    const next = { ...state };
+    if (canceledPrimary && next.phase === "loading") {
+      next.phase = next.items.length > 0 ? "ready" : "idle";
+    }
+    if (canceledMore && next.more === "loading") {
+      next.more = "idle";
+    }
+    publish(next);
+  };
+
   const pauseRead = (): void => {
     abortAll();
     consumedCursors.clear();
@@ -532,6 +553,7 @@ export function createReadQuery<C, D>(
     loadMore,
     retry: refresh,
     removeItem,
+    cancel,
     reconcile,
     suspend,
     resume,
