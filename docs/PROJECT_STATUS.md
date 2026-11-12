@@ -1,8 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A4d（PR #153）代码 head `05e76fe` 的六项 CI 与原始日志已复核，
-> Vitest1206/49、Linux E2E234、pytest809/80.19% 通过；四处原测试变异均被捕获。
-> 最终文档收尾提交与合并状态见 PR。
+> 最后核对：2026-11-12，A4e（PR #154）最终 `b69c527` 的六项 CI 与原始日志已复核，
+> Vitest1206/49、Linux E2E234、pytest809/80.19%、108/8/21 通过；已真实合入。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -27,10 +26,9 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线绑定 A4d（PR #153）代码 head `05e76fec5e66a946eba6fcb227c6944d9950b140`：
-[CI run 43166753495](https://github.com/sunpcm/EchoTalk/actions/runs/43166753495) 与
-[PR Guard run 43166753508](https://github.com/sunpcm/EchoTalk/actions/runs/43166753508) 六项通过。
-原始日志已回读；后续仅文档收尾，最终提交与合并状态见 PR #153。
+当前 Linux 测试基线绑定 A4e（PR #154）最终 `b69c527`。主控已回读六项 CI 原始日志，
+确认 Vitest1206/49、Linux E2E234（0 skip/retry）、pytest809/80.19%、
+Fake API108、API 类型生成器8、构建脚本21 通过；最终合并状态见 PR #154。
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
@@ -49,7 +47,7 @@
 1161/45、E2E 234、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
 `437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
 为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
-不替换上表绑定 A4d 代码 head 的 Linux CI。
+不替换上表绑定 A4e 最终 `b69c527` 的 Linux CI。
 
 ### A3（Fake API 契约校验，PR #141/#147）合并收口
 
@@ -82,12 +80,12 @@ Vitest1206/49、Linux E2E234（0 skip/retry）与 pytest809/80.19% 通过；三�
 保留单套认证/lifecycle/午夜+100ms、原读取时点与summary+rows原子发布；146原测试/渲染AST不变。
 私有8行为/4重入、4原DP变异、1206/49、Linux234、pytest809/80.19%通过；source130bbb6六CI后合入整树一致maina1afaca。真实服务/设备未验。
 
-### A4e（ActiveSessions 只读迁移，PR #154）代码验收完成
+### A4e（ActiveSessions 只读迁移，PR #154）合并收口
 
 Data controller持有分页/请求归属/tombstone，UI/写流程/单订阅中枢与146原测试逐字保全。
 R1统一内部cursor，取消/失败组合的两项回归RED→GREEN；主控9项、补充13项/DP6与3原AS变异通过。
 代码fb47cf4六CI原始日志确认1206/49、Linux234零skip/retry、pytest809/80.19%、108/8/21。
-本候选本机233/1仍为既有WebKit高度差异，不算通过；无行为/依赖/HTTP/数据库变化。
+最终b69c527六CI通过并已真实合入；本机233/1仍为既有WebKit高度差异，不计为通过。
 
 ### A5（导航切片，PR #148）合并收口
 

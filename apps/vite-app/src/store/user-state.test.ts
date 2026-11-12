@@ -8,8 +8,8 @@ import {
   getDiagnosticSnapshot,
   logDiagnostic,
   subscribeDiagnosticBuffer,
-} from "./diagnostics";
-import * as auth from "./auth";
+} from "../lib/diagnostics";
+import * as auth from "../lib/auth";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settings";

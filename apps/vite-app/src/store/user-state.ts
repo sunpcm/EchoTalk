@@ -3,10 +3,10 @@
  * 由 AuthGate 等顶层生命周期组件调用，避免 Auth 模块与 Stores 产生循环引用。
  */
 
-import { useAppStore } from "@/store/appStore";
-import { useSettingsStore } from "@/store/settings";
-import { useAssessmentStore } from "@/store/assessment";
-import { clearDiagnosticBuffer } from "@/lib/diagnostics";
+import { useAppStore } from "./appStore";
+import { useSettingsStore } from "./settings";
+import { useAssessmentStore } from "./assessment";
+import { clearDiagnosticBuffer } from "../lib/diagnostics";
 
 /**
  * 清理全部用户相关 store 的数据与在途请求归属。

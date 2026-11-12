@@ -13,7 +13,7 @@
 六项success，主控亲读日志：1206/49、Chromium117+WebKit117=234零skip/retry、
 pytest809/3warnings/80.19%、Fake108/gen8/build21。146原测试与6份UI/写/订阅文件逐字不变。
 候选本机双浏览器实际233/1，仅既有WebKit Provider select336x23px高度失败；不当通过。
-TODO已勾选归档；最终文档收尾提交与合并状态见PR，无真实服务/设备或部署验收。
+TODO已勾选归档；最终文档收尾`b69c527`六项CI通过并已真实合入，无真实服务/设备或部署验收。
 
 ### 2026-11-12 A4e ActiveSessions 候选实施停在 Review
 

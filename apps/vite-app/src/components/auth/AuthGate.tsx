@@ -7,7 +7,7 @@ import {
   type AuthPrincipal,
   type AuthSnapshot,
 } from "@/lib/auth";
-import { clearUserSessionData } from "@/lib/user-state";
+import { clearUserSessionData } from "@/store/user-state";
 import { zhCN } from "@/i18n/zh-CN";
 
 export function AuthGate({ children }: { children: ReactNode }) {
