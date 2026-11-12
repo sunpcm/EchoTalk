@@ -2,6 +2,15 @@
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 
+## 2026-11-12 架构演进 A4c（WeeklyProgress 数据查询迁移）
+
+- [x] **A4c WeeklyProgress 单组件迁移**：两个真实 controller 共享单套 auth/lifecycle/focus/clock，
+      上游 weekly 提交后才允许 history，组件只渲染与事件转发。原 WP31/data45、146份
+      测试/fixture/config和界面AST不变；代码 head `a350dd5`（PR #152）六项CI原始日志确认
+      Vitest1206/49、Linux E2E234（0 skip/retry）、pytest809/80.19%、Fake108/gen8/build21。
+      auth revision、重复cursor、日窗口下界三处真实变异均被原WP捕获；额外行为探针6/6。
+      无用户可见行为、依赖或数据库变化，真实外部服务与设备未验证。
+
 ## 2026-11-12 架构演进 A4b（WeeklyGrammar 数据查询迁移）
 
 - [x] **A4b WeeklyGrammar 单组件迁移**：组件只渲染/转发 retry，认证、生命周期、请求槽、timer
