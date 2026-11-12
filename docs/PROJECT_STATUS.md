@@ -1,9 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A5 已由 PR #148 合入
-> `main@0ea16a455bd8ed6fd9a209e337f92615b5e594d0`。A4a 已在该 main 上完成本地实施快照与
-> 独立评审；GitHub P2 默认键补充纠错经主控复验：45 项契约、7 项独立探针与全量 Vitest
-> 1206/49 通过；新 head 的最终交付 PR CI 尚未运行。
+> 最后核对：2026-11-12，B1 设计 PR #150 已合入 `main@4ee8b35`；其 source `3b418e8`
+> 的完整 CI 六项成功，且与 main 整树一致。A4a PR #149 的补修本地复验为 45 项契约、
+> 7 项独立探针与全量 Vitest 1206/49 通过，补修 head 的最终交付 PR CI 待运行。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -28,12 +27,12 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线来自 A5（PR #148）最终 head
-`ae13222d52f8d43e6392f3f648f02b5d6860677b` 的
-[CI run 43145122085](https://github.com/sunpcm/EchoTalk/actions/runs/43145122085) 与
-[PR Guard run 43145122060](https://github.com/sunpcm/EchoTalk/actions/runs/43145122060)，六项成功。
-该 head 与 squash 后 `main@0ea16a4` 的完整树一致。A4a 已基于该 main 完成本地复验，
-表内仅 Vitest 行使用 A4a 本地口径；其余行绑定 A5 最终 head 的 Linux CI，不将本地结果冒充 CI。
+当前 Linux 测试基线来自 B1（PR #150）最终 head
+`3b418e87608ee961570625f8b0c54042ace6f583` 的
+[CI run 43152122060](https://github.com/sunpcm/EchoTalk/actions/runs/43152122060) 与
+[PR Guard run 43152122194](https://github.com/sunpcm/EchoTalk/actions/runs/43152122194)，六项成功。
+该 head 与 squash 后 `main@4ee8b35` 整树一致。下表仅 Vitest 行使用 A4a 补修本地复验；
+其余行绑定 B1 最终 head 的 Linux CI 原始日志，不将本地结果冒充 CI。
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
@@ -50,7 +49,7 @@
 历史基线继续按快照绑定：PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
 `437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
 为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
-不替换上表绑定 A3 最终 head 的 Linux CI。
+不替换上表绑定 B1 PR #150 最终 head 的 Linux CI。
 
 ### A3（PR #141）合并收口
 
@@ -67,13 +66,26 @@ A4a 在 `main@0ea16a4` 上新增最小只读查询 controller、React hook、契
 45 项契约、全量 Vitest 1206/49 与独立探针 7/7 通过。lint/typecheck/build 使用 `--force`，
 3 项任务实际执行、0 cache 通过。A4a 未引入依赖、未迁移组件；补修 head 的 Linux/PR CI 待运行。
 
-### A5（导航切片）已合入最新 main
+### A5（导航切片，PR #148）合并收口
 
 A5 将 `appView` 移入独立导航切片，并与会话切片组合在同一个物理原子容器；会话模块不再暴露
-页面概念，也未引入 Router。PR #148 已将该切片合入
-`main@0ea16a455bd8ed6fd9a209e337f92615b5e594d0`；合并前的详细本地与 PR 证据继续由
-[A5 验证记录](./verification/cross-platform/A5-NAVIGATION-SLICE.md)承担，不改变表中其他
-测试树的来源区分；表内 Linux 计数已由主控回读 PR #148 原始日志复核。
+页面概念，也未引入 Router。18 个应用文件的 340 个既有测试 case 与 1624 个 expect 相关调用
+AST 保持不变；DocChatSetup 只拆分 `store` mock 与 `beforeEach` 所有权，契约和行为未改变。
+PR #148 最终 head `ae13222` 的 Linux CI 记录 Vitest 1161（45 个文件）、E2E 234
+（0 skip、无 retry）、Fake API 108、类型生成器 8、构建脚本 21、pytest 809/80.19%，
+随后合入 `main@0ea16a4`。旧 PR #145 结果只属于历史。
+
+### B1（学习事件台账）设计交付
+
+B1 已新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，定义只追加事件、Job 写入幂等、
+合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
+`c06_transcript_events` 为父 revision 的 Markdown Alembic 草案。主控已完成设计审阅并
+APPROVED；Python 草案经 `ast.parse` 成功，父 revision 已核对存在。
+
+本次仅交付设计，未建表、未创建迁移文件、未执行 DDL。legacy 基线切换、旧 pending/failed Job、
+retention、未来重分析身份与 `bkt-v1` 参数冻结仍等待用户政策确认；A4a 方案 A 不属于 B1 授权。
+PR #150 的六项 CI 已通过，原始日志确认 Vitest 1161/45、E2E 234、pytest 809/80.19%，
+且已合入 `main@4ee8b35`；B1 仍仅设计交付。
 
 ## 已知限制和近期风险
 

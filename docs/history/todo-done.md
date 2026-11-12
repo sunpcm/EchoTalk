@@ -16,6 +16,18 @@
       `a7841b7` 永久链接保留。A4a 尚无最终合并回执，Linux/PR CI 未覆盖本次纠错；该本地收口
       不替代 CI 或真实外部环境验收。
 
+## 2026-11-12 架构演进 B1（学习事件台账设计交付）
+
+> 本节的完成只指设计文档已获主控 APPROVED 并完成归档。建表、代码、迁移执行及删除政策均未开始。
+
+- [x] **B1 学习事件台账设计**：新增 [学习事件台账设计](../../docs/LEARNING_EVENTS_DESIGN.md)，
+      定义只追加 `learning_events`、分析 Job 写入时机与幂等键、合成标记与派生排除、
+      `knowledge_states` 重算校验、现有评估结果关系、保留选项和单条线性 Alembic 草案。
+      草案父 revision `c06_transcript_events` 已核对存在，唯一 Python Markdown 草案经
+      `ast.parse` 成功。结果：无表、无迁移文件、无 DDL 或代码/测试/依赖变更；legacy 基线、
+      旧 pending/failed Job、retention、未来重分析身份和 `bkt-v1` 参数仍待用户政策确认，
+      A4a 方案 A 不属于 B1 授权。
+
 ## 2026-11-12 架构演进 A5（导航切片收口）
 
 > 本节的完成指本地实施、机械测试归属与文档已收口；最终仍以交付 PR 的 Linux 检查为准。
