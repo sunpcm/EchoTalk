@@ -104,17 +104,34 @@ force lint/typecheck/build零缓存、1206/49及上述六CI通过；全批冷启
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）设计交付
+### B1（学习事件台账）政策确认与分卡准备
 
-B1 已新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，定义只追加事件、Job 写入幂等、
-合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
-`c06_transcript_events` 为父 revision 的 Markdown Alembic 草案。主控已完成设计审阅并
-APPROVED；Python 草案经 `ast.parse` 成功，父 revision 已核对存在。
+历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
+幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
+`c06_transcript_events` 为父 revision 的 Markdown Alembic 草案。主控完成设计审阅并 APPROVED；
+Python 草案经 `ast.parse` 成功，父 revision 已核对存在。PR #150 的六项 CI 已通过，原始日志确认
+Vitest 1161/45、E2E 234、pytest 809/80.19%，且已合入 `main@4ee8b35`。该段只描述当时的设计
+交付，不表示表、代码或迁移已经实施。
 
-本次仅交付设计，未建表、未创建迁移文件、未执行 DDL。legacy 基线切换、旧 pending/failed Job、
-retention、未来重分析身份与 `bkt-v1` 参数冻结仍等待用户政策确认；A4a 方案 A 不属于 B1 授权。
-PR #150 的六项 CI 已通过，原始日志确认 Vitest 1161/45、E2E 234、pytest 809/80.19%，
-且已合入 `main@4ee8b35`；B1 仍仅设计交付。
+2026-11-12 用户已确认七项政策：以 `legacy_unknown` 保存切换基线并明确旧趋势不可恢复；旧
+`pending` 和可重试 `failed` Job 切换后走新事务且不回填成功旧 Job；存续期保留明细且不设固定
+TTL/快照裁剪；本平台整账号注销硬删业务库事件、转录、分析和派生状态，不匿名化、不操作外部
+IdP、不增加单会话删除；本人结构化 JSON 导出保留来源/合成/版本并排除密钥、内部提示词和
+Provider 完整原始响应；本版不开放成功后的重新分析；现有四参数冻结为 `bkt-v1` 且新版本不改写
+旧事件。备份/法定特殊保留的生产方案和音频采集仍另批处理。
+
+主控已在专用合成 PostgreSQL 中重放现有迁移至 `c06_transcript_events`，并验证既有基线：
+Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108 passed、
+类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；本机全量 E2E 为 233 passed/
+1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`。该证据只覆盖既有代码；当前仍
+没有 B1 产品源码、ORM、迁移文件、DDL、事件写入、基线工具、JSON 导出或整账号删除实现，因此
+B1 新增表及功能尚未实施，也未验证其功能。当前没有生产切换、真实数据处理或上线。后续
+B1-1～B1-5 的顺序、依赖和验收见 [`TODO.md`](../TODO.md)，设计政策与实现门禁见
+[`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。B1-4/B1-5 如新增 HTTP 接口，必须同卡
+补齐 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计，不能以 OpenAPI/TS 更新或
+扩大 missing/空 schema 豁免代替。仓库 CI 仅监听 `main`/`master` push 与 PR；任务分支只 push、
+不开 PR，因此远端 CI 不会自动触发。本批不修改工作流，以主控本地完整门禁和专用合成 PostgreSQL
+留证，远端 CI 如实记为未执行。
 
 ## 已知限制和近期风险
 

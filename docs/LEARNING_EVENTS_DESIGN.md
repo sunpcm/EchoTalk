@@ -1,11 +1,14 @@
 # EchoTalk 学习事件台账设计（B1 Approved Design）
 
-> 状态：设计已由 PR #150 交付并合入，主控独立审阅 APPROVED。政策未确认仅限制未来建表、迁移和删除策略实现，本文不表示草案已经实施。
-> 范围是分析结果事件、写入幂等、派生校验、保留选项和一条迁移草案；音频采集及真实外部服务接入不在本项内。
+> 历史交付：本设计随 PR #150 交付并合入，当时仅完成设计，主控独立审阅 APPROVED。
+> 当前政策：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；设计已定稿，B1 已拆卡准备实施。
+> 当前实现状态：尚未修改产品源码或测试，未创建 ORM/迁移文件，未执行 DDL，未切换生产，未动真实数据。
+> 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实外部服务接入不在本项内。
 
 ## 1. 结论与边界
 
-- 新建只追加的 `learning_events`。正常业务不得更新或删除；用户删除、法定删除或匿名化尚未批准，“只追加”不能豁免这些要求。
+- 新建只追加的 `learning_events`。正常业务不得更新或删除；本平台整账号删除按 §7 显式硬删，
+  “只追加”不能豁免该例外。
 - 切换后，每个成功分析 Job 写一条 `analysis_completed`；每个可映射到现有技能的发音对齐项或语法错误再写
   observation。这样全合成、无发音、无语法错误也可审计，但“没报错”不会被伪造成“答对”。
 - 评估结果、事件、`knowledge_states` 更新和 Job `succeeded` 必须同一事务提交；异常或取消整体回滚。
@@ -65,9 +68,10 @@ grammar_observation       job:{analysis_job_id}:grammar:{source_ordinal}
 baseline_snapshot         baseline:{cutover_revision}:{user_id}:{skill_id}
 ```
 
-同 Job 的 restart、stale recovery 和 failed retry 复用同一键。`attempt_count` 只属于执行状态。
-将来“重新分析”必须建立新的 analysis run/job 身份，并另批新旧批次并存、替代或只选最新；当前
-`analysis_jobs.session_id` 唯一约束不支持这种语义，不能把同 Job retry 偷换成重新分析。
+同 Job 的 restart、stale recovery 和按现有规则允许的 failed retry 复用同一键；`attempt_count`
+只属于执行状态。本版不开放成功 Job 的重新分析，失败重试和只读重算仍支持。若未来开放重新分析，
+必须另批定义新的 analysis run/job 身份、批次替代/并存和趋势去重口径；当前
+`analysis_jobs.session_id` 唯一约束不支持这种语义。
 
 ## 4. 同事务写入与确定性 BKT 顺序
 
@@ -83,8 +87,9 @@ baseline_snapshot         baseline:{cutover_revision}:{user_id}:{skill_id}
 4. 先插完成事件，再按 canonical 顺序逐条插 observation，使用
    `INSERT ... ON CONFLICT (idempotency_key) DO NOTHING RETURNING apply_seq`。冲突行须校验
    user/session/job/source、来源标记与载荷一致；不能证明已有写入完整提交时 fail closed，不重复记 BKT。
-5. 只对本次新插入、非合成且技能有效的 observation，按 `apply_seq` 升序调用 BKT；参数
-   `p_init=.1 / p_transit=.2 / p_slip=.1 / p_guess=.2`，建议版本 `bkt-v1` [bkt_model.py#L16](../backend/services/knowledge/bkt_model.py#L16)。
+5. 只对本次新插入、非合成且技能有效的 observation，按 `apply_seq` 升序调用 BKT；现有四参数
+   `p_init=.1 / p_transit=.2 / p_slip=.1 / p_guess=.2` 冻结为 `bkt-v1`
+   [bkt_model.py#L16](../backend/services/knowledge/bkt_model.py#L16)。
 6. 同事务置 Job `succeeded` 后 commit。任一步失败会回滚评估结果、事件、派生状态和成功状态。
 
 同一用户的第二事务必须等第一事务释放用户锁，其事件不可能插到前者的用户级 `apply_seq` 区间中；
@@ -114,23 +119,21 @@ baseline_snapshot         baseline:{cutover_revision}:{user_id}:{skill_id}
 ## 6. 旧状态切换、重算与校验
 
 旧 `knowledge_states` 只是累积后的当前值，不能还原历史观察或顺序
-[knowledge.py#L94](../backend/models/knowledge.py#L94)。切换方案：
+[knowledge.py#L94](../backend/models/knowledge.py#L94)。用户于 2026-11-12 确认采用时点基线锚定：
 
-1. **推荐：时点基线锚定。** 在维护模式停止旧分析写入后，为每个既有 `(user_id, skill_id)` 写
-   `baseline_snapshot(source=legacy_unknown)`。它可能含未知历史合成影响，只保持掌握度连续并支持校验增量；
-   不产生历史趋势，也不能被描述为已证明的真实观察。
-2. **从 `p_init` 重建。** 切点清空状态并从 `0.1` 重放新事件；语义简单，但现有用户会看到回退，历史仍不可恢复。
-3. **仅外部保留旧值。** 不把切换值写入事件表。实现少，但重算起点无法自证，后续版本迁移易漂移。
+1. 在维护模式停止旧分析写入后，为每个既有 `(user_id, skill_id)` 写
+   `baseline_snapshot(source=legacy_unknown)`。它可能含未知历史合成影响，只保持掌握度连续并支持
+   后续增量校验；它不产生历史趋势，也不能被描述为已证明的真实观察。旧历史趋势不可恢复。
+2. 固定顺序为“建表 → 停旧写入并写基线 → 部署事件写入门控 → 恢复流量”。不能先写新事件再补基线，
+   也不能让旧 worker 与基线快照并发更新。部署后每个提交成功的 Job 必须恰有一条完成事件。
+3. 切换时仍为 `pending` 的 Job，以及按现有重试规则可处理的 `failed` Job，恢复后统一走新事务：
+   评估、事件、BKT 状态和 Job `succeeded` 原子提交；每次重试复用同一幂等键。`occurred_at` 取真实
+   `sessions.ended_at`，可能早于切换时间，BKT 按处理时 `apply_seq` 排序。该行为只称为“切换后处理
+   历史会话”，不得宣称为历史回填、历史观察恢复或历史状态回放。
+4. 切换前已经成功的旧 Job 不回填事件。历史会话没有观察级事件，不能从旧 `knowledge_states`
+   反推，也不能把旧状态描述成真实历史趋势。
 
-推荐顺序是“建表 → 停旧写入并经批准写基线 → 部署事件写入门控 → 恢复流量”。不能先写新事件再补基线，
-也不能让旧 worker 与基线快照并发更新。方案及维护窗口仍需用户批准；部署后每个提交成功的 Job 才必须
-有一条完成事件，历史已成功 Job 明确不在回填范围。
-
-旧 pending/failed Job 的产品口径仍未批准，但若它不允许生成事件，就绝不能再走旧路径更新 BKT。
-待选定项是：(a) 切换前停止领取并排空可执行旧 Job，或显式停用剩余旧 Job，之后只有事件写入门控可恢复处理；
-(b) 批准切换后首批分析旧 Job，并让每次重试走同一事件/BKT 事务。`occurred_at` 仍取真实
-`sessions.ended_at`，可能早于切换时间，BKT 仍按处理时 `apply_seq` 排序；这只能称为“切换后处理历史会话”，
-不得宣称为历史回填、历史观察恢复或历史状态回放。
+生产维护窗口、真实数据切换和生产发布不在本次 B1-0 文档卡内；未来执行必须另行通过生产变更门禁。
 
 重算校验使用单一一致快照：`BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`。事务首条查询
 先绑定 `SELECT COALESCE(MAX(apply_seq), 0) FROM learning_events` 的固定 `watermark`；随后同一事务只扫描
@@ -147,18 +150,23 @@ baseline_snapshot         baseline:{cutover_revision}:{user_id}:{skill_id}
 
 - `pronunciation_assessments` 1→0..N 发音事件；`grammar_errors` 1→0..1 语法事件。
 - 切换后 `analysis_jobs` 1→1 完成事件 + 0..N 观察事件；`knowledge_states` 继续保存当前派生值。
-- 迁移草案使用 `ON DELETE RESTRICT`，普通删除不能静默打断来源链。用户删除或匿名化须在政策批准后走
-  显式事务；若采用级联硬删，还必须处理派生状态、导出与法务保留。
+- 迁移草案使用 `ON DELETE RESTRICT`，普通业务删除不能静默打断来源链。账号删除例外由 §7 规定的
+  本平台整账号显式事务按依赖顺序处理。
 
-| 选项                                                             | 优点               | 代价                                   |
-| ---------------------------------------------------------------- | ------------------ | -------------------------------------- |
-| A. 账户存续期保留明细；账户/法定删除时显式删或匿名化（推荐评估） | 长期趋势与完整重算 | 存储、隐私面最大，需批准删除与导出规则 |
-| B. 明细保存固定窗口，之后只留周/月快照                           | 隐私和容量较好     | 旧历史不能精确重算，快照需另批实施     |
-| C. 固定短窗口后硬删                                              | 实现最简单         | 长期趋势能力基本失效                   |
+用户于 2026-11-12 确认以下数据生命周期政策：
 
-A 的含义是“日常只追加，仅已批准例外可删/匿名化”，不是“永久不删”。事件本身仍有用户 ID、技能、
-置信度和时间，删除策略必须同时覆盖原始分析、转录和其他关联数据。保留时长、匿名化、删除后是否重建
-状态、法务保留是否覆盖普通删除、是否导出原始评估和事件，均待用户决定。
+1. 账户存续期保留学习事件明细；不引入固定 TTL，也不做快照裁剪。完整明细支持长期趋势和一致重算。
+2. 唯一首批业务删除例外是本平台“注销整个账号”。注销后在本平台业务库硬删该用户的事件、转录、
+   分析结果、评估记录和 `knowledge_states` 等派生状态，不匿名化保留副本。
+3. 整账号注销不操作外部 IdP，本版不增加单会话删除入口。备份和法定/特殊保留的生产方案另定；
+   在方案落地前不得宣称已完成生产级不可恢复删除。
+4. 本人数据以结构化 JSON 导出。导出至少包含事件、知识状态和本人已有转录与评估，并保留来源、
+   合成标记、算法/模型/schema 版本等审计事实；排除密钥、内部提示词和 Provider 完整原始响应。
+5. 本版不开放成功后重新分析；失败重试和只读重算继续支持。`bkt-v1` 冻结现有四参数，新算法版本
+   不得原地改写旧事件。
+
+导出、整账号硬删及其 API 尚未实现。实现时必须保持跨用户隔离、事务原子性和失败回滚，并用合成
+PostgreSQL 验证；生产数据、生产备份和外部 IdP 均不在当前授权内。
 
 ## 8. 单条线性 Alembic 草案（不执行）
 
@@ -260,11 +268,21 @@ CHECK 审计：两个观察分支都显式要求 `source_ordinal IS NOT NULL`；
 因此 NULL 不会穿透。`confidence` 与 `p_mastery_snapshot` 是可空字段，但各自的范围 CHECK 已用
 `IS NULL OR` 保护；其余非空要求均以 `IS NOT NULL` 或分支内 `IS NULL` 表达。
 
-## 9. Review 门禁与待用户决定
+## 9. 已确认政策与实施门禁
 
-- 是否批准“时点基线 + 维护窗口切换”（接受 `legacy_unknown` 可能带有未知历史合成影响），或选择清空旧状态、仅外部保留旧值。
-- 旧 pending/failed Job 选切点前排空/停用或批准切点后首批分析（允许 `occurred_at < cutover_at`，但不称历史回填）；若不入事件则不得更新 BKT，已完成会话绝不回填。
-- retention 选 A/B/C，以及用户删除、法定删除、匿名化、导出和法律保留边界。
-- 是否允许未来重新分析；若允许，另定新 run 身份、批次替代/并存和趋势去重口径。
-- 是否批准把当前四参数冻结为 `bkt-v1`；参数或公式变化不得改写旧事件。
-- 本设计通过 Review 和用户确认后，才进入表、代码、迁移执行和测试实施。
+用户于 2026-11-12 明确确认以下七项，本文后续实现不得改变其语义：
+
+1. 切换保留旧掌握度时点基线，固定 `source=legacy_unknown`；旧历史趋势不可恢复。
+2. 旧 `pending` 和按现有重试规则可处理的 `failed` Job 在切换后统一走新事务；成功旧 Job 不回填。
+   `occurred_at` 取真实 `sessions.ended_at`，BKT 按 `apply_seq` 处理顺序。
+3. 账户存续期保留明细，仅账号删除是业务删除例外；不设固定 TTL，不做快照裁剪。
+4. 本平台整账号注销联动硬删业务库事件、转录、分析、评估和派生状态；不匿名化，不操作外部 IdP，
+   不增加单会话删除。备份及特殊保留的生产方案另定。
+5. 本人数据以结构化 JSON 导出事件、状态及本人已有转录和评估；排除密钥、内部提示词、Provider
+   完整原始响应，保留来源、合成标记和版本。
+6. 本版不开放成功后的重新分析；失败重试与只读重算保留。
+7. 现有四参数冻结为 `bkt-v1`；新版本不改写旧事件。
+
+政策确认不等于实现完成。当前仍没有 ORM、迁移文件、DDL、事务写入、切换工具、JSON 导出或整账号
+删除代码，也没有生产切换、真实数据处理或上线证据。B1-1～B1-5 的写集、依赖和验收见
+[`TODO.md`](../TODO.md)；生产切换和真实数据留待后续明确授权，音频采集及真实外部服务不在本范围。

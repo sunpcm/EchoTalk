@@ -119,6 +119,36 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 
 本节为单轮回执，原文已移至 [评审回执归档](./history/review-loop-receipts.md)；章节编号保留，供既有 prompt 引用。
 
+### §3.4 B1 专用合成 PostgreSQL 命名空间（2026-11-12）
+
+B1 后续数据库验证只使用独立合成资源，不借用 cp00、应用库或 CI 地址：
+
+| 项目                        | 固定值                      |
+| --------------------------- | --------------------------- |
+| container                   | `echotalk-b1-test-20261112` |
+| image                       | `postgres:15.19-alpine`     |
+| host port                   | `127.0.0.1:55433`           |
+| database                    | `echotalk_b1_test`          |
+| user                        | `echotalk_b1_test`          |
+| verified server_version_num | `150019`                    |
+
+合成密码只由主控在受保护运行环境中持有，不写入 prompt、报告、日志或 tracked 文档。实施节点不得
+读取、复制或猜测凭据，也不直接连接该库；数据库、完整受控门禁和需要 API schema 的 exporter/
+TypeScript 生成器由主控代跑。主控已在该合成库中重放现有迁移至 `c06_transcript_events`，并验证
+既有基线：Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108
+passed、类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；本机全量 E2E 为
+233 passed/1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`。B1 新增表及功能
+尚未实施，因此尚未验证其功能；B1-0 只完成文档写回。
+
+B1-4/B1-5 若增加 HTTP 接口，同一卡必须同步 Fake API 成功响应 fixture、Node 契约测试和现有 A3
+operation 覆盖审计。更新 canonical OpenAPI 和 TypeScript 类型只属于必要生成步骤，不能代替 Fake
+API 真实成功响应验证；不得静默扩大 missing/空 schema 豁免，合法空响应也需显式、按实际状态码审阅。
+这些卡不新增产品 UI 或真实依赖。
+
+仓库 CI 只在 `main`/`master` push 或 PR 上触发。B1 任务分支只 push、不开 PR，因此不会自动产生
+远端 CI；不得修改工作流触发条件。证据口径为主控本地完整门禁加本 §3.4 的合成 PostgreSQL，远端
+CI 按实际记为未执行。
+
 ## §4 生成产物及验证
 
 | 产物                        | 源                             | 原生检查/边界                                                         |
