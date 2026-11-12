@@ -52,6 +52,30 @@ PR #140 的 CI 与 [PR Guard run 43031743003](https://github.com/sunpcm/EchoTalk
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)；当前数字对应上文 PR #140 run/job 日志。
 
+A3 的历史证据继续按快照绑定：PR #141 原 head
+`437f6ff8cae70e15ce9549fcc7843008986d8b43` 记录 Fake API 103 passed；修正提交 `45e5212`
+的本地快照记录 108 passed（0 skip）。本地 macOS 和 Linux ARM64 完整 E2E 均有失败，不能计为
+通过。上表则继续绑定 PR #140 head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`，其中 Fake
+API 为 75 passed；这些历史结果互不替换。
+
+### A3 接续 PR #141 当前状态
+
+原 `claude/A3-fake-api-contract` 已由 `437f6ff8cae70e15ce9549fcc7843008986d8b43` 普通快进到
+已测 head `265d4da58ab9ee7ee5c03597fac1e8b39ada1a93`；PR #141 的冲突已消除，仍未合并。该
+head 的 [CI run 43131599387](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387) 与
+[PR Guard run 43131599446](https://github.com/sunpcm/EchoTalk/actions/runs/43131599446) 六项
+检查全部 success。[frontend job 130896798756](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387/job/130896798756)
+记录 Vitest 1156 passed（44 files）、Fake API 108/108、API 类型生成 8 passed、构建脚本
+21 passed、Playwright E2E 234/234（0 skip、无 Retry）、lint 132 warnings/0 errors；
+[backend job 130896798708](https://github.com/sunpcm/EchoTalk/actions/runs/43131599387/job/130896798708)
+记录 pytest 809 passed、覆盖率 80.19%。这些结果只绑定 `265d4da`，后续提交的 CI 与 Guard
+以 PR #141 GitHub Checks 为准。
+
+PR #144 重复草稿已关闭，分支与历史保留；其验证结果仍只绑定
+`ed9439a3d342bc3815f82ce1408fe6a71ebc5eac`，PR #140 基线只绑定
+`ed3ac8bafd294b3823b48613935dcf7db5149dc9`。A3 整卡保持未勾选，停用户 Review；PR #141
+未合并，部署与真实外部服务验收均未完成。
+
 ## 已知限制和近期风险
 
 - 架构层面的风险（无 TLS 入口、分析可观测性、Compose 就绪门禁、原生认证未适配等）统一维护在

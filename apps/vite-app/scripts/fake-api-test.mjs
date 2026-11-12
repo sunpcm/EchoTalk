@@ -7,13 +7,22 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import {
+  auditJsonSchema,
+  classifyOpenApiSuccessCoverage,
+  compareOperationKeys,
+  listOpenApiOperations,
+  validateJsonSchema,
+} from "./fake-api-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const fakeApiScript = path.resolve(__dirname, "../e2e/fake-api.mjs");
+const openApiScript = path.resolve(__dirname, "../../../backend/openapi.json");
 
 const READY_LINE_REGEX = /^\[fake-api\] ready on http:\/\/(127\.0\.0\.1):(\d+)$/;
 const VALID_TOKEN = "e2e-dev-token";
@@ -1254,5 +1263,570 @@ describe("Fake API 契约与真实进程回归测试", () => {
         await terminateServer(isolatedServer.child);
       }
     });
+  });
+});
+
+const openApi = JSON.parse(readFileSync(openApiScript, "utf8"));
+const openApiOperations = listOpenApiOperations(openApi);
+const openApiOperationsByKey = new Map(
+  openApiOperations.map((operation) => [operation.key, operation]),
+);
+
+function sortedOperationKeys(operationKeys) {
+  return [...operationKeys].sort(compareOperationKeys);
+}
+
+const MISSING_OPERATION_SESSION_ID = "00000000-0000-4000-8000-000000000099";
+const MISSING_OPERATION_PROBES = [
+  {
+    operation: "POST /api/conversation/chat",
+    method: "POST",
+    path: "/api/conversation/chat",
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/call/claim",
+    method: "POST",
+    path: `/api/sessions/${MISSING_OPERATION_SESSION_ID}/call/claim`,
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/call/heartbeat",
+    method: "POST",
+    path: `/api/sessions/${MISSING_OPERATION_SESSION_ID}/call/heartbeat`,
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/call/release",
+    method: "POST",
+    path: `/api/sessions/${MISSING_OPERATION_SESSION_ID}/call/release`,
+  },
+  {
+    operation: "PUT /api/user/settings",
+    method: "PUT",
+    path: "/api/user/settings",
+  },
+];
+const EXPECTED_MISSING_OPERATIONS = MISSING_OPERATION_PROBES.map(({ operation }) => operation);
+
+const EXPECTED_UNMODELED_RESPONSES = [
+  { operation: "GET /api/health", status: "200" },
+  { operation: "GET /api/health/ready", status: "200" },
+  { operation: "GET /api/sessions/{session_id}/token", status: "200" },
+  { operation: "POST /api/sessions/{session_id}/dispatch", status: "200" },
+];
+
+const EXPECTED_CONTRACT_DEVIATIONS = [
+  {
+    operation: "GET /api/assessments/{session_id}",
+    actualStatus: 200,
+    field: "$.session_id",
+    keyword: "format",
+    reason: "format: 值不符合 format=uuid",
+  },
+  {
+    operation: "GET /api/assessments/{session_id}/grammar",
+    actualStatus: 200,
+    field: "$[0].session_id",
+    keyword: "format",
+    reason: "format: 值不符合 format=uuid",
+  },
+  {
+    operation: "POST /api/sessions",
+    actualStatus: 201,
+    field: "status",
+    keyword: "declared-success-status",
+    reason: "Fake 返回 201，而 OpenAPI 仅声明 200",
+  },
+];
+
+const FAKE_SUCCESS_CASES = [
+  {
+    operation: "GET /api/health",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/health", authenticated: false }),
+  },
+  {
+    operation: "GET /api/health/ready",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/health/ready",
+      headers: { "x-e2e-readiness": "ready" },
+    }),
+  },
+  {
+    operation: "GET /api/call-capabilities",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/call-capabilities" }),
+  },
+  {
+    operation: "GET /api/user/settings",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/user/settings" }),
+  },
+  {
+    operation: "GET /api/curriculum/next",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/curriculum/next" }),
+  },
+  {
+    operation: "GET /api/assessments/knowledge/skills",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/assessments/knowledge/skills" }),
+  },
+  {
+    operation: "GET /api/assessments/knowledge/states",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/assessments/knowledge/states" }),
+  },
+  {
+    operation: "POST /api/sessions",
+    expectedStatus: 201,
+    buildRequest: () => ({
+      method: "POST",
+      path: "/api/sessions",
+      body: { mode: "scenario" },
+    }),
+    capture: (body, context) => {
+      context.sessionId = body.id;
+      context.sessionStartedAt = body.started_at;
+    },
+  },
+  {
+    operation: "GET /api/sessions/{session_id}",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "GET",
+      path: `/api/sessions/${context.sessionId}`,
+    }),
+  },
+  {
+    operation: "GET /api/sessions/{session_id}/token",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "GET",
+      path: `/api/sessions/${context.sessionId}/token`,
+    }),
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/dispatch",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "POST",
+      path: `/api/sessions/${context.sessionId}/dispatch`,
+    }),
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/analysis-retry",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "POST",
+      path: `/api/sessions/${context.sessionId}/analysis-retry`,
+    }),
+  },
+  {
+    operation: "GET /api/sessions/{session_id}/analysis-status",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "GET",
+      path: `/api/sessions/${context.sessionId}/analysis-status`,
+    }),
+  },
+  {
+    operation: "GET /api/sessions",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/sessions" }),
+  },
+  {
+    operation: "GET /api/sessions/active",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/sessions/active",
+      headers: { "x-e2e-weekly-fixture": "dst" },
+    }),
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/end",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "POST",
+      path: `/api/sessions/${context.sessionId}/end`,
+    }),
+  },
+  {
+    operation: "GET /api/sessions/daily-progress",
+    expectedStatus: 200,
+    buildRequest: (context) => {
+      const startedAt = Date.parse(context.sessionStartedAt);
+      const query = new URLSearchParams({
+        start: new Date(startedAt - 1_000).toISOString(),
+        end: new Date(startedAt + 1_000).toISOString(),
+      });
+      return {
+        method: "GET",
+        path: `/api/sessions/daily-progress?${query}`,
+      };
+    },
+  },
+  {
+    operation: "GET /api/sessions/weekly-progress",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/sessions/weekly-progress?end_date=2026-11-03&timezone=UTC",
+      headers: { "x-e2e-weekly-fixture": "weekly" },
+    }),
+  },
+  {
+    operation: "GET /api/assessments/weekly-grammar",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/assessments/weekly-grammar?end_date=2026-11-03&timezone=UTC",
+      headers: { "x-e2e-weekly-grammar-fixture": "weekly" },
+    }),
+  },
+  {
+    operation: "GET /api/assessments/{session_id}",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/assessments/analysis-success-contract",
+    }),
+  },
+  {
+    operation: "GET /api/assessments/{session_id}/grammar",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/assessments/grammar-only-contract/grammar",
+    }),
+  },
+];
+
+function contractDeviationsForResult(result) {
+  const operation = openApiOperationsByKey.get(result.operation);
+  assert.ok(operation, `OpenAPI 缺少已覆盖 operation: ${result.operation}`);
+  const deviations = [];
+  const declaredSuccessStatuses = operation.successResponses.map(({ status }) => status);
+  if (!declaredSuccessStatuses.includes(String(result.status))) {
+    deviations.push({
+      operation: result.operation,
+      actualStatus: result.status,
+      field: "status",
+      keyword: "declared-success-status",
+      reason: `Fake 返回 ${result.status}，而 OpenAPI 仅声明 ${declaredSuccessStatuses.join(",")}`,
+    });
+  }
+
+  const declaredResponse = operation.successResponses.find(
+    ({ status }) => status === String(result.status),
+  );
+  const modeledResponse = declaredResponse
+    ? Object.keys(declaredResponse.schema).length > 0
+      ? declaredResponse
+      : null
+    : operation.successResponses.find(({ schema }) => Object.keys(schema).length > 0);
+  if (modeledResponse) {
+    for (const violation of validateJsonSchema(result.body, modeledResponse.schema, openApi)) {
+      deviations.push({
+        operation: result.operation,
+        actualStatus: result.status,
+        field: violation.path,
+        keyword: violation.keyword,
+        reason: `${violation.keyword}: ${violation.message}`,
+      });
+    }
+  }
+  return deviations;
+}
+
+function normalizedDeviations(deviations) {
+  return [...deviations].sort(
+    (left, right) =>
+      left.operation.localeCompare(right.operation) ||
+      left.actualStatus - right.actualStatus ||
+      left.field.localeCompare(right.field) ||
+      left.keyword.localeCompare(right.keyword),
+  );
+}
+
+describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_000 }, () => {
+  let serverInstance = null;
+  const context = {};
+  const results = new Map();
+  const missingResults = new Map();
+
+  before(async () => {
+    serverInstance = await startFakeApiServer();
+    for (const testCase of FAKE_SUCCESS_CASES) {
+      const request = testCase.buildRequest(context);
+      const headers = {
+        ...(request.authenticated === false ? {} : AUTH_HEADER),
+        ...(request.headers ?? {}),
+      };
+      const options = { method: request.method, headers };
+      if ("body" in request) {
+        headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify(request.body);
+      }
+      const response = await timedFetch(`${serverInstance.baseUrl}${request.path}`, options);
+      const contentType = response.headers.get("content-type") ?? "";
+      assert.match(contentType, /^application\/json\b/i, testCase.operation);
+      const body = await response.json();
+      testCase.capture?.(body, context);
+      results.set(testCase.operation, {
+        operation: testCase.operation,
+        status: response.status,
+        body,
+      });
+    }
+
+    for (const probe of MISSING_OPERATION_PROBES) {
+      const response = await timedFetch(`${serverInstance.baseUrl}${probe.path}`, {
+        method: probe.method,
+        headers: {
+          ...AUTH_HEADER,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+      const contentType = response.headers.get("content-type") ?? "";
+      const body = /^application\/json\b/i.test(contentType)
+        ? await response.json()
+        : await response.text();
+      missingResults.set(probe.operation, {
+        contentType,
+        status: response.status,
+        body,
+      });
+    }
+  });
+
+  after(async () => {
+    if (serverInstance?.child) {
+      await terminateServer(serverInstance.child);
+      serverInstance = null;
+    }
+  });
+
+  it("缺失 operation 由真实 fallback 验证，空 schema 清单固定且可输出", () => {
+    const classification = classifyOpenApiSuccessCoverage(
+      openApi,
+      FAKE_SUCCESS_CASES.map(({ operation }) => operation),
+    );
+    assert.deepEqual(
+      sortedOperationKeys(classification.missingOperations),
+      sortedOperationKeys(EXPECTED_MISSING_OPERATIONS),
+    );
+    assert.deepEqual(classification.unmodeledResponses, EXPECTED_UNMODELED_RESPONSES);
+    const actualMissingOperations = [];
+    for (const probe of MISSING_OPERATION_PROBES) {
+      const result = missingResults.get(probe.operation);
+      assert.ok(result, `未取得 ${probe.operation} 的缺失路由探针响应`);
+      assert.match(result.contentType, /^application\/json\b/i, probe.operation);
+      assert.equal(result.status, 404, probe.operation);
+      assert.equal(result.body.detail, `No fake route for ${probe.method} ${probe.path}`);
+      actualMissingOperations.push(probe.operation);
+    }
+    assert.deepEqual(
+      sortedOperationKeys(actualMissingOperations),
+      sortedOperationKeys(EXPECTED_MISSING_OPERATIONS),
+    );
+    console.log(
+      "[fake-api-contract]",
+      JSON.stringify({
+        missingOperations: sortedOperationKeys(actualMissingOperations),
+        unmodeledResponses: classification.unmodeledResponses,
+      }),
+    );
+  });
+
+  it("Fake 成功路由恰好覆盖 OpenAPI 中除固定缺失项外的全部 operation", () => {
+    const classification = classifyOpenApiSuccessCoverage(
+      openApi,
+      FAKE_SUCCESS_CASES.map(({ operation }) => operation),
+    );
+    const expectedCovered = classification.operations
+      .map(({ key }) => key)
+      .filter((key) => !EXPECTED_MISSING_OPERATIONS.includes(key));
+    assert.deepEqual(
+      sortedOperationKeys(FAKE_SUCCESS_CASES.map(({ operation: key }) => key)),
+      sortedOperationKeys(expectedCovered),
+    );
+    assert.equal(results.size, expectedCovered.length);
+  });
+
+  for (const testCase of FAKE_SUCCESS_CASES) {
+    it(`${testCase.operation} 返回真实成功响应并完成契约校验`, () => {
+      const result = results.get(testCase.operation);
+      assert.ok(result, `未取得 ${testCase.operation} 的真实 HTTP 响应`);
+      assert.equal(result.status, testCase.expectedStatus);
+      assert.notEqual(result.body, undefined);
+      const expected = EXPECTED_CONTRACT_DEVIATIONS.filter(
+        ({ operation }) => operation === testCase.operation,
+      );
+      assert.deepEqual(
+        normalizedDeviations(contractDeviationsForResult(result)),
+        normalizedDeviations(expected),
+      );
+    });
+  }
+
+  it("全部成功响应的状态与字段偏差恰为固定的具体清单", () => {
+    const actual = normalizedDeviations(
+      [...results.values()].flatMap((result) => contractDeviationsForResult(result)),
+    );
+    assert.deepEqual(actual, normalizedDeviations(EXPECTED_CONTRACT_DEVIATIONS));
+  });
+
+  it("schema 能力与 JSON 自有属性语义均失败关闭", () => {
+    const unsupportedType = auditJsonSchema(
+      { type: "object", properties: { future: { type: "not-supported" } } },
+      openApi,
+    );
+    assert.ok(unsupportedType.some(({ keyword }) => keyword === "type"));
+
+    const unsupportedFormat = auditJsonSchema(
+      { type: "object", properties: { future: { type: "string", format: "not-supported" } } },
+      openApi,
+    );
+    assert.ok(unsupportedFormat.some(({ keyword }) => keyword === "format"));
+
+    const inheritedRef = auditJsonSchema({ $ref: "#/components/schemas/__proto__" }, openApi);
+    assert.ok(inheritedRef.some(({ keyword }) => keyword === "$ref"));
+
+    const inheritedRequired = validateJsonSchema(
+      {},
+      { type: "object", required: ["constructor"] },
+      openApi,
+    );
+    assert.ok(
+      inheritedRequired.some(
+        ({ path, keyword }) => path === "$.constructor" && keyword === "required",
+      ),
+    );
+
+    const inheritedProperty = validateJsonSchema(
+      JSON.parse('{"toString":"x"}'),
+      { type: "object", properties: {}, additionalProperties: false },
+      openApi,
+    );
+    assert.ok(
+      inheritedProperty.some(
+        ({ path, keyword }) => path === "$.toString" && keyword === "additionalProperties",
+      ),
+    );
+  });
+
+  it("date 与 date-time 使用严格公历边界且支持四位小年份", () => {
+    const invalidDateTime = validateJsonSchema(
+      "2026-02-30T12:00:00Z",
+      { type: "string", format: "date-time" },
+      openApi,
+    );
+    assert.ok(invalidDateTime.some(({ keyword }) => keyword === "format"));
+
+    const smallYearDate = validateJsonSchema(
+      "0050-01-01",
+      { type: "string", format: "date" },
+      openApi,
+    );
+    assert.deepEqual(smallYearDate, []);
+  });
+
+  const stringLengthCodePointCases = [
+    { name: "单个非 BMP emoji", value: "🙂", minLength2: false, maxLength1: true },
+    { name: "非 BMP emoji 加 ASCII", value: "🙂A", minLength2: true, maxLength1: false },
+    { name: "e 加组合重音", value: "e\u0301", minLength2: true, maxLength1: false },
+    { name: "单个 BMP 中文", value: "中", minLength2: false, maxLength1: true },
+    { name: "单个 ASCII", value: "A", minLength2: false, maxLength1: true },
+  ];
+  for (const testCase of stringLengthCodePointCases) {
+    it(`字符串长度按 Unicode 码点计算：${testCase.name}`, () => {
+      const actual = {
+        minLength: validateJsonSchema(
+          testCase.value,
+          { type: "string", minLength: 2 },
+          openApi,
+        ).map(({ keyword }) => keyword),
+        maxLength: validateJsonSchema(
+          testCase.value,
+          { type: "string", maxLength: 1 },
+          openApi,
+        ).map(({ keyword }) => keyword),
+      };
+      assert.deepEqual(
+        actual,
+        {
+          minLength: testCase.minLength2 ? [] : ["minLength"],
+          maxLength: testCase.maxLength1 ? [] : ["maxLength"],
+        },
+        `${testCase.name} 的长度结果不符合 Unicode 码点语义`,
+      );
+    });
+  }
+
+  it("operation 盘点包含全部标准方法并忽略路径级 metadata", () => {
+    const syntheticOpenApi = structuredClone(openApi);
+    const response = {
+      description: "A3 method inventory probe",
+      content: { "application/json": { schema: { type: "string" } } },
+    };
+    syntheticOpenApi.paths["/api/a3-method-probe"] = {
+      summary: "path-level metadata is not an operation",
+      parameters: [],
+      servers: [],
+      head: { operationId: "probeHead", responses: { 200: response } },
+      options: { operationId: "probeOptions", responses: { 200: response } },
+      trace: { operationId: "probeTrace", responses: { 200: response } },
+    };
+    const methods = listOpenApiOperations(syntheticOpenApi)
+      .filter(({ path: operationPath }) => operationPath === "/api/a3-method-probe")
+      .map(({ method }) => method);
+    assert.deepEqual(
+      sortedOperationKeys(methods),
+      sortedOperationKeys(["HEAD", "OPTIONS", "TRACE"]),
+    );
+  });
+
+  it("未知 schema 关键字、断链 ref 与单字段变异均不能通过", () => {
+    const unsupported = auditJsonSchema(
+      {
+        type: "object",
+        properties: {
+          omitted_future_field: { type: "string", unsupportedKeyword: true },
+        },
+      },
+      openApi,
+    );
+    assert.ok(unsupported.some(({ keyword }) => keyword === "unsupportedSchemaKeyword"));
+
+    const missingRef = validateJsonSchema(
+      {},
+      { $ref: "#/components/schemas/NotARealSchema" },
+      openApi,
+    );
+    assert.ok(missingRef.some(({ keyword }) => keyword === "$ref"));
+
+    const ignoredRefConstraint = validateJsonSchema(
+      {},
+      {
+        $ref: "#/components/schemas/CallCapabilitiesResponse",
+        required: ["protocol_version"],
+      },
+      openApi,
+    );
+    assert.ok(ignoredRefConstraint.some(({ keyword }) => keyword === "$refSiblingKeyword"));
+
+    const capabilitiesResult = results.get("GET /api/call-capabilities");
+    const capabilitiesOperation = openApiOperationsByKey.get("GET /api/call-capabilities");
+    const schema = capabilitiesOperation.successResponses[0].schema;
+    const mutated = { ...capabilitiesResult.body, protocol_version: 2 };
+    const mutatedViolations = validateJsonSchema(mutated, schema, openApi);
+    assert.ok(
+      mutatedViolations.some(
+        ({ path, keyword }) => path === "$.protocol_version" && keyword === "const",
+      ),
+    );
   });
 });

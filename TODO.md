@@ -19,14 +19,23 @@ A1（PR #139）、A2（PR #140）已于 2026-11-11 完成，实施与验证记�
       "OpenAPI 有而 Fake API 没有"的路由清单。不新增运行时依赖时优先；确需 JSON Schema 校验库须先在报告中
       说明并等用户同意。验收：现有 Fake API 响应全部通过校验或逐条列为已知偏差；缺失路由清单写入报告；
       故意改坏一个 Fake 响应字段时测试失败。
+      当前状态：原 `claude/A3-fake-api-contract` 已由 `437f6ff` 普通快进到已测 head
+      `265d4da58ab9ee7ee5c03597fac1e8b39ada1a93`；PR #141 的冲突已消除，仍未合并。该 head 的
+      CI 与 PR Guard 六项检查全部 success；分项结果和绑定边界见
+      [PROJECT_STATUS](./docs/PROJECT_STATUS.md#a3-接续-pr-141-当前状态)。后续提交检查以 PR #141
+      GitHub Checks 为准。PR #144 重复草稿已关闭，分支与历史保留。A3 整卡保持未勾选，停用户
+      Review，不自批。
 - [ ] **A4a 前端 data 层契约与契约测试**（Opus 或更强模型；§3.1；**先出设计，用户确认后再实现**）：
       新增 `docs/` 下的 data 层契约文档，定义带认证代际与前后台门禁的查询 Hook 的语义：发起时绑定
       principal 与 revision、hidden/offline 不请求、迟到响应丢弃、认证变化清空重查、分页去重、显式重试、
       不回显服务端错误。语义以现有四个组件的实际行为为准，逐条指到代码行；差异之处列出并请用户裁定。
       同时回答"自研还是封装现成库"，给出理由。验收：契约文档 + 一组不依赖具体组件的契约测试；
       本项不迁移任何组件。
-      设计草案已准备且完成独立内容核查；等待用户确认，Hook 及契约测试尚未实现。
-      草案见 [FRONTEND_DATA_LAYER_CONTRACT.md](./docs/FRONTEND_DATA_LAYER_CONTRACT.md)。
+      用户已确认方案 A；R1 已实现最小只读查询控制器（apps/vite-app/src/data/readonly-query.ts）、
+      只读 hook（apps/vite-app/src/data/use-readonly-query.ts）及四个契约测试文件（17+15+8+4
+      项，共 44 项）。实施已冻结，整卡保持在 Review；主控独立 Review 与完整质量门禁结果以
+      PR #142 绑定最终 head 的回执为准。尚未迁移任何组件、尚未集成，本项保持未勾选。
+      契约见 [FRONTEND_DATA_LAYER_CONTRACT.md](./docs/FRONTEND_DATA_LAYER_CONTRACT.md)。
 - [ ] **A4b～A4e 数据区块迁移到 data 层**（Sonnet；依赖 A4a 已确认）：按 `WeeklyGrammar` → `WeeklyProgress` →
       `DailyProgress` → `ActiveSessions`（其 `active-sessions/useActiveSessionList.ts`）的顺序，每轮只迁一个。
       验收：该组件对应的 `*.test.tsx` 与相关 E2E **零改动**通过；组件内不再自行维护请求 id、认证订阅与
