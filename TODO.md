@@ -10,11 +10,10 @@
 阶段 C（预发布环境）与 D（原生端）需要用户先提供环境或设备，不在此列。
 每个工作包单独一轮、单独分支与 PR；括号内是建议的模型档位。通用验收：三测试树通过且计数不降
 （当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果。
-A1（PR #139）、A2（PR #140）、A3（PR #141）已完成。A1–A3 的实施与验证记录见
-[已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
-A5 导航切片已完成：`appView` 已移出会话模块且本地 Vitest 1161/45 通过，最终 CI 以交付 PR
-为准，见 [A5 验证记录](./docs/verification/cross-platform/A5-NAVIGATION-SLICE.md)。
-建议顺序：A4a → A4b…；B1 可与之并行，A6 依赖 A4 完成。
+A1（PR #139）、A2（PR #140）、A3（PR #141/#147）、A5（PR #148）已完成，B1 设计交付已获
+主控 APPROVED。完成记录见 [已完成事项归档](./docs/history/todo-done.md)及
+[2026-11 实施记录](./docs/history/2026-11.md)。B1 只归档设计，建表与迁移执行仍等待用户政策确认。
+建议顺序：A4a → A4b…；A6 依赖 A4 完成。
 
 - [ ] **A4a 前端 data 层契约与契约测试**（Opus 或更强模型；§3.1；**先出设计，用户确认后再实现**）：
       新增 `docs/` 下的 data 层契约文档，定义带认证代际与前后台门禁的查询 Hook 的语义：发起时绑定
@@ -29,12 +28,6 @@ A5 导航切片已完成：`appView` 已移出会话模块且本地 Vitest 1161/
 - [ ] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖
       `lib`/`store`/`components`，`lib` 不得依赖 `store`/`components`，data 层不得依赖 `components`。
       验收：规则为 error 级；现有代码零违规或逐条修正；故意加一条反向 import 时 lint 失败。
-- [ ] **B1 学习事件表设计**（Opus 或更强模型；§3.4；**只出设计，用户确认后再建表**）：新增
-      `docs/LEARNING_EVENTS_DESIGN.md`，定义只追加的学习事件：表结构与索引、由分析 Job 写入的时机与幂等键、
-      合成结果的标记与派生时的排除规则、`knowledge_states` 由事件重算的校验方法、与现有
-      `pronunciation_assessments`/`grammar_errors` 的关系、保留期与删除策略的选项。列出需要用户决定的问题
-      （是否采集音频不在本项范围）。验收：设计文档，含一条线性 Alembic 迁移的草案（以当前 head 为父，
-      不执行）；不改代码。
 
 ## 2026-11-10 云端评审后续（R2）
 
