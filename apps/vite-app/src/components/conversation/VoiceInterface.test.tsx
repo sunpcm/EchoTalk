@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { VoiceInterface, stopRoomLocalTracks } from "./VoiceInterface";
 import * as roomAudio from "./roomAudio";
-import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
@@ -82,7 +82,7 @@ vi.mock("@livekit/components-react", () => ({
   }) => {
     // 关键 P1：用 useState 生成独立实例标识与独立 Room
     const initialConnState =
-      useConversationStore.getState().connectionState === "active" ? "connected" : "connecting";
+      useAppStore.getState().connectionState === "active" ? "connected" : "connecting";
     const [connState, setConnState] = React.useState(initialConnState);
 
     const [{ instanceId, room, trackStopMock }] = React.useState(() => {
@@ -338,7 +338,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     capturedDataChannelListeners.length = 0;
     capturedAuthSnapshotListeners.clear();
     currentMockRoom = createMockRoom();
-    useConversationStore.getState().goHome();
+    useAppStore.getState().goHome();
     vi.mocked(api.dispatchAgent).mockResolvedValue({ dispatched: true });
     vi.mocked(auth.getAuthSnapshot).mockReturnValue({
       state: "authenticated",
@@ -363,7 +363,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
     vi.mocked(api.endSession).mockImplementation(() => endPromise);
 
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "active",
       appView: "session",
       sessionId: "sess-deferred",
@@ -394,9 +394,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(screen.getByText(zhCN.conversation.ending)).toBeInTheDocument();
     expect(screen.getByText(zhCN.conversation.endingHint)).toBeInTheDocument();
 
-    expect(useConversationStore.getState().token).toBeNull();
-    expect(useConversationStore.getState().wsUrl).toBeNull();
-    expect(useConversationStore.getState().connectionState).toBe("ending");
+    expect(useAppStore.getState().token).toBeNull();
+    expect(useAppStore.getState().wsUrl).toBeNull();
+    expect(useAppStore.getState().connectionState).toBe("ending");
 
     // 分析轮询绝不在此阶段执行
     expect(usePollingAssessment).not.toHaveBeenCalledWith("sess-deferred");
@@ -414,11 +414,11 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     await waitFor(() => {
       expect(screen.getByText(zhCN.conversation.ended)).toBeInTheDocument();
     });
-    expect(useConversationStore.getState().connectionState).toBe("ended");
+    expect(useAppStore.getState().connectionState).toBe("ended");
   });
 
   it("actively stops owned local tracks on unmount when user navigates home", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "active",
       appView: "session",
       sessionId: "sess-leave",
@@ -438,7 +438,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
   it("isolates room instances across generations, stops old owned tracks on unmount, and rejects stale callbacks", () => {
     // 1. 先进入会话 1 的 active 状态
-    useConversationStore.setState({
+    useAppStore.setState({
       sessionGen: 1,
       sessionId: "sess-1",
       token: "tok-1",
@@ -460,7 +460,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
     // 2. 同一次 act 内由旧 active 状态切换到新 sessionGen、新 sessionId 和新 Token 的 connecting 状态
     act(() => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 2,
         sessionId: "sess-2",
         token: "tok-2",
@@ -489,7 +489,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
     // 验证旧回调不触发 dispatchAgent，也不能把状态激活为 active
     expect(api.dispatchAgent).not.toHaveBeenCalled();
-    const currentState = useConversationStore.getState();
+    const currentState = useAppStore.getState();
     expect(currentState.connectionState).toBe("connecting");
     expect(currentState.sessionId).toBe("sess-2");
     expect(currentState.sessionGen).toBe(2);
@@ -499,11 +499,11 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       newCallbacks!.onConnected?.();
     });
     expect(api.dispatchAgent).toHaveBeenCalledWith("sess-2");
-    expect(useConversationStore.getState().connectionState).toBe("active");
+    expect(useAppStore.getState().connectionState).toBe("active");
   });
 
   it("renders the idle fallback and mounts a room for credentials-ready connecting", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "idle",
       appView: "session",
       sessionId: null,
@@ -516,7 +516,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(screen.getByText("idle safeguard")).toBeInTheDocument();
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
 
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       appView: "session",
       sessionId: "sess-ready",
@@ -530,7 +530,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
   });
 
   it("renders end_failed view on rejection with stopped audio and allows retry for the same session", async () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "end_failed",
       appView: "session",
       sessionId: "sess-failed-1",
@@ -549,7 +549,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
     // 绝不渲染 LiveKitRoom，音频不自动恢复
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
-    expect(useConversationStore.getState().token).toBeNull();
+    expect(useAppStore.getState().token).toBeNull();
 
     // 绝不启动分析轮询
     expect(usePollingAssessment).not.toHaveBeenCalledWith("sess-failed-1");
@@ -561,12 +561,12 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     await waitFor(() => {
       expect(api.endSession).toHaveBeenCalledWith("sess-failed-1");
     });
-    expect(useConversationStore.getState().sessionId).toBe("sess-failed-1");
+    expect(useAppStore.getState().sessionId).toBe("sess-failed-1");
   });
 
   it("renders ConnectingView in checking_health state and never mounts LiveKitRoom without valid connecting/active token", () => {
     // checking_health 状态
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "checking_health",
       appView: "session",
       sessionId: null,
@@ -578,7 +578,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
 
     // connecting 但无 token
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       appView: "session",
       sessionId: "sess-no-token",
@@ -589,7 +589,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
 
     // active 但无 token 异常情况防御
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "active",
       appView: "session",
       sessionId: "sess-anomaly",
@@ -601,7 +601,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
   });
 
   it("renders cancelled local view without polling assessment when cancelled in-flight without sessionId", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "ended",
       appView: "session",
       sessionId: null,
@@ -628,13 +628,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     // 保留返回主页路径
     const goHomeBtn = screen.getByRole("button", { name: zhCN.dashboard.goHome });
     fireEvent.click(goHomeBtn);
-    expect(useConversationStore.getState().connectionState).toBe("idle");
-    expect(useConversationStore.getState().appView).toBe("dashboard");
+    expect(useAppStore.getState().connectionState).toBe("idle");
+    expect(useAppStore.getState().appView).toBe("dashboard");
   });
 
   it("only starts polling assessment after session successfully ends", () => {
     // 处于 ending 状态
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "ending",
       appView: "session",
       sessionId: "sess-poll-check",
@@ -644,7 +644,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(usePollingAssessment).not.toHaveBeenCalledWith("sess-poll-check");
 
     // 处于 end_failed 状态
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "end_failed",
       appView: "session",
       sessionId: "sess-poll-check",
@@ -654,7 +654,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     expect(usePollingAssessment).not.toHaveBeenCalledWith("sess-poll-check");
 
     // 切换到 ended 状态
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "ended",
       appView: "session",
       sessionId: "sess-poll-check",
@@ -665,7 +665,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
   });
 
   it("does not dispatch agent when onConnected fires after state changed to ending or new session", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       appView: "session",
       sessionId: "sess-old",
@@ -677,7 +677,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     render(<VoiceInterface />);
 
     // 在 onConnected 触发前，用户点击了结束或切到了新 session
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "ending",
       sessionId: "sess-old",
       token: null,
@@ -691,7 +691,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
   });
 
   it("does not enter connection_failed when old Room onError or onDisconnected fires after generation change", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "active",
       appView: "session",
       sessionId: "sess-gen-1",
@@ -703,7 +703,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     render(<VoiceInterface />);
 
     // 代际发生改变
-    useConversationStore.setState({
+    useAppStore.setState({
       sessionGen: 2,
       sessionId: "sess-gen-2",
       token: "tok-2",
@@ -720,13 +720,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     fireEvent.click(disconnBtn);
 
     // 绝不进入 connection_failed，新会话保持正常
-    expect(useConversationStore.getState().connectionState).toBe("active");
-    expect(useConversationStore.getState().sessionId).toBe("sess-gen-2");
+    expect(useAppStore.getState().connectionState).toBe("active");
+    expect(useAppStore.getState().sessionId).toBe("sess-gen-2");
     expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
   });
 
   it("allows returning to dashboard from ending or end_failed view", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "end_failed",
       appView: "session",
       sessionId: "sess-leave",
@@ -738,9 +738,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     const goHomeBtn = screen.getByRole("button", { name: zhCN.dashboard.goHome });
     fireEvent.click(goHomeBtn);
 
-    expect(useConversationStore.getState().connectionState).toBe("idle");
-    expect(useConversationStore.getState().appView).toBe("dashboard");
-    expect(useConversationStore.getState().sessionId).toBeNull();
+    expect(useAppStore.getState().connectionState).toBe("idle");
+    expect(useAppStore.getState().appView).toBe("dashboard");
+    expect(useAppStore.getState().sessionId).toBeNull();
   });
 
   describe("A12 Agent dispatch failure and recovery (CP-02 §2, §3, §4)", () => {
@@ -750,7 +750,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         new Error("Sensitive backend 502 Bad Gateway: livekit token leaked"),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-dispatch-fail",
         token: "tok-fail-123",
@@ -785,7 +785,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 2. Room 卸载，Token/URL 清除
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("dispatch_failed");
       expect(state.token).toBeNull();
       expect(state.wsUrl).toBeNull();
@@ -805,9 +805,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(screen.queryByRole("button", { name: /重试/ })).not.toBeInTheDocument();
 
       fireEvent.click(goHomeBtn);
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().sessionId).toBeNull();
     });
 
     it("treats invalid success response (dispatched !== true) as failure and triggers safe shutdown", async () => {
@@ -816,7 +816,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         status: "dispatched",
       } as any);
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-invalid-resp",
         token: "tok-resp-1",
@@ -840,8 +840,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       expect(callbacks.trackStopMock).toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("dispatch_failed");
+      expect(useAppStore.getState().token).toBeNull();
     });
 
     it("deduplicates dispatchAgent requests across repeated onConnected calls during in-flight and after success", async () => {
@@ -853,7 +853,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-dedup",
         token: "tok-dedup",
@@ -902,7 +902,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-stale-fail",
         token: "tok-stale",
@@ -924,10 +924,10 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 在途期间用户返回主页
       act(() => {
-        useConversationStore.getState().goHome();
+        useAppStore.getState().goHome();
       });
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
 
       // 迟到的调度失败到达
       await act(async () => {
@@ -935,7 +935,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不篡改主页状态为 dispatch_failed
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
       expect(screen.queryByTestId("dispatch-failed-view")).not.toBeInTheDocument();
     });
 
@@ -949,7 +949,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-change",
         token: "tok-auth",
@@ -977,7 +977,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不进入 dispatch_failed 状态，旧失败结果被隔离
-      expect(useConversationStore.getState().connectionState).not.toBe("dispatch_failed");
+      expect(useAppStore.getState().connectionState).not.toBe("dispatch_failed");
       expect(screen.queryByTestId("dispatch-failed-view")).not.toBeInTheDocument();
     });
 
@@ -991,7 +991,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-unmount-fail",
         token: "tok-unmount",
@@ -1019,11 +1019,11 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 卸载后的迟到失败绝不更新当前 store
-      expect(useConversationStore.getState().connectionState).not.toBe("dispatch_failed");
+      expect(useAppStore.getState().connectionState).not.toBe("dispatch_failed");
     });
 
     it("does not revive room via setActive or stale callbacks when in dispatch_failed state", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-dead",
         token: null,
@@ -1039,13 +1039,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(screen.getByTestId("dispatch-failed-view")).toBeInTheDocument();
 
       // 调用 setActive
-      useConversationStore.getState().setActive("sess-dead", 1);
-      expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+      useAppStore.getState().setActive("sess-dead", 1);
+      expect(useAppStore.getState().connectionState).toBe("dispatch_failed");
     });
 
     describe("DSP-01 synchronous reentrancy protection", () => {
       it("drops dispatchAgent when subscriber calls goHome on dispatchedSessionId write (0 calls)", () => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-reentrant-gohome",
           token: "tok-reentrant",
@@ -1054,9 +1054,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           appView: "session",
         });
 
-        const unsub = useConversationStore.subscribe((state) => {
+        const unsub = useAppStore.subscribe((state) => {
           if (state.dispatchedSessionId === "sess-reentrant-gohome") {
-            useConversationStore.getState().goHome();
+            useAppStore.getState().goHome();
           }
         });
 
@@ -1071,13 +1071,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         unsub();
 
         expect(api.dispatchAgent).not.toHaveBeenCalled();
-        expect(useConversationStore.getState().connectionState).toBe("idle");
+        expect(useAppStore.getState().connectionState).toBe("idle");
       });
 
       it("drops dispatchAgent when subscriber calls endSession on dispatchedSessionId write (0 calls)", async () => {
         vi.mocked(api.endSession).mockResolvedValue({} as api.Session);
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-reentrant-end",
           token: "tok-reentrant",
@@ -1086,9 +1086,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           appView: "session",
         });
 
-        const unsub = useConversationStore.subscribe((state) => {
+        const unsub = useAppStore.subscribe((state) => {
           if (state.dispatchedSessionId === "sess-reentrant-end") {
-            void useConversationStore.getState().endSession();
+            void useAppStore.getState().endSession();
           }
         });
 
@@ -1103,11 +1103,11 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         unsub();
 
         expect(api.dispatchAgent).not.toHaveBeenCalled();
-        expect(useConversationStore.getState().connectionState).toBe("ending");
+        expect(useAppStore.getState().connectionState).toBe("ending");
       });
 
       it("drops dispatchAgent when subscriber changes revision for same principal on dispatchedSessionId write (0 calls)", () => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-reentrant-rev",
           token: "tok-reentrant",
@@ -1116,7 +1116,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           appView: "session",
         });
 
-        const unsub = useConversationStore.subscribe((state) => {
+        const unsub = useAppStore.subscribe((state) => {
           if (state.dispatchedSessionId === "sess-reentrant-rev") {
             vi.mocked(auth.getAuthRevision).mockReturnValue(2);
           }
@@ -1136,7 +1136,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       it("drops dispatchAgent when subscriber unmounts component on dispatchedSessionId write (0 calls)", () => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-reentrant-unmount",
           token: "tok-reentrant",
@@ -1146,7 +1146,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
 
         const unmountHolder = { current: () => {} };
-        const unsub = useConversationStore.subscribe((state) => {
+        const unsub = useAppStore.subscribe((state) => {
           if (state.dispatchedSessionId === "sess-reentrant-unmount") {
             unmountHolder.current();
           }
@@ -1173,7 +1173,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     it("stops owned local tracks, clears token and wsUrl, unmounts room, and renders connection_failed view on SDK onError", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-err-test",
         token: "tok-err-test",
@@ -1198,7 +1198,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 2. Room 卸载，Token/wsUrl 清除，进入 connection_failed 状态
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connection_failed");
       expect(state.token).toBeNull();
       expect(state.wsUrl).toBeNull();
@@ -1217,16 +1217,16 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       // 5. 点击返回主页重置为 idle
       const goHomeBtn = screen.getByRole("button", { name: zhCN.dashboard.goHome });
       fireEvent.click(goHomeBtn);
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().sessionId).toBeNull();
     });
 
     it("stops owned local tracks, clears token, and enters connection_failed on SDK onDisconnected for any reason while active with token", () => {
       vi.spyOn(console, "log").mockImplementation(() => {});
 
       for (const reason of [undefined, 0, 3, "network_loss"]) {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: `sess-disconn-${String(reason)}`,
           token: "tok-active",
@@ -1245,8 +1245,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
 
         expect(callbacks.trackStopMock).toHaveBeenCalled();
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-        expect(useConversationStore.getState().token).toBeNull();
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
         expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
 
         unmount();
@@ -1256,7 +1256,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     it("does not enter connection_failed on onDisconnected when session is already ending or ended by user", () => {
       vi.spyOn(console, "log").mockImplementation(() => {});
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-user-ending",
         token: "tok-active",
@@ -1275,8 +1275,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       const endBtn = screen.getByRole("button", { name: zhCN.conversation.endButton });
       fireEvent.click(endBtn);
 
-      expect(useConversationStore.getState().connectionState).toBe("ending");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("ending");
+      expect(useAppStore.getState().token).toBeNull();
 
       // 随后 Room 触发 onDisconnected
       act(() => {
@@ -1284,14 +1284,14 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不进入 connection_failed，保持 ending
-      expect(useConversationStore.getState().connectionState).toBe("ending");
+      expect(useAppStore.getState().connectionState).toBe("ending");
       expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
     });
 
     it("does not enter connection_failed on onDisconnected when agentError already ended the session", () => {
       vi.spyOn(console, "log").mockImplementation(() => {});
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-agent-err",
         token: "tok-active",
@@ -1308,7 +1308,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 收到 agent_error
       act(() => {
-        useConversationStore.getState().setAgentError(
+        useAppStore.getState().setAgentError(
           {
             code: "PROVIDER_ERROR",
             message: "Custom key failed",
@@ -1317,8 +1317,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         );
       });
 
-      expect(useConversationStore.getState().connectionState).toBe("ended");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().token).toBeNull();
 
       // 随后 Room 触发 onDisconnected
       act(() => {
@@ -1326,15 +1326,15 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不覆盖 agentError，保持 ended
-      expect(useConversationStore.getState().connectionState).toBe("ended");
-      expect(useConversationStore.getState().agentError?.code).toBe("PROVIDER_ERROR");
+      expect(useAppStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().agentError?.code).toBe("PROVIDER_ERROR");
       expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
     });
 
     it("blocks mounting LiveKitRoom when initial Web snapshot is hidden, entering connection_failed with zero audio tracks", async () => {
       mockCurrentSnapshot = { visibility: "hidden", online: true };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-initial-hidden",
         token: "tok-initial-hidden",
@@ -1350,9 +1350,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 即刻自动进入 connection_failed 状态
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
     });
@@ -1360,7 +1360,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     it("blocks mounting LiveKitRoom when initial Web snapshot is offline (online === false), entering connection_failed", async () => {
       mockCurrentSnapshot = { visibility: "visible", online: false };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-initial-offline",
         token: "tok-initial-offline",
@@ -1374,16 +1374,16 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
 
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
     });
 
     it("does not block mounting LiveKitRoom when initial Web snapshot has visibility unknown and online null", () => {
       mockCurrentSnapshot = { visibility: "unknown", online: null };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-initial-unknown",
         token: "tok-initial-unknown",
@@ -1396,14 +1396,14 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
       // 正常挂载 LiveKitRoom
       expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
       expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
     });
 
     it("stops local tracks, unmounts room, and enters connection_failed on Web suspend event", () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-suspend",
         token: "tok-suspend",
@@ -1431,8 +1431,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       expect(callbacks.trackStopMock).toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
     });
@@ -1440,7 +1440,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     it("stops local tracks, unmounts room, and enters connection_failed on Web connectivity offline event", () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-offline-evt",
         token: "tok-offline-evt",
@@ -1466,14 +1466,14 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       expect(callbacks.trackStopMock).toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
     });
 
     it("does not auto-resume audio or revive room when Web resume or online event fires after connection_failed", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-no-resume",
         token: null,
@@ -1502,13 +1502,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不复活房间
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
     });
 
     it("disposes Web lifecycle adapter on unmount, leaving zero listeners", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-dispose",
         token: "tok-dispose",
@@ -1536,7 +1536,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-in-flight-cf",
         token: "tok-in-flight",
@@ -1561,7 +1561,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       act(() => {
         callbacks.onDisconnected?.();
       });
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
 
       // dispatchAgent 随后成功返回
       await act(async () => {
@@ -1569,14 +1569,14 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不能被改为 active，保持 connection_failed
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
     });
 
     it("drops Room onError or onDisconnected if auth revision or principal changed", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-drop",
         token: "tok-auth-drop",
@@ -1599,14 +1599,14 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不以旧 Room 身份影响新认证
-      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(useAppStore.getState().connectionState).toBe("active");
       expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
     });
 
     it("drops retained Room onError, onDisconnected, and lifecycle events after unmount (CON-01)", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-unmount-guard",
         token: "tok-unmount-guard",
@@ -1645,12 +1645,12 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 验证未对 store 造成副作用，也未调用 track.stop
-      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(useAppStore.getState().connectionState).toBe("active");
       expect(mockTrackStop).not.toHaveBeenCalled();
     });
 
     it("silently drops onConnected when auth revision or principal changes (CON-02)", async () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-conn",
         token: "tok-auth-conn",
@@ -1676,7 +1676,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       // 静默丢弃：不调用 dispatchAgent，不调用 failDispatch，不停止 tracks
       expect(api.dispatchAgent).not.toHaveBeenCalled();
       expect(mockTrackStop).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
       expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
     });
 
@@ -1715,7 +1715,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         };
       });
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-gap-fail",
         token: "tok-gap",
@@ -1727,8 +1727,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       render(<VoiceInterface />);
 
       // 渲染后立即因订阅后的快照检查进入 connection_failed
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
       expect(mockTrackStop).toHaveBeenCalled();
     });
@@ -1749,7 +1749,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-native-pending",
         token: "tok-native-pending",
@@ -1764,8 +1764,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       // 2. 处于连接等待中
       expect(screen.getByText(zhCN.conversation.connecting)).toBeInTheDocument();
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().token).not.toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().token).not.toBeNull();
       expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
       // 3. 零 dispatchAgent
       expect(api.dispatchAgent).not.toHaveBeenCalled();
@@ -1792,7 +1792,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-native-active-once",
         token: "tok-active-once",
@@ -1817,7 +1817,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-reg-fail",
         token: "tok-reg-fail",
@@ -1829,9 +1829,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       render(<VoiceInterface />);
 
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
     });
@@ -1843,7 +1843,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-inactive-start",
         token: "tok-inactive-start",
@@ -1855,9 +1855,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       render(<VoiceInterface />);
 
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
     });
@@ -1872,7 +1872,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           getPlatform: () => "ios",
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-timeout",
           token: "tok-timeout",
@@ -1884,21 +1884,21 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         render(<VoiceInterface />);
 
         expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
 
         // 前进 9.9 秒，仍 pending
         act(() => {
           vi.advanceTimersByTime(9900);
         });
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
 
         // 达到 10 秒
         act(() => {
           vi.advanceTimersByTime(100);
         });
 
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-        expect(useConversationStore.getState().token).toBeNull();
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
         expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       } finally {
         vi.useRealTimers();
@@ -1919,7 +1919,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-cancelled-during-pending",
         token: "tok-pending-1",
@@ -1937,9 +1937,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       act(() => {
-        useConversationStore.getState().goHome();
+        useAppStore.getState().goHome();
       });
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
 
       // 随后迟到的 native ready 到达
       await act(async () => {
@@ -1949,7 +1949,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       // 绝不复活或挂载房间，也不 dispatch
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       expect(api.dispatchAgent).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
     });
 
     it("releases late listener handle via remove() in StrictMode unmount without leaks", async () => {
@@ -1967,7 +1967,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-strict-mode",
         token: "tok-strict",
@@ -1998,7 +1998,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-gap-inactive",
         token: "tok-gap-inactive",
@@ -2015,9 +2015,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
     });
 
@@ -2028,7 +2028,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-sync-stop",
         token: "tok-sync-stop",
@@ -2066,8 +2066,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       expect(callbacks.trackStopMock).toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
     });
 
@@ -2078,7 +2078,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-no-auto-revive",
         token: "tok-auto-revive",
@@ -2097,7 +2097,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       act(() => {
         currentFakeApp!.triggerAppStateChange({ isActive: false });
       });
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
 
       vi.mocked(api.dispatchAgent).mockClear();
@@ -2108,8 +2108,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       // 绝不自动重连、复活房间或 dispatchAgent
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       expect(api.dispatchAgent).not.toHaveBeenCalled();
     });
@@ -2121,7 +2121,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-fail-first",
         token: "tok-fail-1",
@@ -2133,18 +2133,18 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       const { rerender } = render(<VoiceInterface />);
 
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
 
       // 用户点击返回主页
       const goHomeBtn = screen.getByRole("button", { name: zhCN.dashboard.goHome });
       fireEvent.click(goHomeBtn);
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
 
       // 用户重新进入前台并开启新会话
       currentFakeApp = createFakeApp(true);
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 2,
         sessionId: "sess-retry-success",
         token: "tok-retry-success",
@@ -2158,7 +2158,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       await waitFor(() => {
         expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
       });
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     describe("ROOM-01: Auth revision/issuer/subject guards on pending timeout", () => {
@@ -2172,7 +2172,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             getPlatform: () => "ios",
           };
 
-          useConversationStore.setState({
+          useAppStore.setState({
             sessionGen: 1,
             sessionId: "sess-auth-rev-change",
             token: "tok-preserved",
@@ -2182,8 +2182,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           });
 
           render(<VoiceInterface />);
-          expect(useConversationStore.getState().connectionState).toBe("connecting");
-          expect(useConversationStore.getState().token).toBe("tok-preserved");
+          expect(useAppStore.getState().connectionState).toBe("connecting");
+          expect(useAppStore.getState().token).toBe("tok-preserved");
 
           // 认证 revision 从 1 变 2（sessionGen / sessionId 不变）
           vi.mocked(auth.getAuthRevision).mockReturnValue(2);
@@ -2194,8 +2194,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           });
 
           // 关键断言：旧 timer 必须静默，不得 clear token，不得 failConnection！
-          expect(useConversationStore.getState().connectionState).toBe("connecting");
-          expect(useConversationStore.getState().token).toBe("tok-preserved");
+          expect(useAppStore.getState().connectionState).toBe("connecting");
+          expect(useAppStore.getState().token).toBe("tok-preserved");
         } finally {
           vi.useRealTimers();
         }
@@ -2211,7 +2211,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             getPlatform: () => "ios",
           };
 
-          useConversationStore.setState({
+          useAppStore.setState({
             sessionGen: 1,
             sessionId: "sess-issuer-change",
             token: "tok-issuer-preserve",
@@ -2232,8 +2232,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             vi.advanceTimersByTime(10000);
           });
 
-          expect(useConversationStore.getState().connectionState).toBe("connecting");
-          expect(useConversationStore.getState().token).toBe("tok-issuer-preserve");
+          expect(useAppStore.getState().connectionState).toBe("connecting");
+          expect(useAppStore.getState().token).toBe("tok-issuer-preserve");
         } finally {
           vi.useRealTimers();
         }
@@ -2249,7 +2249,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             getPlatform: () => "ios",
           };
 
-          useConversationStore.setState({
+          useAppStore.setState({
             sessionGen: 1,
             sessionId: "sess-subj-change",
             token: "tok-subj-preserve",
@@ -2270,8 +2270,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             vi.advanceTimersByTime(10000);
           });
 
-          expect(useConversationStore.getState().connectionState).toBe("connecting");
-          expect(useConversationStore.getState().token).toBe("tok-subj-preserve");
+          expect(useAppStore.getState().connectionState).toBe("connecting");
+          expect(useAppStore.getState().token).toBe("tok-subj-preserve");
         } finally {
           vi.useRealTimers();
         }
@@ -2287,7 +2287,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             getPlatform: () => "ios",
           };
 
-          useConversationStore.setState({
+          useAppStore.setState({
             sessionGen: 1,
             sessionId: "sess-current-timeout",
             token: "tok-curr",
@@ -2302,8 +2302,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             vi.advanceTimersByTime(10000);
           });
 
-          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-          expect(useConversationStore.getState().token).toBeNull();
+          expect(useAppStore.getState().connectionState).toBe("connection_failed");
+          expect(useAppStore.getState().token).toBeNull();
         } finally {
           vi.useRealTimers();
         }
@@ -2330,7 +2330,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           expect(stopOccurredBeforeCallbackReturn).toBe(true);
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-layout-inactive",
           token: "tok-layout",
@@ -2343,12 +2343,12 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
         // 等待挂载并中断
         await waitFor(() => {
-          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+          expect(useAppStore.getState().connectionState).toBe("connection_failed");
         });
 
         // 验证停止确已调用且进入 connection_failed
         expect(mockTrackStop).toHaveBeenCalled();
-        expect(useConversationStore.getState().token).toBeNull();
+        expect(useAppStore.getState().token).toBeNull();
         expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       });
     });
@@ -2361,7 +2361,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           getPlatform: () => "ios",
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-room-03",
           token: "tok-room-03",
@@ -2388,7 +2388,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
         // 等待状态成功流转至 active
         await waitFor(() => {
-          expect(useConversationStore.getState().connectionState).toBe("active");
+          expect(useAppStore.getState().connectionState).toBe("active");
         });
 
         // 核心验证 (ROOM-03): connected -> dispatch -> active 正常重渲染期间绝不能调用 stopRoomLocalTracks
@@ -2396,7 +2396,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
 
         // 验证不相关的 store 更新引起的重渲染也不会触发 stop
         act(() => {
-          useConversationStore.setState({ error: "transient-warning" });
+          useAppStore.setState({ error: "transient-warning" });
         });
         expect(mockTrackStop).not.toHaveBeenCalled();
 
@@ -2405,7 +2405,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           currentFakeApp!.triggerAppStateChange({ isActive: false });
         });
         await waitFor(() => {
-          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+          expect(useAppStore.getState().connectionState).toBe("connection_failed");
         });
         expect(mockTrackStop).toHaveBeenCalled();
       });
@@ -2417,7 +2417,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           getPlatform: () => "ios",
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-room-03-unmount",
           token: "tok-room-03-unmount",
@@ -2464,7 +2464,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       it("captures DataChannel agent_error, emits safe whitelist record without leaking parsed object, and updates UI & store", async () => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-diag-data-channel",
           token: "tok-diag-dc",
@@ -2525,7 +2525,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         expect(serialized).not.toContain("自定义密钥配置无效");
 
         // 2. 验证原有 store 与 UI 终态行为按原行为正确保持
-        expect(useConversationStore.getState().agentError).toEqual({
+        expect(useAppStore.getState().agentError).toEqual({
           code: "ERR_CUSTOM_KEY_INVALID",
           message: "自定义密钥配置无效，请重新检查",
         });
@@ -2535,7 +2535,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       it("sanitizes unknown or secret-like agent_code to 'unknown' in DataChannel error event", async () => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-diag-unknown-code",
           token: "tok-diag-unknown",
@@ -2580,7 +2580,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       it("emits agent_dispatch_failed on dispatchAgent failure", async () => {
         vi.mocked(api.dispatchAgent).mockRejectedValue(new Error("Agent offline"));
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-diag-dispatch-fail",
           token: "tok-diag-dispatch",
@@ -2601,7 +2601,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
 
         await waitFor(() => {
-          expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+          expect(useAppStore.getState().connectionState).toBe("dispatch_failed");
         });
 
         const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
@@ -2614,7 +2614,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       it("emits livekit_connection_failed on LiveKitRoom onError", async () => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-diag-lk-error",
           token: "tok-diag-lk-err",
@@ -2635,7 +2635,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
 
         await waitFor(() => {
-          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+          expect(useAppStore.getState().connectionState).toBe("connection_failed");
         });
 
         const diagnosticCalls = consoleErrorSpy.mock.calls.filter(
@@ -2648,7 +2648,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       it("emits livekit_disconnected on LiveKitRoom onDisconnected", async () => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-diag-lk-disconnected",
           token: "tok-diag-lk-disc",
@@ -2669,7 +2669,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
 
         await waitFor(() => {
-          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+          expect(useAppStore.getState().connectionState).toBe("connection_failed");
         });
 
         const diagnosticCalls = consoleLogSpy.mock.calls.filter(
@@ -2688,7 +2688,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           getPlatform: () => "ios",
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-diag-interrupted",
           token: "tok-diag-interrupted",
@@ -2708,7 +2708,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
 
         await waitFor(() => {
-          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+          expect(useAppStore.getState().connectionState).toBe("connection_failed");
         });
 
         const diagnosticCalls = consoleWarnSpy.mock.calls.filter(
@@ -2731,7 +2731,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             getPlatform: () => "ios",
           };
 
-          useConversationStore.setState({
+          useAppStore.setState({
             sessionGen: 1,
             sessionId: "sess-diag-timeout",
             token: "tok-diag-timeout",
@@ -2746,7 +2746,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
             vi.advanceTimersByTime(10001);
           });
 
-          expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+          expect(useAppStore.getState().connectionState).toBe("connection_failed");
 
           const diagnosticCalls = consoleWarnSpy.mock.calls.filter(
             (call: any[]) => call[0] === "[diagnostic]",
@@ -2789,7 +2789,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       "rejects old %s after refresh and lets the new callback fail closed",
       async (callbackName) => {
         vi.spyOn(console, "error").mockImplementation(() => {});
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-auth-refresh-sdk",
           token: "auth-refresh-sdk-token",
@@ -2820,7 +2820,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         act(() => {
           oldCallback?.(new Error("old revision"));
         });
-        expect(useConversationStore.getState().connectionState).toBe("active");
+        expect(useAppStore.getState().connectionState).toBe("active");
         expect(mockTrackStop).not.toHaveBeenCalled();
 
         const currentCallbacks = capturedRoomCallbacks.get(instanceId)!;
@@ -2829,7 +2829,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         act(() => {
           currentCallback?.(new Error("current revision"));
         });
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
         expect(mockTrackStop).toHaveBeenCalled();
       },
     );
@@ -2853,7 +2853,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       "keeps an old Web $label listener inert and rotates to the refreshed listener",
       async ({ event }) => {
         vi.spyOn(console, "warn").mockImplementation(() => {});
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-auth-refresh-suspend",
           token: "auth-refresh-suspend-token",
@@ -2874,7 +2874,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           oldLifecycleListener(event);
         });
         expect(mockTrackStop).not.toHaveBeenCalled();
-        expect(useConversationStore.getState().connectionState).toBe("active");
+        expect(useAppStore.getState().connectionState).toBe("active");
 
         notifyAuthRefresh(2);
         let currentLifecycleListener!: (event: any) => void;
@@ -2895,15 +2895,15 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           oldLifecycleListener(event);
         });
         expect(mockTrackStop).not.toHaveBeenCalled();
-        expect(useConversationStore.getState().connectionState).toBe("active");
+        expect(useAppStore.getState().connectionState).toBe("active");
 
         act(() => {
           currentLifecycleListener(event);
         });
 
         expect(mockTrackStop).toHaveBeenCalled();
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-        expect(useConversationStore.getState().token).toBeNull();
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
       },
     );
 
@@ -2914,7 +2914,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-refresh-native-listener",
         token: "{{SECRET_u2n5r8fk}}",
@@ -2950,13 +2950,13 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       });
 
       expect(mockTrackStop).toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
     });
 
     it("keeps a saved onConnected inert after refresh while the current callback dispatches", async () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-refresh-connected",
         token: "tok-auth-refresh-connected",
@@ -3000,7 +3000,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-refresh-dispatch",
         token: "auth-refresh-dispatch-token",
@@ -3036,8 +3036,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         rejectDispatch(new Error("stale refresh result"));
       });
 
-      expect(useConversationStore.getState().connectionState).toBe("active");
-      expect(useConversationStore.getState().token).toBe("auth-refresh-dispatch-token");
+      expect(useAppStore.getState().connectionState).toBe("active");
+      expect(useAppStore.getState().token).toBe("auth-refresh-dispatch-token");
       expect(screen.queryByTestId("dispatch-failed-view")).not.toBeInTheDocument();
       expect(mockTrackStop).not.toHaveBeenCalled();
     });
@@ -3056,7 +3056,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-refresh-native",
         token: "auth-refresh-native-token",
@@ -3103,7 +3103,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-refresh-native-inactive",
         token: "{{SECRET_zzf3t7rc}}",
@@ -3121,14 +3121,14 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       await act(async () => {
         resolveGetState({ isActive: false });
       });
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
 
       notifyAuthRefresh(2);
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
       expect(mockTrackStop).not.toHaveBeenCalled();
       expect(api.dispatchAgent).not.toHaveBeenCalled();
@@ -3149,7 +3149,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         getPlatform: () => "ios",
       };
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen: 1,
         sessionId: "sess-auth-refresh-native-background",
         token: "{{SECRET_76w7xbbo}}",
@@ -3172,15 +3172,15 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       act(() => {
         currentFakeApp!.triggerAppStateChange({ isActive: false });
       });
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
 
       notifyAuthRefresh(2);
       await waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
       });
       expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(mockTrackStop).not.toHaveBeenCalled();
       expect(api.dispatchAgent).not.toHaveBeenCalled();
     });
@@ -3195,7 +3195,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           getPlatform: () => "ios",
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-auth-refresh-budget",
           token: "auth-refresh-budget-token",
@@ -3213,15 +3213,15 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         act(() => {
           vi.advanceTimersByTime(999);
         });
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
 
         notifyAuthRefresh(3);
         act(() => {
           vi.advanceTimersByTime(1);
         });
 
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-        expect(useConversationStore.getState().token).toBeNull();
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
       } finally {
         vi.useRealTimers();
       }
@@ -3263,7 +3263,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           getPlatform: () => "ios",
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-auth-refresh-stale-timer",
           token: pendingToken,
@@ -3291,14 +3291,14 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         act(() => {
           staleTimer.callback();
         });
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
-        expect(useConversationStore.getState().token).toBe(pendingToken);
+        expect(useAppStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().token).toBe(pendingToken);
         expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
 
         act(() => {
           vi.advanceTimersByTime(999);
         });
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
         expect(vi.getTimerCount()).toBe(timerCountBeforeRender + 1);
 
         unmount();
@@ -3309,7 +3309,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           staleTimer.callback();
           currentTimer.callback();
         });
-        const retiredState = useConversationStore.getState();
+        const retiredState = useAppStore.getState();
         expect(retiredState.sessionGen).toBe(1);
         expect(retiredState.sessionId).toBe("sess-auth-refresh-stale-timer");
         expect(retiredState.connectionState).toBe("connecting");
@@ -3324,7 +3324,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         act(() => {
           vi.advanceTimersByTime(10001);
         });
-        const advancedState = useConversationStore.getState();
+        const advancedState = useAppStore.getState();
         expect(advancedState.connectionState).toBe("connecting");
         expect(advancedState.token).toBe(pendingToken);
         expect(advancedState.sessionId).toBe("sess-auth-refresh-stale-timer");
@@ -3350,7 +3350,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           getPlatform: () => "ios",
         };
 
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 1,
           sessionId: "sess-auth-refresh-expired-gap",
           token: "{{SECRET_bq2elzxa}}",
@@ -3368,11 +3368,11 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         act(() => {
           vi.advanceTimersByTime(1);
         });
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
 
         notifyAuthRefresh(2);
-        expect(useConversationStore.getState().connectionState).toBe("connection_failed");
-        expect(useConversationStore.getState().token).toBeNull();
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
 
         const timeoutDiagnostics = vi
           .mocked(console.warn)
@@ -3400,7 +3400,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     }
 
     function seedRoom(sessionId: string, sessionGen = 1) {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionGen,
         sessionId,
         token: `tok-${sessionGen}`,
@@ -3445,7 +3445,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         }
       });
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connecting");
       expect(state.sessionId).toBe("sess-invalid-payload");
       expect(state.token).toBe("tok-1");
@@ -3466,7 +3466,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       const oldListener = agentErrorListeners()[0];
 
       act(() => {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionGen: 5,
           sessionId: "sess-generation-new",
           token: "tok-generation-new",
@@ -3490,9 +3490,9 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
         });
       });
-      expect(useConversationStore.getState().sessionId).toBe("sess-generation-new");
-      expect(useConversationStore.getState().sessionGen).toBe(5);
-      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(useAppStore.getState().sessionId).toBe("sess-generation-new");
+      expect(useAppStore.getState().sessionGen).toBe(5);
+      expect(useAppStore.getState().agentError).toBeNull();
 
       act(() => {
         newListener.callback({
@@ -3504,11 +3504,11 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
       });
 
-      expect(useConversationStore.getState().agentError).toEqual({
+      expect(useAppStore.getState().agentError).toEqual({
         code: "NEW_ROOM",
         message: "new",
       });
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().connectionState).toBe("ended");
       expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
         1,
       );
@@ -3540,8 +3540,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
       });
 
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().agentError).toBeNull();
       expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
         0,
       );
@@ -3573,8 +3573,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
       });
 
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().agentError).toBeNull();
       expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
         0,
       );
@@ -3606,7 +3606,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
         });
       });
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
       expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
         0,
       );
@@ -3630,7 +3630,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
         });
       });
-      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(useAppStore.getState().agentError).toBeNull();
       expect(mockTrackStop).not.toHaveBeenCalled();
       expect(api.dispatchAgent).not.toHaveBeenCalled();
       expect(api.endSession).not.toHaveBeenCalled();
@@ -3644,7 +3644,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
         });
       });
-      expect(useConversationStore.getState().agentError).toEqual({
+      expect(useAppStore.getState().agentError).toEqual({
         code: "REFRESHED_REVISION",
         message: "current revision",
       });
@@ -3663,7 +3663,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       const initialListener = agentErrorListeners()[0];
 
       act(() => {
-        useConversationStore.setState({ error: "transient warning" });
+        useAppStore.setState({ error: "transient warning" });
       });
       await waitFor(() => {
         expect(agentErrorListeners().length).toBeGreaterThan(1);
@@ -3681,7 +3681,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           }),
         });
       });
-      expect(useConversationStore.getState().agentError?.code).toBe("CURRENT_ERROR");
+      expect(useAppStore.getState().agentError?.code).toBe("CURRENT_ERROR");
     });
 
     it("does not modify state or emit diagnostics when an old callback fires after unmount", async () => {
@@ -3705,8 +3705,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         });
       });
 
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().agentError).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().agentError).toBeNull();
       expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
         0,
       );
@@ -3730,7 +3730,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       act(() => {
         listener.callback({ payload });
       });
-      const endedState = useConversationStore.getState();
+      const endedState = useAppStore.getState();
       await waitFor(() => {
         expect(screen.getByText("terminal")).toBeInTheDocument();
       });
@@ -3741,7 +3741,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         listener.callback({ payload });
       });
 
-      const replayedState = useConversationStore.getState();
+      const replayedState = useAppStore.getState();
       expect(replayedState.sessionGen).toBe(endedState.sessionGen);
       expect(replayedState.agentError).toEqual(endedState.agentError);
       expect(consoleErrorSpy.mock.calls.filter((call) => call[0] === "[diagnostic]")).toHaveLength(
@@ -3772,7 +3772,7 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
           });
       });
 
-      expect(useConversationStore.getState().agentError?.code).toBe("STRICT_MODE_ERROR");
+      expect(useAppStore.getState().agentError?.code).toBe("STRICT_MODE_ERROR");
     });
   });
 });

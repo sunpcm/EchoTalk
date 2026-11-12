@@ -11,7 +11,7 @@ import {
 } from "./diagnostics";
 import * as auth from "./auth";
 import { AuthGate } from "@/components/auth/AuthGate";
-import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settings";
 import { useAssessmentStore } from "@/store/assessment";
 
@@ -19,7 +19,7 @@ describe("clearUserSessionData", () => {
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     clearDiagnosticBuffer();
-    useConversationStore.getState().reset();
+    useAppStore.getState().reset();
     useSettingsStore.getState().reset();
     useAssessmentStore.getState().reset();
   });
@@ -32,7 +32,7 @@ describe("clearUserSessionData", () => {
 
   it("synchronously resets conversation, settings, and assessment stores idempotently", () => {
     // 设置一些临时用户数据
-    useConversationStore.setState({
+    useAppStore.setState({
       sessionId: "session-123",
       token: "livekit-token-abc",
       wsUrl: "wss://lk.test",
@@ -72,12 +72,12 @@ describe("clearUserSessionData", () => {
       },
     });
 
-    const convGenBefore = useConversationStore.getState().sessionGen;
+    const convGenBefore = useAppStore.getState().sessionGen;
 
     clearUserSessionData();
 
     // 验证 conversation 状态被清除，且回到 dashboard 且 token 为空
-    const conv = useConversationStore.getState();
+    const conv = useAppStore.getState();
     expect(conv.sessionId).toBeNull();
     expect(conv.token).toBeNull();
     expect(conv.appView).toBe("dashboard");
@@ -113,14 +113,14 @@ describe("clearUserSessionData", () => {
   });
 
   it("does not let a failed diagnostic listener prevent clearing business stores", () => {
-    useConversationStore.setState({ sessionId: "synthetic-session", token: "synthetic-token" });
+    useAppStore.setState({ sessionId: "synthetic-session", token: "synthetic-token" });
     const stop = subscribeDiagnosticBuffer(() => {
       throw new Error("synthetic-listener-canary");
     });
     try {
       expect(() => clearUserSessionData()).not.toThrow();
-      expect(useConversationStore.getState().sessionId).toBeNull();
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
       expect(useSettingsStore.getState().settings).toBeNull();
       expect(getDiagnosticSnapshot()).toEqual([]);
     } finally {

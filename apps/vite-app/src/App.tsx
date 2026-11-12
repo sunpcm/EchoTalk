@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { useAssessmentStore } from "@/store/assessment";
 import { useSettingsStore, applyThemeAttr } from "@/store/settings";
 import { VoiceInterface } from "@/components/conversation/VoiceInterface";
@@ -111,8 +112,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
       <section>
         <button
           onClick={() => {
-            useConversationStore.getState().reset();
-            useConversationStore.setState({ appView: "doc-chat-setup" });
+            useAppStore.getState().openDocChatSetup();
           }}
           style={{ background: "var(--panel-gradient)" }}
           className="border-accent-soft-border focus-visible:outline-accent flex w-full items-center gap-4 rounded-[20px] border p-5 text-left shadow-[0_8px_26px_-14px_var(--accent-shadow)] transition-colors transition-shadow hover:shadow-[0_12px_30px_-12px_var(--accent-shadow)] focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -168,7 +168,7 @@ function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
 }
 
 const App = () => {
-  const appView = useConversationStore((s) => s.appView);
+  const appView = useAppStore((s) => s.appView);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const theme = useSettingsStore((s) => s.theme);
   const [drawerOpen, setDrawerOpen] = useState(false);

@@ -3,7 +3,7 @@
  * 由 AuthGate 等顶层生命周期组件调用，避免 Auth 模块与 Stores 产生循环引用。
  */
 
-import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settings";
 import { useAssessmentStore } from "@/store/assessment";
 import { clearDiagnosticBuffer } from "@/lib/diagnostics";
@@ -18,7 +18,7 @@ import { clearDiagnosticBuffer } from "@/lib/diagnostics";
  */
 export function clearUserSessionData(): void {
   clearDiagnosticBuffer();
-  useConversationStore.getState().goHome();
+  useAppStore.getState().goHome();
   useSettingsStore.getState().reset();
   useAssessmentStore.getState().reset();
 }
