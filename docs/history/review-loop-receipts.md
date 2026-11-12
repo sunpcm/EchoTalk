@@ -2,6 +2,19 @@
 
 > 原文自 `docs/agent-review-loop.md` 搬运（2026-11-10），章节编号与内容不变，仅相对链接上移一层。现行规则见 [Agent 评审手册](../agent-review-loop.md)。
 
+### 2026-11-12 A4e R1 独立复核与完整 CI
+
+旧候选1d95614六CI虽绿，补充独立对照发现取消缓存首页刷新恢复旧cursor、失败后more仍用旧cursor
+两处回归；主控另写公开hook对照复现，原9/9、旧候选2失败/7通过。R1统一cursor后9/9，
+补充独立AS13/13、DP6/6通过；三处原AS变异再次捕获（1/1/5失败），额外关闭新cursor策略
+使两项私有回归再失败；全部源字节还原。原失败与APPROVED撤回历史保留，正式返修1/2。
+
+代码fb47cf4fa0d50c51bb2fadc7c2eb92de501e0844（PR #154）的CI43174202760与Guard43174202732
+六项success，主控亲读日志：1206/49、Chromium117+WebKit117=234零skip/retry、
+pytest809/3warnings/80.19%、Fake108/gen8/build21。146原测试与6份UI/写/订阅文件逐字不变。
+候选本机双浏览器实际233/1，仅既有WebKit Provider select336x23px高度失败；不当通过。
+TODO已勾选归档；最终文档收尾提交与合并状态见PR，无真实服务/设备或部署验收。
+
 ### 2026-11-12 A4e ActiveSessions 候选实施停在 Review
 
 A4e 在 `/private/tmp/echotalk-autonomous-20261112/A4e`、`claude/A4e-active-sessions@a1afacaf`

@@ -16,8 +16,9 @@
 > 21；squash 后 `main@5c7ab366dcb500b91f15d550673987d0664bbc7d` 与 source 整树一致。
 > A4d `DailyProgress` 代码 head `05e76fe`（PR #153）六项 CI 与原始日志已复核，
 > Vitest1206/49、Linux E2E234、pytest809/80.19%，四处原测试变异被捕获；已完成归档，
-> 最终收尾提交与合并状态见 PR。A4e `ActiveSessions` data hook 初稿已完成 R1 内部 cursor
-> 修复并停在 Review，尚未合并。
+> 最终收尾提交与合并状态见 PR。A4e `ActiveSessions` R1 代码 `fb47cf4`（PR #154）
+> 主控9项与补充独立13项对照通过，六CI确认1206/49、Linux234、pytest809/80.19%；
+> 已完成归档，最终收尾提交与合并状态见 PR。
 > 自动化结果不代替真实服务或设备验收。
 
 ## 1. 范围与前提
