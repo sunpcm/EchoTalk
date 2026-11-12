@@ -345,6 +345,19 @@ PG 新回归只删除自身随机 fixture 的记录；不修改业务 stale/重�
 `R/worker/runtime-after-r1/cleanup/cleanup.json`。产品测试PG仍保留给最终pytest，
 不能据此写本轮全部资源已清或最终组合全绿；后续整体状态以新 `R/report.md` 为权威。
 
+## 2026-11-12 A6 分层依赖门禁代码验收
+
+代码`87e0fd5`（PR #155）零依赖本地ESLint error仅落实既定三组禁止边。
+lib/user-state与原测试整体移至store，AuthGate仅机械改import/mock；无registry/bus。
+主控四份完整AST保全、144份原测试/fixture/config逐字不变，依赖实际7→0；
+22项与补充19项分层检查通过，真实逆向import产生severity2/fatal0并逐字恢复。
+六CI43180144291/Guard43180144203亲读：1206/49、Linux234零skip/retry、
+pytest809/3warnings/80.19%、Fake108/gen8/build21；force三门禁零缓存。
+九卡冷启动第三方总审APPROVED；7份构建产物重构前后逐字节相同。
+补充本机首轮232/2不是通过，含已知高度及一次未定位DocTalk观察；旧新普通/8会话预置
+80次零重试定向均通过，父版本全量233/1，保留首次失败，不推断根因；后续重放与风险分级见PR。
+无行为/HTTP/文案/依赖/数据库变更；外部服务、设备未验。A6勾选归档，最终head门禁及合并见PR。
+
 ## §18 七天语法 + 宿主 HTTP / api 资源与 runner 边界（2026-11-05 收口）
 
 本节记录本轮 scope=echotalk-grammar-http-20261104 的资源、runner 与最终验收事实，旧节不重排。

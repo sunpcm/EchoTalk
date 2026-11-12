@@ -335,3 +335,13 @@ WP 是 weekly 成功后释放自身槽位、再启动单日 history 的依赖链
   也不把它规范成永久正确行为，留给后续业务问题单独裁定。
 - 差异点 1/2/3（挂起可见数据、abort 传输、分页统一）按 §5/§7 的方案 A 保留现状，不再请求
   A4a 确认；未来是否统一属于后续独立范围。
+
+## 10. 分层依赖工程门禁（A6）
+
+根 `eslint.config.js` 的 `echotalk/no-cross-layer-imports` 为 error：
+`platform` 不得依赖 `lib/store/components`，`lib` 不得依赖 `store/components`，
+`data` 不得依赖 `components`；不增加其他禁止方向或豁免。规则覆盖别名和规范化相对路径，
+包括类型导入/重导出、动态静态字面量及 import 类型；未知运行时表达式不猜测目标。
+
+用户清理编排位于 `store/user-state.ts`，由 AuthGate 调用；顺序仍为诊断清理、goHome、
+settings.reset、assessment.reset，不引入 reset registry/bus。验收及限制见 PR #155。

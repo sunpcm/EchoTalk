@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12，A4e（PR #154）最终 `b69c527` 的六项 CI 与原始日志已复核，
-> Vitest1206/49、Linux E2E234、pytest809/80.19%、108/8/21 通过；已真实合入。
+> 最后核对：2026-11-12，A6（PR #155）代码 `87e0fd5` 的六项 CI 与原始日志已复核，
+> Vitest1206/49、Linux E2E234、pytest809/80.19%、108/8/21 通过；最终归档与合并状态见 PR。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -26,9 +26,10 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线绑定 A4e（PR #154）最终 `b69c527`。主控已回读六项 CI 原始日志，
-确认 Vitest1206/49、Linux E2E234（0 skip/retry）、pytest809/80.19%、
-Fake API108、API 类型生成器8、构建脚本21 通过；最终合并状态见 PR #154。
+当前 Linux 测试基线绑定 A6（PR #155）代码 `87e0fd5432fe649e3ee91e8851c61c7d281986cc`：
+[CI 43180144291](https://github.com/sunpcm/EchoTalk/actions/runs/43180144291) 与
+[PR Guard 43180144203](https://github.com/sunpcm/EchoTalk/actions/runs/43180144203) 六项成功。
+主控已亲读原始日志；后续仅 Markdown 归档，最终 head 的门禁与合并回执见 PR。
 
 | 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
@@ -47,7 +48,7 @@ Fake API108、API 类型生成器8、构建脚本21 通过；最终合并状态�
 1161/45、E2E 234、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
 `437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
 为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
-不替换上表绑定 A4e 最终 `b69c527` 的 Linux CI。
+不替换上表绑定 A6 代码 `87e0fd5` 的 Linux CI。
 
 ### A3（Fake API 契约校验，PR #141/#147）合并收口
 
@@ -86,6 +87,16 @@ Data controller持有分页/请求归属/tombstone，UI/写流程/单订阅中�
 R1统一内部cursor，取消/失败组合的两项回归RED→GREEN；主控9项、补充13项/DP6与3原AS变异通过。
 代码fb47cf4六CI原始日志确认1206/49、Linux234零skip/retry、pytest809/80.19%、108/8/21。
 最终b69c527六CI通过并已真实合入；本机233/1仍为既有WebKit高度差异，不计为通过。
+
+### A6（分层依赖门禁，PR #155）代码验收完成
+
+零依赖error规则落实三组禁止边；用户清理整体移至store，四份完整AST仅import/mock路径规范化后相同，
+其余144份测试/fixture/config逐字保全。真实依赖7→0，主控22项、补充19项及真实逆向import失败验证通过。
+force lint/typecheck/build零缓存、1206/49及上述六CI通过；全批冷启动总审APPROVED。
+重构前后7份构建产物逐字节相同；无用户行为、HTTP、文案、依赖或数据库结构变化。
+额外本机首轮全量232/2仍记失败：已知WebKit336×23px及一次DocTalk标题未出现。旧新普通/8会话预置
+合计80次零重试定向均通过，父版本全量233/1；DocTalk根因未定，不归因基线或回归，不计本机通过；后续重放与风险分级见 PR #155。
+真实Provider/LiveKit/IdP、设备与生产环境未验；B1仍只交付设计，未实施草案。
 
 ### A5（导航切片，PR #148）合并收口
 
