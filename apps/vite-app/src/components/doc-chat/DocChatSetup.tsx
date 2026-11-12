@@ -7,6 +7,7 @@
 
 import React, { useState } from "react";
 import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 import { DocUploadCard } from "./DocUploadCard";
 import { PromptBuilder } from "./PromptBuilder";
 import { zhCN } from "@/i18n/zh-CN";
@@ -22,7 +23,7 @@ export function DocChatSetup() {
 
   const startSession = useConversationStore((s) => s.startSession);
   const connectionState = useConversationStore((s) => s.connectionState);
-  const goHome = useConversationStore((s) => s.goHome);
+  const goHome = useAppStore((s) => s.goHome);
 
   const charCount = rawText.length;
   const isOverLimit = charCount > MAX_CHARS;

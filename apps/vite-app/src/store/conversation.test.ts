@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { useConversationStore, _setLifecycleOptionsForTesting } from "./conversation";
+import { useAppStore } from "./appStore";
+import { _setLifecycleOptionsForTesting } from "./conversation";
 import type { ConversationSessionProjection, ConversationSessionState } from "./conversationState";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
@@ -41,7 +42,7 @@ vi.mock("@/lib/auth", () => ({
 
 describe("useConversationStore", () => {
   beforeEach(() => {
-    useConversationStore.getState().goHome();
+    useAppStore.getState().goHome();
     vi.clearAllMocks();
     _setLifecycleOptionsForTesting(null);
     authSnapshotListeners.clear();
@@ -70,7 +71,7 @@ describe("useConversationStore", () => {
   function expectNoCredentials() {
     expect(api.createSession).not.toHaveBeenCalled();
     expect(api.getSessionToken).not.toHaveBeenCalled();
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       appView: "dashboard",
       sessionId: null,
       token: null,
@@ -81,68 +82,68 @@ describe("useConversationStore", () => {
   it("readiness failure drops DocTalk intent, never creates credentials, and never logs raw errors", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(api.checkHealthReady).mockRejectedValue(readinessFailure());
-    await useConversationStore.getState().startSession("doc_chat", {
+    await useAppStore.getState().startSession("doc_chat", {
       content_type: "text/plain",
       raw_text: "private-old-document",
       prompt: "old-prompt",
     });
     expectNoCredentials();
-    expect(useConversationStore.getState().readinessIssue?.code).toBe("settings_required");
-    expect(useConversationStore.getState().selectedScenario).toBeNull();
+    expect(useAppStore.getState().readinessIssue?.code).toBe("settings_required");
+    expect(useAppStore.getState().selectedScenario).toBeNull();
     expect(JSON.stringify(log.mock.calls)).not.toContain("canary");
 
     vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ready" });
-    await useConversationStore.getState().recheckReadiness();
+    await useAppStore.getState().recheckReadiness();
     expect(api.checkHealthReady).toHaveBeenCalledTimes(2);
     expectNoCredentials();
-    expect(useConversationStore.getState().readinessNotice).toBe(true);
-    expect(useConversationStore.getState().readinessIssue).toBeNull();
+    expect(useAppStore.getState().readinessNotice).toBe(true);
+    expect(useAppStore.getState().readinessIssue).toBeNull();
     // Successful recheck cannot replay a document; only a new explicit start creates.
     vi.mocked(api.createSession).mockResolvedValue({ id: "new-session" } as api.Session);
     vi.mocked(api.getSessionToken).mockResolvedValue({ token: "new-token", ws_url: "wss://test" });
-    await useConversationStore.getState().startSession("free_talk");
+    await useAppStore.getState().startSession("free_talk");
     expect(api.createSession).toHaveBeenCalledTimes(1);
     expect(api.createSession).toHaveBeenCalledWith("free_talk", undefined);
-    expect(useConversationStore.getState().readinessNotice).toBe(false);
+    expect(useAppStore.getState().readinessNotice).toBe(false);
   });
 
   it("recheck failure is explicit and deduplicated with no downstream calls", async () => {
     vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
-    await useConversationStore.getState().startSession("scenario");
+    await useAppStore.getState().startSession("scenario");
     let reject!: (error: unknown) => void;
     vi.mocked(api.checkHealthReady).mockReturnValueOnce(
       new Promise((_, rej) => {
         reject = rej;
       }),
     );
-    const retry = useConversationStore.getState().recheckReadiness();
+    const retry = useAppStore.getState().recheckReadiness();
     await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
-    await useConversationStore.getState().recheckReadiness();
+    await useAppStore.getState().recheckReadiness();
     expect(api.checkHealthReady).toHaveBeenCalledTimes(2);
     reject(readinessFailure("provider_unconfigured"));
     await retry;
     expectNoCredentials();
-    expect(useConversationStore.getState().recheckingReadiness).toBe(false);
-    expect(useConversationStore.getState().readinessIssue?.code).toBe("provider_unconfigured");
+    expect(useAppStore.getState().recheckingReadiness).toBe(false);
+    expect(useAppStore.getState().readinessIssue?.code).toBe("provider_unconfigured");
   });
 
   it("explicit cancellation releases the recheck indicator and drops late success", async () => {
     vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
-    await useConversationStore.getState().startSession("scenario");
+    await useAppStore.getState().startSession("scenario");
     let resolve!: (value: api.HealthReadyResponse) => void;
     vi.mocked(api.checkHealthReady).mockReturnValueOnce(
       new Promise((res) => {
         resolve = res;
       }),
     );
-    const retry = useConversationStore.getState().recheckReadiness();
+    const retry = useAppStore.getState().recheckReadiness();
     await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
-    await useConversationStore.getState().endSession();
+    await useAppStore.getState().endSession();
     resolve({ status: "ready" });
     await retry;
     expectNoCredentials();
     expect(api.endSession).not.toHaveBeenCalled();
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       recheckingReadiness: false,
       readinessIssue: null,
       readinessNotice: false,
@@ -151,22 +152,22 @@ describe("useConversationStore", () => {
 
   it("late recheck failure cannot overwrite a new explicit start", async () => {
     vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
-    await useConversationStore.getState().startSession("scenario");
+    await useAppStore.getState().startSession("scenario");
     let reject!: (error: unknown) => void;
     vi.mocked(api.checkHealthReady).mockReturnValueOnce(
       new Promise((_, rej) => {
         reject = rej;
       }),
     );
-    const retry = useConversationStore.getState().recheckReadiness();
+    const retry = useAppStore.getState().recheckReadiness();
     await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
     vi.mocked(api.checkHealthReady).mockResolvedValueOnce({ status: "ready" });
     vi.mocked(api.createSession).mockResolvedValue({ id: "new-session" } as api.Session);
     vi.mocked(api.getSessionToken).mockResolvedValue({ token: "new-token", ws_url: "wss://test" });
-    await useConversationStore.getState().startSession("free_talk");
+    await useAppStore.getState().startSession("free_talk");
     reject(readinessFailure());
     await retry;
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       sessionId: "new-session",
       token: "new-token",
       error: null,
@@ -177,31 +178,31 @@ describe("useConversationStore", () => {
 
   it("identity revision change clears guidance and drops an in-flight recheck result", async () => {
     vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
-    await useConversationStore.getState().startSession("scenario");
+    await useAppStore.getState().startSession("scenario");
     const snap = auth.getAuthSnapshot();
     vi.mocked(auth.getAuthRevision).mockReturnValue(2);
     for (const listener of [...authSnapshotListeners]) listener(snap);
-    expect(useConversationStore.getState().readinessIssue).toBeNull();
-    await useConversationStore.getState().recheckReadiness();
+    expect(useAppStore.getState().readinessIssue).toBeNull();
+    await useAppStore.getState().recheckReadiness();
     expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
 
     vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
-    await useConversationStore.getState().startSession("scenario");
+    await useAppStore.getState().startSession("scenario");
     let resolve!: (value: api.HealthReadyResponse) => void;
     vi.mocked(api.checkHealthReady).mockReturnValueOnce(
       new Promise((res) => {
         resolve = res;
       }),
     );
-    const retry = useConversationStore.getState().recheckReadiness();
+    const retry = useAppStore.getState().recheckReadiness();
     await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(3));
     vi.mocked(auth.getAuthRevision).mockReturnValue(3);
     for (const listener of [...authSnapshotListeners]) listener(snap);
     resolve({ status: "ready" });
     await retry;
     expectNoCredentials();
-    expect(useConversationStore.getState().readinessNotice).toBe(false);
-    expect(useConversationStore.getState().readinessIssue).toBeNull();
+    expect(useAppStore.getState().readinessNotice).toBe(false);
+    expect(useAppStore.getState().readinessIssue).toBeNull();
   });
 
   it("resume readiness failure has the same safe guidance and never obtains token", async () => {
@@ -212,22 +213,22 @@ describe("useConversationStore", () => {
       ended_at: null,
     } as api.Session);
     vi.mocked(api.checkHealthReady).mockRejectedValue(readinessFailure("custom_unverified"));
-    const ok = await useConversationStore.getState().resumeSession(id, {
+    const ok = await useAppStore.getState().resumeSession(id, {
       principal: auth.getAuthSnapshot().principal!,
       revision: 1,
     });
     expect(ok).toBe(false);
     expectNoCredentials();
-    expect(useConversationStore.getState().readinessIssue?.code).toBe("custom_unverified");
+    expect(useAppStore.getState().readinessIssue?.code).toBe("custom_unverified");
     vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ready" });
-    await useConversationStore.getState().recheckReadiness();
+    await useAppStore.getState().recheckReadiness();
     expect(api.getSessionDetail).toHaveBeenCalledTimes(1);
     expectNoCredentials();
-    expect(useConversationStore.getState().readinessNotice).toBe(true);
+    expect(useAppStore.getState().readinessNotice).toBe(true);
   });
 
   it("has correct initial state", () => {
-    const state = useConversationStore.getState();
+    const state = useAppStore.getState();
     expect(state._sessionState).toEqual({ phase: "idle" });
     expect(state.connectionState).toBe("idle");
     expect(state.appView).toBe("dashboard");
@@ -241,34 +242,34 @@ describe("useConversationStore", () => {
   });
 
   it("normalizes public setState fixtures into one internal session truth", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       sessionId: "sess-fixture",
       token: "tok-fixture",
       wsUrl: "wss://lk.test",
     });
-    expect(useConversationStore.getState()._sessionState).toEqual({
+    expect(useAppStore.getState()._sessionState).toEqual({
       phase: "credentials_ready",
       sessionId: "sess-fixture",
       token: "tok-fixture",
       wsUrl: "wss://lk.test",
     });
 
-    useConversationStore.setState({ token: null });
-    expect(useConversationStore.getState()._sessionState).toEqual({
+    useAppStore.setState({ token: null });
+    expect(useAppStore.getState()._sessionState).toEqual({
       phase: "fetching_token",
       sessionId: "sess-fixture",
     });
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       connectionState: "connecting",
       sessionId: "sess-fixture",
       token: null,
       wsUrl: null,
     });
 
-    useConversationStore.setState({ connectionState: "idle", token: "residual" });
-    expect(useConversationStore.getState()._sessionState).toEqual({ phase: "idle" });
-    expect(useConversationStore.getState()).toMatchObject({
+    useAppStore.setState({ connectionState: "idle", token: "residual" });
+    expect(useAppStore.getState()._sessionState).toEqual({ phase: "idle" });
+    expect(useAppStore.getState()).toMatchObject({
       connectionState: "idle",
       sessionId: null,
       token: null,
@@ -277,16 +278,16 @@ describe("useConversationStore", () => {
   });
 
   it("lets function patch fields win over the old model reference carried by a snapshot", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       sessionId: "sess-function",
       token: "tok-fixture",
       wsUrl: "wss://lk.test",
     });
 
-    useConversationStore.setState((state) => ({ ...state, token: null }));
+    useAppStore.setState((state) => ({ ...state, token: null }));
 
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       _sessionState: { phase: "fetching_token", sessionId: "sess-function" },
       connectionState: "connecting",
       sessionId: "sess-function",
@@ -296,21 +297,21 @@ describe("useConversationStore", () => {
   });
 
   it("normalizes full object snapshots for merge and replace setState calls", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       sessionId: "sess-snapshot",
       token: "tok-fixture",
       wsUrl: "wss://lk.test",
     });
 
-    useConversationStore.setState({
-      ...useConversationStore.getState(),
+    useAppStore.setState({
+      ...useAppStore.getState(),
       connectionState: "idle",
       sessionId: null,
       token: null,
       wsUrl: null,
     });
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       _sessionState: { phase: "idle" },
       connectionState: "idle",
       sessionId: null,
@@ -318,15 +319,15 @@ describe("useConversationStore", () => {
       wsUrl: null,
     });
 
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       sessionId: "sess-replace",
       token: "tok-fixture",
       wsUrl: "wss://lk.test",
     });
-    useConversationStore.setState(
+    useAppStore.setState(
       {
-        ...useConversationStore.getState(),
+        ...useAppStore.getState(),
         connectionState: "idle",
         sessionId: null,
         token: null,
@@ -334,7 +335,7 @@ describe("useConversationStore", () => {
       },
       true,
     );
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       _sessionState: { phase: "idle" },
       connectionState: "idle",
       sessionId: null,
@@ -344,17 +345,17 @@ describe("useConversationStore", () => {
   });
 
   it("keeps the session model and projection stable for non-session patches", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "connecting",
       sessionId: "sess-view",
       token: "tok-fixture",
       wsUrl: "wss://lk.test",
     });
-    const before = useConversationStore.getState();
+    const before = useAppStore.getState();
 
-    useConversationStore.setState({ appView: "session" });
+    useAppStore.setState({ appView: "session" });
 
-    const after = useConversationStore.getState();
+    const after = useAppStore.getState();
     expect(after.appView).toBe("session");
     expect(after._sessionState).toBe(before._sessionState);
     expect(after).toMatchObject({
@@ -366,7 +367,7 @@ describe("useConversationStore", () => {
   });
 
   it("uses a new explicit internal model and projects it in the same update", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       _sessionState: {
         phase: "active",
         sessionId: "sess-explicit",
@@ -379,7 +380,7 @@ describe("useConversationStore", () => {
       wsUrl: null,
     });
 
-    expect(useConversationStore.getState()).toMatchObject({
+    expect(useAppStore.getState()).toMatchObject({
       _sessionState: {
         phase: "active",
         sessionId: "sess-explicit",
@@ -398,7 +399,7 @@ describe("useConversationStore", () => {
       sessionState: ConversationSessionState;
       flat: ConversationSessionProjection;
     }> = [];
-    const unsubscribe = useConversationStore.subscribe((state) => {
+    const unsubscribe = useAppStore.subscribe((state) => {
       observations.push({
         sessionState: state._sessionState,
         flat: {
@@ -411,13 +412,13 @@ describe("useConversationStore", () => {
     });
 
     try {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "connecting",
         sessionId: "sess-sync",
         token: "tok-fixture",
         wsUrl: "wss://lk.test",
       });
-      useConversationStore.setState((state) => ({ ...state, token: null }));
+      useAppStore.setState((state) => ({ ...state, token: null }));
     } finally {
       unsubscribe();
     }
@@ -453,26 +454,26 @@ describe("useConversationStore", () => {
   });
 
   it("preserves Zustand no-op state and notification semantics", () => {
-    const before = useConversationStore.getState();
+    const before = useAppStore.getState();
     let notifications = 0;
-    const unsubscribe = useConversationStore.subscribe(() => {
+    const unsubscribe = useAppStore.subscribe(() => {
       notifications += 1;
     });
 
     try {
-      useConversationStore.setState((state) => state);
-      useConversationStore.setState((state) => state, true);
+      useAppStore.setState((state) => state);
+      useAppStore.setState((state) => state, true);
     } finally {
       unsubscribe();
     }
 
     expect(notifications).toBe(0);
-    expect(useConversationStore.getState()).toBe(before);
-    expect(useConversationStore.getState()._sessionState).toBe(before._sessionState);
+    expect(useAppStore.getState()).toBe(before);
+    expect(useAppStore.getState()._sessionState).toBe(before._sessionState);
   });
 
   it("reset and goHome clear both the internal model and compatibility projection", () => {
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "active",
       appView: "session",
       sessionId: "sess-reset",
@@ -480,8 +481,8 @@ describe("useConversationStore", () => {
       wsUrl: "wss://lk.test",
     });
 
-    useConversationStore.getState().reset();
-    expect(useConversationStore.getState()).toMatchObject({
+    useAppStore.getState().reset();
+    expect(useAppStore.getState()).toMatchObject({
       _sessionState: { phase: "idle" },
       connectionState: "idle",
       sessionId: null,
@@ -489,15 +490,15 @@ describe("useConversationStore", () => {
       wsUrl: null,
     });
 
-    useConversationStore.setState({
+    useAppStore.setState({
       connectionState: "active",
       appView: "session",
       sessionId: "sess-home",
       token: "tok-home",
       wsUrl: "wss://lk.test",
     });
-    useConversationStore.getState().goHome();
-    expect(useConversationStore.getState()).toMatchObject({
+    useAppStore.getState().goHome();
+    expect(useAppStore.getState()).toMatchObject({
       _sessionState: { phase: "idle" },
       connectionState: "idle",
       appView: "dashboard",
@@ -525,13 +526,13 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const startPromise = useConversationStore.getState().startSession("free_talk");
+      const startPromise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledTimes(1));
 
-      expect(useConversationStore.getState()._sessionState).toEqual({
+      expect(useAppStore.getState()._sessionState).toEqual({
         phase: "creating_session",
       });
-      expect(useConversationStore.getState()).toMatchObject({
+      expect(useAppStore.getState()).toMatchObject({
         connectionState: "connecting",
         sessionId: null,
         token: null,
@@ -549,11 +550,11 @@ describe("useConversationStore", () => {
       });
       await vi.waitFor(() => expect(api.getSessionToken).toHaveBeenCalledTimes(1));
 
-      expect(useConversationStore.getState()._sessionState).toEqual({
+      expect(useAppStore.getState()._sessionState).toEqual({
         phase: "fetching_token",
         sessionId: "sess-phase",
       });
-      expect(useConversationStore.getState()).toMatchObject({
+      expect(useAppStore.getState()).toMatchObject({
         connectionState: "connecting",
         sessionId: "sess-phase",
         token: null,
@@ -563,13 +564,13 @@ describe("useConversationStore", () => {
       resolveToken({ token: "tok-phase", ws_url: "wss://lk.test" });
       await startPromise;
 
-      expect(useConversationStore.getState()._sessionState).toEqual({
+      expect(useAppStore.getState()._sessionState).toEqual({
         phase: "credentials_ready",
         sessionId: "sess-phase",
         token: "tok-phase",
         wsUrl: "wss://lk.test",
       });
-      expect(useConversationStore.getState()).toMatchObject({
+      expect(useAppStore.getState()).toMatchObject({
         connectionState: "connecting",
         sessionId: "sess-phase",
         token: "tok-phase",
@@ -601,14 +602,14 @@ describe("useConversationStore", () => {
       vi.mocked(api.createSession).mockResolvedValue(mockSession);
       vi.mocked(api.getSessionToken).mockResolvedValue(mockTokenRes);
 
-      await useConversationStore.getState().startSession("free_talk", docContext);
+      await useAppStore.getState().startSession("free_talk", docContext);
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       expect(api.createSession).toHaveBeenCalledWith("free_talk", docContext);
       expect(api.getSessionToken).toHaveBeenCalledWith("sess-123");
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connecting");
       expect(state.appView).toBe("session");
       expect(state.sessionId).toBe("sess-123");
@@ -618,9 +619,9 @@ describe("useConversationStore", () => {
     });
 
     it("does not start session if connectionState is not idle", async () => {
-      useConversationStore.setState({ connectionState: "connecting" });
+      useAppStore.setState({ connectionState: "connecting" });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.createSession).not.toHaveBeenCalled();
@@ -630,13 +631,13 @@ describe("useConversationStore", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       vi.mocked(api.checkHealthReady).mockRejectedValue(new Error("Health check failed"));
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       expect(api.createSession).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe(zhCN.practiceReadiness.fallback);
@@ -646,9 +647,9 @@ describe("useConversationStore", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       vi.mocked(api.checkHealthReady).mockRejectedValue("Unknown network error");
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe(zhCN.practiceReadiness.fallback);
@@ -658,14 +659,14 @@ describe("useConversationStore", () => {
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockRejectedValue(new Error("Failed to create session"));
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       expect(api.createSession).toHaveBeenCalledWith("free_talk", undefined);
       expect(api.getSessionToken).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       // 非业务门禁错误不向用户展示原始异常文本
@@ -687,13 +688,13 @@ describe("useConversationStore", () => {
         [404, "No fake route for GET /api/sessions/x/token", zhCN.conversation.startFailed],
         [502, "upstream stack trace", zhCN.conversation.startFailed],
       ] as const) {
-        useConversationStore.getState().reset();
+        useAppStore.getState().reset();
         vi.mocked(api.createSession).mockRejectedValueOnce(new api.ApiError(status, message));
 
-        await useConversationStore.getState().startSession("free_talk");
+        await useAppStore.getState().startSession("free_talk");
 
-        expect(useConversationStore.getState().error).toBe(expected);
-        expect(useConversationStore.getState().appView).toBe("dashboard");
+        expect(useAppStore.getState().error).toBe(expected);
+        expect(useAppStore.getState().appView).toBe("dashboard");
       }
     });
 
@@ -705,7 +706,7 @@ describe("useConversationStore", () => {
       vi.mocked(api.getSessionToken).mockRejectedValue(new api.ApiError(502, "LiveKit down"));
       vi.mocked(api.endSession).mockResolvedValue({} as Awaited<ReturnType<typeof api.endSession>>);
 
-      await useConversationStore.getState().startSession("scenario");
+      await useAppStore.getState().startSession("scenario");
 
       expect(api.endSession).toHaveBeenCalledTimes(1);
       expect(api.endSession).toHaveBeenCalledWith("orphan-session-1");
@@ -713,7 +714,7 @@ describe("useConversationStore", () => {
       expect(api.createSession).toHaveBeenCalledTimes(1);
       expect(api.getSessionToken).toHaveBeenCalledTimes(1);
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.sessionId).toBeNull();
@@ -729,10 +730,10 @@ describe("useConversationStore", () => {
       vi.mocked(api.getSessionToken).mockRejectedValue(new Error("network"));
       vi.mocked(api.endSession).mockRejectedValue(new Error("end failed"));
 
-      await useConversationStore.getState().startSession("scenario");
+      await useAppStore.getState().startSession("scenario");
 
       expect(api.endSession).toHaveBeenCalledTimes(1);
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe(zhCN.conversation.startFailed);
@@ -745,19 +746,19 @@ describe("useConversationStore", () => {
       } as Awaited<ReturnType<typeof api.createSession>>);
       vi.mocked(api.getSessionToken).mockResolvedValue({ token: "t", ws_url: "wss://lk.test" });
 
-      await useConversationStore.getState().startSession("scenario");
+      await useAppStore.getState().startSession("scenario");
 
       expect(api.endSession).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().sessionId).toBe("healthy-session");
+      expect(useAppStore.getState().sessionId).toBe("healthy-session");
     });
 
     it("handles createSession / getSessionToken error with fallback message for non-Error", async () => {
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockRejectedValue("Session creation string error");
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe(zhCN.conversation.startFailed);
@@ -772,24 +773,24 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().startSession("free_talk");
+      const promise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.checkHealthReady).toHaveBeenCalled();
       });
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 用户在 health check 期间返回主页
-      useConversationStore.getState().goHome();
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      useAppStore.getState().goHome();
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
 
       // 迟到的 health check resolve
       resolveHealth({ status: "ok" });
       await promise;
 
       // 状态依然是 dashboard / idle，没有被迟到结果切到 session 视图
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
       expect(api.createSession).not.toHaveBeenCalled();
     });
 
@@ -803,14 +804,14 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().startSession("free_talk");
+      const promise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.createSession).toHaveBeenCalled();
       });
 
       // 用户重置
-      useConversationStore.getState().reset();
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      useAppStore.getState().reset();
+      expect(useAppStore.getState().sessionId).toBeNull();
 
       resolveCreate({
         id: "stale-sess",
@@ -823,7 +824,7 @@ describe("useConversationStore", () => {
       });
       await promise;
 
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().sessionId).toBeNull();
       expect(api.getSessionToken).not.toHaveBeenCalled();
     });
 
@@ -846,19 +847,19 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().startSession("free_talk");
+      const promise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.getSessionToken).toHaveBeenCalledWith("sess-1");
       });
 
-      useConversationStore.getState().goHome();
-      expect(useConversationStore.getState().token).toBeNull();
+      useAppStore.getState().goHome();
+      expect(useAppStore.getState().token).toBeNull();
 
       resolveToken({ token: "stale-tok", ws_url: "wss://stale.com" });
       await promise;
 
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useConversationStore.getState().wsUrl).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
+      expect(useAppStore.getState().wsUrl).toBeNull();
     });
 
     it("isolates across identical connection states across generations (e.g. both connecting)", async () => {
@@ -874,24 +875,24 @@ describe("useConversationStore", () => {
             resolveFirstCreate = resolve;
           }),
       );
-      const promise1 = useConversationStore.getState().startSession("free_talk");
+      const promise1 = useAppStore.getState().startSession("free_talk");
 
       await vi.waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
       });
 
       // 重置并开始第二代（同样进入 connecting 状态）
-      useConversationStore.getState().reset();
+      useAppStore.getState().reset();
       vi.mocked(api.createSession).mockImplementationOnce(
         () =>
           new Promise((resolve) => {
             resolveSecondCreate = resolve;
           }),
       );
-      const promise2 = useConversationStore.getState().startSession("free_talk");
+      const promise2 = useAppStore.getState().startSession("free_talk");
 
       await vi.waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
       });
 
       // 第一代 createSession 迟到返回
@@ -925,7 +926,7 @@ describe("useConversationStore", () => {
       });
       await promise2;
 
-      expect(useConversationStore.getState().sessionId).toBe("sess-gen2");
+      expect(useAppStore.getState().sessionId).toBe("sess-gen2");
       expect(api.getSessionToken).toHaveBeenCalledWith("sess-gen2");
     });
 
@@ -935,13 +936,13 @@ describe("useConversationStore", () => {
         principal: null,
       });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
       expect(api.checkHealthReady).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().error).toBe(zhCN.conversation.notAuthenticated);
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().error).toBe(zhCN.conversation.notAuthenticated);
     });
 
     it("gates livekit_cloud mode, remaining on dashboard with localized message and no side effects", async () => {
@@ -950,14 +951,14 @@ describe("useConversationStore", () => {
         call_lease_mode: "livekit_cloud",
       });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.createSession).not.toHaveBeenCalled();
       expect(api.getSessionToken).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe("当前客户端尚未支持此通话模式");
@@ -969,13 +970,13 @@ describe("useConversationStore", () => {
         new Error("Sensitive internal backend 500 error details"),
       );
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.createSession).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe("通话能力检查失败，请稍后重试");
@@ -1002,9 +1003,9 @@ describe("useConversationStore", () => {
         ws_url: "wss://livekit.test",
       });
 
-      await useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().sessionId).toBe("retry-sess");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      await useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().sessionId).toBe("retry-sess");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     it("deduplicates in-flight startSession calls during capabilities check", async () => {
@@ -1016,11 +1017,11 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const p1 = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const p1 = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 第二次并发调用
-      const p2 = useConversationStore.getState().startSession("free_talk");
+      const p2 = useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
 
@@ -1056,13 +1057,13 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const promise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 用户返回主页
-      useConversationStore.getState().goHome();
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      useAppStore.getState().goHome();
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
 
       // 迟到的 capabilities 返回
       resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
@@ -1071,8 +1072,8 @@ describe("useConversationStore", () => {
       // 绝不继续执行健康检查或创建会话
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.createSession).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
     });
 
     it("drops late capability result if auth revision changes for the same principal, resets to idle, and allows new start", async () => {
@@ -1084,8 +1085,8 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const promise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 模拟同 principal 新 revision（例如刷新了 Token 或会话被重新签发）
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
@@ -1099,7 +1100,7 @@ describe("useConversationStore", () => {
       expect(api.createSession).not.toHaveBeenCalled();
 
       // 必须释放槽位回到可重试状态
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.sessionId).toBeNull();
@@ -1125,10 +1126,10 @@ describe("useConversationStore", () => {
         ws_url: "wss://livekit.test",
       });
 
-      await useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().sessionId).toBe("new-sess");
-      expect(useConversationStore.getState().token).toBe("new-tok");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      await useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().sessionId).toBe("new-sess");
+      expect(useAppStore.getState().token).toBe("new-tok");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     it("resets to idle on capability rejection when revision changed and allows new start", async () => {
@@ -1140,14 +1141,14 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const promise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
       rejectCaps(new Error("Network failed"));
       await promise;
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.sessionId).toBeNull();
@@ -1162,15 +1163,15 @@ describe("useConversationStore", () => {
             resolveHealth = resolve;
           }),
       );
-      const pHealth = useConversationStore.getState().startSession("free_talk");
+      const pHealth = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       });
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
       resolveHealth({ status: "ok" });
       await pHealth;
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
       expect(api.createSession).not.toHaveBeenCalled();
     });
 
@@ -1182,15 +1183,15 @@ describe("useConversationStore", () => {
             rejectHealth = reject;
           }),
       );
-      const pHealthRej = useConversationStore.getState().startSession("free_talk");
+      const pHealthRej = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
       });
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
       rejectHealth(new Error("Health failed"));
       await pHealthRej;
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
       expect(api.createSession).not.toHaveBeenCalled();
     });
 
@@ -1203,7 +1204,7 @@ describe("useConversationStore", () => {
             resolveCreate = resolve;
           }),
       );
-      const pCreate = useConversationStore.getState().startSession("free_talk");
+      const pCreate = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.createSession).toHaveBeenCalledTimes(1);
       });
@@ -1218,8 +1219,8 @@ describe("useConversationStore", () => {
         transcripts: [],
       });
       await pCreate;
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
       expect(api.getSessionToken).not.toHaveBeenCalled();
     });
 
@@ -1232,15 +1233,15 @@ describe("useConversationStore", () => {
             rejectCreate = reject;
           }),
       );
-      const pCreateRej = useConversationStore.getState().startSession("free_talk");
+      const pCreateRej = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.createSession).toHaveBeenCalledTimes(1);
       });
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
       rejectCreate(new Error("Create error"));
       await pCreateRej;
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
     });
 
     it("releases slot to idle if revision changes during getSessionToken resolve", async () => {
@@ -1261,16 +1262,16 @@ describe("useConversationStore", () => {
             resolveTok = resolve;
           }),
       );
-      const pTok = useConversationStore.getState().startSession("free_talk");
+      const pTok = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.getSessionToken).toHaveBeenCalledWith("sess-tok-phase");
       });
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
       resolveTok({ token: "late-tok", ws_url: "wss://lk.test" });
       await pTok;
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().token).toBeNull();
+      expect(useAppStore.getState().sessionId).toBeNull();
     });
 
     it("releases slot to idle if revision changes during getSessionToken reject", async () => {
@@ -1291,15 +1292,15 @@ describe("useConversationStore", () => {
             rejectTok = reject;
           }),
       );
-      const pTokRej = useConversationStore.getState().startSession("free_talk");
+      const pTokRej = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.getSessionToken).toHaveBeenCalledWith("sess-tok-rej");
       });
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
       rejectTok(new Error("Token failed"));
       await pTokRej;
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().token).toBeNull();
     });
 
     it("releases slot when principal changes with different issuer and same subject", async () => {
@@ -1311,8 +1312,8 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const promise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 切换不同 issuer 但同 subject 的 principal
       vi.mocked(auth.getAuthSnapshot).mockReturnValue({
@@ -1325,7 +1326,7 @@ describe("useConversationStore", () => {
 
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.createSession).not.toHaveBeenCalled();
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.sessionId).toBeNull();
@@ -1341,8 +1342,8 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const oldPromise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const oldPromise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 触发认证事件（模拟 OIDC 事件或 Token 刷新更新 snapshot）
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
@@ -1354,8 +1355,8 @@ describe("useConversationStore", () => {
       }
 
       // 立即恢复为 idle / dashboard，无需等待旧网络完成
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
 
       // 用户立即发起新的显式开始
       vi.mocked(api.getCallCapabilities).mockResolvedValueOnce({
@@ -1377,22 +1378,22 @@ describe("useConversationStore", () => {
         ws_url: "wss://livekit.test",
       });
 
-      await useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().sessionId).toBe("new-concurrent-sess");
-      expect(useConversationStore.getState().token).toBe("new-concurrent-token");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      await useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().sessionId).toBe("new-concurrent-sess");
+      expect(useAppStore.getState().token).toBe("new-concurrent-token");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
 
       // 随后旧网络的 capabilities 迟到返回，绝不能冲掉新会话
       resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
       await oldPromise;
 
-      expect(useConversationStore.getState().sessionId).toBe("new-concurrent-sess");
-      expect(useConversationStore.getState().token).toBe("new-concurrent-token");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe("new-concurrent-sess");
+      expect(useAppStore.getState().token).toBe("new-concurrent-token");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     it("does not abort an ongoing active call on auth snapshot update for the same principal", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "active-call-sess",
         token: "active-token",
         wsUrl: "wss://lk.test",
@@ -1409,7 +1410,7 @@ describe("useConversationStore", () => {
       }
 
       // 正常通话绝不被中止
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("active");
       expect(state.sessionId).toBe("active-call-sess");
       expect(state.token).toBe("active-token");
@@ -1426,17 +1427,17 @@ describe("useConversationStore", () => {
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-456",
         token: "tok-abc",
         wsUrl: "wss://lk.test",
         connectionState: "active",
       });
 
-      const promise = useConversationStore.getState().endSession();
+      const promise = useAppStore.getState().endSession();
 
       // 在 API resolve 前观察：token/wsUrl 立即清空，进入 ending 状态
-      const pendingState = useConversationStore.getState();
+      const pendingState = useAppStore.getState();
       expect(pendingState._sessionState).toEqual({
         phase: "ending",
         sessionId: "sess-456",
@@ -1459,12 +1460,12 @@ describe("useConversationStore", () => {
       await promise;
 
       expect(api.endSession).toHaveBeenCalledWith("sess-456");
-      expect(useConversationStore.getState()._sessionState).toEqual({
+      expect(useAppStore.getState()._sessionState).toEqual({
         phase: "ended",
         sessionId: "sess-456",
       });
-      expect(useConversationStore.getState().connectionState).toBe("ended");
-      expect(useConversationStore.getState().error).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().error).toBeNull();
     });
 
     it("deduplicates in-flight end calls without calling API multiple times", async () => {
@@ -1476,16 +1477,16 @@ describe("useConversationStore", () => {
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-dup",
         token: "tok-dup",
         wsUrl: "wss://lk.test",
         connectionState: "active",
       });
 
-      const p1 = useConversationStore.getState().endSession();
-      const p2 = useConversationStore.getState().endSession();
-      const p3 = useConversationStore.getState().endSession();
+      const p1 = useAppStore.getState().endSession();
+      const p2 = useAppStore.getState().endSession();
+      const p3 = useAppStore.getState().endSession();
 
       expect(api.endSession).toHaveBeenCalledTimes(1);
 
@@ -1493,11 +1494,11 @@ describe("useConversationStore", () => {
       await Promise.all([p1, p2, p3]);
 
       expect(api.endSession).toHaveBeenCalledTimes(1);
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().connectionState).toBe("ended");
     });
 
     it("enters end_failed when apiEndSession rejects, keeping audio stopped and session intact", async () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-fail",
         token: "tok-fail",
         wsUrl: "wss://lk.test",
@@ -1505,9 +1506,9 @@ describe("useConversationStore", () => {
       });
       vi.mocked(api.endSession).mockRejectedValue(new Error("Network timeout"));
 
-      await useConversationStore.getState().endSession();
+      await useAppStore.getState().endSession();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state._sessionState).toEqual({
         phase: "end_failed",
         sessionId: "sess-fail",
@@ -1520,7 +1521,7 @@ describe("useConversationStore", () => {
     });
 
     it("allows retrying the same session from end_failed", async () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-retry",
         token: null,
         wsUrl: null,
@@ -1530,22 +1531,22 @@ describe("useConversationStore", () => {
 
       vi.mocked(api.endSession).mockResolvedValue({} as api.Session);
 
-      await useConversationStore.getState().endSession();
+      await useAppStore.getState().endSession();
 
       expect(api.endSession).toHaveBeenCalledWith("sess-retry");
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("ended");
       expect(state.error).toBeNull();
     });
 
     it("cancels local startup generation and does not call apiEndSession if sessionId is null", async () => {
-      useConversationStore.setState({ sessionId: null, connectionState: "connecting" });
+      useAppStore.setState({ sessionId: null, connectionState: "connecting" });
 
-      await useConversationStore.getState().endSession();
+      await useAppStore.getState().endSession();
 
       expect(api.endSession).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
-      expect(useConversationStore.getState().error).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().error).toBeNull();
     });
 
     it("cancels startup during health check phase and drops late health response", async () => {
@@ -1557,16 +1558,16 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const startPromise = useConversationStore.getState().startSession("free_talk");
+      const startPromise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.checkHealthReady).toHaveBeenCalled();
       });
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
+      expect(useAppStore.getState().sessionId).toBeNull();
 
       // 在 health check 期间调用 endSession
-      await useConversationStore.getState().endSession();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      await useAppStore.getState().endSession();
+      expect(useAppStore.getState().connectionState).toBe("ended");
       expect(api.endSession).not.toHaveBeenCalled();
 
       // 迟到的 health check 返回
@@ -1575,7 +1576,7 @@ describe("useConversationStore", () => {
 
       // 绝不创建会话
       expect(api.createSession).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().connectionState).toBe("ended");
     });
 
     it("cancels startup during createSession phase and drops late create response", async () => {
@@ -1588,15 +1589,15 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const startPromise = useConversationStore.getState().startSession("free_talk");
+      const startPromise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.createSession).toHaveBeenCalled();
       });
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().sessionId).toBeNull();
 
       // 在 createSession 在途期间调用 endSession
-      await useConversationStore.getState().endSession();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      await useAppStore.getState().endSession();
+      expect(useAppStore.getState().connectionState).toBe("ended");
       expect(api.endSession).not.toHaveBeenCalled();
 
       // 迟到的 createSession 返回
@@ -1613,7 +1614,7 @@ describe("useConversationStore", () => {
 
       // 绝不获取 Token，绝不把 late-created 赋给已结束的会话
       expect(api.getSessionToken).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().connectionState).toBe("ended");
     });
 
     it("saves sessionId immediately upon createSession and ends session properly while token is in-flight", async () => {
@@ -1636,30 +1637,30 @@ describe("useConversationStore", () => {
       );
       vi.mocked(api.endSession).mockResolvedValue({} as api.Session);
 
-      const startPromise = useConversationStore.getState().startSession("free_talk");
+      const startPromise = useAppStore.getState().startSession("free_talk");
 
       // 等待 createSession 完成，此时 sessionId 已保存，但 token 在途
       await vi.waitFor(() => {
-        expect(useConversationStore.getState().sessionId).toBe("sess-created-token-pending");
-        expect(useConversationStore.getState().token).toBeNull();
+        expect(useAppStore.getState().sessionId).toBe("sess-created-token-pending");
+        expect(useAppStore.getState().token).toBeNull();
       });
 
       // 在 token 在途期间发起结束
-      const endPromise = useConversationStore.getState().endSession();
+      const endPromise = useAppStore.getState().endSession();
 
       // 必须向服务端发起针对该 session 的 end 请求
       expect(api.endSession).toHaveBeenCalledWith("sess-created-token-pending");
       await endPromise;
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().connectionState).toBe("ended");
 
       // 随后迟到的 Token 返回
       resolveToken({ token: "late-token", ws_url: "wss://late.com" });
       await startPromise;
 
       // 迟到的 Token 绝不能复活已结束的会话
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useConversationStore.getState().wsUrl).toBeNull();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().token).toBeNull();
+      expect(useAppStore.getState().wsUrl).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("ended");
     });
 
     it("drops stale end response if user goes home during in-flight end", async () => {
@@ -1671,27 +1672,27 @@ describe("useConversationStore", () => {
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-stale",
         token: "tok",
         wsUrl: "wss://lk.test",
         connectionState: "active",
       });
 
-      const promise = useConversationStore.getState().endSession();
-      expect(useConversationStore.getState().connectionState).toBe("ending");
+      const promise = useAppStore.getState().endSession();
+      expect(useAppStore.getState().connectionState).toBe("ending");
 
       // 用户返回主页
-      useConversationStore.getState().goHome();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      useAppStore.getState().goHome();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
 
       resolveApiEnd({} as api.Session);
       await promise;
 
       // 不得被迟到的 end 结果篡改为 ended
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
     });
 
     it("does not overwrite new session if old session end completes late", async () => {
@@ -1703,18 +1704,18 @@ describe("useConversationStore", () => {
           }),
       );
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-old",
         token: "tok-old",
         wsUrl: "wss://lk.test",
         connectionState: "active",
       });
 
-      const oldEndPromise = useConversationStore.getState().endSession();
+      const oldEndPromise = useAppStore.getState().endSession();
 
       // 用户重置并开启新会话 Session 2
-      useConversationStore.getState().reset();
-      useConversationStore.setState({
+      useAppStore.getState().reset();
+      useAppStore.setState({
         sessionId: "sess-new",
         token: "tok-new",
         wsUrl: "wss://lk.test",
@@ -1726,7 +1727,7 @@ describe("useConversationStore", () => {
       await oldEndPromise;
 
       // 新会话状态绝不被篡改
-      const currentState = useConversationStore.getState();
+      const currentState = useAppStore.getState();
       expect(currentState.sessionId).toBe("sess-new");
       expect(currentState.token).toBe("tok-new");
       expect(currentState.connectionState).toBe("active");
@@ -1735,61 +1736,61 @@ describe("useConversationStore", () => {
 
   describe("setActive", () => {
     it("changes connectionState to active when connecting and token is present", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "connecting",
         sessionId: "sess-1",
         token: "valid-tok",
         wsUrl: "wss://lk.test",
       });
-      useConversationStore.getState().setActive();
+      useAppStore.getState().setActive();
 
-      expect(useConversationStore.getState().connectionState).toBe("active");
+      expect(useAppStore.getState().connectionState).toBe("active");
     });
 
     it("does not change state to active if token is null", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "connecting",
         sessionId: "sess-1",
         token: null,
       });
-      useConversationStore.getState().setActive();
+      useAppStore.getState().setActive();
 
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     it("does not change state to active when the WebSocket URL is missing", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "connecting",
         sessionId: "sess-1",
         token: "tok-1",
         wsUrl: null,
       });
 
-      useConversationStore.getState().setActive();
+      useAppStore.getState().setActive();
 
-      expect(useConversationStore.getState()).toMatchObject({
+      expect(useAppStore.getState()).toMatchObject({
         connectionState: "connecting",
         token: null,
         wsUrl: null,
       });
-      expect(useConversationStore.getState()._sessionState.phase).toBe("fetching_token");
+      expect(useAppStore.getState()._sessionState.phase).toBe("fetching_token");
     });
 
     it("does not revive ended or ending or end_failed states", () => {
       for (const nonConnecting of ["ending", "end_failed", "ended", "idle"] as const) {
-        useConversationStore.setState({
+        useAppStore.setState({
           connectionState: nonConnecting,
           sessionId: "sess-1",
           token: "tok-1",
         });
-        useConversationStore.getState().setActive();
+        useAppStore.getState().setActive();
 
-        expect(useConversationStore.getState().connectionState).toBe(nonConnecting);
+        expect(useAppStore.getState().connectionState).toBe(nonConnecting);
       }
     });
 
     it("rejects setActive when sessionId or sessionGen mismatch", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "connecting",
         sessionId: "sess-actual",
         sessionGen: 5,
@@ -1798,16 +1799,16 @@ describe("useConversationStore", () => {
       });
 
       // 不同的 sessionId
-      useConversationStore.getState().setActive("sess-different", 5);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      useAppStore.getState().setActive("sess-different", 5);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
 
       // 不同的 sessionGen
-      useConversationStore.getState().setActive("sess-actual", 4);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      useAppStore.getState().setActive("sess-actual", 4);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
 
       // 匹配时成功
-      useConversationStore.getState().setActive("sess-actual", 5);
-      expect(useConversationStore.getState().connectionState).toBe("active");
+      useAppStore.getState().setActive("sess-actual", 5);
+      expect(useAppStore.getState().connectionState).toBe("active");
     });
   });
 
@@ -1821,19 +1822,19 @@ describe("useConversationStore", () => {
         system_prompt_template: "Prompt template",
       };
 
-      useConversationStore.getState().setSelectedScenario(scenario);
+      useAppStore.getState().setSelectedScenario(scenario);
 
-      expect(useConversationStore.getState().selectedScenario).toEqual(scenario);
+      expect(useAppStore.getState().selectedScenario).toEqual(scenario);
 
-      useConversationStore.getState().setSelectedScenario(null);
+      useAppStore.getState().setSelectedScenario(null);
 
-      expect(useConversationStore.getState().selectedScenario).toBeNull();
+      expect(useAppStore.getState().selectedScenario).toBeNull();
     });
   });
 
   describe("setAgentError", () => {
     it("sets agent error, clears tokens, and updates connectionState to ended", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "active",
         appView: "session",
         sessionId: "sess-agent-error",
@@ -1844,12 +1845,12 @@ describe("useConversationStore", () => {
       const error = { code: "CUSTOM_TRACK_FAILED", message: "Audio track error" };
 
       expect(
-        useConversationStore
+        useAppStore
           .getState()
           .setAgentError(error, { sessionId: "sess-agent-error", sessionGen: 3 }),
       ).toBe(true);
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.agentError).toEqual(error);
       expect(state.connectionState).toBe("ended");
       expect(state.token).toBeNull();
@@ -1857,7 +1858,7 @@ describe("useConversationStore", () => {
     });
 
     it("rejects a non-owning callback without writing state", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "active",
         appView: "session",
         sessionId: "sess-current",
@@ -1865,10 +1866,10 @@ describe("useConversationStore", () => {
         token: "tok-current",
         wsUrl: "wss://lk.test",
       });
-      const before = useConversationStore.getState();
+      const before = useAppStore.getState();
 
       expect(
-        useConversationStore
+        useAppStore
           .getState()
           .setAgentError(
             { code: "STALE", message: "stale error" },
@@ -1876,7 +1877,7 @@ describe("useConversationStore", () => {
           ),
       ).toBe(false);
       expect(
-        useConversationStore
+        useAppStore
           .getState()
           .setAgentError(
             { code: "STALE", message: "stale error" },
@@ -1884,7 +1885,7 @@ describe("useConversationStore", () => {
           ),
       ).toBe(false);
 
-      const after = useConversationStore.getState();
+      const after = useAppStore.getState();
       expect(after.sessionGen).toBe(before.sessionGen);
       expect(after.sessionId).toBe("sess-current");
       expect(after.token).toBe("tok-current");
@@ -1893,7 +1894,7 @@ describe("useConversationStore", () => {
     });
 
     it("accepts an owning callback only while its Room can still receive errors", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "connecting",
         appView: "session",
         sessionId: "sess-current",
@@ -1903,30 +1904,30 @@ describe("useConversationStore", () => {
       });
 
       expect(
-        useConversationStore
+        useAppStore
           .getState()
           .setAgentError(
             { code: "CONNECTING_ERROR", message: "while connecting" },
             { sessionId: "sess-current", sessionGen: 7 },
           ),
       ).toBe(true);
-      expect(useConversationStore.getState().connectionState).toBe("ended");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().token).toBeNull();
 
-      const endedGen = useConversationStore.getState().sessionGen;
+      const endedGen = useAppStore.getState().sessionGen;
       expect(
-        useConversationStore
+        useAppStore
           .getState()
           .setAgentError(
             { code: "LATE", message: "too late" },
             { sessionId: "sess-current", sessionGen: endedGen },
           ),
       ).toBe(false);
-      expect(useConversationStore.getState().agentError?.code).toBe("CONNECTING_ERROR");
+      expect(useAppStore.getState().agentError?.code).toBe("CONNECTING_ERROR");
     });
 
     it("does not let a synchronous observer's replacement session be affected by the old error", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "active",
         appView: "session",
         sessionId: "sess-old",
@@ -1935,11 +1936,11 @@ describe("useConversationStore", () => {
         wsUrl: "wss://lk.test",
       });
       let replaced = false;
-      const unsubscribe = useConversationStore.subscribe((state) => {
+      const unsubscribe = useAppStore.subscribe((state) => {
         if (replaced || state.agentError?.code !== "OLD_ERROR") return;
         replaced = true;
-        useConversationStore.getState().goHome();
-        useConversationStore.setState({
+        useAppStore.getState().goHome();
+        useAppStore.setState({
           connectionState: "connecting",
           appView: "session",
           sessionId: "sess-new",
@@ -1950,7 +1951,7 @@ describe("useConversationStore", () => {
         });
       });
 
-      const accepted = useConversationStore
+      const accepted = useAppStore
         .getState()
         .setAgentError(
           { code: "OLD_ERROR", message: "old room" },
@@ -1959,7 +1960,7 @@ describe("useConversationStore", () => {
       unsubscribe();
 
       expect(accepted).toBe(true);
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.sessionId).toBe("sess-new");
       expect(state.sessionGen).toBe(9);
       expect(state.connectionState).toBe("connecting");
@@ -1988,29 +1989,29 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      const startPromise = useConversationStore.getState().startSession("free_talk");
+      const startPromise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
         expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
-        expect(useConversationStore.getState()._sessionState.phase).toBe("checking_health");
+        expect(useAppStore.getState()._sessionState.phase).toBe("checking_health");
       });
-      const startupGen = useConversationStore.getState().sessionGen;
+      const startupGen = useAppStore.getState().sessionGen;
 
       expect(
-        useConversationStore
+        useAppStore
           .getState()
           .setAgentError(
             { code: "STALE_ROOM", message: "old room" },
             { sessionId: "sess-old", sessionGen: startupGen - 1 },
           ),
       ).toBe(false);
-      expect(useConversationStore.getState()._sessionState.phase).toBe("checking_health");
-      expect(useConversationStore.getState().sessionGen).toBe(startupGen);
+      expect(useAppStore.getState()._sessionState.phase).toBe("checking_health");
+      expect(useAppStore.getState().sessionGen).toBe(startupGen);
 
       resolveHealth({ status: "ready" });
       await startPromise;
 
-      expect(useConversationStore.getState().sessionId).toBe("sess-new-startup");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe("sess-new-startup");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     it("does not accept an error before a Room exists or cancel the startup", async () => {
@@ -2032,15 +2033,15 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const startPromise = useConversationStore.getState().startSession("free_talk");
+      const startPromise = useAppStore.getState().startSession("free_talk");
       await vi.waitFor(() => {
-        expect(useConversationStore.getState().sessionId).toBe("sess-error-flight");
+        expect(useAppStore.getState().sessionId).toBe("sess-error-flight");
       });
-      const startupState = useConversationStore.getState();
+      const startupState = useAppStore.getState();
 
       // Token 尚未返回，没有可收取 DataChannel 错误的 Room。
       expect(
-        useConversationStore.getState().setAgentError(
+        useAppStore.getState().setAgentError(
           { code: "AUDIO_ERR", message: "Microphone error" },
           {
             sessionId: startupState.sessionId!,
@@ -2048,14 +2049,14 @@ describe("useConversationStore", () => {
           },
         ),
       ).toBe(false);
-      expect(useConversationStore.getState()._sessionState.phase).toBe("fetching_token");
+      expect(useAppStore.getState()._sessionState.phase).toBe("fetching_token");
 
       // 迟到的 Token 返回
       resolveToken({ token: "tok-late-returned", ws_url: "wss://late.com" });
       await startPromise;
 
-      expect(useConversationStore.getState().token).toBe("tok-late-returned");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().token).toBe("tok-late-returned");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
   });
 
@@ -2069,9 +2070,9 @@ describe("useConversationStore", () => {
         system_prompt_template: "Prompt",
       };
 
-      const initialGen = useConversationStore.getState().sessionGen;
+      const initialGen = useAppStore.getState().sessionGen;
 
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "ended",
         appView: "session",
         sessionId: "sess-789",
@@ -2082,9 +2083,9 @@ describe("useConversationStore", () => {
         agentError: { code: "ERR", message: "Msg" },
       });
 
-      useConversationStore.getState().reset();
+      useAppStore.getState().reset();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.sessionId).toBeNull();
       expect(state.token).toBeNull();
@@ -2107,9 +2108,9 @@ describe("useConversationStore", () => {
         system_prompt_template: "Prompt",
       };
 
-      const initialGen = useConversationStore.getState().sessionGen;
+      const initialGen = useAppStore.getState().sessionGen;
 
-      useConversationStore.setState({
+      useAppStore.setState({
         connectionState: "ended",
         appView: "session",
         sessionId: "sess-789",
@@ -2120,9 +2121,9 @@ describe("useConversationStore", () => {
         agentError: { code: "ERR", message: "Msg" },
       });
 
-      useConversationStore.getState().goHome();
+      useAppStore.getState().goHome();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.sessionId).toBeNull();
@@ -2165,7 +2166,7 @@ describe("useConversationStore", () => {
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.getSessionToken).mockResolvedValue(mockTokenRes);
 
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.getSessionDetail).toHaveBeenCalledWith(validUuid);
@@ -2174,7 +2175,7 @@ describe("useConversationStore", () => {
       expect(api.createSession).not.toHaveBeenCalled();
       expect(api.endSession).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connecting");
       expect(state.appView).toBe("session");
       expect(state.sessionId).toBe(validUuid);
@@ -2202,14 +2203,14 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const promise = useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       await vi.waitFor(() => {
         expect(api.getSessionToken).toHaveBeenCalledWith(validUuid);
       });
 
       // Token 在途期间：sessionId 绝不能提前写入！
-      expect(useConversationStore.getState()).toMatchObject({
+      expect(useAppStore.getState()).toMatchObject({
         _sessionState: { phase: "checking_health" },
         sessionId: null,
         token: null,
@@ -2221,7 +2222,7 @@ describe("useConversationStore", () => {
       await promise;
 
       // Token 成功后原子发布
-      expect(useConversationStore.getState()).toMatchObject({
+      expect(useAppStore.getState()).toMatchObject({
         _sessionState: {
           phase: "credentials_ready",
           sessionId: validUuid,
@@ -2236,14 +2237,14 @@ describe("useConversationStore", () => {
     });
 
     it("REC-01 regression: checks attribution and drops call if synchronous store subscriber cancels/resets on checking_health set", async () => {
-      const unsub = useConversationStore.subscribe((state) => {
+      const unsub = useAppStore.subscribe((state) => {
         if (state.connectionState === "checking_health") {
           // 同步 store 订阅在 set checking_health 回调里返回主页
-          useConversationStore.getState().goHome();
+          useAppStore.getState().goHome();
         }
       });
 
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
       unsub();
 
       // 绝不能发出任何 API 请求！
@@ -2251,8 +2252,8 @@ describe("useConversationStore", () => {
       expect(api.getSessionDetail).not.toHaveBeenCalled();
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.getSessionToken).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
     });
 
     it("gates livekit_cloud capability mode, remaining on dashboard with localized message and zero token/detail calls", async () => {
@@ -2261,40 +2262,40 @@ describe("useConversationStore", () => {
         call_lease_mode: "livekit_cloud",
       });
 
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
       expect(api.getSessionDetail).not.toHaveBeenCalled();
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.getSessionToken).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe(zhCN.conversation.capabilitiesUnsupported);
     });
 
     it("refuses to resume and makes zero API calls when sessionId is not a valid UUID", async () => {
-      await useConversationStore.getState().resumeSession("not-a-valid-uuid", validOrigin);
+      await useAppStore.getState().resumeSession("not-a-valid-uuid", validOrigin);
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
     });
 
     it("refuses to resume and makes zero API calls when origin is invalid or does not match auth snapshot/revision", async () => {
       // 1. 无效 origin 结构
-      await useConversationStore.getState().resumeSession(validUuid, null as any);
+      await useAppStore.getState().resumeSession(validUuid, null as any);
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
 
       // 2. revision 不匹配
-      await useConversationStore.getState().resumeSession(validUuid, {
+      await useAppStore.getState().resumeSession(validUuid, {
         principal: validOrigin.principal,
         revision: 999,
       });
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
 
       // 3. principal 不匹配
-      await useConversationStore.getState().resumeSession(validUuid, {
+      await useAppStore.getState().resumeSession(validUuid, {
         principal: { issuer: "https://other.com", subject: "user-1" },
         revision: 1,
       });
@@ -2302,7 +2303,7 @@ describe("useConversationStore", () => {
 
       // 4. 未登录
       vi.mocked(auth.getAuthSnapshot).mockReturnValueOnce({ state: "anonymous", principal: null });
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
     });
 
@@ -2317,13 +2318,13 @@ describe("useConversationStore", () => {
         transcripts: [],
       });
 
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       expect(api.getSessionDetail).toHaveBeenCalledWith(validUuid);
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.getSessionToken).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe(zhCN.activeSessions.resumeError);
@@ -2340,11 +2341,11 @@ describe("useConversationStore", () => {
         transcripts: [],
       });
 
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       expect(api.getSessionToken).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().error).toBe(zhCN.activeSessions.resumeError);
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().error).toBe(zhCN.activeSessions.resumeError);
     });
 
     it("supports case-insensitive UUID matching in session detail", async () => {
@@ -2364,10 +2365,10 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().sessionId).toBe(validUuid);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe(validUuid);
     });
 
     it("rejects invalid or empty token response without publishing sessionId", async () => {
@@ -2386,12 +2387,12 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
-      expect(useConversationStore.getState().sessionId).toBeNull();
-      expect(useConversationStore.getState().token).toBeNull();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().error).toBe(zhCN.activeSessions.resumeError);
+      expect(useAppStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().error).toBe(zhCN.activeSessions.resumeError);
     });
 
     it("drops late responses and releases slot if user calls goHome during detail or token fetch", async () => {
@@ -2403,14 +2404,14 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const promise = useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       await vi.waitFor(() => {
         expect(api.getSessionDetail).toHaveBeenCalled();
       });
 
-      useConversationStore.getState().goHome();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      useAppStore.getState().goHome();
+      expect(useAppStore.getState().connectionState).toBe("idle");
 
       resolveDetail({
         id: validUuid,
@@ -2425,7 +2426,7 @@ describe("useConversationStore", () => {
 
       expect(api.checkHealthReady).not.toHaveBeenCalled();
       expect(api.getSessionToken).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().sessionId).toBeNull();
     });
 
     it("drops late responses and releases slot when auth snapshot changes during in-flight resume", async () => {
@@ -2447,7 +2448,7 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const oldPromise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const oldPromise = useAppStore.getState().resumeSession(validUuid, validOrigin);
       await vi.waitFor(() => {
         expect(api.getSessionToken).toHaveBeenCalled();
       });
@@ -2462,16 +2463,16 @@ describe("useConversationStore", () => {
       }
 
       // 槽位立即释放回 idle
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
 
       // 旧 Token 迟到返回，绝不污染
       resolveToken({ token: "late-tok", ws_url: "wss://late.test" });
       await oldPromise;
 
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().token).toBeNull();
     });
 
     it("drops late responses and releases slot when web lifecycle suspends during in-flight resume", async () => {
@@ -2493,7 +2494,7 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const promise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const promise = useAppStore.getState().resumeSession(validUuid, validOrigin);
       await vi.waitFor(() => {
         expect(api.getSessionToken).toHaveBeenCalled();
       });
@@ -2506,13 +2507,13 @@ describe("useConversationStore", () => {
       });
       document.dispatchEvent(new Event("visibilitychange"));
 
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
 
       resolveToken({ token: "tok-hide", ws_url: "wss://lk.test" });
       await promise;
 
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
 
       // 恢复 visible
       Object.defineProperty(document, "visibilityState", {
@@ -2541,24 +2542,24 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const resumePromise = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const resumePromise = useAppStore.getState().resumeSession(validUuid, validOrigin);
       await vi.waitFor(() => {
         expect(api.getSessionToken).toHaveBeenCalled();
       });
 
       // 用户在恢复在途期间调用 endSession
-      await useConversationStore.getState().endSession();
+      await useAppStore.getState().endSession();
 
       // 由于此时 sessionId 仍为 null，本地代际取消，绝不能调用 api.endSession
       expect(api.endSession).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().connectionState).toBe("ended");
 
       // 迟到的 Token 返回
       resolveToken({ token: "late-resumed", ws_url: "wss://lk.test" });
       await resumePromise;
 
-      expect(useConversationStore.getState().connectionState).toBe("ended");
-      expect(useConversationStore.getState().token).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("ended");
+      expect(useAppStore.getState().token).toBeNull();
     });
 
     it("deduplicates concurrent calls to startSession and resumeSession", async () => {
@@ -2570,14 +2571,14 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const p1 = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const p1 = useAppStore.getState().resumeSession(validUuid, validOrigin);
       await vi.waitFor(() => {
-        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+        expect(useAppStore.getState().connectionState).toBe("checking_health");
       });
 
       // 在途期间调用 startSession 和 resumeSession
-      await useConversationStore.getState().startSession("free_talk");
-      await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      await useAppStore.getState().startSession("free_talk");
+      await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       // capabilities 仅在最初那次调用了一次
       expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
@@ -2598,14 +2599,14 @@ describe("useConversationStore", () => {
       });
 
       await p1;
-      expect(useConversationStore.getState().sessionId).toBe(validUuid);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe(validUuid);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
   });
 
   describe("Agent dispatch failure and deduplication (CP-02 §2, §3)", () => {
     it("markDispatched only succeeds once per sessionId and sessionGen pair", () => {
-      const store = useConversationStore.getState();
+      const store = useAppStore.getState();
       expect(store.markDispatched("sess-1", 1)).toBe(true);
       // 同一 pair 重复调用返回 false
       expect(store.markDispatched("sess-1", 1)).toBe(false);
@@ -2620,7 +2621,7 @@ describe("useConversationStore", () => {
     });
 
     it("failDispatch clears token and wsUrl and sets state to dispatch_failed when matching", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-fail-target",
         sessionGen: 3,
         token: "tok-to-clear",
@@ -2629,18 +2630,18 @@ describe("useConversationStore", () => {
       });
 
       // 不同的 sessionId 忽略
-      useConversationStore.getState().failDispatch("sess-other", 3);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().token).toBe("tok-to-clear");
+      useAppStore.getState().failDispatch("sess-other", 3);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().token).toBe("tok-to-clear");
 
       // 不同的 sessionGen 忽略
-      useConversationStore.getState().failDispatch("sess-fail-target", 2);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().token).toBe("tok-to-clear");
+      useAppStore.getState().failDispatch("sess-fail-target", 2);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().token).toBe("tok-to-clear");
 
       // 匹配时执行
-      useConversationStore.getState().failDispatch("sess-fail-target", 3);
-      const state = useConversationStore.getState();
+      useAppStore.getState().failDispatch("sess-fail-target", 3);
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("dispatch_failed");
       expect(state.token).toBeNull();
       expect(state.wsUrl).toBeNull();
@@ -2649,32 +2650,32 @@ describe("useConversationStore", () => {
 
     it("failDispatch does not mutate state when already ended, ending, or idle", () => {
       for (const nonActive of ["ended", "ending", "end_failed", "idle"] as const) {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionId: "sess-ignore",
           sessionGen: 1,
           token: null,
           connectionState: nonActive,
         });
 
-        useConversationStore.getState().failDispatch("sess-ignore", 1);
-        expect(useConversationStore.getState().connectionState).toBe(nonActive);
+        useAppStore.getState().failDispatch("sess-ignore", 1);
+        expect(useAppStore.getState().connectionState).toBe(nonActive);
       }
     });
 
     it("setActive cannot revive dispatch_failed state", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-cannot-revive",
         sessionGen: 1,
         token: null,
         connectionState: "dispatch_failed",
       });
 
-      useConversationStore.getState().setActive("sess-cannot-revive", 1);
-      expect(useConversationStore.getState().connectionState).toBe("dispatch_failed");
+      useAppStore.getState().setActive("sess-cannot-revive", 1);
+      expect(useAppStore.getState().connectionState).toBe("dispatch_failed");
     });
 
     it("goHome resets dispatch_failed state to idle and increments generation", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-go-home",
         sessionGen: 1,
         token: null,
@@ -2684,9 +2685,9 @@ describe("useConversationStore", () => {
         dispatchedSessionId: "sess-go-home",
       });
 
-      useConversationStore.getState().goHome();
+      useAppStore.getState().goHome();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.sessionId).toBeNull();
@@ -2698,7 +2699,7 @@ describe("useConversationStore", () => {
 
   describe("Web connection failure and interruption (A13)", () => {
     it("failConnection clears token and wsUrl and sets state to connection_failed when matching", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-conn-fail",
         sessionGen: 2,
         token: "tok-conn-fail",
@@ -2707,18 +2708,18 @@ describe("useConversationStore", () => {
       });
 
       // 不同的 sessionId 忽略
-      useConversationStore.getState().failConnection("sess-other", 2);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().token).toBe("tok-conn-fail");
+      useAppStore.getState().failConnection("sess-other", 2);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().token).toBe("tok-conn-fail");
 
       // 不同的 sessionGen 忽略
-      useConversationStore.getState().failConnection("sess-conn-fail", 1);
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().token).toBe("tok-conn-fail");
+      useAppStore.getState().failConnection("sess-conn-fail", 1);
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().token).toBe("tok-conn-fail");
 
       // 匹配时执行
-      useConversationStore.getState().failConnection("sess-conn-fail", 2);
-      const state = useConversationStore.getState();
+      useAppStore.getState().failConnection("sess-conn-fail", 2);
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connection_failed");
       expect(state.token).toBeNull();
       expect(state.wsUrl).toBeNull();
@@ -2727,7 +2728,7 @@ describe("useConversationStore", () => {
     });
 
     it("failConnection works from active state", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-conn-active",
         sessionGen: 5,
         token: "tok-active",
@@ -2735,8 +2736,8 @@ describe("useConversationStore", () => {
         connectionState: "active",
       });
 
-      useConversationStore.getState().failConnection("sess-conn-active", 5);
-      const state = useConversationStore.getState();
+      useAppStore.getState().failConnection("sess-conn-active", 5);
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connection_failed");
       expect(state.token).toBeNull();
       expect(state.wsUrl).toBeNull();
@@ -2744,15 +2745,15 @@ describe("useConversationStore", () => {
 
     it("failConnection does not mutate state when already ended, ending, end_failed, or idle", () => {
       for (const nonActive of ["ended", "ending", "end_failed", "idle"] as const) {
-        useConversationStore.setState({
+        useAppStore.setState({
           sessionId: "sess-conn-ignore",
           sessionGen: 1,
           token: null,
           connectionState: nonActive,
         });
 
-        useConversationStore.getState().failConnection("sess-conn-ignore", 1);
-        expect(useConversationStore.getState().connectionState).toBe(nonActive);
+        useAppStore.getState().failConnection("sess-conn-ignore", 1);
+        expect(useAppStore.getState().connectionState).toBe(nonActive);
       }
     });
 
@@ -2766,12 +2767,12 @@ describe("useConversationStore", () => {
       );
 
       // 发起 startup
-      const promise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const promise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 收到过期的 failConnection 调用（不匹配的 sessionId 或 sessionGen）
-      useConversationStore.getState().failConnection("stale-sess", 999);
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      useAppStore.getState().failConnection("stale-sess", 999);
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 验证 currentStartupTracker 依然完好，未被过期的 failConnection 取消或清空
       // 触发 authSnapshotListener 事件
@@ -2784,27 +2785,27 @@ describe("useConversationStore", () => {
       }
 
       // 状态成功被 startupTracker 中止并重置为 idle
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
 
       resolveCaps({ protocol_version: 1, call_lease_mode: "disabled" });
       await promise;
     });
 
     it("setActive cannot revive connection_failed state", () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-dead-conn",
         sessionGen: 1,
         token: null,
         connectionState: "connection_failed",
       });
 
-      useConversationStore.getState().setActive("sess-dead-conn", 1);
-      expect(useConversationStore.getState().connectionState).toBe("connection_failed");
+      useAppStore.getState().setActive("sess-dead-conn", 1);
+      expect(useAppStore.getState().connectionState).toBe("connection_failed");
     });
 
     it("goHome resets connection_failed state to idle, increments generation, and allows new session", async () => {
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "sess-cf-home",
         sessionGen: 3,
         token: null,
@@ -2812,9 +2813,9 @@ describe("useConversationStore", () => {
         appView: "session",
       });
 
-      useConversationStore.getState().goHome();
+      useAppStore.getState().goHome();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.sessionId).toBeNull();
@@ -2840,10 +2841,10 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      await useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().sessionId).toBe("sess-after-cf");
-      expect(useConversationStore.getState().token).toBe("tok-after-cf");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      await useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().sessionId).toBe("sess-after-cf");
+      expect(useAppStore.getState().token).toBe("tok-after-cf");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
   });
 
@@ -2896,19 +2897,19 @@ describe("useConversationStore", () => {
 
     it("recheck preserves the native readiness timeout and never reaches downstream APIs", async () => {
       vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
-      await useConversationStore.getState().startSession("scenario");
+      await useAppStore.getState().startSession("scenario");
       const fakeApp = createFakeApp();
       fakeApp.getState.mockImplementation(() => new Promise(() => {}));
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
       vi.useFakeTimers();
       try {
-        const retry = useConversationStore.getState().recheckReadiness();
+        const retry = useAppStore.getState().recheckReadiness();
         await vi.advanceTimersByTimeAsync(10000);
         await retry;
         expect(api.checkHealthReady).toHaveBeenCalledTimes(1);
         expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
         expectNoCredentials();
-        expect(useConversationStore.getState()).toMatchObject({
+        expect(useAppStore.getState()).toMatchObject({
           connectionState: "idle",
           error: zhCN.conversation.lifecycleUnavailable,
           readinessNotice: false,
@@ -2921,7 +2922,7 @@ describe("useConversationStore", () => {
 
     it("suspending an in-flight recheck invalidates its eventual success", async () => {
       vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
-      await useConversationStore.getState().startSession("scenario");
+      await useAppStore.getState().startSession("scenario");
       const fakeApp = createFakeApp();
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
       let resolve!: (value: api.HealthReadyResponse) => void;
@@ -2930,13 +2931,13 @@ describe("useConversationStore", () => {
           resolve = res;
         }),
       );
-      const retry = useConversationStore.getState().recheckReadiness();
+      const retry = useAppStore.getState().recheckReadiness();
       await vi.waitFor(() => expect(api.checkHealthReady).toHaveBeenCalledTimes(2));
       fakeApp.emitAppStateChange({ isActive: false });
       resolve({ status: "ready" });
       await retry;
       expectNoCredentials();
-      expect(useConversationStore.getState()).toMatchObject({
+      expect(useAppStore.getState()).toMatchObject({
         connectionState: "idle",
         readinessNotice: false,
         recheckingReadiness: false,
@@ -2969,13 +2970,13 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      const pStart = useConversationStore.getState().startSession("free_talk");
+      const pStart = useAppStore.getState().startSession("free_talk");
 
       // 等待 listener 注册发起，进入 checking_health
       await vi.waitFor(() => {
         expect(fakeApp.addListener).toHaveBeenCalledWith("appStateChange", expect.any(Function));
       });
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 处于 pending 状态期间，外部 API 零调用
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
@@ -2993,7 +2994,7 @@ describe("useConversationStore", () => {
       expect(api.createSession).toHaveBeenCalledWith("free_talk", undefined);
       expect(api.getSessionToken).toHaveBeenCalledWith("sess-native-1");
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connecting");
       expect(state.sessionId).toBe("sess-native-1");
       expect(state.token).toBe("tok-native-1");
@@ -3025,12 +3026,12 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      const pResume = useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const pResume = useAppStore.getState().resumeSession(validUuid, validOrigin);
 
       await vi.waitFor(() => {
         expect(fakeApp.addListener).toHaveBeenCalledWith("appStateChange", expect.any(Function));
       });
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // pending 期间零 API 调用
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
@@ -3048,7 +3049,7 @@ describe("useConversationStore", () => {
       expect(api.getSessionToken).toHaveBeenCalledWith(validUuid);
       expect(api.createSession).not.toHaveBeenCalled();
 
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("connecting");
       expect(state.sessionId).toBe(validUuid);
       expect(state.token).toBe("tok-resume-1");
@@ -3058,12 +3059,12 @@ describe("useConversationStore", () => {
       const fakeApp = createFakeApp(false);
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().appView).toBe("dashboard");
-      expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().appView).toBe("dashboard");
+      expect(useAppStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
 
       // 允许显式重试
       const retryApp = createFakeApp(true);
@@ -3083,9 +3084,9 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      await useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
-      expect(useConversationStore.getState().sessionId).toBe("retry-sess");
+      await useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe("retry-sess");
     });
 
     it("fails closed without leaking raw error when addListener or getState rejects, allowing explicit retry", async () => {
@@ -3095,19 +3096,19 @@ describe("useConversationStore", () => {
       );
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.appView).toBe("dashboard");
       expect(state.error).toBe(zhCN.conversation.lifecycleUnavailable);
       expect(state.error).not.toContain("Sensitive internal CoreBluetooth");
 
       // 针对 resumeSession 同理
-      const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const res = await useAppStore.getState().resumeSession(validUuid, validOrigin);
       expect(res).toBe(false);
-      expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+      expect(useAppStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
     });
 
     it("fails closed when getState rejects without leaking raw error", async () => {
@@ -3115,10 +3116,10 @@ describe("useConversationStore", () => {
       fakeApp.getState.mockRejectedValueOnce(new Error("App.getState bridge timeout"));
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
-      const state = useConversationStore.getState();
+      const state = useAppStore.getState();
       expect(state.connectionState).toBe("idle");
       expect(state.error).toBe(zhCN.conversation.lifecycleUnavailable);
       expect(state.error).not.toContain("bridge timeout");
@@ -3131,13 +3132,13 @@ describe("useConversationStore", () => {
         fakeApp.getState.mockImplementation(() => new Promise(() => {}));
         _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-        const pStart = useConversationStore.getState().startSession("free_talk");
-        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+        const pStart = useAppStore.getState().startSession("free_talk");
+        expect(useAppStore.getState().connectionState).toBe("checking_health");
         expect(api.getCallCapabilities).not.toHaveBeenCalled();
 
         // 前进 9999ms，仍在等待
         await vi.advanceTimersByTimeAsync(9999);
-        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+        expect(useAppStore.getState().connectionState).toBe("checking_health");
         expect(api.getCallCapabilities).not.toHaveBeenCalled();
 
         // 达到 10000ms 超时
@@ -3145,7 +3146,7 @@ describe("useConversationStore", () => {
         await pStart;
 
         expect(api.getCallCapabilities).not.toHaveBeenCalled();
-        const state = useConversationStore.getState();
+        const state = useAppStore.getState();
         expect(state.connectionState).toBe("idle");
         expect(state.appView).toBe("dashboard");
         expect(state.error).toBe(zhCN.conversation.lifecycleUnavailable);
@@ -3169,11 +3170,11 @@ describe("useConversationStore", () => {
           ws_url: "wss://lk.test",
         });
 
-        const pRetry = useConversationStore.getState().startSession("free_talk");
+        const pRetry = useAppStore.getState().startSession("free_talk");
         await pRetry;
 
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
-        expect(useConversationStore.getState().sessionId).toBe("retry-after-10s");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().sessionId).toBe("retry-after-10s");
       } finally {
         vi.useRealTimers();
       }
@@ -3186,15 +3187,15 @@ describe("useConversationStore", () => {
         fakeApp.getState.mockImplementation(() => new Promise(() => {}));
         _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-        const pResume = useConversationStore.getState().resumeSession(validUuid, validOrigin);
-        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+        const pResume = useAppStore.getState().resumeSession(validUuid, validOrigin);
+        expect(useAppStore.getState().connectionState).toBe("checking_health");
 
         await vi.advanceTimersByTimeAsync(10000);
         const result = await pResume;
 
         expect(result).toBe(false);
-        expect(useConversationStore.getState().connectionState).toBe("idle");
-        expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+        expect(useAppStore.getState().connectionState).toBe("idle");
+        expect(useAppStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
         expect(fakeApp.removeMock).toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
@@ -3212,11 +3213,11 @@ describe("useConversationStore", () => {
       );
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      const p1 = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const p1 = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       // 第二次点击
-      const p2 = useConversationStore.getState().startSession("free_talk");
+      const p2 = useAppStore.getState().startSession("free_talk");
 
       // 共享去重槽位，不重复创建
       expect(fakeApp.addListener).toHaveBeenCalledTimes(1);
@@ -3243,7 +3244,7 @@ describe("useConversationStore", () => {
       await Promise.all([p1, p2]);
 
       expect(api.createSession).toHaveBeenCalledTimes(1);
-      expect(useConversationStore.getState().sessionId).toBe("sess-double-click");
+      expect(useAppStore.getState().sessionId).toBe("sess-double-click");
     });
 
     it("cancels wait and releases slot when auth snapshot changes during native pending", async () => {
@@ -3257,8 +3258,8 @@ describe("useConversationStore", () => {
       );
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      const promise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const promise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       await vi.waitFor(() => {
         expect(fakeApp.getState).toHaveBeenCalled();
@@ -3274,7 +3275,7 @@ describe("useConversationStore", () => {
       }
 
       // 槽位立即释放
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
       await vi.waitFor(() => {
         expect(fakeApp.removeMock).toHaveBeenCalled();
       });
@@ -3284,7 +3285,7 @@ describe("useConversationStore", () => {
       await promise;
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
     });
 
     it("cancels wait when auth principal issuer changes during native pending", async () => {
@@ -3298,8 +3299,8 @@ describe("useConversationStore", () => {
       );
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      const promise = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const promise = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       await vi.waitFor(() => {
         expect(fakeApp.getState).toHaveBeenCalled();
@@ -3312,7 +3313,7 @@ describe("useConversationStore", () => {
         });
       }
 
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
       resolveGetState({ isActive: true });
       await promise;
 
@@ -3330,16 +3331,16 @@ describe("useConversationStore", () => {
       );
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp1 });
 
-      const p1 = useConversationStore.getState().startSession("free_talk");
-      expect(useConversationStore.getState().connectionState).toBe("checking_health");
+      const p1 = useAppStore.getState().startSession("free_talk");
+      expect(useAppStore.getState().connectionState).toBe("checking_health");
 
       await vi.waitFor(() => {
         expect(fakeApp1.getState).toHaveBeenCalled();
       });
 
       // 用户在等待期间返回主页
-      useConversationStore.getState().goHome();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      useAppStore.getState().goHome();
+      expect(useAppStore.getState().connectionState).toBe("idle");
       await vi.waitFor(() => {
         expect(fakeApp1.removeMock).toHaveBeenCalled();
       });
@@ -3362,18 +3363,18 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      const p2 = useConversationStore.getState().startSession("free_talk");
+      const p2 = useAppStore.getState().startSession("free_talk");
       await p2;
 
-      expect(useConversationStore.getState().sessionId).toBe("sess-2-fresh");
+      expect(useAppStore.getState().sessionId).toBe("sess-2-fresh");
 
       // 第一代迟到 resolve，绝不影响第二代
       resolveFirstGetState({ isActive: true });
       await p1;
 
-      expect(useConversationStore.getState().sessionId).toBe("sess-2-fresh");
-      expect(useConversationStore.getState().token).toBe("tok-2-fresh");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe("sess-2-fresh");
+      expect(useAppStore.getState().token).toBe("tok-2-fresh");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     it("stale ready / reject / timeout from previous attempt does not hurt new tracker or session", async () => {
@@ -3383,12 +3384,12 @@ describe("useConversationStore", () => {
         fakeApp1.getState.mockImplementation(() => new Promise(() => {}));
         _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp1 });
 
-        const p1 = useConversationStore.getState().startSession("free_talk");
-        expect(useConversationStore.getState().connectionState).toBe("checking_health");
+        const p1 = useAppStore.getState().startSession("free_talk");
+        expect(useAppStore.getState().connectionState).toBe("checking_health");
 
         // 用户重置取消 Attempt 1
-        useConversationStore.getState().reset();
-        expect(useConversationStore.getState().connectionState).toBe("idle");
+        useAppStore.getState().reset();
+        expect(useAppStore.getState().connectionState).toBe("idle");
 
         // 用户开启 Attempt 2
         const fakeApp2 = createFakeApp(true);
@@ -3408,18 +3409,18 @@ describe("useConversationStore", () => {
           ws_url: "wss://lk.test",
         });
 
-        const p2 = useConversationStore.getState().startSession("free_talk");
+        const p2 = useAppStore.getState().startSession("free_talk");
         await p2;
-        expect(useConversationStore.getState().sessionId).toBe("sess-attempt-2");
+        expect(useAppStore.getState().sessionId).toBe("sess-attempt-2");
 
         // 此时 Attempt 1 的 10 秒超时在计时器里到达
         await vi.advanceTimersByTimeAsync(10000);
         await p1;
 
         // Attempt 2 依然完好，未被 Attempt 1 的超时清理
-        expect(useConversationStore.getState().sessionId).toBe("sess-attempt-2");
-        expect(useConversationStore.getState().token).toBe("tok-attempt-2");
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().sessionId).toBe("sess-attempt-2");
+        expect(useAppStore.getState().token).toBe("tok-attempt-2");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
       } finally {
         vi.useRealTimers();
       }
@@ -3438,7 +3439,7 @@ describe("useConversationStore", () => {
           }),
       );
 
-      const pStart = useConversationStore.getState().startSession("free_talk");
+      const pStart = useAppStore.getState().startSession("free_talk");
 
       await vi.waitFor(() => {
         expect(api.createSession).toHaveBeenCalled();
@@ -3448,7 +3449,7 @@ describe("useConversationStore", () => {
       fakeApp.emitAppStateChange({ isActive: false });
 
       // 槽位立即释放回 idle
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
       expect(fakeApp.removeMock).toHaveBeenCalled();
 
       // 迟到的 createSession 返回
@@ -3465,33 +3466,33 @@ describe("useConversationStore", () => {
 
       // 绝不继续获取 Token
       expect(api.getSessionToken).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().sessionId).toBeNull();
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().sessionId).toBeNull();
     });
 
     it("checks attribution and drops API calls if synchronous subscriber resets on checking_health set in native mode", async () => {
       const fakeApp = createFakeApp(true);
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      const unsub = useConversationStore.subscribe((state) => {
+      const unsub = useAppStore.subscribe((state) => {
         if (state.connectionState === "checking_health") {
-          useConversationStore.getState().goHome();
+          useAppStore.getState().goHome();
         }
       });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
       unsub();
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
       expect(api.createSession).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().connectionState).toBe("idle");
     });
 
     it("does not automatically replay startSession or createSession when appStateChange occurs after active", () => {
       const fakeApp = createFakeApp(true);
       _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-      useConversationStore.setState({
+      useAppStore.setState({
         sessionId: "active-call-sess",
         token: "tok-active",
         wsUrl: "wss://lk.test",
@@ -3505,7 +3506,7 @@ describe("useConversationStore", () => {
       // 绝不自动重放调用 createSession 或 getSessionToken
       expect(api.createSession).not.toHaveBeenCalled();
       expect(api.getSessionToken).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().sessionId).toBe("active-call-sess");
+      expect(useAppStore.getState().sessionId).toBe("active-call-sess");
     });
 
     it("Web environment: unknown visibility and null online start cleanly without delay", async () => {
@@ -3540,11 +3541,11 @@ describe("useConversationStore", () => {
         ws_url: "wss://lk.test",
       });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.createSession).toHaveBeenCalled();
-      expect(useConversationStore.getState().sessionId).toBe("sess-web-unknown");
-      expect(useConversationStore.getState().connectionState).toBe("connecting");
+      expect(useAppStore.getState().sessionId).toBe("sess-web-unknown");
+      expect(useAppStore.getState().connectionState).toBe("connecting");
     });
 
     it("Web environment: explicit hidden or offline refuses to start with lifecycleUnavailable", async () => {
@@ -3564,13 +3565,13 @@ describe("useConversationStore", () => {
         },
       });
 
-      await useConversationStore.getState().startSession("free_talk");
+      await useAppStore.getState().startSession("free_talk");
 
       expect(api.getCallCapabilities).not.toHaveBeenCalled();
-      expect(useConversationStore.getState().connectionState).toBe("idle");
-      expect(useConversationStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
+      expect(useAppStore.getState().connectionState).toBe("idle");
+      expect(useAppStore.getState().error).toBe(zhCN.conversation.lifecycleUnavailable);
 
-      const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+      const res = await useAppStore.getState().resumeSession(validUuid, validOrigin);
       expect(res).toBe(false);
     });
 
@@ -3580,21 +3581,21 @@ describe("useConversationStore", () => {
         _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
         // 订阅 store：首次 checking_health 时同步使 getAuthRevision 递增，但不派发 authSnapshot 通知
-        const unsub = useConversationStore.subscribe((state) => {
+        const unsub = useAppStore.subscribe((state) => {
           if (state.connectionState === "checking_health") {
             vi.mocked(auth.getAuthRevision).mockReturnValue(2);
           }
         });
 
-        await useConversationStore.getState().startSession("free_talk");
+        await useAppStore.getState().startSession("free_talk");
         unsub();
 
         // 外部 API 零调用
         expect(api.getCallCapabilities).not.toHaveBeenCalled();
         expect(api.createSession).not.toHaveBeenCalled();
         // 关键断言：必须安全释放回 idle，不得永久卡死在 checking_health
-        expect(useConversationStore.getState().connectionState).toBe("idle");
-        expect(useConversationStore.getState().error).toBeNull();
+        expect(useAppStore.getState().connectionState).toBe("idle");
+        expect(useAppStore.getState().error).toBeNull();
 
         // 允许后续以新 revision 显式重试并成功
         vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
@@ -3612,9 +3613,9 @@ describe("useConversationStore", () => {
           ws_url: "wss://lk.test",
         });
 
-        await useConversationStore.getState().startSession("free_talk");
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
-        expect(useConversationStore.getState().sessionId).toBe("retry-sess-01");
+        await useAppStore.getState().startSession("free_talk");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().sessionId).toBe("retry-sess-01");
       });
 
       it("START-01 (resumeSession): safely releases to idle when authRevision changes synchronously upon checking_health set, returns false, and allows explicit retry", async () => {
@@ -3622,21 +3623,21 @@ describe("useConversationStore", () => {
         _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
         // 订阅 store：首次 checking_health 时同步使 getAuthRevision 递增，但不派发 authSnapshot 通知
-        const unsub = useConversationStore.subscribe((state) => {
+        const unsub = useAppStore.subscribe((state) => {
           if (state.connectionState === "checking_health") {
             vi.mocked(auth.getAuthRevision).mockReturnValue(2);
           }
         });
 
-        const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+        const res = await useAppStore.getState().resumeSession(validUuid, validOrigin);
         unsub();
 
         expect(res).toBe(false);
         expect(api.getCallCapabilities).not.toHaveBeenCalled();
         expect(api.getSessionDetail).not.toHaveBeenCalled();
         // 关键断言：必须安全释放回 idle
-        expect(useConversationStore.getState().connectionState).toBe("idle");
-        expect(useConversationStore.getState().error).toBeNull();
+        expect(useAppStore.getState().connectionState).toBe("idle");
+        expect(useAppStore.getState().error).toBeNull();
 
         // 允许以更新后的 origin 显式重试并成功
         vi.mocked(api.getSessionDetail).mockResolvedValue({
@@ -3655,10 +3656,10 @@ describe("useConversationStore", () => {
         });
 
         const retryOrigin = { ...validOrigin, revision: 2 };
-        const res2 = await useConversationStore.getState().resumeSession(validUuid, retryOrigin);
+        const res2 = await useAppStore.getState().resumeSession(validUuid, retryOrigin);
         expect(res2).toBe(true);
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
-        expect(useConversationStore.getState().sessionId).toBe(validUuid);
+        expect(useAppStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().sessionId).toBe(validUuid);
       });
 
       it("START-02 (startSession): re-entrant startSession inside addListener is deduplicated, only 1 external capabilities & session call", async () => {
@@ -3671,7 +3672,7 @@ describe("useConversationStore", () => {
             addListenerCallCount++;
             if (addListenerCallCount === 1) {
               // 模拟同步重入调用 startSession
-              useConversationStore.getState().startSession("free_talk");
+              useAppStore.getState().startSession("free_talk");
             }
             return Promise.resolve({ remove: removeMock });
           }),
@@ -3693,12 +3694,12 @@ describe("useConversationStore", () => {
           ws_url: "wss://lk.test",
         });
 
-        await useConversationStore.getState().startSession("free_talk");
+        await useAppStore.getState().startSession("free_talk");
 
         // 关键断言：尽管 addListener 触发重入，去重槽位已提前锁定，外部调用恰好发生 1 次
         expect(api.getCallCapabilities).toHaveBeenCalledTimes(1);
         expect(api.createSession).toHaveBeenCalledTimes(1);
-        expect(useConversationStore.getState().sessionId).toBe("sess-reentrant-start");
+        expect(useAppStore.getState().sessionId).toBe("sess-reentrant-start");
       });
 
       it("START-02 (resumeSession): re-entrant resumeSession inside addListener is deduplicated, returns false for re-entrant call", async () => {
@@ -3712,9 +3713,7 @@ describe("useConversationStore", () => {
             addListenerCallCount++;
             if (addListenerCallCount === 1) {
               // 模拟同步重入调用 resumeSession
-              reentrantResult = useConversationStore
-                .getState()
-                .resumeSession(validUuid, validOrigin);
+              reentrantResult = useAppStore.getState().resumeSession(validUuid, validOrigin);
             }
             return Promise.resolve({ remove: removeMock });
           }),
@@ -3736,7 +3735,7 @@ describe("useConversationStore", () => {
           ws_url: "wss://lk.test",
         });
 
-        const res = await useConversationStore.getState().resumeSession(validUuid, validOrigin);
+        const res = await useAppStore.getState().resumeSession(validUuid, validOrigin);
 
         expect(res).toBe(true);
         expect(reentrantResult).not.toBeNull();
@@ -3754,7 +3753,7 @@ describe("useConversationStore", () => {
           getState: vi.fn().mockResolvedValue({ isActive: true }),
           addListener: vi.fn(() => {
             // 同步取消：用户在 addListener 发生期间触发 goHome
-            useConversationStore.getState().goHome();
+            useAppStore.getState().goHome();
             return new Promise<{ remove(): Promise<void> }>((resolve) => {
               resolveHandle = resolve;
             });
@@ -3762,7 +3761,7 @@ describe("useConversationStore", () => {
         };
         _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
 
-        const pStart = useConversationStore.getState().startSession("free_talk");
+        const pStart = useAppStore.getState().startSession("free_talk");
 
         // 迟到返回 handle
         resolveHandle({ remove: removeMock });
@@ -3773,7 +3772,7 @@ describe("useConversationStore", () => {
           expect(removeMock).toHaveBeenCalled();
         });
         expect(api.getCallCapabilities).not.toHaveBeenCalled();
-        expect(useConversationStore.getState().connectionState).toBe("idle");
+        expect(useAppStore.getState().connectionState).toBe("idle");
 
         // 开启新启动，验证旧 setup 不影响新 tracker
         const freshApp = createFakeApp(true);
@@ -3793,9 +3792,9 @@ describe("useConversationStore", () => {
           ws_url: "wss://lk.test",
         });
 
-        await useConversationStore.getState().startSession("free_talk");
-        expect(useConversationStore.getState().connectionState).toBe("connecting");
-        expect(useConversationStore.getState().sessionId).toBe("sess-after-cancel");
+        await useAppStore.getState().startSession("free_talk");
+        expect(useAppStore.getState().connectionState).toBe("connecting");
+        expect(useAppStore.getState().sessionId).toBe("sess-after-cancel");
       });
     });
   });

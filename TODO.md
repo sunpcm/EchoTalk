@@ -12,7 +12,9 @@
 （当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果。
 A1（PR #139）、A2（PR #140）、A3（PR #141）已完成。A1–A3 的实施与验证记录见
 [已完成事项归档](./docs/history/todo-done.md)及 [2026-11 实施记录](./docs/history/2026-11.md)。
-建议顺序：A4a → A4b…；A5、B1 可与之并行，A6 依赖 A4 完成。
+A5 导航切片已完成：`appView` 已移出会话模块且本地 Vitest 1161/45 通过，最终 CI 以交付 PR
+为准，见 [A5 验证记录](./docs/verification/cross-platform/A5-NAVIGATION-SLICE.md)。
+建议顺序：A4a → A4b…；B1 可与之并行，A6 依赖 A4 完成。
 
 - [ ] **A4a 前端 data 层契约与契约测试**（Opus 或更强模型；§3.1；**先出设计，用户确认后再实现**）：
       新增 `docs/` 下的 data 层契约文档，定义带认证代际与前后台门禁的查询 Hook 的语义：发起时绑定
@@ -24,10 +26,6 @@ A1（PR #139）、A2（PR #140）、A3（PR #141）已完成。A1–A3 的实施
       `DailyProgress` → `ActiveSessions`（其 `active-sessions/useActiveSessionList.ts`）的顺序，每轮只迁一个。
       验收：该组件对应的 `*.test.tsx` 与相关 E2E **零改动**通过；组件内不再自行维护请求 id、认证订阅与
       生命周期门禁；对关键防线做 3 处以上变异并在报告中列出是否被杀。
-- [ ] **A5 导航状态移出会话 store**（Sonnet；§3.1）：`appView` 现在是 `store/conversation.ts` 的字段，
-      进入 DocTalk 需要先 `reset()` 会话再改视图。新增独立的导航切片，会话 store 不再持有页面概念；
-      不引入 Router。验收：`store/conversation.ts` 不再包含 `appView`；测试与 E2E 中对 `appView` 的引用机械
-      替换，行为断言不变；三测试树计数不降。
 - [ ] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖
       `lib`/`store`/`components`，`lib` 不得依赖 `store`/`components`，data 层不得依赖 `components`。
       验收：规则为 error 级；现有代码零违规或逐条修正；故意加一条反向 import 时 lint 失败。

@@ -5,6 +5,7 @@ import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import { zhCN } from "@/i18n/zh-CN";
 import { useAssessmentStore } from "@/store/assessment";
 import { useConversationStore } from "@/store/conversation";
+import { useAppStore } from "@/store/appStore";
 
 const tAssess = zhCN.assessment;
 const tAgentErr = zhCN.agentError;
@@ -14,7 +15,7 @@ const tDash = zhCN.dashboard;
 /** 已结束视图：展示评估结果和技能树，或 Agent 错误卡片。 */
 export function EndedConversation() {
   const sessionId = useConversationStore((state) => state.sessionId);
-  const goHome = useConversationStore((state) => state.goHome);
+  const goHome = useAppStore((state) => state.goHome);
   const agentError = useConversationStore((state) => state.agentError);
   const {
     assessment,

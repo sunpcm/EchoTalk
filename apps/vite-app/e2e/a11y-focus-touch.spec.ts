@@ -73,8 +73,8 @@ test("primary buttons on the ended view show a visible focus indicator", async (
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
   await page.evaluate(async () => {
-    const { useConversationStore } = await import("/src/store/conversation.ts");
-    useConversationStore.setState({
+    const { useAppStore } = await import("/src/store/appStore.ts");
+    useAppStore.setState({
       appView: "session",
       connectionState: "ended",
       sessionId: "analysis-success",
