@@ -52,10 +52,11 @@ PR #140 的 CI 与 [PR Guard run 43031743003](https://github.com/sunpcm/EchoTalk
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)；当前数字对应上文 PR #140 run/job 日志。
 
-A3 的历史候选快照补充 OpenAPI 契约校验，并修正 Unicode 长度边界。修正提交 `45e5212`
-的本地代码快照上 Fake API 为 108 passed（0 skip）；此前 103 仅属于 PR #141 原 head。
-本地 macOS 和 Linux ARM64 完整 E2E 均有失败，不能计为通过。这些历史计数和本地失败只对应
-各自快照，不替换上表已绑定来源的 PR #140 远端基线。
+A3 的历史证据继续按快照绑定：PR #141 原 head
+`437f6ff8cae70e15ce9549fcc7843008986d8b43` 记录 Fake API 103 passed；修正提交 `45e5212`
+的本地快照记录 108 passed（0 skip）。本地 macOS 和 Linux ARM64 完整 E2E 均有失败，不能计为
+通过。上表则继续绑定 PR #140 head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`，其中 Fake
+API 为 75 passed；这些历史结果互不替换。
 
 ### A3 Unicode/OpenAPI 候选验证（PR #144）
 
@@ -72,13 +73,18 @@ A3 候选 [PR #144](https://github.com/sunpcm/EchoTalk/pull/144) 的 head 为
   pytest collected 809/passed 809、覆盖率 80.19%；套件包含单元、mock 与专用 PostgreSQL
   集成测试。
 
-Unicode 两文件补丁与 main 整合候选已通过独立内容 Review；现停 Review，是否接续原 PR #141
-分支或采用该候选路线仍待用户决定。原 PR #141 当前仍为 OPEN，分支保持
-`437f6ff8cae70e15ce9549fcc7843008986d8b43`，未改动且未合并。上表全部数字只对应 PR #140
-head `ed3ac8bafd294b3823b48613935dcf7db5149dc9`，其中 Fake API 75 passed 等历史计数不得
-转记为 PR #144 候选结果。上述 CI 只绑定 `ed9439a`；本次改动仅收口文档状态，运行时代码不变。
-后续提交的 CI 结果以对应 head 的 GitHub Checks 为准。候选尚未合并、部署，远端 CI 通过不等于
-整卡验收或真实外部服务验收。
+Unicode 两文件补丁与 main 整合候选已通过独立内容 Review。用户现已授权将上述候选追加到原 PR
+#141 分支 `claude/A3-fake-api-contract` 并运行 CI。本节点停在 Review，主控负责发布；发布后的
+head 与最终 CI 回执尚未提供，因此不预告未来提交 hash 或未发布链接，也不得把 `ed9439a` 的回执
+转记为接续后的 PR #141 结果。
+
+历史计数始终绑定各自 head：上文 PR #140 的完整基线（含 Fake API 75 passed）只对应
+`ed3ac8bafd294b3823b48613935dcf7db5149dc9`；本节 PR #144 的 Vitest 1156、Fake API 108/108、
+API 类型生成 8、构建脚本 21、Playwright E2E 234/234、lint 132 warnings/0 errors 与 backend
+pytest 809 passed/80.19% 覆盖只对应 `ed9439a3d342bc3815f82ce1408fe6a71ebc5eac`。原 PR #141
+head `437f6ff8cae70e15ce9549fcc7843008986d8b43` 及本地 macOS/Linux ARM64 E2E 失败继续作为
+历史事实保留。A3 整卡未勾选、未合并，接续后的 PR #141 CI 尚待完成，远端 CI 通过也不等于整卡或
+真实外部服务验收。
 
 ## 已知限制和近期风险
 
