@@ -2,7 +2,7 @@
 
 > 最后核对：2026-11-12，A3 文档 PR #147 六项 CI 已成功，并以
 > `main@f834538c724440d9fbfe7faefaea90233acdb9fd` 合入；A5 候选已基于该 main 完成本地复验，
-> 交付 PR 与最终 CI 待主控执行。
+> 最终集成与 CI 结果以 A5 交付 PR 检查为准。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -34,7 +34,7 @@
 亦成功；随后代码树以 squash commit `a7841b7` 合入 main。下表中的数字绑定最终 PR head
 的 Linux CI 日志，不表示在本机或现 main 上直接重跑。
 
-| 测试树 / 门禁  | A3 最终 head 实际结果                             | 日志     |
+| 测试树 / 门禁  | 最近实测结果（各行来源见下文）                    | 日志     |
 | -------------- | ------------------------------------------------- | -------- |
 | Vitest         | 1161 passed（45 个文件；A5 本地复验，见下节）     | frontend |
 | Playwright E2E | 234 passed（0 skip、无 retry）                    | frontend |
@@ -67,8 +67,9 @@ Vitest 1161/45，lint 与 typecheck `--force` 成功且 0 cache（lint 132 warni
 8 份既有测试的 340 个 case 与 1624 个 expect 相关调用 AST 不变；DocChatSetup 仅拆
 `store` mock 与 `beforeEach` 所有权，其余 7 份 runtime AST 等同，契约和行为未改变。
 
-本轮未在 A5 新 head 运行 E2E、backend 或 Linux CI，当前也不存在新交付 PR；表内其他行仍绑定
-A3 最终 head。A5 是否完成以交付 PR 的检查为准，不把旧 PR #145 结果冒充本轮通过。
+表内 Vitest 行为 A5 本地复验，其余行仍绑定 A3 最终 head。A5 合并前须由交付 PR 的完整
+Linux CI 实跑 E2E、backend 等门禁并回读原始日志；最终结果以该 PR 检查为准，不把旧
+PR #145 结果冒充本轮通过。本轮另已复验 Fake API 108/0 skip 及 build `--force`（0 cache）。
 
 ## 已知限制和近期风险
 
