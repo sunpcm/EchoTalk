@@ -35,7 +35,14 @@ from services.analysis_service import (
     FROZEN_BKT_VERSION,
     _apply_bkt_updates,
 )
-from services.knowledge.skill_updater import phoneme_error_to_skill
+from services.learning_event_canonical import (
+    build_canonical_observations,
+    candidate_skills,
+)
+from services.learning_event_cutover import (
+    CutoverError,
+    assert_learning_event_gate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +166,28 @@ async def write_learning_events(
     db: AsyncSession,
 ) -> None:
     """Persist one completed analysis batch inside the caller's transaction."""
-    # Serialize per-user writes until commit.  This is the lock that makes both
-    # idempotent inserts and first-time ``knowledge_states`` creation race-safe.
-    await db.execute(select(User.id).where(User.id == user_id).with_for_update())
+    # The persistent gate is the first lock for every writer, including direct
+    # service callers.  Maintenance takes the conflicting exclusive lock on
+    # this row before it starts draining Jobs or state writes.
+    try:
+        await assert_learning_event_gate(db)
+    except CutoverError as exc:
+        raise _fail(exc.code, str(exc)) from exc
+
+    # Keep the complete writer order stable: control -> Job -> User.  Locking
+    # the Job before the user also prevents a user-scoped shortcut around the
+    # old worker's Job-first transaction.
+    locked_job_id = await db.scalar(
+        select(AnalysisJob.id).where(AnalysisJob.id == job.id).with_for_update()
+    )
+    if locked_job_id is None:
+        raise _fail("job_missing", "analysis job no longer exists")
+
+    locked_user_id = await db.scalar(
+        select(User.id).where(User.id == user_id).with_for_update()
+    )
+    if locked_user_id is None:
+        raise _fail("user_missing", "learning event owner no longer exists")
 
     # Fail closed on any relationship that a bare FK would not prove.
     if job.session_id != session.id:
@@ -191,63 +217,17 @@ async def write_learning_events(
 
     occurred_at = session.ended_at
 
-    # Canonicalize observations.  Pronunciation keeps source array order;
-    # grammar is sorted by (skill_id, error_type) for a deterministic ordinal.
-    pron_candidates: list[tuple[dict, str | None, int]] = []
-    if assessment is not None and assessment.phoneme_alignment:
-        for ordinal, entry in enumerate(assessment.phoneme_alignment):
-            pron_candidates.append((entry, phoneme_error_to_skill(entry), ordinal))
-
-    sorted_grammar = sorted(
-        grammar_errors, key=lambda error: (error.skill_tag, error.error_type)
+    candidate_skill_ids = candidate_skills(
+        assessment=assessment,
+        grammar_errors=grammar_errors,
     )
-
-    candidate_skill_ids = {
-        skill for _, skill, _ in pron_candidates if skill is not None
-    }
-    candidate_skill_ids.update(error.skill_tag for error in sorted_grammar)
     valid_skills = await _read_skill_ids(db, candidate_skill_ids)
-
-    unmapped_pronunciation = 0
-    pronunciation_observations: list[dict[str, Any]] = []
-    for entry, skill_id, ordinal in pron_candidates:
-        if skill_id is None or skill_id not in valid_skills:
-            unmapped_pronunciation += 1
-            continue
-        pronunciation_observations.append(
-            {
-                "skill_id": skill_id,
-                "source_ordinal": ordinal,
-                "correct": entry.get("type") == "correct",
-                "code": entry.get("type"),
-                "assessment_id": assessment.id,
-                "source": assessment.source,
-                "provider": assessment.provider,
-                "model_version": assessment.model_version,
-                "confidence": assessment.confidence,
-                "is_synthetic": assessment.is_synthetic,
-            }
-        )
-
-    unmapped_grammar = 0
-    grammar_observations: list[dict[str, Any]] = []
-    for ordinal, error in enumerate(sorted_grammar):
-        if error.skill_tag not in valid_skills:
-            unmapped_grammar += 1
-            continue
-        grammar_observations.append(
-            {
-                "skill_id": error.skill_tag,
-                "source_ordinal": ordinal,
-                "code": error.error_type,
-                "error_id": error.id,
-                "source": error.source,
-                "provider": error.provider,
-                "model_version": error.model_version,
-                "confidence": error.confidence,
-                "is_synthetic": error.is_synthetic,
-            }
-        )
+    canonical = build_canonical_observations(
+        job_id=job.id,
+        assessment=assessment,
+        grammar_errors=grammar_errors,
+        valid_skill_ids=valid_skills,
+    )
 
     completed_values = _completed_values(
         job_id=job.id,
@@ -255,8 +235,8 @@ async def write_learning_events(
         session_id=session.id,
         occurred_at=occurred_at,
         coverage=coverage,
-        unmapped_pronunciation=unmapped_pronunciation,
-        unmapped_grammar=unmapped_grammar,
+        unmapped_pronunciation=canonical.unmapped_pronunciation,
+        unmapped_grammar=canonical.unmapped_grammar,
     )
 
     existing = await _existing_job_events(db, job.id)
@@ -278,26 +258,24 @@ async def write_learning_events(
             "existing completed event conflicts with canonical payload",
         )
 
-    observation_values: dict[str, dict[str, Any]] = {}
-    for obs in pronunciation_observations:
-        key = f"job:{job.id}:pron:{obs['source_ordinal']}"
-        observation_values[key] = {
-            "idempotency_key": key,
-            "event_type": "pronunciation_observation",
+    observation_values: dict[str, dict[str, Any]] = {
+        obs.idempotency_key: {
+            "idempotency_key": obs.idempotency_key,
+            "event_type": obs.event_type,
             "user_id": user_id,
             "session_id": session.id,
             "analysis_job_id": job.id,
-            "pronunciation_assessment_id": obs["assessment_id"],
-            "grammar_error_id": None,
-            "skill_id": obs["skill_id"],
-            "source_ordinal": obs["source_ordinal"],
-            "observation_correct": obs["correct"],
-            "observation_code": obs["code"],
-            "source": obs["source"],
-            "provider": obs["provider"],
-            "model_version": obs["model_version"],
-            "confidence": obs["confidence"],
-            "is_synthetic": obs["is_synthetic"],
+            "pronunciation_assessment_id": obs.pronunciation_assessment_id,
+            "grammar_error_id": obs.grammar_error_id,
+            "skill_id": obs.skill_id,
+            "source_ordinal": obs.source_ordinal,
+            "observation_correct": obs.observation_correct,
+            "observation_code": obs.observation_code,
+            "source": obs.source,
+            "provider": obs.provider,
+            "model_version": obs.model_version,
+            "confidence": obs.confidence,
+            "is_synthetic": obs.is_synthetic,
             "algorithm_version": None,
             "algorithm_params": None,
             "p_mastery_snapshot": None,
@@ -305,33 +283,8 @@ async def write_learning_events(
             "occurred_at": occurred_at,
             "details": {"schema_version": _SCHEMA_VERSION},
         }
-
-    for obs in grammar_observations:
-        key = f"job:{job.id}:grammar:{obs['source_ordinal']}"
-        observation_values[key] = {
-            "idempotency_key": key,
-            "event_type": "grammar_observation",
-            "user_id": user_id,
-            "session_id": session.id,
-            "analysis_job_id": job.id,
-            "pronunciation_assessment_id": None,
-            "grammar_error_id": obs["error_id"],
-            "skill_id": obs["skill_id"],
-            "source_ordinal": obs["source_ordinal"],
-            "observation_correct": False,
-            "observation_code": obs["code"],
-            "source": obs["source"],
-            "provider": obs["provider"],
-            "model_version": obs["model_version"],
-            "confidence": obs["confidence"],
-            "is_synthetic": obs["is_synthetic"],
-            "algorithm_version": None,
-            "algorithm_params": None,
-            "p_mastery_snapshot": None,
-            "cutover_revision": None,
-            "occurred_at": occurred_at,
-            "details": {"schema_version": _SCHEMA_VERSION},
-        }
+        for obs in canonical.observations
+    }
 
     expected_keys = set(observation_values)
     persisted_keys = set(existing_observations)

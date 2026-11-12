@@ -33,6 +33,7 @@ from models.session import (
 )
 from models.user import User
 from services import analysis_jobs, analysis_service
+from tests.learning_event_gate_helper import open_learning_event_gate
 from time_utils import utc_now
 from workers import analysis_worker as worker
 
@@ -716,6 +717,11 @@ async def postgres_worker_job(monkeypatch):
                     timestamp_ms=1,
                 )
             )
+        await open_learning_event_gate(
+            factory,
+            revision="test-fixture-analysis-worker",
+        )
+        async with factory() as db, db.begin():
             db.add(AnalysisJob(id=job_id, session_id=session_id))
         from services import analysis_service
 
@@ -750,6 +756,7 @@ async def postgres_worker_job(monkeypatch):
                     )
                     await db.execute(delete(Session).where(Session.user_id == user_id))
                     await db.execute(delete(User).where(User.id == user_id))
+                    await db.execute(text("DELETE FROM learning_event_cutover"))
         finally:
             await engine.dispose()
 

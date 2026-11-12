@@ -64,6 +64,7 @@ from models.user import User
 from services import analysis_jobs, analysis_service
 from services.analysis_jobs import AnalysisExecutionError, InvalidAnalysisTransition
 from services.knowledge.bkt_model import BKTParams, update_mastery
+from tests.learning_event_gate_helper import open_learning_event_gate
 
 WRITE_LEARNING_EVENTS = "write_learning_events"
 FROZEN_BKT_VERSION = "bkt-v1"
@@ -244,31 +245,37 @@ class LedgerHarness:
 
     async def cleanup(self) -> None:
         async with self.factory() as db, db.begin():
-            if not self.user_ids:
-                return
-            await db.execute(
-                delete(LearningEvent).where(LearningEvent.user_id.in_(self.user_ids))
-            )
-            sessions = select(Session.id).where(Session.user_id.in_(self.user_ids))
-            await db.execute(
-                delete(GrammarError).where(GrammarError.session_id.in_(sessions))
-            )
-            await db.execute(
-                delete(PronunciationAssessment).where(
-                    PronunciationAssessment.session_id.in_(sessions)
+            if self.user_ids:
+                await db.execute(
+                    delete(LearningEvent).where(
+                        LearningEvent.user_id.in_(self.user_ids)
+                    )
                 )
-            )
-            await db.execute(
-                delete(Transcript).where(Transcript.session_id.in_(sessions))
-            )
-            await db.execute(
-                delete(AnalysisJob).where(AnalysisJob.session_id.in_(sessions))
-            )
-            await db.execute(
-                delete(KnowledgeState).where(KnowledgeState.user_id.in_(self.user_ids))
-            )
-            await db.execute(delete(Session).where(Session.user_id.in_(self.user_ids)))
-            await db.execute(delete(User).where(User.id.in_(self.user_ids)))
+                sessions = select(Session.id).where(Session.user_id.in_(self.user_ids))
+                await db.execute(
+                    delete(GrammarError).where(GrammarError.session_id.in_(sessions))
+                )
+                await db.execute(
+                    delete(PronunciationAssessment).where(
+                        PronunciationAssessment.session_id.in_(sessions)
+                    )
+                )
+                await db.execute(
+                    delete(Transcript).where(Transcript.session_id.in_(sessions))
+                )
+                await db.execute(
+                    delete(AnalysisJob).where(AnalysisJob.session_id.in_(sessions))
+                )
+                await db.execute(
+                    delete(KnowledgeState).where(
+                        KnowledgeState.user_id.in_(self.user_ids)
+                    )
+                )
+                await db.execute(
+                    delete(Session).where(Session.user_id.in_(self.user_ids))
+                )
+                await db.execute(delete(User).where(User.id.in_(self.user_ids)))
+            await db.execute(text("DELETE FROM learning_event_cutover"))
         await self.engine.dispose()
 
 
@@ -302,6 +309,10 @@ async def pg():
                 == source_head
             )
             identity_verified = True
+        await open_learning_event_gate(
+            factory,
+            revision="test-fixture-b1-2-write",
+        )
         yield harness
     finally:
         if identity_verified:

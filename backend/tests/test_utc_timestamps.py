@@ -18,7 +18,7 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import DateTime, delete, or_, select
+from sqlalchemy import DateTime, delete, or_, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from auth import CurrentUser
@@ -53,6 +53,7 @@ from schemas.session import (
 )
 from schemas.time import UtcDatetime
 from services import analysis_jobs
+from tests.learning_event_gate_helper import open_learning_event_gate
 from time_utils import utc_now
 
 # ---------------------------------------------------------------------------
@@ -475,6 +476,7 @@ async def pg_env():
                     await db.execute(
                         User.__table__.delete().where(User.id.in_(created_users))
                     )
+                await db.execute(text("DELETE FROM learning_event_cutover"))
 
                 # 清空追踪列表以支持重复安全调用
                 created_users.clear()
@@ -485,6 +487,10 @@ async def pg_env():
                 created_knowledge_states.clear()
 
     ctx = PgContext()
+    await open_learning_event_gate(
+        session_factory,
+        revision="test-fixture-utc-timestamps",
+    )
     try:
         yield ctx
     finally:

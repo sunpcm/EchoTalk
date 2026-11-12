@@ -39,6 +39,42 @@
       结论为 APPROVED。当前停在 B1-2 Review（用户审阅待），提交/推送结果见本次交付回执；不创建
       PR、不合并。
 
+## 2026-11-13 B1 学习事件实施（B1-3）
+
+- [x] **B1-3 基线切换工具与只读一致快照重算校验**（依赖 B1-1、B1-2）：为既有
+      `(user_id, skill_id)` 幂等写入 `baseline_snapshot(source=legacy_unknown)`，以数据库单例控制行
+      串行化五阶段切换，并要求维护人员从停旧 worker 起维持停写到 `traffic_resumed`。事件 writer 与
+      已领取 Job 的执行入口统一经过持久门控；实际领取函数 `claim_next_job` 本身没有 gate，因此全部
+      新旧 worker 必须保持停止到 `traffic_resumed`。旧历史趋势不可恢复。只读校验在单一
+      `REPEATABLE READ READ ONLY` 快照首查固定 `MAX(apply_seq)` watermark，按基线、observation、
+      冻结算法版本与参数重建状态，失败只报告而不修改产品状态。
+      结果：主控独立代码/测试 Review 为 APPROVED；目标套件为
+      `147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
+      `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`、exit 0。
+      Vitest 保持 `1206 passed / 49 files`，Fake API `108`、构建脚本 `21`、API 类型测试 `8`，
+      lint 为 `132 warning / 0 error / 0 new warning`，前端自 `f6007a2` 未改。除 E2E 外的完整
+      门禁均为 exit 0。E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`，失败为
+      WebKit Provider select 几何与 readiness 引导 textarea 超时；DocTalk 定向为
+      `3 passed / 0 failed / 0 skip / 0 retry / exit 0`；再次全量为
+      `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过、只剩同一 WebKit Provider
+      select 实测失败。首轮失败及 DocTalk 定向结果均保留；仅 DocTalk 首轮失败原因未确认，不能
+      归因于环境、历史基线或回归，也不能称全树全绿。
+      新增迁移 `b1_learning_event_cutover` 在专用合成 PostgreSQL upgrade、downgrade 回
+      `b1_learning_events`、reupgrade 与 roundtrip 均 exit 0，既有事件保留，ORM 与真实 PG schema
+      零差异；既有 17 份迁移与 18 份迁移 pin 未变。独立门控、整包快照、只读、CLI 导入隔离和八项
+      回归缺口探针退出符合预期，READ COMMITTED 反例 mutation 被杀死。
+      运维边界：实际 Job 领取函数 `claim_next_job` 本身没有 gate，全部新旧 worker 必须保持停止到
+      `traffic_resumed`。部署代码不会启动 worker；显式停写声明、数据库锁和表锁都不能证明未知旧进程
+      已退出。CLI 只接受已批准的合成库白名单，不隐式读取 `.env`；结果码/用法按 0/1/2 区分，
+      baseline 默认 preview 零写，只有显式确认参数才写。零语法错误没有持久来源行，校验只能检查
+      coverage 结构与类型，并在来源存在时比对事实，不能虚构 Provider 事实或独证“零错误”。
+      B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
+      `learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除
+      单例控制行或重新锚定；本卡不实现。
+      B1-4/B1-5 未启动。本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、
+      不合并。生产 DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未执行；任务分支 push
+      不触发远端 CI，远端 CI 未执行。
+
 ## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
 
 - [x] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖

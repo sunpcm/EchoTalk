@@ -13,6 +13,10 @@ from services.analysis_service import (
     AnalysisServiceError,
     analyze_session,
 )
+from services.learning_event_cutover import (
+    CutoverError,
+    assert_learning_event_gate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +160,15 @@ async def recover_stale_jobs(
 
 async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
     """Execute a running job atomically with all analysis result writes."""
+    try:
+        await assert_learning_event_gate(db)
+    except CutoverError as exc:
+        raise AnalysisExecutionError(
+            exc.code,
+            str(exc),
+            retryable=True,
+        ) from exc
+
     stmt = select(AnalysisJob).where(AnalysisJob.id == job_id).with_for_update()
     job = (await db.execute(stmt)).scalar_one_or_none()
     if job is None or job.status != AnalysisJobStatus.running:

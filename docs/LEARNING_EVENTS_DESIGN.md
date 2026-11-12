@@ -2,13 +2,20 @@
 
 > 历史交付：本设计随 PR #150 交付并合入，当时仅完成设计，主控独立审阅 APPROVED。
 > 当前政策：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；设计已定稿，B1 已拆卡并进入实施。
-> 当前实现状态：B1-1 的 `LearningEvent` ORM/注册、`b1_learning_events` 迁移及 schema 回归已
-> 在专用合成 PostgreSQL 验证。B1-2 已实现 §3–§5 的同事务事件写入、幂等、用户锁与 BKT 合成
-> 隔离，独立代码 Review 为 APPROVED；专用合成 PostgreSQL 目标套件 `116 passed / 0 skip /
-exit 0`，完整 backend `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。15 项完整门禁中
-> 14 项 `exit 0`，E2E `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败仍是既有
-> WebKit Provider select `336×23 < 44px`，DocTalk 通过，不能称本机全树全绿。当前停在 B1-2
-> Review，用户审阅仍待；B1-3～B1-5 尚未实施。生产库未执行 DDL、切换或真实数据处理。
+> 历史 B1-1/B1-2 状态：B1-1 的 `LearningEvent` ORM/注册、`b1_learning_events` 迁移及 schema
+> 回归已在专用合成 PostgreSQL 验证；B1-2 已实现 §3–§5 的同事务事件写入、幂等、用户锁与 BKT
+> 合成隔离，主控独立代码 Review 为 APPROVED。历史 B1-2 目标套件为
+> `116 passed / 0 skip / exit 0`；完整 backend 为
+> `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`；该组数字不再作为 B1-3 当前结果。
+> 当前 B1-3 状态：本轮代码/测试 Review 为 APPROVED；目标套件为
+> `147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
+> `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，前端未改。E2E 首轮为
+> `232 passed / 2 failed / 0 skip / 0 retry / exit 1`；DocTalk 定向为
+> `3 passed / 0 failed / 0 skip / 0 retry / exit 0`；再次全量为
+> `233 passed / 1 failed / 0 skip / 0 retry / exit 1`；
+> DocTalk 首轮失败原因未确认；再次全量中 WebKit Provider select 仍按实测失败保留。不能归因于
+> 环境、历史基线或回归，也不能称全树全绿。B1-4～B1-5 未启动。本卡停在 Review 等待用户审阅；
+> 提交/推送状态以同卡交付回执为准，不开 PR、不合并。生产库未执行 DDL、切换或真实数据处理。
 > 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实
 > 外部服务接入不在本项内。
 
@@ -49,14 +56,14 @@ exit 0`，完整 backend `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`
    [c06_transcript_events.py#L16](../backend/alembic/versions/c06_transcript_events.py#L16)、
    [session.py#L128](../backend/models/session.py#L128)。
 
-**当前实现路径（2026-11-12，B1-2 独立代码 Review APPROVED）**：
+**历史 B1-2 实现路径（主控独立代码 Review APPROVED）**：
 [`execute_claimed_job`](../backend/services/analysis_jobs.py) 在同一事务调用
 [`write_learning_events`](../backend/services/learning_events.py)。writer 在用户行锁下校验 Job/Session/User
 与全部候选来源归属，按发音数组顺序和语法 `(skill_tag, error_type)` 顺序规范观察；完成与观察
 事件按规范幂等键写入，冲突时按全局键重读并校验完整载荷。`occurred_at` 使用
 `sessions.ended_at`，仅对新插入、非合成且映射到有效技能的观察按 `apply_seq` 更新 BKT，计算与完成
-事件共享冻结的 `bkt-v1` 四参数。上述行为已由专用合成 PostgreSQL 目标套件与独立探针覆盖；当前停在
-B1-2 Review，用户审阅仍待。
+事件共享冻结的 `bkt-v1` 四参数。上述行为已由历史 B1-2 的专用合成 PostgreSQL 目标套件与独立探针
+覆盖，并继续作为 B1-3 切换门控下的写入契约。
 
 ## 3. 事件模型与幂等键
 
@@ -134,6 +141,8 @@ baseline_snapshot         baseline:{cutover_revision}:{user_id}:{skill_id}
 `event_type IN ('pronunciation_observation','grammar_observation')` 与 `is_synthetic=false`。完成事件和基线永不作为观察计入趋势。
 实现时需把“未调用”“已评估零错误”“评估失败”拆成明确 coverage 状态，不能仅用 `assessment is None`
 推断。
+零语法错误没有持久化来源行：校验可以确认 coverage 结构与类型，并在来源存在时比对完成事件与来源事实，
+但不能独立证明“零错误”或虚构 Provider 来源事实。
 
 ## 6. 旧状态切换、重算与校验
 
@@ -164,6 +173,37 @@ baseline_snapshot         baseline:{cutover_revision}:{user_id}:{skill_id}
 校验还须检查幂等键唯一、切换后每个成功 Job 恰有一条完成事件、来源标记和归属一致、全合成未改状态、
 同用户 `apply_seq` 区间无交错，以及切点后的状态变化均能由基线加观察重算得到。失败只报告，不覆盖生产状态；
 没有对应事件的状态写入和无完成事件的成功 Job 才是异常。
+
+B1-3 实现采用数据库单例控制行和五阶段状态：
+`prepared → legacy_writes_stopped → baselines_written → events_enabled → traffic_resumed`。控制行保存
+`revision`、当前阶段、获准切点 `cutover_at`、基线数量与 SHA-256 摘要；只有 `traffic_resumed` 放行业务写入。
+`stop_legacy_writes` 只记录维护人员对旧 worker 停写的显式确认，`cutover_at` 仍为空；锁和数据库时钟都不能
+证明未知旧进程已经退出。
+
+维护人员必须从停旧 worker 起维持全停写，直到 `traffic_resumed`。部署代码不会启动进程；数据库门控、
+表锁和显式停写声明都不证明未知进程已经退出，不能把“部署了切换代码”写成“worker 已停”或“流量已恢复”。
+实际 Job 领取函数 `claim_next_job` 本身没有 gate，因此全部新旧 worker 都必须保持停止到
+`traffic_resumed`；显式停写声明、数据库锁和表锁都不能代替停进程。
+
+写入基线的事务按固定顺序取得控制行 `FOR UPDATE`、`analysis_jobs` 表 `EXCLUSIVE` 锁和
+`knowledge_states` 表 `SHARE ROW EXCLUSIVE` 锁。它等旧事务排空后重新检查 running Job 和异常既有事件，
+读取固定状态集，再用数据库时钟固定 `cutover_at` 并写基线。Job 表使用 `SHARE ROW EXCLUSIVE` 会与旧 worker
+已取得的行锁兼容，无法形成完整排空门，因此不能替代 `EXCLUSIVE`。事件 writer 和已领取 Job 的执行入口
+统一先取控制行共享锁，再依次锁 Job 行和 User 行；直接 writer 也必须经过门控。
+
+只读校验入口由 `services.learning_event_replay.validate_learning_event_replay` 提供。小型维护 CLI 仅接受
+仓库已有的合成 PostgreSQL 白名单，不读取 `.env`、不猜默认库，也不会输出 DSN、来源原文或 Provider 响应：
+
+```bash
+cd backend
+PYTHONPATH=. python -m scripts.learning_events_maintenance validate
+PYTHONPATH=. python -m scripts.learning_events_maintenance baseline --revision <id>
+PYTHONPATH=. python -m scripts.learning_events_maintenance baseline --revision <id> --confirm-write
+```
+
+`validate` 在一致时返回 0，发现不一致时返回 1；参数、配置或合成库白名单不符合时返回 2。`baseline`
+默认只预览且零写，只有显式 `--confirm-write` 才进入写入事务，失败整体回滚。CLI 只接受仓库已批准的
+合成库白名单，不隐式读取 `.env`，也不猜默认应用库。
 
 ## 7. 来源关系与保留策略
 
@@ -295,6 +335,12 @@ CHECK 审计：两个观察分支都显式要求 `source_ordinal IS NOT NULL`；
 未回填 model_version；旧 pending 也可能已有被 `_detect_grammar_errors` 复用的 legacy_rule。
 事件必须保留该未知事实，不得写入 `unknown` 等伪版本。
 
+B1-3 新增迁移 `b1_learning_event_cutover`，父 revision 为 `b1_learning_events`。它只新增
+`learning_event_cutover` 单例表，未改写既有 17 份迁移；表包含阶段形状 CHECK、基线数量检查和
+`baseline_digest` 的 64 位十六进制形状要求。专用合成 PostgreSQL 已从既有 head upgrade 到
+`b1_learning_event_cutover`，再 downgrade 回 `b1_learning_events`、reupgrade 与 roundtrip，均 exit 0；
+既有事件保留，ORM 与真实 PG schema compare 零差异。既有 17 份迁移未改，执行到的 18 份迁移 pin 也未变。
+
 ## 9. 已确认政策与实施门禁
 
 用户于 2026-11-12 明确确认以下七项，本文后续实现不得改变其语义：
@@ -311,8 +357,13 @@ CHECK 审计：两个观察分支都显式要求 `source_ordinal IS NOT NULL`；
 7. 现有四参数冻结为 `bkt-v1`；新版本不改写旧事件。
 
 政策确认不等于整批实施完成。B1-1 的 ORM、迁移和 schema 回归，以及 B1-2 的同事务事件写入与 BKT
-隔离均已实现；B1-2 独立代码 Review APPROVED，专用合成 PostgreSQL 目标套件 `116 passed / 0 skip /
-exit 0`，完整门禁与唯一既有 E2E 失败的边界见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)。
-当前停在 B1-2 Review，用户审阅仍待；B1-3～B1-5 的基线工具、JSON 导出和整账号删除尚未实施。生产库
-未执行 DDL，也没有生产切换、真实数据处理或上线证据。其顺序、依赖和验收见 [`TODO.md`](../TODO.md)；
-生产切换和真实数据留待后续明确授权，音频采集及真实外部服务不在本范围。
+隔离均已实现。B1-3 的本轮代码/测试 Review 为 APPROVED，目标套件 `147 passed / 0 skip / exit 0`，
+完整 backend `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`；完整 E2E 仍为 exit 1，首轮与
+复跑数字、DocTalk 定向结果及失败边界见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)，不能写成
+全树全绿或自行归因失败。本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、
+不合并。B1-4/B1-5 的 JSON 导出和整账号删除未启动。B1-5 未来必须协调合法删除本人
+`baseline_snapshot` 事件后的全局控制数量/摘要；保留控制行 `learning_event_cutover.revision`、
+`learning_event_cutover.cutover_at` 和既有门控，不得删除单例控制行或重新锚定，本卡不实现。生产库
+未执行 DDL，也没有生产切换、真实数据处理或上线证据。其顺序、依赖和验收见
+[`TODO.md`](../TODO.md)；任务分支 push 不触发远端 CI，远端 CI 未执行；真实 Provider/LiveKit/IdP/
+设备未验证，音频采集与真实外部服务不在本范围。

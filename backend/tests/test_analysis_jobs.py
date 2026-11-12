@@ -4,7 +4,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
@@ -32,6 +32,7 @@ from services.analysis_jobs import (
     utc_now,
 )
 from services.analysis_service import AnalysisServiceError
+from tests.learning_event_gate_helper import open_learning_event_gate
 
 
 def _job(status: AnalysisJobStatus) -> AnalysisJob:
@@ -157,6 +158,12 @@ async def postgres_job():
                         category="pronunciation",
                     )
                 )
+    await open_learning_event_gate(
+        session_factory,
+        revision="test-fixture-analysis-jobs",
+    )
+
+    async with session_factory() as db, db.begin():
         db.add(
             AnalysisJob(
                 id=job_id,
@@ -189,6 +196,7 @@ async def postgres_job():
             await db.execute(delete(AnalysisJob).where(AnalysisJob.id == job_id))
             await db.execute(delete(Session).where(Session.id == session_id))
             await db.execute(delete(User).where(User.id == user_id))
+            await db.execute(text("DELETE FROM learning_event_cutover"))
         await engine.dispose()
 
 

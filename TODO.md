@@ -4,30 +4,35 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-## 2026-11-12 B1 学习事件实施（B1-2 Review；用户审阅待；B1-3～B1-5 未实施）
+## 2026-11-12 B1 学习事件实施（B1-3 本轮代码 Review 通过；用户 Review 待；B1-4～B1-5 未启动）
 
 设计见 [B1 学习事件台账设计](./docs/LEARNING_EVENTS_DESIGN.md)。用户已于 2026-11-12 确认
 七项数据生命周期、切换、导出和删除政策。B1-0 与 B1-1 的完成记录见
-[已完成事项归档](./docs/history/todo-done.md)。B1-2 已实现，独立代码 Review APPROVED，并完成
-专用合成 PostgreSQL 验收：目标套件 `116 passed / 0 skip / exit 0`；完整 backend
-`844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。15 项完整门禁中 14 项 `exit 0`；
-Chromium+WebKit 为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败仍是既有
-WebKit Provider select `336×23 < 44px`，DocTalk 通过，不能称本机全树全绿。当前停在 B1-2
-Review（用户审阅待），提交/推送结果见本次交付回执；不创建 PR、不合并。B1-3～B1-5 尚未实施。
+[已完成事项归档](./docs/history/todo-done.md)。**历史 B1-2 结果**为目标套件
+`116 passed / 0 skip / exit 0`，完整 backend `844 passed / 3 warnings / 0 skip`、覆盖率
+`80.82%`；该组数字属于 B1-2，不与 B1-3 相加或替代。
 
-后续按 B1-3～B1-5 顺序逐卡推进。每卡先有可失败的测试再写实现；原迁移只增不改，不弱化既有
+B1-3 的本轮代码/测试 Review 结论为 APPROVED，目标套件为
+`147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
+`878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，前端未改。
+E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`；DocTalk 定向为
+`3 passed / 0 failed / 0 skip / 0 retry / exit 0`；再次全量为
+`233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过但仍有 WebKit Provider
+select 失败。两轮完整执行的失败均保留：DocTalk 首轮超时原因未确认，WebKit Provider select 几何
+两轮均实测失败；DocTalk 不归因于环境、历史基线或回归。不能称全树全绿。B1-3 已移入历史归档。
+本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、不合并。B1-4～B1-5
+未启动。
+
+切换期间，实际 Job 领取函数 `claim_next_job` 本身没有 gate；全部新旧 worker 必须保持停止到
+`traffic_resumed`。部署代码不代表启动或停止进程，显式停写声明、数据库锁和表锁都不能证明未知
+旧进程已经退出。
+
+后续按 B1-4～B1-5 顺序逐卡推进。每卡先有可失败的测试再写实现；原迁移只增不改，不弱化既有
 测试。生产切换、真实数据和音频采集不在本批范围。B1-4/B1-5 如新增 HTTP 接口，写集必须同时
 包含对应 Fake API 成功响应 fixture、Node 契约测试和现有 A3 operation 覆盖审计更新；更新
 OpenAPI/TypeScript 不能替代真实成功响应契约，不能静默扩大 missing/空 schema 豁免。不新增产品
 UI 或真实依赖。
 
-- [ ] **B1-3 基线切换工具与只读一致快照重算校验**（依赖 B1-1、B1-2）：为既有
-      `(user_id, skill_id)` 生成幂等的 `baseline_snapshot(source=legacy_unknown)`，支持维护窗口
-      停写、基线写入和事件门控启用前后的顺序核验；明确旧历史趋势不可恢复。重算校验在
-      `REPEATABLE READ READ ONLY` 单一快照内固定 `apply_seq` watermark，按基线加 observation
-      重建状态并与快照比较，失败只报告、不修改产品状态。
-      验收：先覆盖缺失基线、重复切换、切换前后并发写、watermark 后提交不可见、未知历史合成
-      影响和错序事件的失败测试；只在合成库执行，不运行生产切换，不处理真实数据。
 - [ ] **B1-4 本人数据结构化 JSON 导出**（依赖 B1-1、B1-2）：提供只允许用户导出本人数据的能力，
       输出事件、知识状态、已有转录和评估，并保留来源、合成标记、算法/模型/schema 版本。
       排除密钥、内部提示词和 Provider 完整原始响应，跨用户数据不可见。
@@ -45,7 +50,10 @@ UI 或真实依赖。
       另批决定，未落地前不得宣称生产级不可恢复删除。若新增 HTTP 注销接口，写集还必须同步 Fake API
       成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计；成功状态、响应体与删除语义必须由
       真实契约验证，不能以缺失或空 schema 的静默豁免代替。OpenAPI/TS 按既有工具生成，不新增
-      产品 UI 或真实依赖。
+      产品 UI 或真实依赖。B1-5 在未来实现中还必须协调合法删除本人 `baseline_snapshot` 事件后的
+      全局控制数量/摘要；保留控制行 `learning_event_cutover.revision`、
+      `learning_event_cutover.cutover_at` 和既有门控，不得删除单例控制行或重新锚定。本卡不实现
+      该协调。
 
 每卡同步更新本清单、设计状态和相关架构/项目状态；B1-5 后做最终文档收口。
 

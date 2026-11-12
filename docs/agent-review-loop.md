@@ -135,14 +135,36 @@ B1 后续数据库验证只使用独立合成资源，不借用 cp00、应用库
 合成密码只由主控在受保护运行环境中持有，不写入 prompt、报告、日志或 tracked 文档。实施节点不得
 读取、复制或猜测凭据，也不直接连接该库；数据库、完整受控门禁和需要 API schema 的 exporter/
 TypeScript 生成器由主控代跑。主控已在该合成库中重放现有迁移至 `c06_transcript_events`，并验证
-既有基线：Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108
-passed、类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；本机全量 E2E 为
-233 passed/1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`；这组数字只属于
-该历史时点。B1-1（ORM/迁移/schema）已在专用合成 PostgreSQL 验证；B1-2 已实现同事务事件写入、
-幂等、用户锁与 BKT 合成隔离，独立代码 Review APPROVED，目标套件 116 passed/0 skip/exit 0，
-完整 backend 844 passed/3 warnings/0 skip/80.82%。当前停在 B1-2 Review（用户审阅待），提交/推送
-结果见本次交付回执；不创建 PR、不合并。B1-3～B1-5 未实施。最新状态见
-[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
+历史基线：Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108
+passed、类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；历史全量 E2E 为
+233 passed/1 failed、exit 1，唯一失败是历史 WebKit select `336×23 < 44`。这组数字只属于该历史
+时点，不与 B1-3 当前结果相加或替代。
+
+历史 B1-1（ORM/迁移/schema）已在专用合成 PostgreSQL 验证；历史 B1-2 已实现同事务事件写入、
+幂等、用户锁与 BKT 合成隔离，主控独立代码 Review APPROVED，目标套件
+116 passed/0 skip/exit 0，完整 backend 844 passed/3 warnings/0 skip/80.82%。B1-3 的本轮代码/
+测试 Review 为 APPROVED：目标套件 `147 passed / 0 failed / 0 skip / exit 0`，完整 backend
+`878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，Vitest 保持 1206 passed/49 files，前端未改。
+除 E2E 外所列完整门禁 exit 0；lint 为 132 warning/0 error/0 new warning。B1-3 迁移
+`b1_learning_event_cutover` 的 upgrade/downgrade/reupgrade/roundtrip、ORM compare 与独立 PG 探针
+均已留证。
+
+E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`，失败为 WebKit Provider select
+几何与 readiness 引导 textarea 超时；DocTalk 定向为 `3 passed / 0 failed / 0 skip / 0 retry /
+exit 0`；再次全量为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过但仍有同一
+WebKit Provider select 实测失败。首轮失败和定向结果都保留；仅 DocTalk 首轮失败原因未确认，不能
+归因于环境、历史基线或回归，也不能称全树全绿。
+
+切换期间，实际 Job 领取函数 `claim_next_job` 本身没有 gate；全部新旧 worker 必须保持停止到
+`traffic_resumed`。部署切换代码不会启动进程，显式停写声明、数据库锁和表锁都不能证明未知旧进程
+已经退出。维护 CLI 只接受已批准的合成库白名单，不隐式读取 `.env`，结果码/用法按 0/1/2 区分；
+baseline 默认 preview 零写，只有显式确认参数才写。零语法错误没有持久来源行，只能校验 coverage
+结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider 事实。
+
+本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、不合并。B1-4 与 B1-5
+未启动；B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
+`learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除单例
+控制行或重新锚定；本卡不实现。最新状态见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
 B1-4/B1-5 若增加 HTTP 接口，同一卡必须同步 Fake API 成功响应 fixture、Node 契约测试和现有 A3
@@ -150,9 +172,8 @@ operation 覆盖审计。更新 canonical OpenAPI 和 TypeScript 类型只属于
 API 真实成功响应验证；不得静默扩大 missing/空 schema 豁免，合法空响应也需显式、按实际状态码审阅。
 这些卡不新增产品 UI 或真实依赖。
 
-仓库 CI 只在 `main`/`master` push 或 PR 上触发。B1 任务分支只 push、不开 PR，因此不会自动产生
-远端 CI；不得修改工作流触发条件。证据口径为主控本地完整门禁加本 §3.4 的合成 PostgreSQL，远端
-CI 按实际记为未执行。
+仓库 CI 只在 `main`/`master` push 或 PR 上触发；任务分支 push 不触发远端 CI，远端 CI 未执行。
+不得修改工作流触发条件。证据口径为主控本地完整门禁加本 §3.4 的合成 PostgreSQL。
 
 ## §4 生成产物及验证
 

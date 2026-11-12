@@ -1,7 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-12。当前 Linux 基线仍按 A6（PR #155）代码 `87e0fd5` 的历史快照记录；
-> B1-2 的合成 PostgreSQL、完整本机门禁与独立代码 Review 结果见下文，B1-2 仍等待用户审阅。
+> 最后核对：2026-11-13。当前 Linux 基线仍按 A6（PR #155）代码 `87e0fd5` 的历史快照记录；
+> B1-3 本轮代码/测试 Review 已通过，用户 Review 待；历史 B1-1/B1-2 的
+> 合成 PostgreSQL、完整本机门禁与独立代码 Review 结果见下文。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -106,7 +107,7 @@ worker head fixture 适配，最终本机门禁和专用合成 PostgreSQL 结果
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）B1-2 合成 PG 与独立代码 Review 完成
+### B1（学习事件台账）B1-3 本轮完成；用户 Review 待
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -127,7 +128,7 @@ Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 10
 类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；本机全量 E2E 为 233 passed/
 1 failed、exit 1，唯一失败是既有 WebKit select `336×23 < 44`。上述旧数字只属于该历史基线，
 不与本轮新增结果相加或替代。
-B1-1 随后完成 RED（主控实跑 4 failed/0 skipped、exit 1）并新增 `LearningEvent` ORM/注册、
+**历史 B1-1** 随后完成 RED（主控实跑 4 failed/0 skipped、exit 1）并新增 `LearningEvent` ORM/注册、
 `b1_learning_events` 迁移与 schema/约束回归；两个 observation 分支兼容 `model_version=NULL`，
 16 个旧迁移未改动。主控随后在本轮专用合成 PostgreSQL 完成空库 upgrade 至 b1、PG schema
 GREEN `4 passed / 0 skip / exit 0`、current/downgrade 回 c06 后清除表/索引/identity、reupgrade
@@ -137,8 +138,8 @@ GREEN `4 passed / 0 skip / exit 0`、current/downgrade 回 c06 后清除表/索�
 得到 `1 error` RED 后，已改为读取仓库 Alembic 源码 `get_current_head()` 并严格比较数据库
 `alembic_version`；原 DB/user/PG15.19/DSN guard 不变。
 
-B1-2 已实现同事务事件写入、幂等、用户锁与 BKT 合成隔离，独立代码 Review 结论为 APPROVED。
-专用合成 PostgreSQL 目标套件为 `116 passed / 0 skip / exit 0`；完整 backend 为
+**历史 B1-2** 已实现同事务事件写入、幂等、用户锁与 BKT 合成隔离，主控独立代码 Review 结论为
+APPROVED。历史 B1-2 专用合成 PostgreSQL 目标套件为 `116 passed / 0 skip / exit 0`；完整 backend 为
 `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。Vitest `1206 passed / 49 files`、
 build-script `21`、Fake API `108`、API 类型生成器 `8` 均 `exit 0`；强制 lint/typecheck/build
 `exit 0`，lint 为 `132 warning / 0 error`；Ruff 格式/规则、schema 与 metadata 导出校验均
@@ -149,15 +150,43 @@ build-script `21`、Fake API `108`、API 类型生成器 `8` 均 `exit 0`；强�
 独立探针确认用户锁、实际 `apply_seq` 相反观察、原始 ordinal、缺观察拒绝、未知模型 `NULL`、
 不复制 alignment、三类完成冲突，以及 10 条观察/3 个知识状态/知识状态单次读取/unmapped 计数均
 `exit 0`。17 个既有迁移字节未改动。B1-0 的 `809 passed / 80.19%` 和 B1-1 的 `813` 是历史基线；
-当前 B1-2 backend 为 `844 passed / 80.82%`，Vitest 当前仍为 `1206 passed / 49 files`。
+历史 B1-2 backend 为 `844 passed / 80.82%`，历史 Vitest 为 `1206 passed / 49 files`。
 
-当前停在 B1-2 Review（用户审阅待），提交/推送结果见本次交付回执；不创建 PR、不合并。生产
-DDL/切换/部署/真实数据、真实 Provider/LiveKit/IdP/设备均未验证；B1-3～B1-5 尚未实施。其顺序、
-依赖和验收见 [`TODO.md`](../TODO.md)，设计政策与实现门禁见
-[`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。B1-4/B1-5 如新增 HTTP 接口，必须同卡
-补齐 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计，不能以 OpenAPI/TS 更新或
-扩大 missing/空 schema 豁免代替。仓库 CI 仅监听 `main`/`master` push 与 PR；任务分支 push
-不触发远端 CI，当前仍未执行。本批未修改工作流，以主控本地完整门禁和专用合成 PostgreSQL 留证。
+B1-3 的本轮代码/测试 Review 由主控独立审阅为 APPROVED，目标套件为
+`147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为 `878 passed / 3 warnings / 0 skip`、
+覆盖率 `80.51%`、exit 0。Vitest 保持 `1206 passed / 49 files`，Fake API `108`、构建脚本 `21`、
+API 类型测试 `8`，lint 为 `132 warning / 0 error / 0 new warning`；除 E2E 外所列完整门禁均
+exit 0。前端自 `f6007a2` 未改，前端/Fake API/契约/配置均未改。代码 Review 通过不代表完整 E2E
+或用户验收通过。
+
+E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`，失败分别是 WebKit Provider select
+`336×23 < 44` 与 WebKit readiness 引导 textarea 超时；随后 DocTalk 定向为
+`3 passed / 0 failed / 0 skip / 0 retry / exit 0`，再次全量为
+`233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过、只剩同一 WebKit Provider
+select 失败。首轮失败与 DocTalk 定向结果均保留；DocTalk 首轮失败原因未确认，不能归因于环境、
+历史基线或回归，也不能把最终 E2E 写成全树全绿。
+
+新迁移 `b1_learning_event_cutover` 在专用合成 PostgreSQL 中 upgrade 至该 revision、downgrade 回
+`b1_learning_events`、reupgrade 与 roundtrip 均 exit 0；既有事件保留，ORM 与真实 PG schema compare
+零差异，既有 17 份迁移与执行到的 18 份迁移 pin 均未变。门控、整包快照、只读、CLI 导入隔离及
+八项既往回归缺口探针退出符合预期；READ COMMITTED 反例 mutation 被杀死。早期 R2 的 8 个失败中有
+4 个是 fixture 状态缺失错误，修正冻结 R1 的合法 fixture 后才形成 8 个真实目标失败；
+10 deselected、exit 1 的 RED 历史不应被写成原先 8 个均为语义 RED。
+
+五阶段切换期间，实际 Job 领取函数 `claim_next_job` 本身没有 gate，因此全部新旧 worker 必须保持
+停止到 `traffic_resumed`。部署代码只提供门控，不会启动 worker；显式停写声明、数据库锁和表锁
+都不能证明未知旧进程已退出。CLI 只接受已批准的合成库白名单，不隐式读取 `.env`，结果码/用法按
+0/1/2 区分；baseline 默认 preview 零写，只有显式确认参数才进入写入事务。零语法错误没有持久来源
+行，校验只能检查 coverage 结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider
+事实。
+
+本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、不合并。B1-4/B1-5 未启动；
+B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
+`learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除单例
+控制行或重新锚定；本卡不实现。生产 DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未
+执行。仓库 CI 仅在 `main`/`master` push 与 PR 上触发，任务分支 push 不触发远端 CI；远端 CI 未
+执行。其顺序、依赖和验收见 [`TODO.md`](../TODO.md)，设计政策与实现门禁见
+[`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
 ## 已知限制和近期风险
 
@@ -168,8 +197,9 @@ DDL/切换/部署/真实数据、真实 Provider/LiveKit/IdP/设备均未验证�
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
-- 本机 E2E 开工基线为 233 passed / 1 failed，仍是已记录的 WebKit Provider select 高度
-  336×23px 问题，没有新增失败；最终 A3 基线以 Linux CI 为准。
+- 本机 E2E 本轮首轮为 232 passed / 2 failed / exit 1、复跑为 233 passed / 1 failed / exit 1；
+  DocTalk 首轮失败原因未明。具体失败边界见上方“B1（学习事件台账）”节，不能据此称没有新增失败或
+  全树全绿。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策

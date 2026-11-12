@@ -129,11 +129,19 @@ backend 路由  ──导出──▶  openapi.json  ──生成──▶  前�
 - 本版不开放成功后的重新分析；失败重试和只读重算保留。现有四参数冻结为 `bkt-v1`，新版本不得
   改写旧事件。
 
-设计政策已经确认；B1-1 的 ORM、迁移与 schema 已在专用合成 PostgreSQL 验证，B1-2 已实现同事务
-事件写入、幂等、用户锁与 BKT 合成隔离。B1-2 独立代码 Review 为 APPROVED，专用合成 PostgreSQL
-目标套件 `116 passed / 0 skip / exit 0`；完整 backend 为 `844 passed / 3 warnings / 0 skip`、
-覆盖率 `80.82%`。当前停在 B1-2 Review，用户审阅仍待；B1-3～B1-5 仍未实施。生产迁移/切换、真实
-数据、备份策略及会话音频切片采集都不在本批范围。
+设计政策已经确认；B1-1 的 ORM、迁移与 schema 已在专用合成 PostgreSQL 验证。**历史 B1-2** 已实现
+同事务事件写入、幂等、用户锁与 BKT 合成隔离，主控独立代码 Review 为 APPROVED，目标套件
+`116 passed / 0 skip / exit 0`；完整 backend 为 `844 passed / 3 warnings / 0 skip`、覆盖率
+`80.82%`。该组数字只属 B1-2，不与 B1-3 相加或替代。
+
+B1-3 的本轮代码/测试 Review 为 APPROVED，目标套件 `147 passed / 0 failed / 0 skip / exit 0`，
+完整 backend `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，前端未改。E2E 首轮
+`232 passed / 2 failed / 0 skip / 0 retry / exit 1`，DocTalk 定向 `3 passed / 0 failed / 0 skip /
+0 retry / exit 0`，再次全量 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`；DocTalk 通过但
+仍有 WebKit Provider select 实测失败；仅 DocTalk 首轮失败原因未确认，不能归因于环境、历史基线
+或回归，也不能称全树全绿。B1-4～B1-5 未启动。本卡停在 Review 等待用户审阅；提交/推送状态以同卡
+交付回执为准，不开 PR、不合并。生产迁移/切换、真实数据、真实依赖、远端 CI、备份策略及会话音频
+切片采集都不在本轮证据范围。
 
 ### 3.5 平台：能力接口，按证据推进
 
@@ -189,8 +197,10 @@ HTTP 接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation 
 OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missing/空 schema 豁免。本批不新增
 产品 UI 或真实依赖。
 
-当前 B1-2 已实现并通过独立代码 Review 与专用合成 PostgreSQL 验收，停在 B1-2 Review（用户审阅
-待）；B1-3～B1-5 尚未实施。
+当前 B1-3 的本轮代码/测试 Review 已通过。本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付
+回执为准，不开 PR、不合并。B1-4～B1-5 未启动。测试与失败边界见
+[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)，不得把代码 Review APPROVED 写成用户验收、
+生产切换或全 E2E 通过。
 
 1. **B1-1 模型、新增迁移与约束**：已建立 `learning_events` 的 ORM、identity、CHECK、唯一约束、
    外键、索引与新增迁移，旧迁移只增不改。本轮专用合成 PostgreSQL 已完成空库 upgrade 至 b1、
@@ -199,11 +209,16 @@ OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missin
    `JSONB(none_as_null=True)` 将 Python `None` 绑定为 SQL `NULL`。生产库未执行。
 2. **B1-2 同事务事件写入与 BKT 隔离**：成功 Job 的事件、评估、状态和 Job 成功态原子提交；用户锁确保
    同用户顺序，幂等键保证重试不重复；退出条件是并发、交叉来源、全合成和失败回滚测试通过。
-   （2026-11-12 状态：已实现；独立代码 Review APPROVED，专用合成 PostgreSQL 目标套件
-   `116 passed / 0 skip / exit 0`；当前停在 B1-2 Review，用户审阅仍待。）
+   （历史 B1-2：已实现；主控独立代码 Review APPROVED，专用合成 PostgreSQL 目标套件
+   `116 passed / 0 skip / exit 0`。）
 3. **B1-3 基线工具与只读校验**：生成幂等 `legacy_unknown` 快照，并在单一 `REPEATABLE READ READ ONLY`
    快照内按 watermark 重算校验；退出条件是切换顺序、并发边界和重算差异的合成库测试通过，不运行
-   生产切换。
+   生产切换。（2026-11-13 状态：本轮代码/测试 Review APPROVED；目标套件为
+   `147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
+   `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`；专用合成 PG 迁移 roundtrip、ORM compare
+   与独立探针通过。实际 Job 领取函数 `claim_next_job` 本身没有 gate；维护人员须让全部新旧 worker
+   保持停止到 `traffic_resumed`。部署代码不代表启动或停止进程，显式停写声明、数据库锁和表锁也都
+   不能证明未知旧进程已退出。用户 Review 待。）
 4. **B1-4 本人数据结构化 JSON 导出**：只导出本人事件、状态、转录和评估，保留来源/合成/版本并排除
    敏感内部数据；若新增 HTTP 导出接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation
    覆盖审计须同卡完成。退出条件是认证隔离、稳定 schema、敏感字段排除、A3 无新增豁免及生成物门禁
@@ -211,7 +226,9 @@ OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missin
 5. **B1-5 本平台整账号硬删除**：整账号事务删除全部已确认业务数据，不碰外部 IdP、不增加单会话删除；
    若新增 HTTP 注销接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计须同卡
    完成。退出条件是外键顺序、回滚、幂等、跨账号隔离、零业务残留、HTTP 成功契约与 A3 无新增豁免
-   通过，备份/特殊保留留给后续方案。
+   通过，备份/特殊保留留给后续方案。B1-5 未来还必须协调合法删除本人 `baseline_snapshot` 事件后的
+   全局控制数量/摘要；保留控制行 `learning_event_cutover.revision`、
+   `learning_event_cutover.cutover_at` 和既有门控，不得删除单例控制行或重新锚定。本卡不实现该协调。
 
 文档随每卡更新，B1-5 后做最终收口。生产切换、真实数据和音频采集另走独立授权与发布门禁。
 
