@@ -22,6 +22,11 @@ A5 导航切片已完成：`appView` 已移出会话模块且本地 Vitest 1161/
       不回显服务端错误。语义以现有四个组件的实际行为为准，逐条指到代码行；差异之处列出并请用户裁定。
       同时回答"自研还是封装现成库"，给出理由。验收：契约文档 + 一组不依赖具体组件的契约测试；
       本项不迁移任何组件。
+      用户已确认方案 A；R1 已实现最小只读查询控制器（apps/vite-app/src/data/readonly-query.ts）、
+      只读 hook（apps/vite-app/src/data/use-readonly-query.ts）及四个契约测试文件（17+15+8+4
+      项，共 44 项）。实施已冻结，整卡保持在 Review；主控独立 Review 与完整质量门禁结果以
+      PR #142 绑定最终 head 的回执为准。尚未迁移任何组件、尚未集成，本项保持未勾选。
+      契约见 [FRONTEND_DATA_LAYER_CONTRACT.md](./docs/FRONTEND_DATA_LAYER_CONTRACT.md)。
 - [ ] **A4b～A4e 数据区块迁移到 data 层**（Sonnet；依赖 A4a 已确认）：按 `WeeklyGrammar` → `WeeklyProgress` →
       `DailyProgress` → `ActiveSessions`（其 `active-sessions/useActiveSessionList.ts`）的顺序，每轮只迁一个。
       验收：该组件对应的 `*.test.tsx` 与相关 E2E **零改动**通过；组件内不再自行维护请求 id、认证订阅与
