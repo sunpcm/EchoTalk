@@ -511,6 +511,14 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
+     * AgentDispatchResponse
+     * @description Agent 调度成功响应。
+     */
+    AgentDispatchResponse: {
+      /** Dispatched */
+      dispatched: boolean;
+    };
+    /**
      * AnalysisStatusResponse
      * @description Public state for one session's durable analysis job.
      */
@@ -800,6 +808,16 @@ export interface components {
       detail?: components["schemas"]["ValidationError"][];
     };
     /**
+     * HealthResponse
+     * @description 基础健康检查成功响应。
+     */
+    HealthResponse: {
+      /** Service */
+      service: string;
+      /** Status */
+      status: string;
+    };
+    /**
      * KnowledgeStateResponse
      * @description 知识状态响应（含技能信息）。
      */
@@ -843,6 +861,14 @@ export interface components {
       position: number;
       /** Type */
       type: string;
+    };
+    /**
+     * ReadinessResponse
+     * @description 深度就绪检查成功响应。
+     */
+    ReadinessResponse: {
+      /** Status */
+      status: string;
     };
     /**
      * SessionCreate
@@ -916,6 +942,16 @@ export interface components {
        * Format: uuid
        */
       user_id: string;
+    };
+    /**
+     * SessionTokenResponse
+     * @description 会话加入房间令牌成功响应。
+     */
+    SessionTokenResponse: {
+      /** Token */
+      token: string;
+      /** Ws Url */
+      ws_url: string;
     };
     /**
      * SkillResponse
@@ -1416,7 +1452,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": unknown;
+          "application/json": components["schemas"]["HealthResponse"];
         };
       };
     };
@@ -1438,7 +1474,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": unknown;
+          "application/json": components["schemas"]["ReadinessResponse"];
         };
       };
       /** @description Validation Error */
@@ -1860,7 +1896,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": unknown;
+          "application/json": components["schemas"]["AgentDispatchResponse"];
         };
       };
       /** @description Validation Error */
@@ -1928,7 +1964,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": unknown;
+          "application/json": components["schemas"]["SessionTokenResponse"];
         };
       };
       /** @description Validation Error */

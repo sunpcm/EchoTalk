@@ -103,3 +103,16 @@ class AnalysisStatusResponse(BaseModel):
     started_at: UtcDatetime | None = None
     finished_at: UtcDatetime | None = None
     updated_at: UtcDatetime
+
+
+class SessionTokenResponse(BaseModel):
+    """会话加入房间令牌成功响应。"""
+
+    token: str
+    ws_url: str
+
+
+class AgentDispatchResponse(BaseModel):
+    """Agent 调度成功响应。"""
+
+    dispatched: bool

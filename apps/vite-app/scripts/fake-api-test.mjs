@@ -1306,12 +1306,7 @@ const MISSING_OPERATION_PROBES = [
 ];
 const EXPECTED_MISSING_OPERATIONS = MISSING_OPERATION_PROBES.map(({ operation }) => operation);
 
-const EXPECTED_UNMODELED_RESPONSES = [
-  { operation: "GET /api/health", status: "200" },
-  { operation: "GET /api/health/ready", status: "200" },
-  { operation: "GET /api/sessions/{session_id}/token", status: "200" },
-  { operation: "POST /api/sessions/{session_id}/dispatch", status: "200" },
-];
+const EXPECTED_UNMODELED_RESPONSES = [];
 
 const EXPECTED_CONTRACT_DEVIATIONS = [
   {

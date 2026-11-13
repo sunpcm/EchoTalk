@@ -19,11 +19,6 @@
 
 ### 批次 G：契约补全
 
-- [ ] **G1 后端为空 schema 的成功响应补响应模型**：`GET /api/health`、`GET /api/health/ready`、
-      `GET /api/sessions/{id}/token`、`POST /api/sessions/{id}/dispatch` 在 `backend/openapi.json` 中是空 schema。
-      新增 Pydantic 响应模型并重新导出 `openapi.json` 与前端生成类型。验收：运行时响应体不变（现有 pytest
-      零改动通过）；`export_openapi.py --check` 与 `check:api-types` 通过；Fake API 契约测试中的空 schema 清单
-      相应缩减并更新为精确清单。
 - [ ] **G2 Fake API 补齐缺失 operation 并消除 `POST /api/sessions` 状态码偏差**：缺失 5 个
       （`POST /conversation/chat`、三个 call lease 接口、`PUT /user/settings`）；契约声明 200 而 Fake 返回 201，
       且 `e2e/session-start.spec.ts` 依赖 201。开工前先核对真实后端实际返回的状态码；契约、后端、Fake 三者

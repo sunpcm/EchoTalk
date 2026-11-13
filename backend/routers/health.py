@@ -11,17 +11,18 @@ from database import get_db
 from dependencies import get_current_user
 from models.user import SubscriptionTier, User
 from provider_catalog import PROVIDER_CATALOGS
+from schemas.health import HealthResponse, ReadinessResponse
 
 router = APIRouter()
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthResponse)
 async def health_check():
     """基础健康检查接口，用于验证服务是否正常运行。"""
     return {"status": "ok", "service": "echo-talk"}
 
 
-@router.get("/health/ready")
+@router.get("/health/ready", response_model=ReadinessResponse)
 async def readiness_check(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
