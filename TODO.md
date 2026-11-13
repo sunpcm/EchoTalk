@@ -4,6 +4,87 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
+## 架构演进工作包（第二批：F / G / H / I）
+
+来源：[架构演进规划](./docs/ARCHITECTURE_ROADMAP.md) §3、§4，以及 2026-11-13 对冻结终点 `80c57a4` 的独立复核
+（范围结论：实现符合契约、无行为回归；验证状态：需补测试）。第一批 A1–A6 与 B1 设计已完成并归档。
+每个工作包单独一轮、单独分支与 PR，实施与评审分离。通用验收：三测试树通过且计数不降
+（当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果，
+亲跑结果与回读 CI 的结果分开写。
+建议顺序：F1 最先；F2–F4、H2 可并行；G 在 F 之后；G3、H1、I1 是设计轮，交付设计后等用户确认再实施。
+
+通用规矩（适用于本节全部工作包）：给共享层（data 控制器、store 切片、`lib/api`）新增能力时，必须同轮补该层的
+契约测试；写明"测试零改动"的，测试一行不动，做不到就停下说明原因；不新增依赖、不改锁文件、不改数据库结构、
+不执行迁移，除非工作包明确要求并经用户同意。
+
+### 批次 F：复核遗留
+
+- [ ] **F1 data 层契约测试补齐**（P1；只加测试，不改生产代码，不改四个组件的既有测试）：在
+      `apps/vite-app/src/data/readonly-query*.test.ts` 增加契约用例，覆盖 (1) `settlementDrift:"discard"`
+      结算时只校验 seq、principal、revision，不因生命周期或上下文漂移丢弃，对照 `revalidate` 会丢弃；
+      (2) `clearCursorOnFirstPage` 首页刷新开始即清 cursor，刷新失败或被取消后 cursor 仍为空、`loadMore` 不发请求；
+      (3) `cancel()` 取消 more 后 cursor 保留并可用同一 cursor 重试，取消 primary 后保留 items，迟到结果不写回；
+      (4) DP profile 的 `concurrent:"override"` 最新覆盖与午夜定时为窗口结束 +100ms；(5) WP profile 去重大小写不敏感；
+      (6) AS 适配层 `queriedIdentity` 只在首屏成功时提交、取消后不提交。背景：复核时把这些逐一改坏，
+      既有 AS 116 项、DP 23 项与契约 45 项全部仍通过。验收：对每一项做一次受控变异，变异后新增用例失败、
+      恢复后通过，逐项列在报告里；既有 Vitest 用例不变且全部通过。
+- [ ] **F2 修复 E2E 偶发失败**（P2）：`apps/vite-app/e2e/session-start.spec.ts:13-20` 的 response 监听里
+      `await res.json()` 未被测试等待，偶发 `response.json: Test ended`（复核时冻结版本 80 次中 2 次、
+      基线 `196f2ba` 80 次中 1 次，非第一批回归）。改为 `page.waitForResponse` 或在断言前等待监听完成。
+      验收：该文件三个用例在 Chromium 与 WebKit 上 `--repeat-each 50`、retries 0 全过；断言语义不变。
+- [ ] **F3 当前层文档瘦身**（P2；只改文档）：`docs/PROJECT_STATUS.md` 回到"当前功能 + 当前验证基线 +
+      已知限制 + 历史索引"，不超过 150 行，基线绑定最终 main 提交及其 CI；逐卡收口记录移入
+      `docs/history/2026-11.md`。`docs/FRONTEND_DATA_LAYER_CONTRACT.md` 开头的逐卡状态流水移入历史，
+      正文只留现行契约。验收：搬运部分逐行守恒；全仓 Markdown 相对链接与锚点检查无新增失效。
+- [ ] **F4 收窄会话切片的通用补丁入口**（P2）：`apps/vite-app/src/store/conversationSlice.ts` 的
+      `resetWithShellCoordination(patch: object)` 出现在 `ConversationSlice` 公共类型上，经窄 façade 可传入任意键。
+      改为不出现在窄 façade 的公共类型里，或把入参收窄为协调器声明的键。验收：`useConversationStore` 的类型上
+      不再能传入 `appView`；`navigation.test.ts` 与 `conversation.test.ts` 的行为断言不变；三测试树计数不降。
+
+### 批次 G：契约补全
+
+- [ ] **G1 后端为空 schema 的成功响应补响应模型**：`GET /api/health`、`GET /api/health/ready`、
+      `GET /api/sessions/{id}/token`、`POST /api/sessions/{id}/dispatch` 在 `backend/openapi.json` 中是空 schema。
+      新增 Pydantic 响应模型并重新导出 `openapi.json` 与前端生成类型。验收：运行时响应体不变（现有 pytest
+      零改动通过）；`export_openapi.py --check` 与 `check:api-types` 通过；Fake API 契约测试中的空 schema 清单
+      相应缩减并更新为精确清单。
+- [ ] **G2 Fake API 补齐缺失 operation 并消除 `POST /api/sessions` 状态码偏差**：缺失 5 个
+      （`POST /conversation/chat`、三个 call lease 接口、`PUT /user/settings`）；契约声明 200 而 Fake 返回 201，
+      且 `e2e/session-start.spec.ts` 依赖 201。开工前先核对真实后端实际返回的状态码；契约、后端、Fake 三者
+      不一致时停下列证据等用户裁定，不自行选边。验收：缺失清单为空或逐条说明保留原因；偏差清单只剩有说明的
+      条目；E2E 计数不降。
+- [ ] **G3 Agent DataChannel 消息与分析错误码的机器可读契约**（先出设计，用户确认后实施）：`agent_error`
+      的 payload 由前端 `agentErrorMessage.ts` 手写收窄，后端 Agent 侧另有一套；分析 Job 的 `error_code` 是
+      字符串约定。设计需回答 schema 放在哪里、前后端如何共同引用、如何进 CI 漂移门禁，不新增运行时依赖优先。
+      验收（设计轮）：设计文档 + 现有消息与错误码的完整清单（逐条指到代码行）；本轮不改代码。
+
+### 批次 H：两个最大的文件
+
+- [ ] **H1 会话切片的启动编排抽取**（先出设计，用户确认后实施）：`store/conversationSlice.ts` 约 1400 行，
+      同时承担状态机投影、启动编排（健康检查 → 创建 → 取 Token）、就绪检查与生命周期追踪。设计需给出拆分边界、
+      哪些是纯函数、对既有测试的影响。验收（设计轮）：设计文档，含"测试文件零改动是否可达"的明确判断及理由。
+      实施轮验收：`conversation.test.ts` 与 `VoiceInterface.test.tsx` 零改动通过；对启动路径做 3 处以上变异并列结果。
+- [ ] **H2 `lib/api.ts` 按资源拆文件**：约 1040 行拆为 `lib/api/{client,sessions,assessments,settings,callLease}.ts`，
+      由 `lib/api/index.ts` 原样再导出。验收：所有 `from "@/lib/api"` 的调用方零改动；`api.test.ts` 零改动通过；
+      分层 lint 零违规。
+
+### 批次 I：后端学习领域
+
+- [ ] **I1 评估提供方接口设计**（先出设计，用户确认后实施）：把"发音评估""语法检测"定义为可替换的提供方，
+      每个声明 `source`、`provider`、`model_version`、`is_synthetic`、`confidence`（字段已在数据模型中），
+      现有 `demo_mock`、`demo_rule` 成为两个实现；与 [学习事件设计](./docs/LEARNING_EVENTS_DESIGN.md) 的
+      coverage 状态（未调用 / 已评估零结果 / 评估失败）对齐。验收（设计轮）：设计文档；不改代码。
+- [ ] **I2 分析任务最小可观测性**：为 Job 的领取、成功、可重试失败、耗尽、陈旧恢复输出结构化日志事件，
+      并提供队列积压与最老等待时长的只读查询（供健康检查或运维脚本使用）；不引入指标库或外部服务。
+      验收：pytest 覆盖各事件的字段与脱敏（不含转录正文、凭据）；现有用例零改动通过。
+
+### 需要用户先决定，不要自行开工
+
+- [ ] **B2 学习事件表实施**：等 [LEARNING_EVENTS_DESIGN.md](./docs/LEARNING_EVENTS_DESIGN.md) §9 的五个问题
+      （基线切换方式、旧 pending/failed Job、保留策略 A/B/C、是否允许重新分析、是否冻结 `bkt-v1`）。
+      历史数据无法补录，本项有时效性。验收：用户逐条确认后，另行拆出建表、写入、重算校验的实施工作包。
+- [ ] **阶段 C 预发布环境**：需要账号、密钥与费用决定（规划 §3.6）。验收：用户确认范围与资源后另行拆工作包。
+
 ## 2026-11-10 云端评审后续（R2）
 
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，
