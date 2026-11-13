@@ -1,8 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13，F1 S1（data 层契约测试补齐）的 Harness 亲跑结果（macOS）已复核：
-> Vitest 1224/50、本机 E2E 231/3、pytest 809/80.19%、108/8/21。此前 A6（PR #155）代码
-> `87e0fd5` 的 Linux CI 为已核快照，见下方历史基线。
+> 最后核对：2026-11-13，F2（修复 session-start 未等待响应解析）的 Harness 亲跑结果（macOS）已复核：
+> Vitest 1224/50、本机 E2E 233/1、pytest 809/3 warnings/80.19%、108/8/21。此前 F1（PR #158）合入
+> `main@7b300b0` 的 Linux CI 为已核快照，见下方历史基线。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -27,30 +27,30 @@
 
 ## 当前验证基线
 
-当前验证基线绑定 F1 S1（data 层契约测试补齐）的 Harness 亲跑结果（macOS，非 Linux CI）：
-source `c5675c1ce5787a34a40d87021bc10b4d411cc65f` + 新增测试
-`apps/vite-app/src/data/readonly-query-f1.test.ts` SHA
-`272bfd8d8f9fd8db25387c64b9d9dded2e8f9600da37f7f26c92e0101f78d9c2`（703 行、18 项）。
+当前验证基线绑定 F2（修复 session-start 未等待响应解析）的 Harness 亲跑结果（macOS，非 Linux CI）：
+source `main@7b300b02f2ff9d28f5b6e1dd13cd258e5028c3fb` + 本 E2E 文件
+`apps/vite-app/e2e/session-start.spec.ts` SHA
+`48987073a30ea2168f474af87a6bc6b10091f5c8c088f34ef07cb20883129127`。
 
-| 测试树 / 门禁  | 最近实测结果（Harness 亲跑 / macOS）              | 日志     |
-| -------------- | ------------------------------------------------- | -------- |
-| Vitest         | 1224 passed（50 个文件；含新增 18 项 F1 契约）    | frontend |
-| Playwright E2E | 231 passed / 3 failed（0 skip、无 retry）         | frontend |
-| Fake API 契约  | 108 passed                                        | frontend |
-| API 类型生成器 | 8 passed                                          | frontend |
-| 构建脚本       | 21 passed                                         | frontend |
-| backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁） | backend  |
+| 测试树 / 门禁  | 最近实测结果（Harness 亲跑 / macOS）                                     | 日志     |
+| -------------- | ------------------------------------------------------------------------ | -------- |
+| Vitest         | 1224 passed（50 个文件）                                                 | frontend |
+| Playwright E2E | 233 passed / 1 failed（0 skip、无 retry；唯一既有 a11y Provider 336×23） | frontend |
+| Fake API 契约  | 108 passed                                                               | frontend |
+| API 类型生成器 | 8 passed                                                                 | frontend |
+| 构建脚本       | 21 passed                                                                | frontend |
+| backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁）                        | backend  |
 
-本机全量 E2E 首次 231/3 的已知失败与单 worker 定向重放 4/4 的完整细节见
+本机全量 E2E 首次 233/1 的唯一既有失败（a11y Provider 336×23）与定向压力 300/300 的完整细节见
 [history/2026-11.md](./history/2026-11.md)；该本机 E2E 计数不冒认全绿。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。
 
-此前已核的 A6（PR #155）Linux CI 快照（保留存档，不背书上方 F1 S1 本机计数）：代码
-`87e0fd5432fe649e3ee91e8851c61c7d281986cc`，[CI 43180144291](https://github.com/sunpcm/EchoTalk/actions/runs/43180144291)
-与 [PR Guard 43180144203](https://github.com/sunpcm/EchoTalk/actions/runs/43180144203) 六项成功，
-Vitest1206/49、Linux E2E234、pytest809/80.19%、108/8/21。
+此前已核的 F1（PR #158）Linux CI 快照（保留存档，不背书上方 F2 本机计数）：代码 head
+`82447c7` 合入 `main@7b300b0`，tree `1f86e32` 整树一致，[CI 43360032607](https://github.com/sunpcm/EchoTalk/actions/runs/43360032607)
+与 [PR Guard 43360032589](https://github.com/sunpcm/EchoTalk/actions/runs/43360032589) 六项成功，
+Vitest1224、Linux E2E234、pytest809/80.19%、108/8/21。该 Linux CI 是 F1 合并快照，不是 F2 的 CI。
 
 历史基线继续按快照绑定：B1 source `3b418e8` 的 [CI run 43152122060](https://github.com/sunpcm/EchoTalk/actions/runs/43152122060)
 与 [PR Guard run 43152122194](https://github.com/sunpcm/EchoTalk/actions/runs/43152122194) 为 Vitest

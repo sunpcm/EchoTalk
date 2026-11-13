@@ -444,3 +444,17 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       标注 S0 后记 R0 CHANGES REQUESTED，R1 以单因素 primary/more 矩阵与真实日期窗口关闭。
       **尚未 CI / PR / APPROVED**：本段本地计数不能挂在旧 A6 Linux CI 名下，仅代表本机自测，待
       Harness 独立评审后合并。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）F2
+
+- [x] **F2 修复 E2E 偶发失败**（P2）：`apps/vite-app/e2e/session-start.spec.ts:13-20` 的 response 监听里
+      `await res.json()` 未被测试等待，偶发 `response.json: Test ended`（复核时冻结版本 80 次中 2 次、
+      基线 `196f2ba` 80 次中 1 次，非第一批回归）。改为 `page.waitForResponse` 或在断言前等待监听完成。
+      验收：该文件三个用例在 Chromium 与 WebKit 上 `--repeat-each 50`、retries 0 全过；断言语义不变。
+
+      本地收口：移除回调内浮空的 `await res.json()`，改为存 `sessionJson` promise 并由 async
+      `getSessionId` 在读取前等待，5 处调用点改为 `await tracker.getSessionId()`；27 个 expect 链归一
+      新增 await getter 与冗余括号后 AST 相同，三个用例断言语义不变。Harness 亲跑完整 300/300 通过
+      （Chromium/WebKit 各 150，3 用例各浏览器各 50，retries0/skip0/flaky0）；本机全量 E2E 首次 233/1
+      （唯一既有 a11y Provider 336×23）；Vitest 1224/50、pytest 809/3w/80.19%、108/8/21。未 commit/push，
+      待 Harness 独立评审后提交/PR/CI/squash。详见实施报告与 `docs/history/2026-11.md`。
