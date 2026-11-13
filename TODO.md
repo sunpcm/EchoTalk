@@ -19,10 +19,6 @@
 
 ### 批次 F：复核遗留
 
-- [ ] **F2 修复 E2E 偶发失败**（P2）：`apps/vite-app/e2e/session-start.spec.ts:13-20` 的 response 监听里
-      `await res.json()` 未被测试等待，偶发 `response.json: Test ended`（复核时冻结版本 80 次中 2 次、
-      基线 `196f2ba` 80 次中 1 次，非第一批回归）。改为 `page.waitForResponse` 或在断言前等待监听完成。
-      验收：该文件三个用例在 Chromium 与 WebKit 上 `--repeat-each 50`、retries 0 全过；断言语义不变。
 - [ ] **F3 当前层文档瘦身**（P2；只改文档）：`docs/PROJECT_STATUS.md` 回到"当前功能 + 当前验证基线 +
       已知限制 + 历史索引"，不超过 150 行，基线绑定最终 main 提交及其 CI；逐卡收口记录移入
       `docs/history/2026-11.md`。`docs/FRONTEND_DATA_LAYER_CONTRACT.md` 开头的逐卡状态流水移入历史，
