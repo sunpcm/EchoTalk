@@ -1,6 +1,20 @@
 {
   "components": {
     "schemas": {
+      "AgentDispatchResponse": {
+        "description": "Agent 调度成功响应。",
+        "properties": {
+          "dispatched": {
+            "title": "Dispatched",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dispatched"
+        ],
+        "title": "AgentDispatchResponse",
+        "type": "object"
+      },
       "AnalysisStatusResponse": {
         "description": "Public state for one session's durable analysis job.",
         "properties": {
@@ -576,6 +590,25 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthResponse": {
+        "description": "基础健康检查成功响应。",
+        "properties": {
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
       "KnowledgeStateResponse": {
         "description": "知识状态响应（含技能信息）。",
         "properties": {
@@ -669,6 +702,20 @@
           "type"
         ],
         "title": "PhonemeAlignmentItem",
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "description": "深度就绪检查成功响应。",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReadinessResponse",
         "type": "object"
       },
       "SessionCreate": {
@@ -821,6 +868,25 @@
           "started_at"
         ],
         "title": "SessionResponse",
+        "type": "object"
+      },
+      "SessionTokenResponse": {
+        "description": "会话加入房间令牌成功响应。",
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "ws_url": {
+            "title": "Ws Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "ws_url"
+        ],
+        "title": "SessionTokenResponse",
         "type": "object"
       },
       "SkillResponse": {
@@ -1794,7 +1860,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -1832,7 +1900,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2767,7 +2837,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDispatchResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2917,7 +2989,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTokenResponse"
+                }
               }
             },
             "description": "Successful Response"
