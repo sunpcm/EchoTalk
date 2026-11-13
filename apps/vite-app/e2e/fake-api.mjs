@@ -605,12 +605,18 @@ const server = createServer(async (request, response) => {
   const method = request.method ?? "GET";
   const pathname = new URL(request.url ?? "/", `http://${host}:${port}`).pathname;
 
-  if (pathname !== "/api/health" && request.headers.authorization !== "Bearer e2e-dev-token") {
+  const publicHealthPath = pathname === "/api/health" || pathname === "/api/health/system-ready";
+  if (!publicHealthPath && request.headers.authorization !== "Bearer e2e-dev-token") {
     sendJson(response, 401, { detail: "Authentication required." });
     return;
   }
 
   // Per-request fixtures avoid global mutable state across browser workers.
+  if (method === "GET" && pathname === "/api/health/system-ready") {
+    sendJson(response, 200, { status: "ready" });
+    return;
+  }
+
   if (method === "GET" && pathname === "/api/health/ready") {
     const fixture = request.headers["x-e2e-readiness"];
     const codes = new Set([

@@ -1,6 +1,7 @@
 """健康检查路由。"""
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -11,6 +12,11 @@ from database import get_db
 from dependencies import get_current_user
 from models.user import SubscriptionTier, User
 from provider_catalog import PROVIDER_CATALOGS
+from schemas.system_readiness import (
+    SystemReadinessResponse,
+    SystemReadinessUnavailableResponse,
+)
+from services.system_readiness import SystemReadinessError, check_system_readiness
 
 router = APIRouter()
 
@@ -19,6 +25,29 @@ router = APIRouter()
 async def health_check():
     """基础健康检查接口，用于验证服务是否正常运行。"""
     return {"status": "ok", "service": "echo-talk"}
+
+
+@router.get(
+    "/health/system-ready",
+    response_model=SystemReadinessResponse,
+    responses={
+        503: {
+            "model": SystemReadinessUnavailableResponse,
+            "description": "Shared PostgreSQL is not ready.",
+        }
+    },
+)
+async def system_readiness_check() -> SystemReadinessResponse | JSONResponse:
+    """公开的系统就绪检查；仅验证共享 PostgreSQL，而不判断用户练习权限。"""
+
+    try:
+        await check_system_readiness()
+    except SystemReadinessError:
+        return JSONResponse(
+            status_code=503,
+            content=SystemReadinessUnavailableResponse(status="not_ready").model_dump(),
+        )
+    return SystemReadinessResponse(status="ready")
 
 
 @router.get("/health/ready")

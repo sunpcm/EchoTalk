@@ -18,6 +18,27 @@ services:
       retries: 5
 
   # ── 后端服务 ────────────────────────────────────────────────
+  echotalk-migrate:
+    build:
+      context: ./backend
+      args:
+        BACKEND_ROLE: api
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://echotalk:echotalk_secret@echotalk-postgres:5432/echotalk
+    dns:
+      - 8.8.8.8
+      - 223.5.5.5
+    depends_on:
+      echotalk-postgres:
+        condition: service_healthy
+    networks:
+      - echotalk-net
+
   echotalk-api:
     build:
       context: ./backend
@@ -36,6 +57,35 @@ services:
     depends_on:
       echotalk-postgres:
         condition: service_healthy
+      echotalk-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request
+
+          try:
+              opener = urllib.request.build_opener(
+                  urllib.request.ProxyHandler({})
+              )
+              with opener.open(
+                  "http://127.0.0.1:8000/api/health/system-ready",
+                  timeout=4,
+              ) as response:
+                  ready = (
+                      response.status == 200
+                      and response.read() == b'{"status":"ready"}'
+                  )
+              raise SystemExit(0 if ready else 1)
+          except Exception:
+              raise SystemExit(1)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       - echotalk-net
 
@@ -57,6 +107,8 @@ services:
     depends_on:
       echotalk-postgres:
         condition: service_healthy
+      echotalk-migrate:
+        condition: service_completed_successfully
     networks:
       - echotalk-net
 
@@ -75,6 +127,8 @@ services:
     depends_on:
       echotalk-postgres:
         condition: service_healthy
+      echotalk-migrate:
+        condition: service_completed_successfully
     networks:
       - echotalk-net
 
@@ -97,7 +151,8 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - echotalk-api
+      echotalk-api:
+        condition: service_healthy
     networks:
       - echotalk-net
 

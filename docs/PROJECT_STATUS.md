@@ -1,11 +1,12 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13。当前 Linux 基线仍按 A6（PR #155）代码 `87e0fd5` 的历史快照记录；
-> B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档；独立 WPH 已完成 WebKit 设置
-> 控件修复，当前完整双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡
-> Review 与提交/推送以同卡最终回执为准；用户 Review 待。生产发布、真实数据和真实依赖仍未验收。
-> 历史 B1-1～B1-5 的合成 PostgreSQL、完整本机门禁与独立代码 Review 结果见下文，各自数字只属于
-> 当时卡。
+> 最后核对：2026-11-13。R2-14 Compose 系统就绪与一次性迁移已完成本地合成验证，源码 10 文件
+> 与主控冻结 hash 清单逐项一致，独立代码 Review 为 APPROVED。当前完整 13 项门禁及聚合均
+> `exit 0`：backend `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest
+> `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
+> `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。最终 Review/发布见主控同卡回执；用户
+> Review 待。生产发布、原 Compose 整栈、真实外部依赖与设备仍未验收。
+> A6、B1 和独立 WPH 的数字继续绑定各自历史快照，不改写当时结果。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -16,6 +17,7 @@
 | -------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离      | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收       |
 | 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                    | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明              |
+| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康 | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收           |
 | 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束 | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭             |
 | 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                      | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收            |
 | 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态   | 已实现                                                                  |
@@ -32,7 +34,39 @@
 
 ## 当前验证基线
 
-当前 Linux 测试基线绑定 A6（PR #155）代码 `87e0fd5432fe649e3ee91e8851c61c7d281986cc`：
+### R2-14（Compose 系统就绪与一次性迁移）本地合成完成；用户 Review 待
+
+- 公开 `GET /api/health/system-ready` 不依赖用户身份，只使用共享 PostgreSQL 执行 `SELECT 1`；
+  成功为 typed `200 {"status":"ready"}`，连接、查询、超时或释放失败为通用 typed
+  `503 {"status":"not_ready"}`。连接 Context 完整释放后才响应；数据库操作预算为 `0.5s`，为当前
+  asyncpg 约 `2s` 的 graceful close 留余量，完整响应目标 `<3s`。旧 `/api/health/ready` 的认证、
+  用户配置判断和 OpenAPI 语义未改。
+- Compose 的 `echotalk-migrate` 使用 API 角色、同一 `DATABASE_URL` 和既有环境边界执行
+  `alembic upgrade head`，`restart: "no"` 且依赖 PostgreSQL `service_healthy`；API、Agent、
+  analysis-worker 依赖迁移成功，Web 依赖 API `service_healthy`。API healthcheck 使用镜像已有
+  Python 标准库和 `ProxyHandler({})` 绕过环境代理，HTTP timeout `4`、容器 timeout `5s`，不嵌入
+  Token。完整合同见 [COMPOSE_STARTUP_CONTRACT.md](./COMPOSE_STARTUP_CONTRACT.md)。
+- 当前完整 13 项门禁及聚合 `exit 0`；backend `941 passed / 3 warnings / 0 skip / 81.57% raw Total
+coverage`，Vitest `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
+  `246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`）；build-script
+  `21`、API 类型 runner `8`、非 native iOS 脚本 runner `37` 均 `exit 0`；lint 为
+  `132 warning / 0 error`，逐诊断与父基线相同。
+- Compose 原生 config 与迁移依赖图 `exit 0`，未解析 `env_file`、镜像或启动原整栈。健康探针实际
+  Python 命令五类均符合预期：ready `exit 0`，unready、wrong-body、timeout 为 `exit 1`，
+  `HTTP_PROXY` trap 被绕过且代理收到 0 请求。独立自有 PG pause 返回 `503`、耗时 `2.518465s`、
+  checkedout 为 0；unpause 后 `200`，用户数不变；完整连接释放后再注入异常仍为 `503`。
+- 真实路由无 Bearer/错误 Bearer 均 `200`，旧 ready 错误 Bearer 为 `401`。18 份旧迁移 SHA 未变，
+  本卡新增 migration 为 0。源码 10 文件与主控
+  `R214-R1-code-frozen-sha256.json` 逐项一致。
+- 缺 route 的初始 backend `6 failed / 0 skip / exit 1` 是功能实施前的有效 TDD RED（当时新功能
+  尚未实现，尚未进入真实 PG 故障验证）；`ModuleNotFound` 导入错误、延迟 `IncludedRouter` 的
+  route 枚举及 format 问题属于夹具/格式。R0 真实自有 PG pause 在 4.5s 外层请求超时且未返回
+  `503`，是有效产品失败证据；R1 新增的约 2s-cleanup 模拟用例在 3.5s 硬期限命中，是模拟回归
+  RED；随后 R1 真实自有 PG pause 以 `2.518465s` 返回 `503`，为成功验证。R2-14 正式产品返修
+  使用 `1/2`；最终 Review/发布见主控同卡回执，用户 Review 待。
+
+以下 A6 Linux 测试基线继续作为已合并历史快照，绑定代码
+`87e0fd5432fe649e3ee91e8851c61c7d281986cc`：
 [CI 43180144291](https://github.com/sunpcm/EchoTalk/actions/runs/43180144291) 与
 [PR Guard 43180144203](https://github.com/sunpcm/EchoTalk/actions/runs/43180144203) 六项成功。
 主控已亲读原始日志；后续仅 Markdown 归档，最终 head 的门禁与合并回执见 PR。
@@ -62,7 +96,7 @@
 Fake API 的成功响应与缺失 operation 受仓内 OpenAPI 校验，既有偏差精确固定；A3 该轮为 108 项
 通过；历史 B1-4 Fake API 为 `110 passed / 0 skip / exit 0`，历史 B1-5 为
 `113 passed / 0 skip / exit 0`，见本文
-[B1 小节](#b1学习事件台账wph-收口完成用户-review-待)。
+[B1 小节](#b1学习事件台账与-wph-历史收口快照用户-review-待)。
 最终实现 source `b1d3756` 合入 `main@a7841b7`，文档后由PR #147收口；历史及偏差清单见归档。
 
 ### A4a（只读 data 层，PR #149）合并收口
@@ -115,16 +149,19 @@ worker head fixture 适配，最终本机门禁和专用合成 PostgreSQL 结果
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）WPH 收口完成；用户 Review 待
+### B1（学习事件台账）与 WPH 历史收口快照；用户 Review 待
 
-**WPH 当前状态（2026-11-13）：** B1-5 之后的独立小修复已恢复设置抽屉三个 Provider select 的
+**WPH 历史快照（2026-11-13，后续 R2-14 之前）：** B1-5 之后的独立小修复已恢复设置抽屉三个
+Provider select 的
 44px 触控高度与可靠可见焦点。真实 RED 为 Chromium `7 passed`、WebKit `7 failed`，定向 GREEN 为
-`14 passed / exit 0`；修复后完整双浏览器 E2E 为
+`14 passed / exit 0`；该轮修复后完整双浏览器 E2E 为
 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
-`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`。全部 13 项完整门禁及聚合均 `exit 0`；
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Fake API `113 passed / 0 skip`。该轮全部
+13 项完整门禁及聚合均 `exit 0`；
 Chromium/WebKit 最终检查均为三个控件各 `336x44`、`appearance:auto`、2px solid outline。主控
 代码/测试 Review 与真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修 `0/2`。整卡 Review
-与提交/推送以同卡最终回执为准；用户 Review 待。
+与提交/推送以同卡最终回执为准；用户 Review 待。上述 backend/Fake/E2E 数字只属于 WPH 当时
+快照，后续 R2-14 的当前基线见上方 R2-14 小节。
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -272,7 +309,7 @@ OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schem
 
 ## 已知限制和近期风险
 
-- 架构层面的风险（无 TLS 入口、分析可观测性、Compose 就绪门禁、原生认证未适配等）统一维护在
+- 架构层面的风险（无 TLS 入口、分析可观测性、生产 Compose rollout、原生认证未适配等）统一维护在
   [ARCHITECTURE.md §7](./ARCHITECTURE.md)，本文不重复。
 - CI 前端固定使用与锁文件一致的 Playwright 1.62.1 / Ubuntu 26.04 官方预装镜像及 digest，
   避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
@@ -281,9 +318,12 @@ OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schem
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - 历史 B1-5 的完整双浏览器 E2E 当时为
   `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置抽屉三个 Provider select
-  的 `336x23 < 44px`；该历史快照及当时范围外判断继续保留。后续独立 WPH 已修复该问题，当前完整
-  双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，不能把当前结果回写成当时
-  已通过。
+  的 `336x23 < 44px`；该历史快照及当时范围外判断继续保留。后续独立 WPH 已完成修复，其历史快照
+  与当前 R2-14 的双浏览器 E2E 均为
+  `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，但仍不能把当前结果回写成当时已通过。
+- Compose 的一次性迁移、公开 system-ready 和容器依赖门控已经形成本地合同并通过原生 config、
+  HTTP 探针和独立自有 PG 验证；原 Compose 整栈、镜像、真实 `.env`、生产 rollout、真实
+  Provider/IdP/LiveKit 与设备未验收，不能把本地门禁写成生产就绪。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策

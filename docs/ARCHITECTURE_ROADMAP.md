@@ -146,14 +146,19 @@ backend 路由  ──导出──▶  openapi.json  ──生成──▶  前�
 返回 `200 {"status":"deleted"}`。服务在同一事务删除本人 12 类业务数据，保留全局 skills、控制行和
 其他用户数据；坏 baseline/跨归属失败关闭，合法删除后按剩余真实 baseline 事件更新全局数量/摘要，
 旧 Job/worker 不能复活数据。B1-5 之后的独立 WPH 已恢复设置 Provider select 的 44px 高度与可见
-焦点；当前完整双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend
-为 `934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，全部 13 项完整门禁及聚合均 `exit 0`。
-主控代码/测试 Review 与真实截图 Review 均 APPROVED；整卡 Review 与提交/推送以同卡最终回执为准，
-用户 Review 待。历史 B1-3/B1-4/B1-5 的 `233 passed / 1 failed` 当时快照继续保留。B1-0～B1-5
-已完成本地实施与完成项归档，但生产发布和真实依赖仍未验收。不开 PR、不合并、不部署。完整测试
-数字、历史失败与风险见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；不能把代码 Review
-APPROVED 写成用户验收或生产验收。生产迁移/切换、真实数据、真实依赖、真实不可恢复删除、远端
-CI、备份策略及会话音频切片采集都不在当前证据范围。
+焦点；**该 WPH 历史快照**的双浏览器 E2E 为
+`246 passed / 0 failed / 0 skip / 0 retry / exit 0`，backend 为
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Fake API 为 `113 passed / 0 skip`。
+后续 R2-14 已完成本地 Compose 就绪/迁移编排，当前 backend 为
+`941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Fake API 为
+`116 passed / 0 skip`，双浏览器仍为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整
+13 项门禁及聚合均 `exit 0`。主控代码/测试 Review 与 WPH 真实截图 Review 均 APPROVED；R2-14
+最终 Review/发布见主控同卡回执，用户 Review 待。历史 B1-3/B1-4/B1-5 的
+`233 passed / 1 failed` 当时快照继续保留。B1-0～B1-5 与 R2-14 已完成本地实施与完成项归档，
+但原 Compose 整栈、生产发布和真实依赖仍未验收。不开 PR、不合并、不部署。完整测试数字、历史
+失败与风险见 [PROJECT_STATUS](./PROJECT_STATUS.md)；不能把代码 Review APPROVED、本地 Compose
+合同写成用户验收或生产验收。生产迁移/切换、真实数据、真实依赖、真实不可恢复删除、远端 CI、
+备份策略及会话音频切片采集都不在当前证据范围。
 
 ### 3.5 平台：能力接口，按证据推进
 
@@ -174,7 +179,8 @@ macOS 沿用已规划的路径（正式壳放在 `apps/vite-app/src-tauri/`，�
 
 ### 3.6 交付：建立一个能说"验证过"的环境
 
-目前所有"未验证"条目的共同原因是没有一个带真实依赖的环境。这不是某一项功能的缺口，而是整个验证体系缺了一层：
+目前所有"未验证"条目的共同原因是没有一个带真实依赖的环境。这不是某一项功能的缺口，而是整个验证体系缺了一层。R2-14 已把一次性迁移、公开 PostgreSQL system-ready、API healthcheck 和容器启动顺序落成
+[本地 Compose 合同](./COMPOSE_STARTUP_CONTRACT.md)，但它只证明本地合成编排，不替代下面的预发布环境：
 
 ```text
 单元与组件测试        ← 已有，强
@@ -209,14 +215,18 @@ Fake API 浏览器 E2E   ← 已有，强
 OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missing/空 schema 豁免。本批不新增
 产品 UI 或真实依赖。
 
-B1-5 之后的独立 WPH 小修复已完成，主控代码/测试与真实截图 Review 为 APPROVED；当前完整双浏览器
-E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡 Review 与提交/推送以同卡最终回执
-为准；用户 Review 待。不开 PR、不合并、不部署。B1-0～B1-5 已完成本地实施与完成项归档，不启动
-下一卡。历史 B1-3/B1-4/B1-5 当时的
+B1-5 之后的独立 WPH 小修复已完成，主控代码/测试与真实截图 Review 为 APPROVED。**WPH 历史快照**
+的双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，backend 为
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Fake API 为 `113 passed / 0 skip`。
+后续 R2-14 已完成本地合成实施与独立代码 Review，当前 13 项完整门禁及聚合 `exit 0`，backend 为
+`941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Fake API 为
+`116 passed / 0 skip`，双浏览器仍为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡最终
+Review 与发布见主控同卡回执；用户 Review 待。不开 PR、不合并、不部署。B1-0～B1-5
+与 R2-14 已完成本地实施与完成项归档，不启动下一卡。历史 B1-3/B1-4/B1-5 当时的
 `233 passed / 1 failed / 0 skip / 0 retry / exit 1` 与 WebKit Provider select `336x23 < 44px`
 失败原因继续按各自快照保留，不能把当前 246 结果改写为当时已通过。测试与当前风险见
-[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)，不得把代码 Review APPROVED 或当前 E2E 通过写成
-用户验收或生产切换完成。
+[PROJECT_STATUS 的 R2-14 小节](./PROJECT_STATUS.md)，不得把代码 Review APPROVED、本地 Compose
+合同或当前 E2E 通过写成用户验收、原整栈或生产切换完成。
 
 1. **B1-1 模型、新增迁移与约束**：已建立 `learning_events` 的 ORM、identity、CHECK、唯一约束、
    外键、索引与新增迁移，旧迁移只增不改。本轮专用合成 PostgreSQL 已完成空库 upgrade 至 b1、
@@ -255,9 +265,10 @@ E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡 Review 与�
    已由主控的独立合成 PostgreSQL 与完整门禁验证；用户 Review、生产数据、生产备份和法定/特殊保留
    仍未验收。
 
-B1-0～B1-5 与独立 WPH 的本地实现及主控代码/测试 Review 已收口，完成记录归档；整卡 Review 与
-提交/推送以同卡最终回执为准，用户 Review 待，不启动下一卡。生产切换、真实数据、真实不可恢复
-删除和音频采集另走独立授权与发布门禁。
+B1-0～B1-5、独立 WPH 与 R2-14 的本地实现及主控代码/测试 Review 已收口，完成记录归档；R2-14
+整卡最终 Review、提交/推送以主控同卡回执为准，用户 Review 待，不启动下一卡。原 Compose 整栈、
+生产切换、真实数据、真实不可恢复删除、真实外部依赖和音频采集另走独立授权与发布门禁；B1 人工
+切换期间全部新旧 worker 仍须保持停止到 `traffic_resumed`。
 
 排序的理由：
 

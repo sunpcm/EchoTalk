@@ -199,14 +199,14 @@ Node Fake 测试文件；该文件与六份收口 MD 已按现有 Prettier 纯�
 
 独立 WPH 随后只修共享 Provider select 的样式：显式 44px 高度、移除 `outline-none`、恢复既有
 accent 主题 2px 可见焦点轮廓，并保留原生 `appearance:auto` 与箭头。真实 RED 为 Chromium 7
-passed、WebKit 7 failed，定向 GREEN 为 14 passed；修复后当前完整双浏览器 E2E 为
+passed、WebKit 7 failed，定向 GREEN 为 14 passed。**该轮历史快照**的完整双浏览器 E2E 为
 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
-`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，全部 13 项完整门禁及聚合均 `exit 0`。
-Chromium/WebKit 最终均为三控件 `336x44`、`appearance:auto`、2px solid outline。主控代码/测试与
-真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修 `0/2`。整卡 Review 与提交/推送以同卡
-最终回执为准；用户 Review 待。B1-0～B1-5 与 WPH 已完成本地实施与完成项归档，不启动下一卡。当前
-文档不预填 SHA，不开 PR、不合并、不部署。最新状态见
-[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Fake API 为 `113 passed / 0 skip`，全部
+13 项完整门禁及聚合均 `exit 0`。Chromium/WebKit 最终均为三控件 `336x44`、`appearance:auto`、
+2px solid outline。主控代码/测试与真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修
+`0/2`。整卡 Review 与提交/推送以同卡最终回执为准；用户 Review 待。上述数字只属于 WPH 当时
+快照。最新状态见
+[PROJECT_STATUS 的 R2-14 小节](./PROJECT_STATUS.md) 与
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
 历史 B1-4 的 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计已同卡完成；A3
@@ -218,6 +218,42 @@ Chromium/WebKit 最终均为三控件 `336x44`、`appearance:auto`、2px solid o
 
 仓库 CI 只在 `main`/`master` push 或 PR 上触发；任务分支 push 不触发远端 CI，远端 CI 未执行。
 不得修改工作流触发条件。证据口径为主控本地完整门禁加本 §3.4 的合成 PostgreSQL。
+
+### §3.4.1 R2-14 Compose 就绪与一次性迁移（2026-11-13）
+
+R2-14 本文编写时的本地验证记录为：在 `b744e63` 父提交上完成本地合成实施、完整门禁和主控独立
+代码 Review；最终 Review/发布见同卡回执，用户 Review 待。公开 `GET /api/health/system-ready`
+不依赖用户身份，只用共享 PostgreSQL 执行 `SELECT 1`，连接完整释放后返回 typed `200/503`。
+数据库操作预算为 `0.5s`，为当前 asyncpg 约 `2s` graceful close 留余量，完整响应目标 `<3s`；
+未修改全局 engine/driver，也未使用后台清理。Compose 新增 API 角色的一次性 `echotalk-migrate`，
+`restart: "no"`，先等
+PostgreSQL `service_healthy`，后端再等迁移 `service_completed_successfully`，Web 等 API
+`service_healthy`。API probe 用镜像内 Python 标准库和 `ProxyHandler({})` 绕过环境代理，HTTP
+timeout `4`、容器 timeout `5s`。完整合同见
+[COMPOSE_STARTUP_CONTRACT.md](./COMPOSE_STARTUP_CONTRACT.md)。
+
+当前完整 13 项门禁及聚合 `exit 0`：backend `941 passed / 3 warnings / 0 skip / 81.57% raw Total
+coverage`，Vitest `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
+`246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`），build-script
+`21`、API 类型 runner `8`、非 native iOS 脚本 runner `37` 均 `exit 0`；lint 为
+`132 warning / 0 error`，逐诊断与父基线一致。Compose 原生 config 和迁移依赖图 `exit 0`，未解析
+`env_file`、镜像或启动原整栈。健康探针实际 Python 命令五类符合预期：ready `exit 0`，
+unready/wrong-body/timeout 为 `exit 1`，`HTTP_PROXY` trap 被绕过且代理收到 0 请求。
+
+主控 R0 真实自有 PG pause 在 4.5s 外层请求超时且未返回 `503`，是有效产品失败证据；R1 新增的
+约 2s-cleanup 模拟用例在 3.5s 硬期限命中，是模拟回归 RED。随后 R1 真实自有 PG pause 得到
+`503 / 2.518465s / checkedout 0`；unpause 后为 `200`，用户数不变；真实连接释放后再注入异常仍为
+`503`。真实路由无 Bearer/错误 Bearer 均 `200`，旧 ready 错误 Bearer 为 `401`；18 份旧迁移 SHA
+未变，新增 migration 为 0。R1 同一正式返修轮确认并修复两个 P1：总预算必须包含 asyncpg 约 2 秒
+取消清理，因此服务预算缩为 `0.5s`；loopback healthcheck 仅在本探针用 `ProxyHandler({})` 绕过
+环境代理。FastAPI 延迟 `IncludedRouter` 导致的 `StopIteration` 是另一项夹具修正，改为枚举公开
+`routers.health.router` 相对 route，未改产品断言。两个 P1 同属 R1，正式产品返修仍使用 `1/2`。
+
+源码 10 文件与主控 `R214-R1-code-frozen-sha256.json` 逐项一致；最终 Review/发布见主控同卡
+回执。缺 route 的初始 backend `6 failed / 0 skip / exit 1` 是功能实施前的有效 TDD RED（当时新
+功能尚未实现，尚未进入真实 PG 故障验证）；`ModuleNotFound` 导入错误、延迟 `IncludedRouter` 的
+route 枚举及 format 问题属于夹具/格式。原 Compose 整栈、真实 `.env`/镜像、生产切换、B1 人工
+切换、真实外部依赖与设备均未验收；全部新旧 worker 仍须保持停止到 `traffic_resumed`。
 
 ## §4 生成产物及验证
 

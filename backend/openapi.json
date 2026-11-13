@@ -1606,6 +1606,36 @@
         "title": "SkillResponse",
         "type": "object"
       },
+      "SystemReadinessResponse": {
+        "description": "Fixed success response after the shared database answers SELECT 1.",
+        "properties": {
+          "status": {
+            "const": "ready",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SystemReadinessResponse",
+        "type": "object"
+      },
+      "SystemReadinessUnavailableResponse": {
+        "description": "Fixed failure response that never exposes underlying readiness errors.",
+        "properties": {
+          "status": {
+            "const": "not_ready",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SystemReadinessUnavailableResponse",
+        "type": "object"
+      },
       "TranscriptExport": {
         "description": "Transcript fields safe and necessary for a user data export.",
         "properties": {
@@ -2729,6 +2759,38 @@
           }
         },
         "summary": "Readiness Check",
+        "tags": [
+          "健康检查"
+        ]
+      }
+    },
+    "/api/health/system-ready": {
+      "get": {
+        "description": "公开的系统就绪检查；仅验证共享 PostgreSQL，而不判断用户练习权限。",
+        "operationId": "system_readiness_check_api_health_system_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemReadinessUnavailableResponse"
+                }
+              }
+            },
+            "description": "Shared PostgreSQL is not ready."
+          }
+        },
+        "summary": "System Readiness Check",
         "tags": [
           "健康检查"
         ]

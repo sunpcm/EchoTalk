@@ -6,6 +6,51 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-13 R2-14 Compose 系统就绪与一次性迁移
+
+- [x] **R2-14 Compose 系统就绪与一次性迁移**：本文记录的本地验证为在 `b744e63` 父提交上完成
+      本地合成实施。新增公开、无用户身份的 `GET /api/health/system-ready`，只使用共享
+      PostgreSQL 连接执行 `SELECT 1`；成功返回 typed `200 {"status":"ready"}`，连接、查询、超时
+      或资源释放失败统一返回 typed `503 {"status":"not_ready"}`，不返回底层异常、地址或配置。
+      readiness 只在连接 Context 完整释放后响应；最终数据库操作预算为 `0.5s`，为当前 asyncpg
+      约 `2s` 的 shielded graceful close 留余量，完整响应目标 `<3s`。旧 `/api/health/ready` 的
+      函数、认证和用户配置判断未改；真实路由无 Bearer/错误 Bearer 均 `200`，旧 ready 错误
+      Bearer 仍 `401`。
+      Compose 新增使用 API 角色、同一 `DATABASE_URL` 和既有环境边界的一次性
+      `echotalk-migrate`，执行 `alembic upgrade head`，设置 `restart: "no"` 并依赖 PostgreSQL
+      `service_healthy`；API、Agent、analysis-worker 依赖迁移
+      `service_completed_successfully`，Web 依赖 API `service_healthy`。API healthcheck 使用镜像
+      已有 Python 标准库和 `ProxyHandler({})` 请求 loopback，显式绕过 `HTTP_PROXY` 等环境代理，
+      HTTP timeout 为 `4`、容器 timeout 为 `5s`，不嵌入用户 Token。合同见
+      [Compose 启动与系统就绪合同](../COMPOSE_STARTUP_CONTRACT.md)。18 份既有迁移 SHA 未变，
+      本卡新增 migration 为 0；B1 人工切换期间全部新旧 worker 仍须保持停止到
+      `traffic_resumed`，Compose schema 升级不代表生产数据切换。
+      验证结果：完整 13 项门禁及聚合 `exit 0`；backend
+      `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest
+      `1206 passed / 49 files`，Fake API
+      `116 passed / 0 skip`，双浏览器 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`
+      （`--retries=0 --workers=1`），build-script `21`、API 类型 runner `8`、非 native iOS 脚本
+      runner `37` 均 `exit 0`。lint 为 `132 warning / 0 error`，逐诊断与父基线相同。Compose
+      原生 `config` 与迁移依赖图 `exit 0`，未解析 `env_file`、镜像或启动原整栈。健康探针实际
+      Python 命令在自有 HTTP fixture 的 ready/unready/wrong-body/timeout/HTTP proxy trap 五类中
+      符合预期；ready `exit 0`；unready、wrong-body、timeout 各 `exit 1`；proxy trap 被绕过且代理
+      收到 0 请求。
+      主控 R0 真实自有 PG pause 在 4.5s 外层请求超时且未返回 `503`，是有效产品失败证据；R1 新增
+      的约 2s-cleanup 模拟用例在 3.5s 硬期限命中，是模拟回归 RED。随后 R1 真实自有 PG pause 返回
+      通用 `503`，耗时 `2.518465s`、checkedout 为 0；unpause 后返回 `200`，用户数不变。真实连接
+      释放后再注入异常仍返回 `503`。R1 同一正式返修轮确认并修复两个 P1：其一，等待查询预算再叠加
+      asyncpg 约 2 秒取消清理，导致 3.5 秒硬期限先命中，最终改为服务内 0.5 秒操作预算；其二，
+      环境代理会截获 loopback healthcheck，最终只在当前探针使用 `ProxyHandler({})`。FastAPI
+      延迟 `IncludedRouter` 曾使 OpenAPI 测试直接读取 `app.routes` 时 `StopIteration`，属另一项夹具
+      修正，改为从公开 `routers.health.router` 枚举相对 route，未改产品语义。两个 P1 同属 R1，
+      正式产品返修仍使用 `1/2`。
+      源码 10 文件与主控 `R214-R1-code-frozen-sha256.json` 逐项一致；缺 route 的初始 backend
+      `6 failed / 0 skip / exit 1` 是功能实施前的有效 TDD RED（当时新功能尚未实现，尚未进入真实
+      PG 故障验证）；`ModuleNotFound` 导入错误、延迟 `IncludedRouter` 的 route 枚举及 format
+      问题属于夹具/格式。主控独立代码 Review 为 APPROVED，正式返修 `1/2` 闭环；最终 Review/发布
+      见同卡回执，用户 Review 待。生产发布、原 Compose 整栈、真实 Provider/IdP/LiveKit、设备、
+      模式切换和未来卡均未勾选。
+
 ## 2026-11-12 B1 学习事件实施（B1-1）
 
 - [x] **B1-1 模型、新增迁移与约束**（依赖 B1-0）：新增 `LearningEvent` ORM 并注册，新增以

@@ -543,6 +543,31 @@ describe("Fake API 契约与真实进程回归测试", () => {
       assert.deepStrictEqual(json, { status: "ok", service: "echotalk-e2e-fake" });
     });
 
+    it("GET /api/health/system-ready 无 token 返回固定系统就绪契约", async () => {
+      const res = await timedFetch(`${serverInstance.baseUrl}/api/health/system-ready`);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.headers.get("content-type"), "application/json; charset=utf-8");
+      assert.deepStrictEqual(await res.json(), { status: "ready" });
+    });
+
+    it("GET /api/health/system-ready 忽略错误 Bearer 且不改变旧 ready 认证", async () => {
+      const systemReady = await timedFetch(`${serverInstance.baseUrl}/api/health/system-ready`, {
+        headers: { Authorization: "Bearer wrong-token-xyz" },
+      });
+      assert.strictEqual(systemReady.status, 200);
+      assert.deepStrictEqual(await systemReady.json(), { status: "ready" });
+
+      for (const headers of [undefined, { Authorization: "Bearer wrong-token-xyz" }]) {
+        const legacyReady = await timedFetch(`${serverInstance.baseUrl}/api/health/ready`, {
+          headers,
+        });
+        assert.strictEqual(legacyReady.status, 401);
+        assert.deepStrictEqual(await legacyReady.json(), {
+          detail: "Authentication required.",
+        });
+      }
+    });
+
     it("GET /api/health/ready 缺少 token 时返回 401", async () => {
       const res = await timedFetch(`${serverInstance.baseUrl}/api/health/ready`);
       assert.strictEqual(res.status, 401);
@@ -1342,6 +1367,15 @@ const FAKE_SUCCESS_CASES = [
     operation: "GET /api/health",
     expectedStatus: 200,
     buildRequest: () => ({ method: "GET", path: "/api/health", authenticated: false }),
+  },
+  {
+    operation: "GET /api/health/system-ready",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/health/system-ready",
+      authenticated: false,
+    }),
   },
   {
     operation: "GET /api/health/ready",

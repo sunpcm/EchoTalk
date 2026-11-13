@@ -212,6 +212,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/health/system-ready": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * System Readiness Check
+     * @description 公开的系统就绪检查；仅验证共享 PostgreSQL，而不判断用户练习权限。
+     */
+    get: operations["system_readiness_check_api_health_system_ready_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions": {
     parameters: {
       query?: never;
@@ -1213,6 +1233,28 @@ export interface components {
       name: string;
     };
     /**
+     * SystemReadinessResponse
+     * @description Fixed success response after the shared database answers SELECT 1.
+     */
+    SystemReadinessResponse: {
+      /**
+       * Status
+       * @constant
+       */
+      status: "ready";
+    };
+    /**
+     * SystemReadinessUnavailableResponse
+     * @description Fixed failure response that never exposes underlying readiness errors.
+     */
+    SystemReadinessUnavailableResponse: {
+      /**
+       * Status
+       * @constant
+       */
+      status: "not_ready";
+    };
+    /**
      * TranscriptExport
      * @description Transcript fields safe and necessary for a user data export.
      */
@@ -1789,6 +1831,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  system_readiness_check_api_health_system_ready_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SystemReadinessResponse"];
+        };
+      };
+      /** @description Shared PostgreSQL is not ready. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SystemReadinessUnavailableResponse"];
         };
       };
     };

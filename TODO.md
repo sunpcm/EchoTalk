@@ -4,13 +4,17 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **B1 当前状态（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档；
-> 独立 WPH 随后完成 WebKit 设置控件修复，当前完整双浏览器 E2E 为
-> `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡 Review 与提交/推送以同卡最终回执为准；
-> 用户 Review 待，生产发布、真实数据/Provider/IdP/LiveKit/设备验收尚未完成。完成记录见
-> [已完成事项归档](./docs/history/todo-done.md)，当前实现与验证边界见
-> [PROJECT_STATUS 的 B1 小节](./docs/PROJECT_STATUS.md) 和
-> [B1 学习事件台账设计](./docs/LEARNING_EVENTS_DESIGN.md)。
+> **B1 / R2-14 当前状态（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与
+> 完成项归档。独立 WPH 的 `246 passed / 0 failed / 0 skip / 0 retry / exit 0` 及
+> `backend 934 passed / 81.45% / Fake API 113` 保留为历史快照。R2-14 Compose 就绪与一次性迁移
+> 编排已完成本地合成验证，独立代码 Review 为 APPROVED；当前完整 13 项门禁及聚合均 `exit 0`，
+> backend 为 `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest 为
+> `1206 passed / 49 files`，Fake API 为 `116 passed / 0 skip`，完整双浏览器 E2E 仍为
+> `246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`）。最终 Review/发布
+> 见主控同卡回执；用户 Review 待。生产发布、原 Compose 整栈、真实外部依赖与
+> 设备验收尚未完成。当前证据边界见
+> [PROJECT_STATUS 的 R2-14 小节](./docs/PROJECT_STATUS.md)
+> 和 [Compose 启动合同](./docs/COMPOSE_STARTUP_CONTRACT.md)。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -42,9 +46,33 @@
       不创建 `src-tauri/`。
 - [ ] **R2-13 组件目录按页面边界归位**（P-3，P2；排在 R2-07 之后）：抽出 `Dashboard`，按 §2.4 P-3 的目标结构
       `git mv`。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
-- [ ] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2）：API 增加基于 `/api/health/ready` 的
-      healthcheck，`echotalk-web` 改为 `condition: service_healthy`，增加一次性迁移服务。验收：云端可做
-      `docker compose config` 校验；整栈启动验证需要 `.env` 与外部依赖，另列为未验证。
+- [x] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2）：本文记录的本地合成实施、完整
+      门禁与独立代码 Review 已完成；该勾选仅表示本地合成实施/验证完成，用户 Review 待。新增不依赖
+      用户身份的公开
+      `GET /api/health/system-ready`，只用共享 PostgreSQL 执行 `SELECT 1`；成功为 typed `200`，
+      连接/查询/释放失败为通用 typed `503`，0.5 秒数据库操作预算为 asyncpg 约 2 秒 graceful
+      close 留余量，并在连接完整释放后才响应。Compose 新增使用 API 角色和同一
+      `DATABASE_URL` 的一次性 `echotalk-migrate`，`restart: "no"` 且依赖 PostgreSQL
+      `service_healthy`；API、Agent、analysis-worker 等待迁移
+      `service_completed_successfully`，Web 等待 API `service_healthy`。API 探针使用仓库镜像已有
+      Python 标准库和 `ProxyHandler({})` 显式绕过环境代理，HTTP timeout `4`、容器 timeout `5s`。
+      旧 `/api/health/ready` 的认证、用户配置判断和 OpenAPI 语义保持不变。完整合同见
+      [Compose 启动与系统就绪合同](./docs/COMPOSE_STARTUP_CONTRACT.md)。
+      当前完整 13 项门禁及聚合 `exit 0`；backend
+      `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest
+      `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
+      `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，build-script `21`、API 类型 runner `8`、
+      非 native iOS 脚本 runner `37` 均 `exit 0`，lint 为 `132 warning / 0 error` 且诊断与父基线
+      相同。Compose 原生 `config` 和迁移依赖图 `exit 0`，但未解析 `env_file`、镜像或启动原整栈；
+      健康探针的 ready/unready/wrong-body/timeout/HTTP proxy trap 五类实际命令均符合预期，代理
+      请求为 0。R0 真实自有 PG pause 在 4.5s 外层请求超时且未返回 `503`，是有效产品失败证据；
+      R1 新增的约 2s-cleanup 模拟用例在 3.5s 硬期限命中，是模拟回归 RED；R1 真实自有 PG pause
+      得到 `503 / 2.518465s / checkedout 0`，unpause 后为 `200`，用户数不变；完整连接释放后再
+      注入异常也为 `503`。缺 route 的初始 backend `6 failed / 0 skip / exit 1` 是功能实施前的
+      有效 TDD RED（当时新功能尚未实现，尚未进入真实 PG 故障验证）；`ModuleNotFound` 导入错误、
+      延迟 `IncludedRouter` 的 route 枚举及 format 问题属于夹具/格式。18 份旧迁移 SHA 不变，本卡
+      新增 migration 为 0。最终 Review/发布见主控同卡回执；整栈启动、生产切换与真实外部依赖仍未
+      验收。
 
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
