@@ -75,6 +75,41 @@
       不合并。生产 DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未执行；任务分支 push
       不触发远端 CI，远端 CI 未执行。
 
+## 2026-11-13 B1 学习事件实施（B1-4）
+
+- [x] **B1-4 本人数据结构化 JSON 导出**（依赖 B1-1、B1-2）：新增只读
+      `GET /api/user/data-export`、13 个 schema、导出 service 和薄路由，返回固定
+      `schema_version=1` 的 JSON 附件。顶层仅含 `schema_version`、`exported_at`、sessions、
+      transcripts、pronunciation assessments、grammar assessments、learning events 与 knowledge
+      states；Session 只含解释子记录所需的最小元数据。各节采用显式白名单投影，排除 API Key、
+      认证身份、内部 prompt/文档、音频、Provider 完整原始响应/引用、幂等键及未列明字段。
+      独立导出会话使用单一 `REPEATABLE READ READ ONLY` 快照，不复用认证调用方事务，也不通过强制
+      提交 auth 事务解决首次用户映射；本人空导出返回空数组。查询后校验 Session/Event、
+      AnalysisJob/来源评估以及 Skill 关系，只读取本人数据；部分数据不补造，未知版本保留 `null`。
+      顺序固定且带稳定标识兜底；完整模型构造后整体缓冲序列化，成功响应仅带 JSON、`no-store`、
+      固定附件名和 `nosniff`，失败返回无成功/下载头的通用 500。全部同类 float 边界拒绝 NaN/±Inf，
+      合法 `None` 保留 `null`。Fake API 成功响应 fixture、Node 契约测试、A3 operation 审计、
+      OpenAPI 和 TypeScript 生成物均同卡完成，A3 固定 missing/unmodeled/deviation 清单逐字未改。
+      结果：主控独立代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；主控代跑初始 backend 基线
+      `878 passed / 3 warnings / 0 skip / 80.51% / exit 0`，首轮 RED backend
+      `10 failed / 0 skip / exit 1`、Fake API `106 passed / 4 failed / 0 skip / exit 1`，R1 非有限值
+      RED `9 failed / 11 passed / 0 skip / exit 1`。修后目标 `20 passed / 0 skip / exit 0`，完整
+      backend `898 passed / 3 warnings / 0 skip / 80.86% / exit 0`；20 项目标是 898 项的子集。
+      Vitest `1206 passed / 49 files`、Fake API `110 passed / 0 skip`、构建脚本 21、API 类型测试 8
+      均 exit 0；format、lint、typecheck、build、backend Ruff、OpenAPI schema、provider metadata
+      与 TS 漂移检查均 exit 0，lint 为 132 warnings/0 errors 且无新增。完整双浏览器 E2E 为
+      `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
+      `[webkit] e2e/a11y-focus-touch.spec.ts:94:5` 的设置抽屉三个 Provider select
+      `336x23 < 44px`，断言位于第 127 行；UI/样式/E2E/配置相对父提交未改，按同名范围外遗留保留，
+      不能称全树全绿。`run-gates.py` 聚合 exit 0 不覆盖真实 `e2e=1`。
+      专用合成 PostgreSQL 15.19 从空库重放 18 份既有迁移成功，迁移字节不变且无新增 DDL；旧
+      OpenAPI path/schema 逐值未变。独立探针确认六类跨归属失败关闭、真实 SQL 列白名单、服务端
+      只读事务拒写、事件与 knowledge state 同快照、后段失败无成功头、首次映射用户空导出及
+      NaN/±Inf 均为 500 且无下载头；READ COMMITTED mutation 被真实并发后提交事件泄漏断言杀死。
+      累计同步内存缓冲带来随账户数据增长的快照时长与内存风险，本卡不新增阈值、分页、异步任务、
+      UI、依赖或限额。用户 Review 待；文档收口时尚未提交/推送，最终状态以同卡回执为准；不开 PR、
+      不合并、不部署。生产/真实数据、Provider、LiveKit、IdP、设备与远端 CI 未执行；B1-5 未启动。
+
 ## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
 
 - [x] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖

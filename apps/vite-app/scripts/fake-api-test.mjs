@@ -1363,6 +1363,11 @@ const FAKE_SUCCESS_CASES = [
     buildRequest: () => ({ method: "GET", path: "/api/user/settings" }),
   },
   {
+    operation: "GET /api/user/data-export",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/user/data-export" }),
+  },
+  {
     operation: "GET /api/curriculum/next",
     expectedStatus: 200,
     buildRequest: () => ({ method: "GET", path: "/api/curriculum/next" }),
@@ -1578,6 +1583,7 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
         operation: testCase.operation,
         status: response.status,
         body,
+        headers: Object.fromEntries(response.headers.entries()),
       });
     }
 
@@ -1671,6 +1677,83 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
       );
     });
   }
+
+  it("GET /api/user/data-export 返回可审计本人数据与固定安全头", async () => {
+    const result = results.get("GET /api/user/data-export");
+    assert.ok(result, "未取得 GET /api/user/data-export 的真实 HTTP 响应");
+    assert.equal(result.headers["cache-control"], "no-store");
+    assert.equal(
+      result.headers["content-disposition"],
+      'attachment; filename="echotalk-user-data-export.json"',
+    );
+    assert.equal(result.headers["x-content-type-options"], "nosniff");
+    assert.deepEqual(Object.keys(result.body), [
+      "schema_version",
+      "exported_at",
+      "sessions",
+      "transcripts",
+      "pronunciation_assessments",
+      "grammar_assessments",
+      "learning_events",
+      "knowledge_states",
+    ]);
+    assert.equal(result.body.schema_version, 1);
+    assert.equal(result.body.sessions.length, 1);
+    assert.equal(result.body.transcripts.length, 2);
+    assert.equal(result.body.pronunciation_assessments.length, 1);
+    assert.equal(result.body.grammar_assessments.length, 1);
+    assert.equal(result.body.learning_events.length, 4);
+    assert.equal(result.body.knowledge_states.length, 1);
+
+    const eventTypes = result.body.learning_events.map(({ event_type }) => event_type);
+    assert.deepEqual(eventTypes, [
+      "analysis_completed",
+      "pronunciation_observation",
+      "grammar_observation",
+      "baseline_snapshot",
+    ]);
+    assert.equal(result.body.pronunciation_assessments[0].model_version, "acme-phoneme-v1");
+    assert.equal(result.body.grammar_assessments[0].model_version, null);
+    assert.equal(result.body.learning_events[0].algorithm_version, "bkt-v1");
+    assert.equal(result.body.learning_events[3].source, "legacy_unknown");
+    assert.equal(result.body.learning_events[3].details.legacy_synthetic_impact, "unknown");
+
+    const forbiddenKeys = new Set([
+      "api_key",
+      "audio_url",
+      "auth_issuer",
+      "auth_subject",
+      "custom_prompt",
+      "document_content",
+      "elsa_response",
+      "encrypted_llm_key",
+      "encrypted_stt_key",
+      "encrypted_tts_key",
+      "idempotency_key",
+      "internal_prompt",
+      "password_hash",
+      "provider_raw_response",
+      "provider_response_ref",
+      "user_id",
+    ]);
+    const collectKeys = (value, keys = new Set()) => {
+      if (Array.isArray(value)) {
+        value.forEach((entry) => collectKeys(entry, keys));
+      } else if (value !== null && typeof value === "object") {
+        for (const [key, nested] of Object.entries(value)) {
+          keys.add(key);
+          collectKeys(nested, keys);
+        }
+      }
+      return keys;
+    };
+    const leakedKeys = [...collectKeys(result.body)].filter((key) => forbiddenKeys.has(key));
+    assert.deepEqual(leakedKeys, []);
+
+    const anonymous = await timedFetch(`${serverInstance.baseUrl}/api/user/data-export`);
+    assert.equal(anonymous.status, 401);
+    assert.equal((await anonymous.json()).detail, "Authentication required.");
+  });
 
   it("全部成功响应的状态与字段偏差恰为固定的具体清单", () => {
     const actual = normalizedDeviations(

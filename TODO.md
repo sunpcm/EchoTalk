@@ -4,44 +4,35 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-## 2026-11-12 B1 学习事件实施（B1-3 本轮代码 Review 通过；用户 Review 待；B1-4～B1-5 未启动）
+## 2026-11-12 B1 学习事件实施（B1-4 本轮代码/测试 Review 通过；用户 Review 待；B1-5 未启动）
 
 设计见 [B1 学习事件台账设计](./docs/LEARNING_EVENTS_DESIGN.md)。用户已于 2026-11-12 确认
-七项数据生命周期、切换、导出和删除政策。B1-0 与 B1-1 的完成记录见
-[已完成事项归档](./docs/history/todo-done.md)。**历史 B1-2 结果**为目标套件
-`116 passed / 0 skip / exit 0`，完整 backend `844 passed / 3 warnings / 0 skip`、覆盖率
-`80.82%`；该组数字属于 B1-2，不与 B1-3 相加或替代。
+七项数据生命周期、切换、导出和删除政策。B1-0～B1-4 的完成记录见
+[已完成事项归档](./docs/history/todo-done.md)。历史 B1-2/B1-3 的具名测试数字保留在归档与
+[当前状态](./docs/PROJECT_STATUS.md)，不与 B1-4 结果相加或替代。
 
-B1-3 的本轮代码/测试 Review 结论为 APPROVED，目标套件为
-`147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
-`878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，前端未改。
-E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`；DocTalk 定向为
-`3 passed / 0 failed / 0 skip / 0 retry / exit 0`；再次全量为
-`233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过但仍有 WebKit Provider
-select 失败。两轮完整执行的失败均保留：DocTalk 首轮超时原因未确认，WebKit Provider select 几何
-两轮均实测失败；DocTalk 不归因于环境、历史基线或回归。不能称全树全绿。B1-3 已移入历史归档。
-本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、不合并。B1-4～B1-5
-未启动。
+B1-4 的本人数据结构化 JSON 导出已实现；主控独立代码/测试 Review 结论为 APPROVED，产品返修使用
+`1/2`。主控代跑的目标套件为 `20 passed / 0 skip / exit 0`，完整 backend 为
+`898 passed / 3 warnings / 0 skip`、覆盖率 `80.86%`、exit 0。完整双浏览器 E2E 必须保留原始
+`233 passed / 1 failed / 0 skip / 0 retry / exit 1`；唯一失败是同名范围外遗留的 WebKit Provider
+select `336x23 < 44px`。聚合门禁可能容忍 `e2e=1` 并返回 0，不能据此写成全树全绿。完整数字、
+失败位置和其余门禁见 [PROJECT_STATUS 的 B1 小节](./docs/PROJECT_STATUS.md)。
+
+用户 Review 仍待，不能把代码/测试 Review APPROVED 写成用户验收。提交/推送状态以同卡交付回执为准；
+不开 PR、不合并、不部署。B1-5 未启动。
 
 切换期间，实际 Job 领取函数 `claim_next_job` 本身没有 gate；全部新旧 worker 必须保持停止到
 `traffic_resumed`。部署代码不代表启动或停止进程，显式停写声明、数据库锁和表锁都不能证明未知
 旧进程已经退出。
 
-后续按 B1-4～B1-5 顺序逐卡推进。每卡先有可失败的测试再写实现；原迁移只增不改，不弱化既有
-测试。生产切换、真实数据和音频采集不在本批范围。B1-4/B1-5 如新增 HTTP 接口，写集必须同时
+后续仅按顺序推进 B1-5。每卡先有可失败的测试再写实现；原迁移只增不改，不弱化既有测试。生产
+切换、真实数据和音频采集不在本批范围。B1-5 如新增 HTTP 接口，写集必须同时
 包含对应 Fake API 成功响应 fixture、Node 契约测试和现有 A3 operation 覆盖审计更新；更新
 OpenAPI/TypeScript 不能替代真实成功响应契约，不能静默扩大 missing/空 schema 豁免。不新增产品
 UI 或真实依赖。
 
-- [ ] **B1-4 本人数据结构化 JSON 导出**（依赖 B1-1、B1-2）：提供只允许用户导出本人数据的能力，
-      输出事件、知识状态、已有转录和评估，并保留来源、合成标记、算法/模型/schema 版本。
-      排除密钥、内部提示词和 Provider 完整原始响应，跨用户数据不可见。
-      验收：先覆盖认证归属、空数据、部分数据、版本保留和敏感字段排除的 RED 测试；实现后校验
-      稳定 JSON schema、失败不产生半文件，并做跨用户隔离。若新增 HTTP 导出接口，写集还必须包含
-      Fake API 成功响应 fixture、对应 Node 契约测试和 A3 operation 覆盖审计；A3 必须按真实成功
-      响应验证，不能把新 operation 加入 missing/空 schema 放宽清单。若需 API schema 变化，使用
-      既有 exporter 与 TypeScript 生成器并审查生成 diff；OpenAPI/TS 更新本身不算契约完成。
-      不新增产品 UI 或真实依赖。
+B1-4 已完成并移入历史归档。当前未完成清单只剩 B1-5：
+
 - [ ] **B1-5 本平台整账号硬删除**（依赖 B1-1、B1-2、B1-4）：注销整个账号时，在同一受控事务中
       硬删本人学习事件、转录、分析 Job/结果、评估、知识状态及其他已确认派生数据；不匿名化保留
       副本，不操作外部 IdP，不增加单会话删除入口。

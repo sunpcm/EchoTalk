@@ -1,8 +1,11 @@
-"""用户设置路由：双轨制配置读写。"""
+"""用户设置与本人数据导出路由。"""
 
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from auth import CurrentUser
 from database import get_db
@@ -12,6 +15,12 @@ from models.user import (
     UserSettings,
 )
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
+from schemas.user_data_export import UserDataExport
+from services.user_data_export import (
+    build_user_data_export,
+    get_user_data_export_session_factory,
+    serialize_user_data_export,
+)
 from services.user_settings_service import (
     UserSettingsService,
 )
@@ -22,6 +31,8 @@ from services.validation_service import (
 from utils.crypto import decrypt_api_key, encrypt_api_key
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+USER_DATA_EXPORT_ERROR = "Unable to export user data."
 
 
 def get_key_status(has_key: bool, is_valid: bool | None) -> str:
@@ -88,6 +99,43 @@ def _apply_settings_update(
         llm_valid,
         tts_valid,
         encrypt_fn=encrypt_api_key,
+    )
+
+
+@router.get("/user/data-export", response_model=UserDataExport)
+async def export_user_data(
+    current_user: CurrentUser = Depends(get_current_user),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(
+        get_user_data_export_session_factory
+    ),
+) -> Response:
+    """Export the authenticated user's data as one complete JSON attachment."""
+    try:
+        export = await build_user_data_export(
+            session_factory=session_factory,
+            user_id=current_user.id,
+        )
+        payload = serialize_user_data_export(export)
+    except Exception as exc:
+        logger.error(
+            "User data export failed with %s",
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": USER_DATA_EXPORT_ERROR},
+        )
+
+    return Response(
+        content=payload,
+        media_type="application/json",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": (
+                'attachment; filename="echotalk-user-data-export.json"'
+            ),
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

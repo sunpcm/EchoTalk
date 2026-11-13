@@ -6,16 +6,21 @@
 > 回归已在专用合成 PostgreSQL 验证；B1-2 已实现 §3–§5 的同事务事件写入、幂等、用户锁与 BKT
 > 合成隔离，主控独立代码 Review 为 APPROVED。历史 B1-2 目标套件为
 > `116 passed / 0 skip / exit 0`；完整 backend 为
-> `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`；该组数字不再作为 B1-3 当前结果。
-> 当前 B1-3 状态：本轮代码/测试 Review 为 APPROVED；目标套件为
+> `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。
+> 历史 B1-3 状态：主控代码/测试 Review 为 APPROVED；目标套件为
 > `147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
 > `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，前端未改。E2E 首轮为
 > `232 passed / 2 failed / 0 skip / 0 retry / exit 1`；DocTalk 定向为
 > `3 passed / 0 failed / 0 skip / 0 retry / exit 0`；再次全量为
 > `233 passed / 1 failed / 0 skip / 0 retry / exit 1`；
 > DocTalk 首轮失败原因未确认；再次全量中 WebKit Provider select 仍按实测失败保留。不能归因于
-> 环境、历史基线或回归，也不能称全树全绿。B1-4～B1-5 未启动。本卡停在 Review 等待用户审阅；
-> 提交/推送状态以同卡交付回执为准，不开 PR、不合并。生产库未执行 DDL、切换或真实数据处理。
+> 环境、历史基线或回归，也不能称全树全绿。
+> 当前 B1-4 状态：本人数据结构化 JSON 导出已实现，主控代码/测试 Review 为 APPROVED，产品返修
+> 使用 `1/2`。主控代跑的目标套件为 `20 passed / 0 skip / exit 0`，完整 backend 为
+> `898 passed / 3 warnings / 0 skip`、覆盖率 `80.86%`、exit 0；完整双浏览器 E2E 为
+> `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是同名范围外遗留的 WebKit
+> Provider select `336x23 < 44px`。用户 Review 仍待；B1-5 未启动。提交/推送状态以同卡交付回执
+> 为准，不开 PR、不合并、不部署。生产库未执行 DDL、切换或真实数据处理。
 > 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实
 > 外部服务接入不在本项内。
 
@@ -224,8 +229,26 @@ PYTHONPATH=. python -m scripts.learning_events_maintenance baseline --revision <
 5. 本版不开放成功后重新分析；失败重试和只读重算继续支持。`bkt-v1` 冻结现有四参数，新算法版本
    不得原地改写旧事件。
 
-导出、整账号硬删及其 API 尚未实现。实现时必须保持跨用户隔离、事务原子性和失败回滚，并用合成
-PostgreSQL 验证；生产数据、生产备份和外部 IdP 均不在当前授权内。
+B1-4 已按上述政策实现只读 `GET /api/user/data-export`。响应是固定 `schema_version=1` 的 JSON
+附件，顶层仅含 `schema_version`、`exported_at`、`sessions`、`transcripts`、
+`pronunciation_assessments`、`grammar_assessments`、`learning_events` 和 `knowledge_states`。
+各节使用显式白名单投影：Session 只暴露解释子记录所需的最小元数据；排除 API Key、认证身份、
+内部 prompt/文档、音频内容、Provider 完整原始响应/引用、幂等键及未列明的内部字段。未知
+provider/model/schema 版本保留为 `null`，不补造旧历史或伪版本。
+
+导出服务不复用认证调用方的数据库事务，而是在独立会话中开启单一
+`REPEATABLE READ READ ONLY` 快照，从同一时点读取全部各节；认证事务内首次映射、尚未提交的用户
+不被强制提交，也不把该新用户的本人空导出误判为越权。查询后验证 Event/Session、
+Event/AnalysisJob/来源评估与 Skill 引用关系，并验证 knowledge state 归属；六类 Job/来源交叉
+归属在失败时关闭。空账户返回空数组，部分数据只导出实际存在的内容，不补造关联行。顺序固定为
+Session 开始时间、Transcript 时间、Assessment 创建时间、Event `apply_seq` 和 KnowledgeState
+`skill_id`，并带稳定标识作为次序兜底。
+
+完整模型构造后才整体缓冲序列化；失败返回不带成功头、下载头或半文件的通用 500。所有响应
+`float` 边界均拒绝 `NaN` 与 `±Inf`，合法的 JSON `null` 仍表示为 `None/null`。成功响应只使用
+`application/json`、`no-store`、固定附件文件名与 `nosniff`。本卡没有新增 UI、依赖、分页、异步
+任务或配额；完整导出在内存中同步缓冲，内存占用和快照持续时间会随账户数据增长，是已登记风险。
+整账号硬删及其 API 仍由未启动的 B1-5 交付；生产数据、生产备份和外部 IdP 均不在当前授权内。
 
 ## 8. 单条线性 Alembic 形状（本轮专用合成库已验证）
 
@@ -356,12 +379,13 @@ B1-3 新增迁移 `b1_learning_event_cutover`，父 revision 为 `b1_learning_ev
 6. 本版不开放成功后的重新分析；失败重试与只读重算保留。
 7. 现有四参数冻结为 `bkt-v1`；新版本不改写旧事件。
 
-政策确认不等于整批实施完成。B1-1 的 ORM、迁移和 schema 回归，以及 B1-2 的同事务事件写入与 BKT
-隔离均已实现。B1-3 的本轮代码/测试 Review 为 APPROVED，目标套件 `147 passed / 0 skip / exit 0`，
-完整 backend `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`；完整 E2E 仍为 exit 1，首轮与
-复跑数字、DocTalk 定向结果及失败边界见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)，不能写成
-全树全绿或自行归因失败。本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、
-不合并。B1-4/B1-5 的 JSON 导出和整账号删除未启动。B1-5 未来必须协调合法删除本人
+政策确认不等于整批实施完成。历史 B1-1/B1-2 已实现 ORM、迁移、schema 回归、同事务事件写入与
+BKT 隔离；历史 B1-3 已实现切换基线与只读校验，并保持具名测试数字。B1-4 的结构化 JSON 导出已
+实现，主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；目标套件
+`20 passed / 0 skip / exit 0`、完整 backend `898 passed / 3 warnings / 0 skip`、覆盖率
+`80.86%`，完整双浏览器 E2E 仍为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`。用户 Review
+仍待；代码 Review APPROVED 不等于用户验收或全 E2E 通过。提交/推送状态以同卡交付回执为准，不开
+PR、不合并、不部署。B1-5 的整账号删除未启动。B1-5 未来必须协调合法删除本人
 `baseline_snapshot` 事件后的全局控制数量/摘要；保留控制行 `learning_event_cutover.revision`、
 `learning_event_cutover.cutover_at` 和既有门控，不得删除单例控制行或重新锚定，本卡不实现。生产库
 未执行 DDL，也没有生产切换、真实数据处理或上线证据。其顺序、依赖和验收见

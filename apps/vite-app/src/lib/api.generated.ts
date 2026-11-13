@@ -482,6 +482,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/user/data-export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Export User Data
+     * @description Export the authenticated user's data as one complete JSON attachment.
+     */
+    get: operations["export_user_data_api_user_data_export_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/user/settings": {
     parameters: {
       query?: never;
@@ -574,6 +594,20 @@ export interface components {
       session_id: string;
       /** Source */
       source: string;
+    };
+    /**
+     * BktAlgorithmParams
+     * @description The frozen four-parameter BKT algorithm definition.
+     */
+    BktAlgorithmParams: {
+      /** P Guess */
+      p_guess: number;
+      /** P Init */
+      p_init: number;
+      /** P Slip */
+      p_slip: number;
+      /** P Transit */
+      p_transit: number;
     };
     /**
      * CallCapabilitiesResponse
@@ -701,6 +735,22 @@ export interface components {
       transcript_id: number;
     };
     /**
+     * CoverageDirection
+     * @description One audited source direction from an analysis-completed event.
+     */
+    CoverageDirection: {
+      /** Is Synthetic */
+      is_synthetic: boolean | null;
+      /** Model Version */
+      model_version: string | null;
+      /** Provider */
+      provider: string | null;
+      /** Source */
+      source: string | null;
+      /** Status */
+      status: string | null;
+    };
+    /**
      * CurriculumNextResponse
      * @description GET /api/curriculum/next 响应体。
      */
@@ -756,6 +806,63 @@ export interface components {
       raw_text: string;
     };
     /**
+     * EventCoverage
+     * @description Pronunciation and grammar coverage metadata.
+     */
+    EventCoverage: {
+      grammar: components["schemas"]["CoverageDirection"] | null;
+      pronunciation: components["schemas"]["CoverageDirection"] | null;
+    };
+    /**
+     * EventUnmappedCounts
+     * @description Counts of observations not mapped into the ledger.
+     */
+    EventUnmappedCounts: {
+      /** Grammar */
+      grammar: number | null;
+      /** Pronunciation */
+      pronunciation: number | null;
+    };
+    /**
+     * GrammarAssessmentExport
+     * @description Grammar error and correction fields for the authenticated user.
+     */
+    GrammarAssessmentExport: {
+      /** Confidence */
+      confidence: number | null;
+      /** Corrected */
+      corrected: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Error Type */
+      error_type: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Is Synthetic */
+      is_synthetic: boolean;
+      /** Model Version */
+      model_version: string | null;
+      /** Original */
+      original: string;
+      /** Provider */
+      provider: string | null;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Skill Tag */
+      skill_tag: string;
+      /** Source */
+      source: string;
+    };
+    /**
      * GrammarErrorResponse
      * @description 语法错误响应项。
      */
@@ -800,6 +907,21 @@ export interface components {
       detail?: components["schemas"]["ValidationError"][];
     };
     /**
+     * KnowledgeStateExport
+     * @description One user-owned BKT mastery state.
+     */
+    KnowledgeStateExport: {
+      /** P Mastery */
+      p_mastery: number;
+      /** Skill Id */
+      skill_id: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
      * KnowledgeStateResponse
      * @description 知识状态响应（含技能信息）。
      */
@@ -829,6 +951,88 @@ export interface components {
       user_id: string;
     };
     /**
+     * LearningEventDetails
+     * @description Whitelisted nested event metadata.
+     */
+    LearningEventDetails: {
+      coverage: components["schemas"]["EventCoverage"] | null;
+      /** Legacy Synthetic Impact */
+      legacy_synthetic_impact: string | null;
+      /** Schema Version */
+      schema_version: number | null;
+      unmapped: components["schemas"]["EventUnmappedCounts"] | null;
+    };
+    /**
+     * LearningEventExport
+     * @description One immutable learning event with safe nested JSON projections.
+     */
+    LearningEventExport: {
+      algorithm_params: components["schemas"]["BktAlgorithmParams"] | null;
+      /** Algorithm Version */
+      algorithm_version: string | null;
+      /** Analysis Job Id */
+      analysis_job_id: string | null;
+      /** Apply Seq */
+      apply_seq: number;
+      /** Confidence */
+      confidence: number | null;
+      /** Cutover Revision */
+      cutover_revision: string | null;
+      details: components["schemas"]["LearningEventDetails"];
+      /** Event Type */
+      event_type: string;
+      /** Grammar Error Id */
+      grammar_error_id: string | null;
+      /** Is Synthetic */
+      is_synthetic: boolean | null;
+      /** Model Version */
+      model_version: string | null;
+      /** Observation Code */
+      observation_code: string | null;
+      /** Observation Correct */
+      observation_correct: boolean | null;
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string;
+      /** P Mastery Snapshot */
+      p_mastery_snapshot: number | null;
+      /** Pronunciation Assessment Id */
+      pronunciation_assessment_id: string | null;
+      /** Provider */
+      provider: string | null;
+      /**
+       * Recorded At
+       * Format: date-time
+       */
+      recorded_at: string;
+      /** Session Id */
+      session_id: string | null;
+      /** Skill Id */
+      skill_id: string | null;
+      /** Source */
+      source: string;
+      /** Source Ordinal */
+      source_ordinal: number | null;
+    };
+    /**
+     * PhonemeAlignmentExport
+     * @description One explicitly projected phoneme-alignment item.
+     */
+    PhonemeAlignmentExport: {
+      /** Actual */
+      actual: string | null;
+      /** Expected */
+      expected: string | null;
+      /** Phoneme */
+      phoneme: string;
+      /** Position */
+      position: number;
+      /** Type */
+      type: string;
+    };
+    /**
      * PhonemeAlignmentItem
      * @description 音素对齐条目。
      */
@@ -845,6 +1049,41 @@ export interface components {
       type: string;
     };
     /**
+     * PronunciationAssessmentExport
+     * @description Pronunciation assessment fields without provider response internals.
+     */
+    PronunciationAssessmentExport: {
+      /** Confidence */
+      confidence: number | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Is Synthetic */
+      is_synthetic: boolean;
+      /** Model Version */
+      model_version: string | null;
+      /** Overall Score */
+      overall_score: number;
+      /** Phoneme Alignment */
+      phoneme_alignment: components["schemas"]["PhonemeAlignmentExport"][];
+      /** Provider */
+      provider: string | null;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Source */
+      source: string;
+    };
+    /**
      * SessionCreate
      * @description 创建会话请求体。
      */
@@ -852,6 +1091,28 @@ export interface components {
       doc_context?: components["schemas"]["DocContext"] | null;
       /** Mode */
       mode: string;
+    };
+    /**
+     * SessionExport
+     * @description Minimal session metadata needed to interpret exported child rows.
+     */
+    SessionExport: {
+      /** Ended At */
+      ended_at: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Mode */
+      mode: string;
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string;
+      /** Status */
+      status: string;
     };
     /**
      * SessionListItem
@@ -932,6 +1193,27 @@ export interface components {
       name: string;
     };
     /**
+     * TranscriptExport
+     * @description Transcript fields safe and necessary for a user data export.
+     */
+    TranscriptExport: {
+      /** Content */
+      content: string;
+      /** Event Id */
+      event_id: string | null;
+      /** Id */
+      id: number;
+      /** Role */
+      role: string;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Timestamp Ms */
+      timestamp_ms: number;
+    };
+    /**
      * TranscriptResponse
      * @description 转录记录响应。
      */
@@ -955,6 +1237,34 @@ export interface components {
       session_id: string;
       /** Timestamp Ms */
       timestamp_ms: number;
+    };
+    /**
+     * UserDataExport
+     * @description Stable version-1 structured export returned as a JSON attachment.
+     */
+    UserDataExport: {
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Grammar Assessments */
+      grammar_assessments: components["schemas"]["GrammarAssessmentExport"][];
+      /** Knowledge States */
+      knowledge_states: components["schemas"]["KnowledgeStateExport"][];
+      /** Learning Events */
+      learning_events: components["schemas"]["LearningEventExport"][];
+      /** Pronunciation Assessments */
+      pronunciation_assessments: components["schemas"]["PronunciationAssessmentExport"][];
+      /**
+       * Schema Version
+       * @constant
+       */
+      schema_version: 1;
+      /** Sessions */
+      sessions: components["schemas"]["SessionExport"][];
+      /** Transcripts */
+      transcripts: components["schemas"]["TranscriptExport"][];
     };
     /**
      * UserSettingsResponse
@@ -1929,6 +2239,37 @@ export interface operations {
         };
         content: {
           "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  export_user_data_api_user_data_export_get: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UserDataExport"];
         };
       };
       /** @description Validation Error */

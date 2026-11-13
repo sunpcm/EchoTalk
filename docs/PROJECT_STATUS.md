@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
 > 最后核对：2026-11-13。当前 Linux 基线仍按 A6（PR #155）代码 `87e0fd5` 的历史快照记录；
-> B1-3 本轮代码/测试 Review 已通过，用户 Review 待；历史 B1-1/B1-2 的
+> B1-4 本轮代码/测试 Review 已通过，用户 Review 待；B1-5 未启动。历史 B1-1/B1-2/B1-3 的
 > 合成 PostgreSQL、完整本机门禁与独立代码 Review 结果见下文。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
@@ -16,6 +16,7 @@
 | 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束 | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭       |
 | 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                      | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收      |
 | 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态   | 已实现                                                            |
+| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照       | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI      |
 | 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                  | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务          |
 | BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast   | 已实现；密钥轮换和 Provider 连通性需按环境验收                    |
 | DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                  | 已实现 Web 流程；原生端文件选择未验收                             |
@@ -54,7 +55,9 @@
 
 ### A3（Fake API 契约校验，PR #141/#147）合并收口
 
-Fake API 的成功响应与缺失 operation 受仓内 OpenAPI 校验，既有偏差精确固定；当前108项通过。
+Fake API 的成功响应与缺失 operation 受仓内 OpenAPI 校验，既有偏差精确固定；A3 该轮为 108 项
+通过；B1-4 当前 Fake API 为 `110 passed / 0 skip / exit 0`，见本文
+[B1 小节](#b1学习事件台账b1-4-本轮实现完成用户-review-待)。
 最终实现 source `b1d3756` 合入 `main@a7841b7`，文档后由PR #147收口；历史及偏差清单见归档。
 
 ### A4a（只读 data 层，PR #149）合并收口
@@ -107,7 +110,7 @@ worker head fixture 适配，最终本机门禁和专用合成 PostgreSQL 结果
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）B1-3 本轮完成；用户 Review 待
+### B1（学习事件台账）B1-4 本轮实现完成；用户 Review 待
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -180,12 +183,52 @@ select 失败。首轮失败与 DocTalk 定向结果均保留；DocTalk 首轮�
 行，校验只能检查 coverage 结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider
 事实。
 
-本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、不合并。B1-4/B1-5 未启动；
-B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
+B1-4 的本人数据结构化 JSON 导出已实现，主控独立代码/测试 Review 为 APPROVED，产品返修使用
+`1/2`；用户 Review 仍待。下列结果均由主控代跑，实施节点没有冒领测试或数据库执行。初始 backend
+基线为 `878 passed / 3 warnings / 0 skip / 80.51% / exit 0`；首轮 RED backend 为
+`10 failed / 0 skip / exit 1`，首轮 RED Fake API 为 `106 passed / 4 failed / 0 skip / exit 1`。
+R1 非有限值 RED 为 `9 failed / 11 passed / 0 skip / exit 1`，覆盖真实 PG/HTTP 六例和全部 10 个
+float 字段的模型矩阵；修后目标为 `20 passed / 0 skip / exit 0`。完整 backend 为
+`898 passed / 3 warnings / 0 skip / 80.86% / exit 0`，20 项目标是 898 项的子集，不能相加。
+Vitest 为 `1206 passed / 49 files / exit 0`，Fake API 为 `110 passed / 0 skip / exit 0`，构建脚本
+为 21、API 类型测试为 8、均 exit 0。format、lint、typecheck、build、backend Ruff format/lint、
+OpenAPI schema、provider metadata 和 TS 漂移检查均 exit 0；lint 为 132 warnings/0 errors，warning
+行清单与 B1-3 相同，无新增。
+
+完整双浏览器 E2E 的原始结果必须保留为
+`233 passed / 1 failed / 0 skip / 0 retry / exit 1`。唯一失败是
+`[webkit] e2e/a11y-focus-touch.spec.ts:94:5`：设置抽屉三个 Provider select 为
+`336x23 < 44px`，断言位于第 127 行。对应 UI/样式、E2E 用例/配置相对父提交未改，保留同名范围外
+遗留；不能归因于未经证实的环境原因，也不能称全树全绿。`run-gates.py` 会容忍 `e2e=1` 并返回 0，
+因此聚合 exit 0 不能代表真实 E2E 通过，也不能覆盖原始 exit 1。
+
+专用 `postgres:15.19-alpine` 使用 `127.0.0.1:55433/echotalk_b1_test`。主控从空库重放 18 份既有
+迁移成功，迁移字节不变且没有新增 DDL。API 仅新增 `GET /api/user/data-export` 和 13 个 Pydantic
+schemas；旧 OpenAPI path/schema 逐值未变，A3 固定的 missing/unmodeled/deviation 清单逐字未改。
+OpenAPI 与 TypeScript 由主控原生生成器产出，生成物本身不替代 Fake API 成功响应契约。
+
+导出响应固定 `schema_version=1`，只含 `schema_version`、`exported_at`、sessions、transcripts、
+pronunciation assessments、grammar assessments、learning events 与 knowledge states。各节显式
+白名单排除密钥、认证身份、内部 prompt/文档、音频、Provider 完整原始响应/引用、幂等键及未列明
+字段；Session 仅保留解释子记录所需的最小元数据。独立导出会话使用单一
+`REPEATABLE READ READ ONLY` 快照，不复用认证调用方事务，也不通过强制提交 auth 事务解决首次用户
+映射；本人空导出仍正常返回空数组。服务验证 Event/Session、Event/AnalysisJob/来源评估及 Skill
+关系，并只读取本人数据；空数据返回空数组，部分数据不补造，未知版本保留 `null`。NaN/±Inf 等非有限
+float 失败关闭，合法 `None` 保留 `null`。完整模型构造后整体缓冲序列化，成功响应仅带 JSON、
+`no-store`、固定附件名和 `nosniff`；失败返回无成功/下载头的通用 500。
+
+主控独立探针确认六类 Job/来源跨归属失败关闭、真实 SQL 列白名单、服务端只读事务拒写、事件与
+knowledge state 同快照、后段查询失败无成功头，以及 dev Bearer 缺失/错误和首次映射用户空导出。
+READ COMMITTED mutation 被真实并发后提交事件泄漏断言杀死，产品文件未变；修后非有限值探针均为
+500 且无下载头。同步导出会完整缓冲在内存中，内存占用和快照持续时间随账户数据增长；本卡没有新增
+阈值、分页、异步任务、UI 或真实依赖。
+
+B1-5 未启动，未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要；保留控制行
 `learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除单例
-控制行或重新锚定；本卡不实现。生产 DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未
-执行。仓库 CI 仅在 `main`/`master` push 与 PR 上触发，任务分支 push 不触发远端 CI；远端 CI 未
-执行。其顺序、依赖和验收见 [`TODO.md`](../TODO.md)，设计政策与实现门禁见
+控制行或重新锚定。B1-4 的提交/推送状态以同卡交付回执为准，不开 PR、不合并、不部署。生产
+DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未执行。仓库 CI 仅在 `main`/`master`
+push 与 PR 上触发，任务分支 push 不触发远端 CI；远端 CI 未执行。其顺序、依赖和验收见
+[`TODO.md`](../TODO.md)，设计政策与实现门禁见
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
 ## 已知限制和近期风险
@@ -197,9 +240,9 @@ B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
-- 本机 E2E 本轮首轮为 232 passed / 2 failed / exit 1、复跑为 233 passed / 1 failed / exit 1；
-  DocTalk 首轮失败原因未明。具体失败边界见上方“B1（学习事件台账）”节，不能据此称没有新增失败或
-  全树全绿。
+- B1-4 完整双浏览器 E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置
+  抽屉三个 Provider select 的 `336x23 < 44px`；UI/样式/E2E/配置相对父提交未改，按范围外遗留保留，
+  不能据此称全树全绿或未经证实归因环境。聚合门禁 exit 0 不覆盖该原始失败。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策

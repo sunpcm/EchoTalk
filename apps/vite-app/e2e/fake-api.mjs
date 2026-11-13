@@ -6,12 +6,238 @@ const port = Number(process.env.E2E_API_PORT ?? 18181);
 const sessions = new Map();
 const analysisJobs = new Map();
 
-function sendJson(response, status, body) {
+function sendJson(response, status, body, extraHeaders = {}) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    ...extraHeaders,
   });
   response.end(JSON.stringify(body));
+}
+
+function userDataExportFixture() {
+  const exportedAt = new Date().toISOString();
+  const sessionId = "78100000-0000-4000-8000-000000000001";
+  const jobId = "78100000-0000-4000-8000-000000000002";
+  const pronunciationId = "78100000-0000-4000-8000-000000000003";
+  const grammarId = "78100000-0000-4000-8000-000000000004";
+  return {
+    schema_version: 1,
+    exported_at: exportedAt,
+    sessions: [
+      {
+        id: sessionId,
+        mode: "pronunciation",
+        status: "completed",
+        started_at: "2026-11-13T04:00:00Z",
+        ended_at: "2026-11-13T04:10:00Z",
+      },
+    ],
+    transcripts: [
+      {
+        id: 1,
+        session_id: sessionId,
+        event_id: "78100000-0000-4000-8000-000000000005",
+        role: "user",
+        content: "I go yesterday, but I said the word three.",
+        timestamp_ms: 1,
+      },
+      {
+        id: 2,
+        session_id: sessionId,
+        event_id: "78100000-0000-4000-8000-000000000006",
+        role: "assistant",
+        content: "Try the past tense and the TH sound again.",
+        timestamp_ms: 2,
+      },
+    ],
+    pronunciation_assessments: [
+      {
+        id: pronunciationId,
+        session_id: sessionId,
+        overall_score: 82.5,
+        phoneme_alignment: [
+          {
+            position: 0,
+            phoneme: "TH",
+            expected: "TH",
+            actual: "S",
+            type: "substitution",
+          },
+        ],
+        source: "acme_pronunciation",
+        provider: "acme",
+        model_version: "acme-phoneme-v1",
+        is_synthetic: false,
+        confidence: 0.91,
+        created_at: "2026-11-13T04:10:01Z",
+      },
+    ],
+    grammar_assessments: [
+      {
+        id: grammarId,
+        session_id: sessionId,
+        skill_tag: "verb_tense_past",
+        original: "I go yesterday.",
+        corrected: "I went yesterday.",
+        error_type: "tense",
+        source: "acme_grammar",
+        provider: null,
+        model_version: null,
+        is_synthetic: true,
+        confidence: 0.63,
+        created_at: "2026-11-13T04:10:02Z",
+      },
+    ],
+    learning_events: [
+      {
+        apply_seq: 9001,
+        event_type: "analysis_completed",
+        session_id: sessionId,
+        analysis_job_id: jobId,
+        pronunciation_assessment_id: null,
+        grammar_error_id: null,
+        skill_id: null,
+        source_ordinal: null,
+        observation_correct: null,
+        observation_code: null,
+        source: "analysis",
+        provider: null,
+        model_version: null,
+        confidence: null,
+        is_synthetic: null,
+        algorithm_version: "bkt-v1",
+        algorithm_params: {
+          p_init: 0.1,
+          p_transit: 0.2,
+          p_slip: 0.1,
+          p_guess: 0.2,
+        },
+        p_mastery_snapshot: null,
+        cutover_revision: null,
+        occurred_at: "2026-11-13T04:10:00Z",
+        recorded_at: "2026-11-13T04:10:03Z",
+        details: {
+          schema_version: 1,
+          coverage: {
+            pronunciation: {
+              status: "evaluated",
+              source: "acme_pronunciation",
+              provider: "acme",
+              model_version: "acme-phoneme-v1",
+              is_synthetic: false,
+            },
+            grammar: {
+              status: "evaluated",
+              source: "acme_grammar",
+              provider: null,
+              model_version: null,
+              is_synthetic: true,
+            },
+          },
+          unmapped: {
+            pronunciation: 1,
+            grammar: 0,
+          },
+          legacy_synthetic_impact: null,
+        },
+      },
+      {
+        apply_seq: 9002,
+        event_type: "pronunciation_observation",
+        session_id: sessionId,
+        analysis_job_id: jobId,
+        pronunciation_assessment_id: pronunciationId,
+        grammar_error_id: null,
+        skill_id: "th_sounds",
+        source_ordinal: 0,
+        observation_correct: false,
+        observation_code: "th_substitution",
+        source: "acme_pronunciation",
+        provider: "acme",
+        model_version: "acme-phoneme-v1",
+        confidence: 0.91,
+        is_synthetic: false,
+        algorithm_version: null,
+        algorithm_params: null,
+        p_mastery_snapshot: null,
+        cutover_revision: null,
+        occurred_at: "2026-11-13T04:10:00Z",
+        recorded_at: "2026-11-13T04:10:04Z",
+        details: {
+          schema_version: 1,
+          coverage: null,
+          unmapped: null,
+          legacy_synthetic_impact: null,
+        },
+      },
+      {
+        apply_seq: 9003,
+        event_type: "grammar_observation",
+        session_id: sessionId,
+        analysis_job_id: jobId,
+        pronunciation_assessment_id: null,
+        grammar_error_id: grammarId,
+        skill_id: "verb_tense_past",
+        source_ordinal: 0,
+        observation_correct: false,
+        observation_code: "verb_tense_past",
+        source: "acme_grammar",
+        provider: null,
+        model_version: null,
+        confidence: 0.63,
+        is_synthetic: true,
+        algorithm_version: null,
+        algorithm_params: null,
+        p_mastery_snapshot: null,
+        cutover_revision: null,
+        occurred_at: "2026-11-13T04:10:00Z",
+        recorded_at: "2026-11-13T04:10:05Z",
+        details: {
+          schema_version: 1,
+          coverage: null,
+          unmapped: null,
+          legacy_synthetic_impact: null,
+        },
+      },
+      {
+        apply_seq: 9004,
+        event_type: "baseline_snapshot",
+        session_id: null,
+        analysis_job_id: null,
+        pronunciation_assessment_id: null,
+        grammar_error_id: null,
+        skill_id: "article_usage",
+        source_ordinal: null,
+        observation_correct: null,
+        observation_code: null,
+        source: "legacy_unknown",
+        provider: null,
+        model_version: null,
+        confidence: null,
+        is_synthetic: null,
+        algorithm_version: null,
+        algorithm_params: null,
+        p_mastery_snapshot: 0.42,
+        cutover_revision: "b1-4-fake-export-v1",
+        occurred_at: "2026-11-12T23:59:00Z",
+        recorded_at: "2026-11-13T04:10:06Z",
+        details: {
+          schema_version: 1,
+          coverage: null,
+          unmapped: null,
+          legacy_synthetic_impact: "unknown",
+        },
+      },
+    ],
+    knowledge_states: [
+      {
+        skill_id: "article_usage",
+        p_mastery: 0.42,
+        updated_at: "2026-11-13T04:10:06Z",
+      },
+    ],
+  };
 }
 
 async function readJson(request) {
@@ -434,6 +660,14 @@ const server = createServer(async (request, response) => {
       stt_status: "unconfigured",
       llm_status: "unconfigured",
       tts_status: "unconfigured",
+    });
+    return;
+  }
+
+  if (method === "GET" && pathname === "/api/user/data-export") {
+    sendJson(response, 200, userDataExportFixture(), {
+      "Content-Disposition": 'attachment; filename="echotalk-user-data-export.json"',
+      "X-Content-Type-Options": "nosniff",
     });
     return;
   }

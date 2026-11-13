@@ -166,6 +166,35 @@
         "title": "AssessmentResponse",
         "type": "object"
       },
+      "BktAlgorithmParams": {
+        "description": "The frozen four-parameter BKT algorithm definition.",
+        "properties": {
+          "p_guess": {
+            "title": "P Guess",
+            "type": "number"
+          },
+          "p_init": {
+            "title": "P Init",
+            "type": "number"
+          },
+          "p_slip": {
+            "title": "P Slip",
+            "type": "number"
+          },
+          "p_transit": {
+            "title": "P Transit",
+            "type": "number"
+          }
+        },
+        "required": [
+          "p_init",
+          "p_transit",
+          "p_slip",
+          "p_guess"
+        ],
+        "title": "BktAlgorithmParams",
+        "type": "object"
+      },
       "CallCapabilitiesResponse": {
         "additionalProperties": false,
         "description": "通话协议能力响应模型，精确两字段，禁止额外字段。",
@@ -361,6 +390,75 @@
         "title": "ChatResponse",
         "type": "object"
       },
+      "CoverageDirection": {
+        "description": "One audited source direction from an analysis-completed event.",
+        "properties": {
+          "is_synthetic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Synthetic"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "status",
+          "source",
+          "provider",
+          "model_version",
+          "is_synthetic"
+        ],
+        "title": "CoverageDirection",
+        "type": "object"
+      },
       "CurriculumNextResponse": {
         "description": "GET /api/curriculum/next 响应体。",
         "properties": {
@@ -473,6 +571,163 @@
         "title": "DocContext",
         "type": "object"
       },
+      "EventCoverage": {
+        "description": "Pronunciation and grammar coverage metadata.",
+        "properties": {
+          "grammar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverageDirection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pronunciation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverageDirection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pronunciation",
+          "grammar"
+        ],
+        "title": "EventCoverage",
+        "type": "object"
+      },
+      "EventUnmappedCounts": {
+        "description": "Counts of observations not mapped into the ledger.",
+        "properties": {
+          "grammar": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grammar"
+          },
+          "pronunciation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pronunciation"
+          }
+        },
+        "required": [
+          "pronunciation",
+          "grammar"
+        ],
+        "title": "EventUnmappedCounts",
+        "type": "object"
+      },
+      "GrammarAssessmentExport": {
+        "description": "Grammar error and correction fields for the authenticated user.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "corrected": {
+            "title": "Corrected",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_type": {
+            "title": "Error Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "original": {
+            "title": "Original",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "skill_tag": {
+            "title": "Skill Tag",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "skill_tag",
+          "original",
+          "corrected",
+          "error_type",
+          "source",
+          "provider",
+          "model_version",
+          "is_synthetic",
+          "confidence",
+          "created_at"
+        ],
+        "title": "GrammarAssessmentExport",
+        "type": "object"
+      },
       "GrammarErrorResponse": {
         "description": "语法错误响应项。",
         "properties": {
@@ -576,6 +831,31 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "KnowledgeStateExport": {
+        "description": "One user-owned BKT mastery state.",
+        "properties": {
+          "p_mastery": {
+            "title": "P Mastery",
+            "type": "number"
+          },
+          "skill_id": {
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill_id",
+          "p_mastery",
+          "updated_at"
+        ],
+        "title": "KnowledgeStateExport",
+        "type": "object"
+      },
       "KnowledgeStateResponse": {
         "description": "知识状态响应（含技能信息）。",
         "properties": {
@@ -621,6 +901,344 @@
           "updated_at"
         ],
         "title": "KnowledgeStateResponse",
+        "type": "object"
+      },
+      "LearningEventDetails": {
+        "description": "Whitelisted nested event metadata.",
+        "properties": {
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "legacy_synthetic_impact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Synthetic Impact"
+          },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Version"
+          },
+          "unmapped": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventUnmappedCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "coverage",
+          "unmapped",
+          "legacy_synthetic_impact"
+        ],
+        "title": "LearningEventDetails",
+        "type": "object"
+      },
+      "LearningEventExport": {
+        "description": "One immutable learning event with safe nested JSON projections.",
+        "properties": {
+          "algorithm_params": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BktAlgorithmParams"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "algorithm_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithm Version"
+          },
+          "analysis_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Job Id"
+          },
+          "apply_seq": {
+            "title": "Apply Seq",
+            "type": "integer"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "cutover_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cutover Revision"
+          },
+          "details": {
+            "$ref": "#/components/schemas/LearningEventDetails"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "grammar_error_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grammar Error Id"
+          },
+          "is_synthetic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Synthetic"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "observation_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Code"
+          },
+          "observation_correct": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Correct"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "p_mastery_snapshot": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Mastery Snapshot"
+          },
+          "pronunciation_assessment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pronunciation Assessment Id"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_ordinal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ordinal"
+          }
+        },
+        "required": [
+          "apply_seq",
+          "event_type",
+          "session_id",
+          "analysis_job_id",
+          "pronunciation_assessment_id",
+          "grammar_error_id",
+          "skill_id",
+          "source_ordinal",
+          "observation_correct",
+          "observation_code",
+          "source",
+          "provider",
+          "model_version",
+          "confidence",
+          "is_synthetic",
+          "algorithm_version",
+          "algorithm_params",
+          "p_mastery_snapshot",
+          "cutover_revision",
+          "occurred_at",
+          "recorded_at",
+          "details"
+        ],
+        "title": "LearningEventExport",
+        "type": "object"
+      },
+      "PhonemeAlignmentExport": {
+        "description": "One explicitly projected phoneme-alignment item.",
+        "properties": {
+          "actual": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "phoneme": {
+            "title": "Phoneme",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "position",
+          "phoneme",
+          "expected",
+          "actual",
+          "type"
+        ],
+        "title": "PhonemeAlignmentExport",
         "type": "object"
       },
       "PhonemeAlignmentItem": {
@@ -671,6 +1289,92 @@
         "title": "PhonemeAlignmentItem",
         "type": "object"
       },
+      "PronunciationAssessmentExport": {
+        "description": "Pronunciation assessment fields without provider response internals.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "overall_score": {
+            "title": "Overall Score",
+            "type": "number"
+          },
+          "phoneme_alignment": {
+            "items": {
+              "$ref": "#/components/schemas/PhonemeAlignmentExport"
+            },
+            "title": "Phoneme Alignment",
+            "type": "array"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "overall_score",
+          "phoneme_alignment",
+          "source",
+          "provider",
+          "model_version",
+          "is_synthetic",
+          "confidence",
+          "created_at"
+        ],
+        "title": "PronunciationAssessmentExport",
+        "type": "object"
+      },
       "SessionCreate": {
         "description": "创建会话请求体。",
         "properties": {
@@ -693,6 +1397,50 @@
           "mode"
         ],
         "title": "SessionCreate",
+        "type": "object"
+      },
+      "SessionExport": {
+        "description": "Minimal session metadata needed to interpret exported child rows.",
+        "properties": {
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "mode",
+          "status",
+          "started_at",
+          "ended_at"
+        ],
+        "title": "SessionExport",
         "type": "object"
       },
       "SessionListItem": {
@@ -858,6 +1606,54 @@
         "title": "SkillResponse",
         "type": "object"
       },
+      "TranscriptExport": {
+        "description": "Transcript fields safe and necessary for a user data export.",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "timestamp_ms": {
+            "title": "Timestamp Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "event_id",
+          "role",
+          "content",
+          "timestamp_ms"
+        ],
+        "title": "TranscriptExport",
+        "type": "object"
+      },
       "TranscriptResponse": {
         "description": "转录记录响应。",
         "properties": {
@@ -914,6 +1710,75 @@
           "timestamp_ms"
         ],
         "title": "TranscriptResponse",
+        "type": "object"
+      },
+      "UserDataExport": {
+        "description": "Stable version-1 structured export returned as a JSON attachment.",
+        "properties": {
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "grammar_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/GrammarAssessmentExport"
+            },
+            "title": "Grammar Assessments",
+            "type": "array"
+          },
+          "knowledge_states": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeStateExport"
+            },
+            "title": "Knowledge States",
+            "type": "array"
+          },
+          "learning_events": {
+            "items": {
+              "$ref": "#/components/schemas/LearningEventExport"
+            },
+            "title": "Learning Events",
+            "type": "array"
+          },
+          "pronunciation_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/PronunciationAssessmentExport"
+            },
+            "title": "Pronunciation Assessments",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionExport"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptExport"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "sessions",
+          "transcripts",
+          "pronunciation_assessments",
+          "grammar_assessments",
+          "learning_events",
+          "knowledge_states"
+        ],
+        "title": "UserDataExport",
         "type": "object"
       },
       "UserSettingsResponse": {
@@ -2936,6 +3801,56 @@
         "summary": "Get Session Token",
         "tags": [
           "会话管理"
+        ]
+      }
+    },
+    "/api/user/data-export": {
+      "get": {
+        "description": "Export the authenticated user's data as one complete JSON attachment.",
+        "operationId": "export_user_data_api_user_data_export_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDataExport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export User Data",
+        "tags": [
+          "用户设置"
         ]
       }
     },

@@ -132,16 +132,18 @@ backend 路由  ──导出──▶  openapi.json  ──生成──▶  前�
 设计政策已经确认；B1-1 的 ORM、迁移与 schema 已在专用合成 PostgreSQL 验证。**历史 B1-2** 已实现
 同事务事件写入、幂等、用户锁与 BKT 合成隔离，主控独立代码 Review 为 APPROVED，目标套件
 `116 passed / 0 skip / exit 0`；完整 backend 为 `844 passed / 3 warnings / 0 skip`、覆盖率
-`80.82%`。该组数字只属 B1-2，不与 B1-3 相加或替代。
+`80.82%`。**历史 B1-3** 的代码/测试 Review 为 APPROVED，目标套件
+`147 passed / 0 failed / 0 skip / exit 0`，完整 backend
+`878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`。这些数字只属各自历史卡，不能与 B1-4 相加。
 
-B1-3 的本轮代码/测试 Review 为 APPROVED，目标套件 `147 passed / 0 failed / 0 skip / exit 0`，
-完整 backend `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，前端未改。E2E 首轮
-`232 passed / 2 failed / 0 skip / 0 retry / exit 1`，DocTalk 定向 `3 passed / 0 failed / 0 skip /
-0 retry / exit 0`，再次全量 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`；DocTalk 通过但
-仍有 WebKit Provider select 实测失败；仅 DocTalk 首轮失败原因未确认，不能归因于环境、历史基线
-或回归，也不能称全树全绿。B1-4～B1-5 未启动。本卡停在 Review 等待用户审阅；提交/推送状态以同卡
-交付回执为准，不开 PR、不合并。生产迁移/切换、真实数据、真实依赖、远端 CI、备份策略及会话音频
-切片采集都不在本轮证据范围。
+B1-4 的本人数据结构化 JSON 导出已实现，主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；
+用户 Review 仍待。新增薄路由 `GET /api/user/data-export` 输出固定 v1 JSON，以显式白名单排除
+密钥、认证身份、prompt/文档、音频和 Provider 原始响应/引用，并在单一
+`REPEATABLE READ READ ONLY` 快照中完成本人归属校验、非有限浮点失败关闭和整体缓冲序列化。
+B1-5 未启动。提交/推送状态以同卡交付回执为准，不开 PR、不合并、不部署。完整测试数字、原始
+E2E 失败与风险见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；不能把代码 Review APPROVED
+写成用户验收或全 E2E 通过。生产迁移/切换、真实数据、真实依赖、远端 CI、备份策略及会话音频切片
+采集都不在本轮证据范围。
 
 ### 3.5 平台：能力接口，按证据推进
 
@@ -192,15 +194,16 @@ Fake API 浏览器 E2E   ← 已有，强
 
 #### B1 实施顺序
 
-五张卡按 B1-1～B1-5 的顺序推进，具体写集与验收见 [`TODO.md`](../TODO.md)。B1-4/B1-5 如新增
-HTTP 接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计属于同一卡写集；
+五张卡按 B1-1～B1-5 的顺序推进，具体写集与验收见 [`TODO.md`](../TODO.md)。B1-5 如新增 HTTP
+接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计属于同一卡写集；
 OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missing/空 schema 豁免。本批不新增
 产品 UI 或真实依赖。
 
-当前 B1-3 的本轮代码/测试 Review 已通过。本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付
-回执为准，不开 PR、不合并。B1-4～B1-5 未启动。测试与失败边界见
+当前 B1-4 的本轮代码/测试 Review 已通过，用户 Review 待；B1-5 未启动。提交/推送状态以同卡
+交付回执为准，不开 PR、不合并、不部署。测试与失败边界见
 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)，不得把代码 Review APPROVED 写成用户验收、
-生产切换或全 E2E 通过。
+生产切换或全 E2E 通过。完整双浏览器 E2E 必须保留
+`233 passed / 1 failed / 0 skip / 0 retry / exit 1`；聚合入口返回 0 不能覆盖真实 `e2e=1`。
 
 1. **B1-1 模型、新增迁移与约束**：已建立 `learning_events` 的 ORM、identity、CHECK、唯一约束、
    外键、索引与新增迁移，旧迁移只增不改。本轮专用合成 PostgreSQL 已完成空库 upgrade 至 b1、
@@ -213,16 +216,20 @@ OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missin
    `116 passed / 0 skip / exit 0`。）
 3. **B1-3 基线工具与只读校验**：生成幂等 `legacy_unknown` 快照，并在单一 `REPEATABLE READ READ ONLY`
    快照内按 watermark 重算校验；退出条件是切换顺序、并发边界和重算差异的合成库测试通过，不运行
-   生产切换。（2026-11-13 状态：本轮代码/测试 Review APPROVED；目标套件为
+   生产切换。（历史状态：代码/测试 Review APPROVED；目标套件为
    `147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
    `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`；专用合成 PG 迁移 roundtrip、ORM compare
    与独立探针通过。实际 Job 领取函数 `claim_next_job` 本身没有 gate；维护人员须让全部新旧 worker
    保持停止到 `traffic_resumed`。部署代码不代表启动或停止进程，显式停写声明、数据库锁和表锁也都
    不能证明未知旧进程已退出。用户 Review 待。）
-4. **B1-4 本人数据结构化 JSON 导出**：只导出本人事件、状态、转录和评估，保留来源/合成/版本并排除
-   敏感内部数据；若新增 HTTP 导出接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation
-   覆盖审计须同卡完成。退出条件是认证隔离、稳定 schema、敏感字段排除、A3 无新增豁免及生成物门禁
-   通过。
+4. **B1-4 本人数据结构化 JSON 导出**：已实现 `GET /api/user/data-export`、固定 v1 schema、
+   显式白名单、本人 Session/Event/Job/评估/Skill 归属校验和单一只读一致快照；空数据返回空数组，
+   部分数据不补造，未知版本保留 `null`，非有限 float 失败关闭，合法 `None` 保留 `null`。
+   Fake API 成功响应 fixture、Node 契约测试、OpenAPI/TypeScript 生成物与 A3 operation 覆盖审计
+   已同卡完成，A3 固定 missing/unmodeled/deviation 清单未改。主控代码/测试 Review 为 APPROVED，
+   用户 Review 待；目标套件 `20 passed / 0 skip / exit 0`，完整 backend
+   `898 passed / 3 warnings / 0 skip / 80.86%`，完整双浏览器 E2E 为
+   `233 passed / 1 failed / 0 skip / 0 retry / exit 1`。产品返修使用 `1/2`。
 5. **B1-5 本平台整账号硬删除**：整账号事务删除全部已确认业务数据，不碰外部 IdP、不增加单会话删除；
    若新增 HTTP 注销接口，Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计须同卡
    完成。退出条件是外键顺序、回滚、幂等、跨账号隔离、零业务残留、HTTP 成功契约与 A3 无新增豁免

@@ -138,11 +138,11 @@ TypeScript 生成器由主控代跑。主控已在该合成库中重放现有迁
 历史基线：Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108
 passed、类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；历史全量 E2E 为
 233 passed/1 failed、exit 1，唯一失败是历史 WebKit select `336×23 < 44`。这组数字只属于该历史
-时点，不与 B1-3 当前结果相加或替代。
+时点，不与后续 B1 结果相加或替代。
 
 历史 B1-1（ORM/迁移/schema）已在专用合成 PostgreSQL 验证；历史 B1-2 已实现同事务事件写入、
 幂等、用户锁与 BKT 合成隔离，主控独立代码 Review APPROVED，目标套件
-116 passed/0 skip/exit 0，完整 backend 844 passed/3 warnings/0 skip/80.82%。B1-3 的本轮代码/
+116 passed/0 skip/exit 0，完整 backend 844 passed/3 warnings/0 skip/80.82%。历史 B1-3 的该轮代码/
 测试 Review 为 APPROVED：目标套件 `147 passed / 0 failed / 0 skip / exit 0`，完整 backend
 `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，Vitest 保持 1206 passed/49 files，前端未改。
 除 E2E 外所列完整门禁 exit 0；lint 为 132 warning/0 error/0 new warning。B1-3 迁移
@@ -155,22 +155,36 @@ exit 0`；再次全量为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，
 WebKit Provider select 实测失败。首轮失败和定向结果都保留；仅 DocTalk 首轮失败原因未确认，不能
 归因于环境、历史基线或回归，也不能称全树全绿。
 
+B1-4 已实现本人数据结构化 JSON 导出。主控独立代码/测试 Review 为 APPROVED，产品返修使用 `1/2`，
+用户 Review 仍待。主控代跑的目标套件为 `20 passed / 0 skip / exit 0`，完整 backend 为
+`898 passed / 3 warnings / 0 skip / 80.86% / exit 0`；Vitest 1206 passed/49 files、Fake API
+110 passed/0 skip、构建脚本 21、API 类型测试 8 均 exit 0。format、lint、typecheck、build、
+backend Ruff、OpenAPI schema、provider metadata 与 TS 漂移检查均 exit 0；lint 为 132
+warnings/0 errors，warning 行清单与 B1-3 相同。20 项目标属于 898 项完整 backend 的子集。
+
+B1-4 的完整双浏览器 E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`。唯一失败是
+`[webkit] e2e/a11y-focus-touch.spec.ts:94:5`：设置抽屉三个 Provider select 为
+`336x23 < 44px`，断言位于第 127 行；对应 UI/样式、E2E 用例/配置相对父提交未改，按同名范围外遗留
+保留。不能称全树全绿，也不能未经证据归因环境。`run-gates.py` 会容忍 `e2e=1` 返回 0，聚合 exit 0
+不能覆盖真实 E2E exit 1。
+
 切换期间，实际 Job 领取函数 `claim_next_job` 本身没有 gate；全部新旧 worker 必须保持停止到
 `traffic_resumed`。部署切换代码不会启动进程，显式停写声明、数据库锁和表锁都不能证明未知旧进程
 已经退出。维护 CLI 只接受已批准的合成库白名单，不隐式读取 `.env`，结果码/用法按 0/1/2 区分；
 baseline 默认 preview 零写，只有显式确认参数才写。零语法错误没有持久来源行，只能校验 coverage
 结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider 事实。
 
-本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、不合并。B1-4 与 B1-5
-未启动；B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
+B1-4 停在用户 Review，提交/推送状态以同卡交付回执为准，不开 PR、不合并、不部署。B1-5 未启动；
+B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
 `learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除单例
 控制行或重新锚定；本卡不实现。最新状态见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
-B1-4/B1-5 若增加 HTTP 接口，同一卡必须同步 Fake API 成功响应 fixture、Node 契约测试和现有 A3
-operation 覆盖审计。更新 canonical OpenAPI 和 TypeScript 类型只属于必要生成步骤，不能代替 Fake
-API 真实成功响应验证；不得静默扩大 missing/空 schema 豁免，合法空响应也需显式、按实际状态码审阅。
-这些卡不新增产品 UI 或真实依赖。
+B1-4 的 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计已同卡完成；A3 固定
+missing/unmodeled/deviation 清单逐字未改。更新 canonical OpenAPI 和 TypeScript 类型只属于必要
+生成步骤，不能代替 Fake API 真实成功响应验证。B1-5 如新增 HTTP 接口，同一卡必须继续同步 Fake
+API 成功响应 fixture、Node 契约测试和现有 A3 operation 覆盖审计；不得静默扩大 missing/空 schema
+豁免，合法空响应也需显式、按实际状态码审阅。这些卡不新增产品 UI 或真实依赖。
 
 仓库 CI 只在 `main`/`master` push 或 PR 上触发；任务分支 push 不触发远端 CI，远端 CI 未执行。
 不得修改工作流触发条件。证据口径为主控本地完整门禁加本 §3.4 的合成 PostgreSQL。
