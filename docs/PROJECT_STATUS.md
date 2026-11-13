@@ -1,9 +1,10 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13。R2-13 组件目录按页面边界归位与 `Dashboard` 抽取已完成本地实施、完整
-> 门禁和独立代码 Review；当前证据和边界见下方 R2-13 小节，用户 Review 待。R2-12、R2-14 以及
-> A6、B1、独立 WPH 的数字继续绑定各自当次快照，不改写当时结果。正式 macOS 客户端、Tauri 选型、
-> native 认证、设备与签名均未创建或验收。
+> 最后核对：2026-11-13。WG20 周语法 WebKit 补验当前快照见下方 WG20 小节：主控实际完成的完整
+> 13 项门禁及聚合均 `exit 0`，两个 WebKit 目标用例各重复 20 次且共 `40 passed`；本轮无产品修改、
+> 无源码修复。R2-13、R2-12、R2-14 以及 A6、B1、独立 WPH 的数字继续绑定各自当时快照，不改写旧数。
+> 最终以主控回执为准；格式与独立 Review、提交/推送状态待主控处理，用户 Review 待。正式 macOS
+> 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -31,7 +32,42 @@
 
 ## 当前验证基线
 
-### R2-13（组件目录按页面边界归位）本地实施/验收完成；用户 Review 待
+### WG20（WebKit 周语法重复稳定性补验）当前快照；最终回执与用户 Review 待
+
+- 只读基线：worktree 为
+  `/private/tmp/echotalk-b1-implementation-20261112`，分支
+  `codex/B1-learning-events-20261112`，起始 HEAD 为
+  `0e69b3fa70dca61d0b8ba9ae7a7d29dc92cda91b`，起始工作树 clean。源码 `354` 文件 SHA 冻结
+  未变；`apps/vite-app/playwright.config.ts`、根 `package.json`、`AGENTS.md` 和
+  `docs/agent-review-loop.md` 这四个文件分别与父提交中的对应 Git blob 逐字节相同。
+- 主控实跑完整 13 项门禁及聚合均 `exit 0`。Vitest 为 `1206 passed / 49 files`；backend 为
+  `941 passed / 3 warnings / 0 skip`，原生 coverage JSON 的
+  `percent_covered=81.55505107832009`，记为 `81.56% raw coverage`；完整双浏览器 E2E 为
+  `246 passed / 0 failed / 0 skip / 0 retry`，其中 Chromium `123`、WebKit `123`
+  （`--retries=0 --workers=1`）。Node 构建脚本 `47 passed`、Fake API `116 passed`、API 类型
+  runner `8 passed`、非 native iOS 脚本 `37 passed`，均 `0 fail / 0 skip` 且 `exit 0`。
+- 目标 WebKit 补验使用当前 HEAD、macOS WebKit 与 Fake API 夹具，两个周语法用例各重复 20 次，
+  共 `40 passed / 0 failed / 0 skip / 0 flaky / 0 unexpected`；所有 `result.retry=0`，每个
+  test 恰有 1 个 result，耗时 `52.763s`，配置为
+  `repeatEach=20 / retries=0 / workers=1`。未能发现当前夹具重复失败，不靠放宽断言或增加重试。
+- 当前 PostgreSQL 为本卡自建 empty tempfs PG `15.19`，仅监听 `127.0.0.1:55433`，18 份迁移
+  `exit 0`。精确容器 ID、两个 owner 与 loopback 已核验后停库，停库 `exit 0`，并确认
+  `AutoRemove=true`；本卡 PG 已清理，未启动其他卡环境。
+- lint 为 `132 warning / 0 error`；逐项诊断与 R213 父基线字节完全一致，新增诊断 `0`。当前失败
+  夹具在失败阶段会持续返回 `503`，直到测试显式放行；当前 `retry` 等同 `refresh`，认证快照
+  变化可能触发额外读取。历史“无重试 5 次失败 1 次”保留，“认证刷新耗掉唯一一次 503”仍是未经
+  证明的假说，不能把当前夹具写成当时唯一一次 `503`。
+- 本轮仅补验和文档收口，没有产品修改或源码修复。重复通过只证明当前 HEAD/夹具在 macOS
+  WebKit + Fake API 下的稳定性，不证明历史根因，也不替代真实后端身份、真实 Provider/IdP/
+  LiveKit、设备、远端 CI、生产或部署验收。证据位于
+  `/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/`：
+  `WG20-full-gates.json`、`WG20-repeat-results.json`、`WG20-repeat-verified.json`、
+  `WG20-full-coverage.json`、`WG20-lint-comparison.json`、`WG20-pg-ready.json`、
+  `WG20-pg-cleanup.json`、`WG20-baseline-source-sha256.json`、
+  `WG20-baseline-config-sha256.json` 与 `ev/ev-WG20-*`。最终 Review、提交和推送状态以主控
+  回执为准，本文不预填成功；用户 Review 待。
+
+### R2-13（历史快照：组件目录按页面边界归位）本地实施/验收完成；用户 Review 待
 
 - `Dashboard` 已从 `App.tsx` 抽为独立组件，函数体、参数和三行常量初始化保持原逻辑；38 个文件
   按页面边界完成 `git mv`，其中 29 个文件字节不变，9 个仅修改模块路径或目录注释。12 个测试文件

@@ -4,17 +4,10 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **B1 / R2-14 当次快照（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与
-> 完成项归档。独立 WPH 的 `246 passed / 0 failed / 0 skip / 0 retry / exit 0` 及
-> `backend 934 passed / 81.45% / Fake API 113` 保留为历史快照。R2-14 Compose 就绪与一次性迁移
-> 编排已完成本地合成验证，独立代码 Review 为 APPROVED；当次快照的完整 13 项门禁及聚合均 `exit 0`，
-> backend 为 `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest 为
-> `1206 passed / 49 files`，Fake API 为 `116 passed / 0 skip`，完整双浏览器 E2E 仍为
-> `246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`）。最终 Review/发布
-> 见主控同卡回执；用户 Review 待。生产发布、原 Compose 整栈、真实外部依赖与
-> 设备验收尚未完成。当前证据边界见
-> [PROJECT_STATUS 的 R2-14 小节](./docs/PROJECT_STATUS.md)
-> 和 [Compose 启动合同](./docs/COMPOSE_STARTUP_CONTRACT.md)。
+> **WG20 当前快照（2026-11-13）：** 只读基线与夹具核对完成；主控完整门禁、双浏览器 E2E 与额外
+> WebKit 重复补验均通过，零重试门槛已满足。当前夹具持续 503 至显式放行，历史“5 次 1 失败”
+> 与旧“唯一一次 503”假说保留，后者仍未证实。本轮仅文档收口，无产品/源码修改；完整数字、证据与
+> PG/hash 边界见 [PROJECT_STATUS 的 WG20 小节](./docs/PROJECT_STATUS.md)，最终回执与用户 Review 待。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -102,14 +95,16 @@
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。
 
-## 2026-11-07 遗留问题（已核实，未修复）
+## 2026-11-07 历史发现与当前待验项
 
 来源：#128 评审与本地重跑。以下问题均为 #119 原有代码问题，恢复时未改动。
 
-- [ ] **WebKit `weekly-grammar.spec.ts:57` 偶发失败**：无重试单独跑 5 次失败 1 次，
-      CI `retries: 2` 掩盖。推测加载期认证快照变化触发 `WeeklyGrammar` 重新请求，
-      耗掉测试唯一一次注入的 503，未验证。验收：先复现并确认根因，修复后 WebKit 无重试
-      重复运行（≥20 次）全过，不靠放宽断言或增加重试。
+- [x] **WebKit 周语法补验达标；旧根因仍未证实**：2026-11-07 无重试单独跑 5 次失败 1 次及 CI
+      `retries: 2` 的历史事实保留；“认证刷新耗掉唯一一次 503”仍是未经证明的旧假说。
+      当前失败夹具在失败阶段持续返回 503 直到测试显式放行，不能据此反推历史唯一一次 503。
+      当前 HEAD 在 macOS WebKit + Fake API 下满足零重试重复补验门槛，未放宽断言或增加重试；结果
+      只证明当前 HEAD/夹具稳定性，不代表真实链路；完整数字、证据与边界见
+      [PROJECT_STATUS 的 WG20 小节](./docs/PROJECT_STATUS.md)。
 - [ ] **iOS CI 预下载有限重试**：`5c28e1b` 的 `test-ios-build` 因 GitHub 资产单次 504 且
       `--retry 0` 失败；已改为 curl 原生有限重试（3 次、`--retry-max-time 240`），校验不变。
       验收：分支 CI 的 `test-ios-build` 通过后勾选。

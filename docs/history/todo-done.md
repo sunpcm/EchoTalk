@@ -6,6 +6,14 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-13 WG20 WebKit 周语法补验
+
+- [x] **WG20 周语法 WebKit 重复稳定性补验**：主控实跑完整 13 项门禁及聚合均 `exit 0`；
+      WebKit 零重试重复补验达到当前门槛，完整数字与证据见
+      [PROJECT_STATUS 的 WG20 小节](../PROJECT_STATUS.md)。历史“无重试 5 次失败 1 次”保留；
+      旧“认证刷新耗掉唯一一次 503”假说仍未证实，当前夹具为持续返回 503 直到测试显式放行。
+      本轮仅文档收口，无产品修改或源码修复。最终回执与用户 Review 待主控处理。
+
 ## 2026-11-13 R2-13 组件目录按页面边界归位
 
 - [x] **R2-13 组件目录按页面边界归位**：抽出 `Dashboard` 并按页面边界 `git mv` 38 个文件，其中
