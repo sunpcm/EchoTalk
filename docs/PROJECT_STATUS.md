@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13，F4（收窄会话切片通用补丁入口）已完成本地实施与 Harness/macOS 亲跑，见下方
+> 最后核对：2026-11-13，H2（`lib/api.ts` 按资源拆文件）已完成本地实施与 Harness/macOS 亲跑，见下方
 > "当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
@@ -25,11 +25,10 @@
 
 ## 当前验证基线
 
-当前基线为本轮 F4 的 Harness/macOS 亲跑（非 Linux CI）。本机结果绑定前端子树
-`ba03a14f6be135c083253092b1a673e24542f261`、后端子树
-`db2cff7896c30066350122f0cf4d218eb9dc98fa`。
+当前基线为本轮 H2 的 Harness/macOS 亲跑（非 Linux CI）。本机结果绑定对应提交与子树；
+CI 回执以对应 PR 的最终 head 为准。
 
-| 测试树 / 门禁  | 最近实测结果（F4 Harness/macOS，非 Linux CI）                             | 日志     |
+| 测试树 / 门禁  | 最近实测结果（H2 Harness/macOS，非 Linux CI）                             | 日志     |
 | -------------- | ------------------------------------------------------------------------- | -------- |
 | Vitest         | 1227 passed（51 个文件）                                                  | frontend |
 | Playwright E2E | 233 passed / 1 failed（Chromium 117/0、WebKit 116/1，retry/skip/flaky 0） | frontend |
@@ -39,13 +38,13 @@
 | backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁）                         | backend  |
 
 E2E 唯一失败为既有 a11y Provider 336×23px 高度问题（无新增失败）；前端 lint 132 warnings / 0 error。
-Linux CI 回执以对应 PR 的最终 head 为准，已核对照快照 F3（`main@3827861`，
-[CI 43372070616](https://github.com/sunpcm/EchoTalk/actions/runs/43372070616) 与
-[PR Guard 43372070672](https://github.com/sunpcm/EchoTalk/actions/runs/43372070672)，Vitest 1224/50、
-E2E 234、pytest 809/3w/80.19%、108/8/21）；那是 F3 的 Linux 计数，不是 F4 的 CI。
+本地文档收口时 H2 专属 Linux CI 尚未运行，发布后的最终回执见对应 PR。最近已核 Linux 基线为 F4：
+`main@0aa7d52`（PR #161），[CI 43403508490](https://github.com/sunpcm/EchoTalk/actions/runs/43403508490) 与
+[PR Guard 43403508536](https://github.com/sunpcm/EchoTalk/actions/runs/43403508536)，Vitest 1227/51、
+E2E 234（Chromium 117/WebKit 117，0 retry/skip/flaky）、pytest 809/3 warnings/80.19%、108/8/21。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
-命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F3 的逐卡收口与历史快照
+命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、H2 的逐卡收口与历史快照
 基线已移入 [history/2026-11.md](./history/2026-11.md)。
 
 ## 已知限制和近期风险

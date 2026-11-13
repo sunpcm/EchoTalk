@@ -494,3 +494,21 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       本机 E2E 233/1（Chromium 117/0、WebKit 116/1，唯一既有 Provider 336×23）、Fake 108/类型 8/构建 21。
       Harness 三组变异（M1 别名回退、M2 删保全分支、M3 无条件覆盖）均被目标断言捕获并逐字节恢复。未 commit/push，
       F4 专属 CI/PR 尚未跑，本机计数不冒认 Linux CI。详见 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）H2
+
+- [x] **H2 `lib/api.ts` 按资源拆文件**：约 1040 行拆为 `lib/api/{client,sessions,assessments,settings,callLease}.ts`，
+      由 `lib/api/index.ts` 原样再导出。验收：所有 `from "@/lib/api"` 的调用方零改动；`api.test.ts` 零改动通过；
+      分层 lint 零违规。
+
+      本地收口：删除 `apps/vite-app/src/lib/api.ts`，按资源拆为 `src/lib/api/{client,sessions,assessments,settings,callLease,index}.ts`，
+      `index.ts` 原样再导出原 71 个公开名字，公开导出集合不变；`request` 与 base URL 缓存唯一；所有
+      `from "@/lib/api"` 调用方零改动，`api.test.ts` 原 192 零改动通过，分层 lint 零违规。Harness/macOS 亲跑
+      S1：Vitest 1227/51、Fake 108/类型 8/构建 21、pytest 809 passed/3 warnings/80.19%、lint 0 error/132 warnings、
+      types/build/OpenAPI/providers/后端 ruff/format 全通过；S1 完整 E2E 225/9（新增 8 为 Vite 模块路径
+      `src/lib/api/sessions.ts`、`src/lib/api/assessments.ts` 被 E2E 夹具 `page.route` 正则误匹配返回 503，
+      另有 1 为既有 Provider 336×23）。R1 收紧两个 E2E 夹具的 matcher（`a11y-focus-touch.spec.ts`、
+      `theme-contrast.spec.ts`，改为路径后缀闭合的函数谓词，不触碰产品/API7）后 S2 完整 E2E 233/1
+      （Chromium 117/0、WebKit 116/1，retry/skip/flaky 0，唯一既有 Provider 336×23）；API 81 定义 AST/71 导出、
+      135 个原 test/fixture/config 字节不变、两个 E2E 除 matcher 外 AST 一致、26 边界样例正确。H2 Linux CI
+      尚未运行（待 PR），本机计数不冒认 Linux CI。详见实施报告与 `docs/history/2026-11.md`。

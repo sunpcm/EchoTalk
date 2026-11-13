@@ -40,9 +40,6 @@
       同时承担状态机投影、启动编排（健康检查 → 创建 → 取 Token）、就绪检查与生命周期追踪。设计需给出拆分边界、
       哪些是纯函数、对既有测试的影响。验收（设计轮）：设计文档，含"测试文件零改动是否可达"的明确判断及理由。
       实施轮验收：`conversation.test.ts` 与 `VoiceInterface.test.tsx` 零改动通过；对启动路径做 3 处以上变异并列结果。
-- [ ] **H2 `lib/api.ts` 按资源拆文件**：约 1040 行拆为 `lib/api/{client,sessions,assessments,settings,callLease}.ts`，
-      由 `lib/api/index.ts` 原样再导出。验收：所有 `from "@/lib/api"` 的调用方零改动；`api.test.ts` 零改动通过；
-      分层 lint 零违规。
 
 ### 批次 I：后端学习领域
 

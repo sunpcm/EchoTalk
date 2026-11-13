@@ -139,8 +139,9 @@ test("every failed dashboard section keeps its title and offers a 44px retry but
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.route(/\/api\/(sessions|assessments|curriculum)/, (route) =>
-    route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
+  await page.route(
+    (url) => /^\/api\/(sessions|assessments|curriculum)(?:\/|$)/.test(url.pathname),
+    (route) => route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
   );
   await page.goto("/");
   await expect(page.getByText("七天语法记录加载失败，请重试")).toBeVisible();

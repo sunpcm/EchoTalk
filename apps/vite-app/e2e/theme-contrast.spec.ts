@@ -104,8 +104,9 @@ for (const theme of THEMES) {
   });
 
   test(`dashboard error and retry states meet AA contrast (${theme})`, async ({ page }) => {
-    await page.route(/\/api\/(sessions|assessments|curriculum)/, (route) =>
-      route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
+    await page.route(
+      (url) => /^\/api\/(sessions|assessments|curriculum)(?:\/|$)/.test(url.pathname),
+      (route) => route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
     );
     await page.goto("/");
     await expect(page.getByText("加载活动会话失败")).toBeVisible();
