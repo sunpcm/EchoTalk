@@ -166,6 +166,26 @@
       DDL/切换、真实数据、生产级不可恢复删除、真实 Provider/IdP/LiveKit、设备、原生 iOS、远端 CI、
       生产备份及法定/特殊保留均未验收；外部身份后续可按原机制重新创建空账号，本卡无 tombstone。
 
+## 2026-11-13 B1 WPH WebKit 设置控件修复
+
+- [x] **WPH 恢复 Provider select 的 44px 触控高度与可见焦点**：仅调整
+      `SettingsProviderFields.tsx` 的共享 select 一行 class，使用显式 `44px` 高度、移除会压掉焦点
+      轮廓的 `outline-none`，并恢复既有 accent 主题的 2px focus outline；保留原生
+      `appearance:auto`、上下箭头、选项、值和 `onChange`，未改 `styles.css`、业务或其他生成物。
+      测试文件冻结为 SHA-256
+      `f7da11d15b608113ce7d5d94ee33a24c5ea7205e642442b30a36e01dd55b65c5`，产品最终文件为
+      `55762d586f8279bf316c4eaff135ab8d980f9fe897d348b9305a8e559361814d`。
+      主控真实 RED 为 Chromium `7 passed`、WebKit `7 failed / 0 skip / 0 retry / exit 1`，新增六个
+      用例均在高度 23 与可见焦点 false 处失败；定向 GREEN 为 `14 passed / exit 0`。修复后完整
+      Chromium/WebKit E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
+      `934 passed / 3 warnings / 0 skip / 81.45% / exit 0`；Vitest 1206/49 files、Fake API 113、
+      build-script 21、API 类型 8、iOS 脚本 37 均 `exit 0`，全部 13 项完整门禁及聚合均 `exit 0`。
+      最终真实浏览器检查为 Chromium/WebKit 三控件各 `336x44`、`appearance:auto`、2px solid
+      outline，原生箭头与选中值保留。主控代码/测试 Review 与真实截图 Review 均 APPROVED，P0/P1
+      未关闭为 0，正式返修 `0/2`；文档收口时整卡 MD 终审与用户 Review 待，WPH 尚未 commit/push，
+      最终状态以同卡最终回执为准。生产、真实数据、Provider/IdP/LiveKit、设备、远端 CI 与部署未
+      执行。
+
 ## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
 
 - [x] **A6 分层依赖的 lint 规则**（Sonnet；依赖 A4 完成）：用 ESLint 限制 `platform` 不得依赖

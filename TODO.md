@@ -4,9 +4,10 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **B1 当前状态（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档。
-> 这不表示用户 Review、生产发布、真实数据/Provider/IdP/LiveKit/设备验收已经完成。B1-5 的提交、
-> 推送与最终证据以同卡交付回执为准。完成记录见
+> **B1 当前状态（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档；
+> 独立 WPH 随后完成 WebKit 设置控件修复，当前完整双浏览器 E2E 为
+> `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡 Review 与提交/推送以同卡最终回执为准；
+> 用户 Review 待，生产发布、真实数据/Provider/IdP/LiveKit/设备验收尚未完成。完成记录见
 > [已完成事项归档](./docs/history/todo-done.md)，当前实现与验证边界见
 > [PROJECT_STATUS 的 B1 小节](./docs/PROJECT_STATUS.md) 和
 > [B1 学习事件台账设计](./docs/LEARNING_EVENTS_DESIGN.md)。

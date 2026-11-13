@@ -10,6 +10,35 @@ const ACTIVE_SESSION = {
   ended_at: null,
 };
 
+const PROVIDER_SELECTS = [
+  {
+    id: "stt-provider-select",
+    label: "语音识别 (STT)",
+    optionValues: ["deepgram"],
+  },
+  {
+    id: "llm-provider-select",
+    label: "语言模型 (LLM)",
+    optionValues: ["siliconflow", "openrouter"],
+  },
+  {
+    id: "tts-provider-select",
+    label: "语音合成 (TTS)",
+    optionValues: ["cartesia"],
+  },
+] as const;
+
+const PROVIDER_VIEWPORTS = [
+  { name: "390px mobile", width: 390, height: 844 },
+  { name: "desktop", width: 1280, height: 720 },
+] as const;
+
+const PROVIDER_THEMES = [
+  { key: "warm", radioName: "暖色外观主题" },
+  { key: "cool", radioName: "冷色外观主题" },
+  { key: "dark", radioName: "黑色外观主题" },
+] as const;
+
 async function openDashboard(page: Page) {
   await page.route("**/api/sessions/active*", (route) =>
     route.fulfill({ json: { items: [ACTIVE_SESSION], next_cursor: null } }),
@@ -89,6 +118,82 @@ test("primary buttons on the ended view show a visible focus indicator", async (
   const seen = await tabThrough(page, 10, browserName === "webkit" ? "Alt+Tab" : "Tab");
   expect(seen.some((s) => s.name === "返回主页")).toBe(true);
   expect(seen.filter((s) => !s.visible)).toEqual([]);
+});
+
+test.describe("Provider native select touch geometry and interaction", () => {
+  for (const viewport of PROVIDER_VIEWPORTS) {
+    for (const theme of PROVIDER_THEMES) {
+      test(`${viewport.name} ${theme.key} theme keeps three native Provider selects usable at 44px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await openDashboard(page);
+
+        await page.getByRole("button", { name: "自定义模型设置" }).click();
+        const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+        await expect(dialog).toBeVisible();
+
+        const customModeSwitch = dialog.getByRole("switch");
+        await expect(customModeSwitch).toBeVisible();
+        await customModeSwitch.click();
+
+        const providerFieldset = dialog.locator("fieldset");
+        await expect(providerFieldset).toBeEnabled();
+
+        const themeRadio = dialog.getByRole("radio", { name: theme.radioName });
+        await themeRadio.click();
+        await expect(themeRadio).toHaveAttribute("aria-checked", "true");
+        if (theme.key === "warm") {
+          const appliedTheme = await page
+            .locator("html")
+            .evaluate((element) => element.getAttribute("data-theme"));
+          expect(appliedTheme === "warm" || appliedTheme === null).toBe(true);
+        } else {
+          await expect(page.locator("html")).toHaveAttribute("data-theme", theme.key);
+        }
+
+        for (const providerSelect of PROVIDER_SELECTS) {
+          const select = dialog.getByLabel(providerSelect.label);
+          await expect(select).toHaveId(providerSelect.id);
+          await expect(select).toBeEnabled();
+          expect(await select.evaluate((element) => element.tagName)).toBe("SELECT");
+          expect(await select.evaluate((element) => (element as HTMLSelectElement).type)).toBe(
+            "select-one",
+          );
+          await expect(select.locator("option")).toHaveCount(providerSelect.optionValues.length);
+          expect(
+            await select
+              .locator("option")
+              .evaluateAll((options) =>
+                options.map((option) => (option as HTMLOptionElement).value),
+              ),
+          ).toEqual(providerSelect.optionValues);
+
+          const box = await select.boundingBox();
+          expect.soft(box, `${providerSelect.id} bounding box`).not.toBeNull();
+          expect
+            .soft(box?.width ?? 0, `${providerSelect.id} actual width`)
+            .toBeGreaterThanOrEqual(44);
+          expect
+            .soft(box?.height ?? 0, `${providerSelect.id} actual height`)
+            .toBeGreaterThanOrEqual(44);
+
+          await select.focus();
+          await expect(select).toBeFocused();
+          await expect.poll(async () => (await describeFocus(page))?.visible).toBe(true);
+        }
+
+        const llmSelect = dialog.getByLabel("语言模型 (LLM)");
+        await llmSelect.focus();
+        await expect(llmSelect).toBeFocused();
+        await llmSelect.selectOption("openrouter");
+        await expect(llmSelect).toHaveValue("openrouter");
+        await llmSelect.selectOption("siliconflow");
+        await expect(llmSelect).toHaveValue("siliconflow");
+        await expect(llmSelect).toBeFocused();
+      });
+    }
+  }
 });
 
 test("interactive controls are at least 44x44 at 390px on the dashboard and in settings", async ({

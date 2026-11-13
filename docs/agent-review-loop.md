@@ -174,7 +174,7 @@ B1-4 的完整双浏览器 E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / e
 baseline 默认 preview 零写，只有显式确认参数才写。零语法错误没有持久来源行，只能校验 coverage
 结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider 事实。
 
-B1-5 已完成本地实施与主控独立代码/测试 Review。`DELETE /api/user/account` 先验 Bearer 身份，再取
+历史 B1-5（当时）已完成本地实施与主控独立代码/测试 Review。`DELETE /api/user/account` 先验 Bearer 身份，再取
 learning-event control `FOR UPDATE` gate，最后复用同一已验证身份完成本地 User 映射/flush；匿名或
 错误 Bearer 不执行业务 SQL、不等待 gate。服务在调用方同一事务显式删除本人 12 类业务数据，成功只在
 commit 完成后返回固定 `200 {"status":"deleted"}`，失败整体 rollback 并返回通用 500。坏 baseline/
@@ -182,7 +182,7 @@ commit 完成后返回固定 `200 {"status":"deleted"}`，失败整体 rollback 
 revision、cutover_at、phase 和既有 gate。无 control 时用 SREX 表锁并重读封闭 prepare 窗口，不删除
 单例或重新锚定。旧 Job、stale recovery、worker 和晚到写入不能复活数据。
 
-B1-5 目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
+历史 B1-5 目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
 `934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，目标是完整树子集，不能相加。Vitest
 `1206 passed / 49 files`、Fake API `113 passed / 0 skip / exit 0`、build-script 21、API 类型 8、
 iOS 脚本 Node runner 37 均 exit 0；lint 为 `132 warning / 0 error`，warning 行清单与 B1-4 逐行
@@ -190,16 +190,23 @@ iOS 脚本 Node runner 37 均 exit 0；lint 为 `132 warning / 0 error`，warnin
 cutover、真实 Bearer、未链接旧 User 与 worker 锁序；两项运行时变异被真实 count/死锁断言杀死。
 临时 PG 已停止并自动移除。
 
-完整双浏览器 E2E 保留 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
+历史 B1-5 完整双浏览器 E2E 保留 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
 `[webkit] e2e/a11y-focus-touch.spec.ts:94:5` 的设置抽屉三 Provider select `336x23 < 44px`，
 断言位于第 127 行；UI/样式/E2E 未改，不能写全树全绿。第一次完整 format 返回 exit 1，唯一问题是
 Node Fake 测试文件；该文件与六份收口 MD 已按现有 Prettier 纯格式化，最终完整 format 以主控补跑
 回执为准。OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schema 逐值未变；
 18 份既有迁移字节未变，无新 DDL、依赖、UI 或 workflow。
 
-主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；用户 Review 仍待。B1-0～B1-5 已完成本地
-实施与完成项归档，当前停在用户 Review，不启动下一卡。提交/推送状态以同卡最终交付回执为准，不预填
-SHA，不开 PR、不合并、不部署。最新状态见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
+独立 WPH 随后只修共享 Provider select 的样式：显式 44px 高度、移除 `outline-none`、恢复既有
+accent 主题 2px 可见焦点轮廓，并保留原生 `appearance:auto` 与箭头。真实 RED 为 Chromium 7
+passed、WebKit 7 failed，定向 GREEN 为 14 passed；修复后当前完整双浏览器 E2E 为
+`246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，全部 13 项完整门禁及聚合均 `exit 0`。
+Chromium/WebKit 最终均为三控件 `336x44`、`appearance:auto`、2px solid outline。主控代码/测试与
+真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修 `0/2`。整卡 Review 与提交/推送以同卡
+最终回执为准；用户 Review 待。B1-0～B1-5 与 WPH 已完成本地实施与完成项归档，不启动下一卡。当前
+文档不预填 SHA，不开 PR、不合并、不部署。最新状态见
+[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
 历史 B1-4 的 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计已同卡完成；A3

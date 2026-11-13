@@ -2,8 +2,8 @@
 
 > 历史交付：本设计随 PR #150 交付并合入，当时仅完成设计，主控独立审阅 APPROVED。
 > 当前批次状态：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；B1-0～B1-5 于
-> 2026-11-13 完成本地实施、主控代码/测试 Review 与文档收口。用户 Review、生产切换、真实数据和
-> 真实外部依赖仍未验收，当前停在 B1-5 用户 Review。
+> 2026-11-13 完成本地实施、主控代码/测试 Review 与文档收口。独立 WPH 小修复亦已完成；整卡 Review
+> 与提交/推送以同卡最终回执为准，用户 Review 待。生产切换、真实数据和真实外部依赖仍未验收。
 > 历史 B1-1/B1-2 状态：B1-1 的 `LearningEvent` ORM/注册、`b1_learning_events` 迁移及 schema
 > 回归已在专用合成 PostgreSQL 验证；B1-2 已实现 §3–§5 的同事务事件写入、幂等、用户锁与 BKT
 > 合成隔离，主控独立代码 Review 为 APPROVED。历史 B1-2 目标套件为
@@ -22,13 +22,18 @@
 > `898 passed / 3 warnings / 0 skip`、覆盖率 `80.86%`、exit 0；完整双浏览器 E2E 为
 > `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是同名范围外遗留的 WebKit
 > Provider select `336x23 < 44px`。这些数字只属于 B1-4 当时基线。
-> 当前 B1-5 状态：本平台整账号硬删除及 `DELETE /api/user/account` 已实现，主控代码/测试 Review
+> 历史 B1-5 状态：本平台整账号硬删除及 `DELETE /api/user/account` 已实现，主控代码/测试 Review
 > 为 APPROVED，产品返修使用 `1/2`。目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
 > `934 passed / 3 warnings / 0 skip / 81.64% / exit 0`；Fake API 为
 > `113 passed / 0 skip / exit 0`。完整双浏览器 E2E 仍保留同名范围外遗留的
 > `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是 WebKit 三 Provider select
 > `336x23 < 44px`，不能写成全树全绿。用户 Review 仍待；提交/推送状态以同卡最终交付回执为准，
 > 不开 PR、不合并、不部署。生产库未执行 DDL、切换或真实数据处理。
+> 当前 WPH 状态：独立修复已恢复设置抽屉 Provider select 的 44px 高度与可见焦点；完整双浏览器
+> E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
+> `934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，全部 13 项完整门禁及聚合均 `exit 0`。
+> 主控代码/测试 Review 与真实截图 Review 均 APPROVED；整卡 Review 与提交/推送以同卡最终回执为准，
+> 用户 Review 待。
 > 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实
 > 外部服务接入不在本项内。
 
@@ -408,7 +413,7 @@ B1-3 新增迁移 `b1_learning_event_cutover`，父 revision 为 `b1_learning_ev
 7. 现有四参数冻结为 `bkt-v1`；新版本不改写旧事件。
 
 B1-0～B1-5 已于 2026-11-13 完成本地实施、主控代码/测试 Review 与完成项归档；历史 B1-1～B1-4
-的具名数字继续只属于各自卡。B1-5 的目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
+的具名数字继续只属于各自卡。历史 B1-5（当时）的目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
 `934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，是完整树的子集关系；Vitest 保持
 `1206 passed / 49 files`，Fake API 为 `113 passed / 0 skip / exit 0`，build-script 21、API 类型
 8、iOS 脚本 Node runner 37 均 exit 0。lint 为 `132 warning / 0 error`，warning 行清单与 B1-4
@@ -416,14 +421,20 @@ B1-0～B1-5 已于 2026-11-13 完成本地实施、主控代码/测试 Review �
 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败仍是同名范围外 WebKit 三 Provider
 select `336x23 < 44px`；聚合入口不覆盖该原始失败。
 
-B1-5 第一次完整 format 曾因 Node `fake-api-test.mjs` 返回 exit 1；该文件与六份收口 MD 已由现有
+历史 B1-5 第一次完整 format 曾因 Node `fake-api-test.mjs` 返回 exit 1；该文件与六份收口 MD 已由现有
 Prettier 纯格式化，最终完整 format 以主控补跑回执为准，不能提前写成全绿。OpenAPI/TypeScript
 只新增 DELETE path 与一个响应 schema，旧 path/schema 逐值未变；18 份既有迁移字节未改，无新 DDL、
 依赖、产品 UI 或 workflow 变更。目标数据库语义均以独立合成 PostgreSQL 验证，临时 PG 已停止并
 自动移除。
 
-主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；用户 Review 仍待。代码 Review APPROVED
-不等于用户验收或全 E2E 通过。提交/推送状态以同卡最终交付回执为准，当前文档不预填 SHA，不开 PR、
-不合并、不部署。生产库未执行 DDL、切换、真实数据处理或不可恢复删除；真实 Provider/IdP/LiveKit、
-设备、原生 iOS、远端 CI、生产备份与法定/特殊保留均未验收，音频采集与真实外部服务不在本范围。
-任务分支 push 不触发远端 CI。
+独立 WPH 只修复共享 select 的显式 44px 高度与既有主题 2px 可见焦点轮廓，保留原生
+`appearance:auto` 和箭头；测试文件冻结、`styles.css` 未改。真实 RED 为 Chromium 7 passed、
+WebKit 7 failed，定向 GREEN 为 14 passed；修复后当前完整 E2E 为
+`246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Chromium/WebKit 最终均为三控件
+`336x44`、`appearance:auto`、2px solid outline；全部 13 项完整门禁及聚合均 `exit 0`。主控代码/
+测试 Review 与真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修 `0/2`。整卡 Review 与
+提交/推送以同卡最终回执为准，用户 Review 待；E2E 通过不等于用户验收或生产验收。当前文档不预填
+SHA，不开 PR、不合并、不部署。生产库未执行 DDL、切换、真实数据处理或不可恢复删除；真实
+Provider/IdP/LiveKit、设备、原生 iOS、远端 CI、生产备份与法定/特殊保留均未验收，音频采集与真实
+外部服务不在本范围。任务分支 push 不触发远端 CI。

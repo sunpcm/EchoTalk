@@ -1,9 +1,11 @@
 # EchoTalk 当前状态
 
 > 最后核对：2026-11-13。当前 Linux 基线仍按 A6（PR #155）代码 `87e0fd5` 的历史快照记录；
-> B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档，当前停在 B1-5 用户 Review；
-> 生产发布、真实数据和真实依赖仍未验收。历史 B1-1～B1-4 的合成 PostgreSQL、完整本机门禁与
-> 独立代码 Review 结果见下文，各自数字只属于当时卡。
+> B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档；独立 WPH 已完成 WebKit 设置
+> 控件修复，当前完整双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡
+> Review 与提交/推送以同卡最终回执为准；用户 Review 待。生产发布、真实数据和真实依赖仍未验收。
+> 历史 B1-1～B1-5 的合成 PostgreSQL、完整本机门禁与独立代码 Review 结果见下文，各自数字只属于
+> 当时卡。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -58,9 +60,9 @@
 ### A3（Fake API 契约校验，PR #141/#147）合并收口
 
 Fake API 的成功响应与缺失 operation 受仓内 OpenAPI 校验，既有偏差精确固定；A3 该轮为 108 项
-通过；历史 B1-4 Fake API 为 `110 passed / 0 skip / exit 0`，当前 B1-5 为
+通过；历史 B1-4 Fake API 为 `110 passed / 0 skip / exit 0`，历史 B1-5 为
 `113 passed / 0 skip / exit 0`，见本文
-[B1 小节](#b1学习事件台账b1-5-本轮实现完成用户-review-待)。
+[B1 小节](#b1学习事件台账wph-收口完成用户-review-待)。
 最终实现 source `b1d3756` 合入 `main@a7841b7`，文档后由PR #147收口；历史及偏差清单见归档。
 
 ### A4a（只读 data 层，PR #149）合并收口
@@ -113,7 +115,16 @@ worker head fixture 适配，最终本机门禁和专用合成 PostgreSQL 结果
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）B1-5 本轮实现完成；用户 Review 待
+### B1（学习事件台账）WPH 收口完成；用户 Review 待
+
+**WPH 当前状态（2026-11-13）：** B1-5 之后的独立小修复已恢复设置抽屉三个 Provider select 的
+44px 触控高度与可靠可见焦点。真实 RED 为 Chromium `7 passed`、WebKit `7 failed`，定向 GREEN 为
+`14 passed / exit 0`；修复后完整双浏览器 E2E 为
+`246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`。全部 13 项完整门禁及聚合均 `exit 0`；
+Chromium/WebKit 最终检查均为三个控件各 `336x44`、`appearance:auto`、2px solid outline。主控
+代码/测试 Review 与真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修 `0/2`。整卡 Review
+与提交/推送以同卡最终回执为准；用户 Review 待。
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -158,14 +169,14 @@ build-script `21`、Fake API `108`、API 类型生成器 `8` 均 `exit 0`；强�
 `exit 0`。17 个既有迁移字节未改动。B1-0 的 `809 passed / 80.19%` 和 B1-1 的 `813` 是历史基线；
 历史 B1-2 backend 为 `844 passed / 80.82%`，历史 Vitest 为 `1206 passed / 49 files`。
 
-B1-3 的本轮代码/测试 Review 由主控独立审阅为 APPROVED，目标套件为
+历史 B1-3（当时）的代码/测试 Review 由主控独立审阅为 APPROVED，目标套件为
 `147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为 `878 passed / 3 warnings / 0 skip`、
 覆盖率 `80.51%`、exit 0。Vitest 保持 `1206 passed / 49 files`，Fake API `108`、构建脚本 `21`、
 API 类型测试 `8`，lint 为 `132 warning / 0 error / 0 new warning`；除 E2E 外所列完整门禁均
 exit 0。前端自 `f6007a2` 未改，前端/Fake API/契约/配置均未改。代码 Review 通过不代表完整 E2E
 或用户验收通过。
 
-E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`，失败分别是 WebKit Provider select
+历史 B1-3 E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`，失败分别是 WebKit Provider select
 `336×23 < 44` 与 WebKit readiness 引导 textarea 超时；随后 DocTalk 定向为
 `3 passed / 0 failed / 0 skip / 0 retry / exit 0`，再次全量为
 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过、只剩同一 WebKit Provider
@@ -226,7 +237,7 @@ READ COMMITTED mutation 被真实并发后提交事件泄漏断言杀死，产�
 500 且无下载头。同步导出会完整缓冲在内存中，内存占用和快照持续时间随账户数据增长；本卡没有新增
 阈值、分页、异步任务、UI 或真实依赖。
 
-**当前 B1-5** 已实现本平台整账号硬删除。`DELETE /api/user/account` 仅使用 Bearer 映射的本人 ID，
+**历史 B1-5（当时）** 已实现本平台整账号硬删除。`DELETE /api/user/account` 仅使用 Bearer 映射的本人 ID，
 先完成无业务库读取的身份验签，再取得 learning-event control gate，最后复用同一身份完成本地 User
 映射/flush。服务在调用方同一事务显式删除 12 类本人数据：users、user_profiles、user_settings、
 sessions、transcripts、session_contexts、analysis_jobs、pronunciation_assessments、
@@ -240,7 +251,7 @@ cutover_at、phase 和既有 gate；无 control 时用 SREX 表锁封闭 prepare
 `knowledge_states` 锚定。`claim_next_job` 本身仍无 gate，全部新旧 worker 必须保持停止到
 `traffic_resumed`；部署代码、数据库锁和表锁不能证明未知旧进程已经退出。
 
-主控实测 B1-5 目标为 `36 passed / 0 skip / exit 0`，完整 backend 为
+主控当时实测 B1-5 目标为 `36 passed / 0 skip / exit 0`，完整 backend 为
 `934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，36 项是完整树子集，不能相加。Vitest
 `1206 passed / 49 files`，Fake API `113 passed / 0 skip / exit 0`，build-script 21、API 类型 8、
 iOS 脚本 Node runner 37 均 exit 0；lint 为 `132 warning / 0 error`，warning 行清单与 B1-4 逐行
@@ -268,9 +279,11 @@ OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schem
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
-- B1-5 完整双浏览器 E2E 仍为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置
-  抽屉三个 Provider select 的 `336x23 < 44px`；UI/样式/E2E/配置相对父提交未改，按同名范围外
-  遗留保留，不能据此称全树全绿或未经证实归因环境。聚合门禁 exit 0 不覆盖该原始失败。
+- 历史 B1-5 的完整双浏览器 E2E 当时为
+  `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置抽屉三个 Provider select
+  的 `336x23 < 44px`；该历史快照及当时范围外判断继续保留。后续独立 WPH 已修复该问题，当前完整
+  双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，不能把当前结果回写成当时
+  已通过。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策

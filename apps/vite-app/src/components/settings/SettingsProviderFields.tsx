@@ -182,7 +182,7 @@ function ProviderGroup({
           id={selectId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="border-border-default bg-surface focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+          className="border-border-default bg-surface focus:border-accent-soft-border focus:outline-accent focus:ring-accent-soft-border h-[44px] min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors focus:ring-1 focus:outline-2"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>

@@ -141,16 +141,19 @@ backend 路由  ──导出──▶  openapi.json  ──生成──▶  前�
 认证身份、prompt/文档、音频和 Provider 原始响应/引用，并在单一
 `REPEATABLE READ READ ONLY` 快照中完成本人归属校验、非有限浮点失败关闭和整体缓冲序列化。
 
-B1-5 已完成本地实施和主控代码/测试 Review，新增 `DELETE /api/user/account` 与本平台整账号硬删。
+历史 B1-5 已完成本地实施和主控代码/测试 Review，新增 `DELETE /api/user/account` 与本平台整账号硬删。
 接口先验身份、再取 learning-event control gate、最后复用同一身份映射；成功后仅在 commit 完成时
 返回 `200 {"status":"deleted"}`。服务在同一事务删除本人 12 类业务数据，保留全局 skills、控制行和
 其他用户数据；坏 baseline/跨归属失败关闭，合法删除后按剩余真实 baseline 事件更新全局数量/摘要，
-旧 Job/worker 不能复活数据。当前 B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档，
-但用户 Review、生产发布和真实依赖仍未验收。提交/推送状态以同卡最终交付回执为准，不开 PR、不合并、
-不部署。完整测试数字、原始 E2E 失败与风险见
-[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；不能把代码 Review APPROVED 写成用户验收或全 E2E
-通过。生产迁移/切换、真实数据、真实依赖、真实不可恢复删除、远端 CI、备份策略及会话音频切片采集
-都不在当前证据范围。
+旧 Job/worker 不能复活数据。B1-5 之后的独立 WPH 已恢复设置 Provider select 的 44px 高度与可见
+焦点；当前完整双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend
+为 `934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，全部 13 项完整门禁及聚合均 `exit 0`。
+主控代码/测试 Review 与真实截图 Review 均 APPROVED；整卡 Review 与提交/推送以同卡最终回执为准，
+用户 Review 待。历史 B1-3/B1-4/B1-5 的 `233 passed / 1 failed` 当时快照继续保留。B1-0～B1-5
+已完成本地实施与完成项归档，但生产发布和真实依赖仍未验收。不开 PR、不合并、不部署。完整测试
+数字、历史失败与风险见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)；不能把代码 Review
+APPROVED 写成用户验收或生产验收。生产迁移/切换、真实数据、真实依赖、真实不可恢复删除、远端
+CI、备份策略及会话音频切片采集都不在当前证据范围。
 
 ### 3.5 平台：能力接口，按证据推进
 
@@ -206,13 +209,14 @@ Fake API 浏览器 E2E   ← 已有，强
 OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missing/空 schema 豁免。本批不新增
 产品 UI 或真实依赖。
 
-当前 B1-5 已完成本地实施，主控代码/测试 Review 为 APPROVED，用户 Review 待；提交/推送状态以
-同卡最终交付回执为准，不开 PR、不合并、不部署。B1-0～B1-5 已完成本地实施与完成项归档，当前停在
-用户 Review，不启动下一卡。测试与失败边界见
-[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)，不得把代码 Review APPROVED 写成用户验收、
-生产切换或全 E2E 通过。完整双浏览器 E2E 必须保留
-`233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是 WebKit 三 Provider select
-`336x23 < 44px`；聚合入口返回 0 不能覆盖真实 `e2e=1`。
+B1-5 之后的独立 WPH 小修复已完成，主控代码/测试与真实截图 Review 为 APPROVED；当前完整双浏览器
+E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡 Review 与提交/推送以同卡最终回执
+为准；用户 Review 待。不开 PR、不合并、不部署。B1-0～B1-5 已完成本地实施与完成项归档，不启动
+下一卡。历史 B1-3/B1-4/B1-5 当时的
+`233 passed / 1 failed / 0 skip / 0 retry / exit 1` 与 WebKit Provider select `336x23 < 44px`
+失败原因继续按各自快照保留，不能把当前 246 结果改写为当时已通过。测试与当前风险见
+[PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md)，不得把代码 Review APPROVED 或当前 E2E 通过写成
+用户验收或生产切换完成。
 
 1. **B1-1 模型、新增迁移与约束**：已建立 `learning_events` 的 ORM、identity、CHECK、唯一约束、
    外键、索引与新增迁移，旧迁移只增不改。本轮专用合成 PostgreSQL 已完成空库 upgrade 至 b1、
@@ -251,8 +255,9 @@ OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missin
    已由主控的独立合成 PostgreSQL 与完整门禁验证；用户 Review、生产数据、生产备份和法定/特殊保留
    仍未验收。
 
-B1-0～B1-5 的本地实现与主控代码/测试 Review 已收口，完成记录归档；当前停在 B1-5 用户 Review，
-不启动下一卡。生产切换、真实数据、真实不可恢复删除和音频采集另走独立授权与发布门禁。
+B1-0～B1-5 与独立 WPH 的本地实现及主控代码/测试 Review 已收口，完成记录归档；整卡 Review 与
+提交/推送以同卡最终回执为准，用户 Review 待，不启动下一卡。生产切换、真实数据、真实不可恢复
+删除和音频采集另走独立授权与发布门禁。
 
 排序的理由：
 
