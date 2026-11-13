@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { EndedConversation } from "@/components/conversation/EndedConversation";
+import { EndedConversation } from "./EndedConversation";
 import { PronunciationFeedback } from "./PronunciationFeedback";
 import type { AssessmentResponse, GrammarErrorResponse } from "@/lib/api";
 import { zhCN } from "@/i18n/zh-CN";

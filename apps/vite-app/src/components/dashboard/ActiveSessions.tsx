@@ -4,7 +4,7 @@
  * 提供显式结束记录与显式恢复练习能力（接管暂未开放）。
  * 遵循严格的认证代际隔离、竞态消除及不回显服务端报错策略。
  *
- * 本文件只做组装；流程分别位于 active-sessions/ 下的列表、结束、恢复与订阅四个 Hook。
+ * 本文件只做组装；流程分别位于 activeSessions/ 下的列表、结束、恢复与订阅四个 Hook。
  */
 
 import React, { useRef } from "react";
@@ -12,13 +12,13 @@ import { arePrincipalsEqual, getAuthRevision } from "@/lib/auth";
 import { useConversationStore } from "@/store/conversation";
 import { isStartingConversationSession } from "@/store/conversationState";
 import { zhCN } from "@/i18n/zh-CN";
-import { ConfirmPanel } from "./active-sessions/ConfirmPanel";
-import { SessionRow } from "./active-sessions/SessionRow";
-import { createActiveSessionsRuntime, type ActiveSessionsRuntime } from "./active-sessions/shared";
-import { useActiveSessionList } from "./active-sessions/useActiveSessionList";
-import { useActiveSessionsLifecycle } from "./active-sessions/useActiveSessionsLifecycle";
-import { useSessionEndFlow } from "./active-sessions/useSessionEndFlow";
-import { useSessionResumeFlow } from "./active-sessions/useSessionResumeFlow";
+import { ConfirmPanel } from "./activeSessions/ConfirmPanel";
+import { SessionRow } from "./activeSessions/SessionRow";
+import { createActiveSessionsRuntime, type ActiveSessionsRuntime } from "./activeSessions/shared";
+import { useActiveSessionList } from "./activeSessions/useActiveSessionList";
+import { useActiveSessionsLifecycle } from "./activeSessions/useActiveSessionsLifecycle";
+import { useSessionEndFlow } from "./activeSessions/useSessionEndFlow";
+import { useSessionResumeFlow } from "./activeSessions/useSessionResumeFlow";
 
 const t = zhCN.activeSessions;
 

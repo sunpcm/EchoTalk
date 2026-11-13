@@ -16,7 +16,7 @@ import {
   EndingView,
   IdleView,
 } from "./ConversationStatusViews";
-import { EndedConversation } from "./EndedConversation";
+import { EndedConversation } from "@/components/review/EndedConversation";
 import { RoomSession } from "./RoomSession";
 
 export { stopRoomLocalTracks } from "./roomAudio";

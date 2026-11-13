@@ -8,7 +8,7 @@ import { getRecommendedCurriculum } from "@/lib/api";
 import type { CurriculumRecommendation, CurriculumNextResponse } from "@/lib/api";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
-import { SectionState } from "./SectionState";
+import { SectionState } from "@/components/shared/SectionState";
 import { formatTitle } from "@/utils/format";
 
 const t = zhCN.dashboard;

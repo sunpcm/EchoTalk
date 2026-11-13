@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { AnswerRecommendations } from "../../src/components/learning/AnswerRecommendations";
+import { AnswerRecommendations } from "../../src/components/session/AnswerRecommendations";
 import "../../src/styles.css";
 
 document.documentElement.setAttribute("data-theme", "warm");

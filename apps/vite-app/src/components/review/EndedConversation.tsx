@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import { PronunciationFeedback } from "@/components/pronunciation/PronunciationFeedback";
-import { SkillTree } from "@/components/learning/SkillTree";
+import { PronunciationFeedback } from "./PronunciationFeedback";
+import { SkillTree } from "@/components/shared/SkillTree";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
 import { zhCN } from "@/i18n/zh-CN";
 import { useAssessmentStore } from "@/store/assessment";

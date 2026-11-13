@@ -1,35 +1,53 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13。R2-12 macOS 纯静态构建工具、同步前校验和 Turbo 缓存已完成本地实施与
-> 本地验收，独立代码 Review 为 APPROVED；当前门禁和边界见下方 R2-12 小节，用户 Review 待。
-> R2-14 以及 A6、B1、独立 WPH 的数字继续绑定各自当次快照，不改写当时结果。正式 macOS 客户端、
-> Tauri 选型、native 认证、设备与签名均未创建或验收。
+> 最后核对：2026-11-13。R2-13 组件目录按页面边界归位与 `Dashboard` 抽取已完成本地实施、完整
+> 门禁和独立代码 Review；当前证据和边界见下方 R2-13 小节，用户 Review 待。R2-12、R2-14 以及
+> A6、B1、独立 WPH 的数字继续绑定各自当次快照，不改写当时结果。正式 macOS 客户端、Tauri 选型、
+> native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
 
 ## 当前功能
 
-| 领域           | 当前实现                                                                             | 状态与边界                                                              |
-| -------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离      | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收       |
-| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                    | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明              |
-| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康 | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收           |
-| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束 | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭             |
-| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                      | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收            |
-| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态   | 已实现                                                                  |
-| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照       | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI            |
-| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人 12 类业务数据，保留控制行和他人数据    | 已实现；代码/测试 Review APPROVED，用户 Review 待；生产不可恢复性未验收 |
-| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                  | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                |
-| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast   | 已实现；密钥轮换和 Provider 连通性需按环境验收                          |
-| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                  | 已实现 Web 流程；原生端文件选择未验收                                   |
-| 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标             | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                 |
-| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现          |
-| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                              | 真机全链路、原生登录与发布未验收                                        |
-| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存 | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验   |
-| 数字人         | 只有待办                                                                             | **未实现**                                                              |
+| 领域           | 当前实现                                                                                      | 状态与边界                                                              |
+| -------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离               | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收       |
+| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                             | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明              |
+| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康          | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收           |
+| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束          | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭             |
+| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                               | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收            |
+| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态            | 已实现                                                                  |
+| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照                | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI            |
+| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人 12 类业务数据，保留控制行和他人数据             | 已实现；代码/测试 Review APPROVED，用户 Review 待；生产不可恢复性未验收 |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                           | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                |
+| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast            | 已实现；密钥轮换和 Provider 连通性需按环境验收                          |
+| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                           | 已实现 Web 流程；原生端文件选择未验收                                   |
+| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标 | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                 |
+| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                         | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现          |
+| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                       | 真机全链路、原生登录与发布未验收                                        |
+| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存          | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验   |
+| 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### R2-13（组件目录按页面边界归位）本地实施/验收完成；用户 Review 待
+
+- `Dashboard` 已从 `App.tsx` 抽为独立组件，函数体、参数和三行常量初始化保持原逻辑；38 个文件
+  按页面边界完成 `git mv`，其中 29 个文件字节不变，9 个仅修改模块路径或目录注释。12 个测试文件
+  随之移动，`src` 测试文件保持 49 个一一对应，Vitest、backend 与 E2E 三测试树计数不变。
+- Vitest 为 `1206 passed / 49 files`；backend 为
+  `941 passed / 3 warnings / 0 skip / 81.56% raw coverage`；双浏览器 E2E 为
+  `246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`）。
+- Node 构建测试为 `47 passed`，Fake API 为 `116 passed`，API 类型 runner 为 `8 passed`，非 native
+  iOS 脚本 runner 为 `37 passed`。lint 为 `132 warning / 0 error`，逐诊断不增；完整 13 项门禁及
+  聚合均为 `exit 0`。
+- 私有结构检查为 `43/43`，2 个变异均已处理；80 个增改删路径冻结且未漂移。主控独立代码 Review
+  为 APPROVED，正式产品返修 `0/2`。
+- 本轮未验证生产、真实 Provider/IdP/LiveKit、native 设备或部署；远端 CI 未执行，因为现有 workflow
+  仅由 `main`/`master` push 和 PR 触发，本卡不开 PR。提交/推送状态以主控最终回执为准，本文不预填
+  成功。旧 docs 历史路径引用保持原样，待用户裁定的生命周期项只同步当前源码路径，不改待裁定状态
+  或产品逻辑。
 
 ### R2-12（macOS 构建产物与同步脚本）本地实施/验收完成；用户 Review 待
 

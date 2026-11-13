@@ -171,16 +171,16 @@ vi.mock("@livekit/components-react", () => ({
 }));
 
 // Mock sub-components
-vi.mock("@/components/pronunciation/PronunciationFeedback", () => ({
+vi.mock("@/components/review/PronunciationFeedback", () => ({
   PronunciationFeedback: () => <div data-testid="pronunciation-feedback" />,
 }));
-vi.mock("@/components/learning/SkillTree", () => ({
+vi.mock("@/components/shared/SkillTree", () => ({
   SkillTree: () => <div data-testid="skill-tree" />,
 }));
-vi.mock("@/components/learning/AnswerRecommendations", () => ({
+vi.mock("./AnswerRecommendations", () => ({
   AnswerRecommendations: () => <div data-testid="answer-recommendations" />,
 }));
-vi.mock("@/components/conversation/ChatSubtitles", () => ({
+vi.mock("./ChatSubtitles", () => ({
   ChatSubtitles: () => <div data-testid="chat-subtitles" />,
 }));
 

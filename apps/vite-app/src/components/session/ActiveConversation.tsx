@@ -8,8 +8,8 @@ import {
   VoiceAssistantControlBar,
 } from "@livekit/components-react";
 import { ConnectionState } from "livekit-client";
-import { AnswerRecommendations } from "@/components/learning/AnswerRecommendations";
-import { ChatSubtitles } from "@/components/conversation/ChatSubtitles";
+import { AnswerRecommendations } from "./AnswerRecommendations";
+import { ChatSubtitles } from "./ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
 import { arePrincipalsEqual, getAuthRevision, getAuthSnapshot } from "@/lib/auth";
 import type { AuthPrincipal } from "@/lib/auth";

@@ -7,7 +7,7 @@
 import React from "react";
 import { useDailyProgressQuery } from "@/data/use-daily-progress-query";
 import { zhCN } from "@/i18n/zh-CN";
-import { SectionState } from "./SectionState";
+import { SectionState } from "@/components/shared/SectionState";
 
 const t = zhCN.dashboard;
 

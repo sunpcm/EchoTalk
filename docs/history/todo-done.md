@@ -6,6 +6,13 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-13 R2-13 组件目录按页面边界归位
+
+- [x] **R2-13 组件目录按页面边界归位**：抽出 `Dashboard` 并按页面边界 `git mv` 38 个文件，其中
+      29 个内容不变、9 个仅修改模块路径或目录注释，12 个测试文件随之移动；三测试树计数不变。
+      独立代码 Review 为 APPROVED，用户 Review 待。详细门禁和边界见
+      [PROJECT_STATUS](../PROJECT_STATUS.md)。
+
 ## 2026-11-13 R2-12 macOS 构建产物与同步前校验
 
 - [x] **R2-12 macOS 构建产物与同步脚本**：完成共享 Vite 的 macOS 纯静态构建产物

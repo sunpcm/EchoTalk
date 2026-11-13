@@ -7,11 +7,11 @@ import { useSettingsStore } from "@/store/settings";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
 
-vi.mock("@/components/learning/WeeklyProgress", () => ({
+vi.mock("@/components/dashboard/WeeklyProgress", () => ({
   WeeklyProgress: () => <section data-testid="weekly-progress-mock" />,
 }));
 
-vi.mock("@/components/learning/WeeklyGrammar", () => ({
+vi.mock("@/components/dashboard/WeeklyGrammar", () => ({
   WeeklyGrammar: () => <section data-testid="weekly-grammar-mock" />,
 }));
 

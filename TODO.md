@@ -23,7 +23,7 @@
 
 - [ ] **待用户裁定：活动会话订阅里的"启动在途"取值，以及两处界面文案**（来源：
       [云端评审](./docs/reviews/2026-11-cloud-review.md) §3.4）：
-      (1) `apps/vite-app/src/components/conversation/active-sessions/useActiveSessionsLifecycle.ts` 中，
+      (1) `apps/vite-app/src/components/dashboard/activeSessions/useActiveSessionsLifecycle.ts` 中，
       生命周期事件判断"是否正在启动会话"用的是挂载时的 `isStarting`，订阅期间不更新（拆分前即如此，R2-07
       按原样保留）；列表刷新本身读取 store 实时值，因此影响限于 resume/connectivity 事件是否触发刷新。
       (2) 设置抽屉标题"自定义模型设置"是否改为"设置"；(3) 活动会话行是否不再展示完整 UUID。
@@ -45,8 +45,10 @@
       外部工具前校验来源产物和 mode；新增 Turbo 任务将 `ANALYZE` 纳入缓存输入。正式客户端、壳与
       Tauri 选型仍未创建或确认。详细门禁和边界见
       [PROJECT_STATUS 的 R2-12 小节](./docs/PROJECT_STATUS.md)。
-- [ ] **R2-13 组件目录按页面边界归位**（P-3，P2；排在 R2-07 之后）：抽出 `Dashboard`，按 §2.4 P-3 的目标结构
-      `git mv`。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
+- [x] **R2-13 组件目录按页面边界归位**（纯目录归位与 `Dashboard` 抽取完成；独立代码 Review 为
+      APPROVED，用户 Review 待）：抽出 `Dashboard`，按 §2.4 P-3 的目标结构 `git mv` 38 个文件，
+      其中 29 个内容不变、9 个仅改模块路径或目录注释，12 个测试文件移动；三测试树计数不变。
+      详细门禁和边界见 [PROJECT_STATUS 的 R2-13 小节](./docs/PROJECT_STATUS.md)。
 - [x] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2）：本文记录的本地合成实施、完整
       门禁与独立代码 Review 已完成；该勾选仅表示本地合成实施/验证完成，用户 Review 待。新增不依赖
       用户身份的公开

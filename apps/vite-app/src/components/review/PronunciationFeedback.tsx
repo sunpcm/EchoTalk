@@ -5,7 +5,7 @@
 
 import React from "react";
 import type { AssessmentResponse, GrammarErrorResponse } from "@/lib/api";
-import { PhonemeVisualizer } from "@/components/pronunciation/PhonemeVisualizer";
+import { PhonemeVisualizer } from "./PhonemeVisualizer";
 import { zhCN } from "@/i18n/zh-CN";
 
 const t = zhCN.assessment;
