@@ -33,8 +33,27 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
       await route.continue();
     });
 
+    // 在导航前安装 Playwright 假时钟：页面加载/抽屉滑入动画期间假时钟仍按真实时间推进，
+    // 保证水合与动画自然完成；随后用 pauseAt 冻结，再精确推进 300ms 防抖窗口。
+    await page.clock.install({ time: new Date("2026-11-14T08:00:00Z") });
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
+
+    // 只读旁路观测：在页面内包装 window.fetch，记录指向 /api/user/settings 的 PUT 调用
+    // 次数后委托原 fetch，不改真实 HTTP 行为；记录同步发生在页面内，规避 Node 侧 route
+    // 数组读取竞态，使“前299不发 / 300发”边界断言确定性成立。
+    await page.evaluate(() => {
+      const originalFetch = window.fetch.bind(window);
+      (window as any).__themePutCalls = 0;
+      (window as any).fetch = (input: any, init?: any) => {
+        const url = typeof input === "string" ? input : (input?.url ?? "");
+        const method = ((init?.method as string) || "GET").toUpperCase();
+        if (url.includes("/api/user/settings") && method === "PUT") {
+          (window as any).__themePutCalls += 1;
+        }
+        return originalFetch(input, init);
+      };
+    });
 
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
@@ -45,14 +64,35 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
     const coolBtn = dialog.getByRole("radio", { name: /冷色/ });
     const darkBtn = dialog.getByRole("radio", { name: /黑色/ });
 
-    // 快速连续点击冷色 -> 黑色（模拟 300ms 防抖窗口内的快速操作）
-    await coolBtn.click();
-    await darkBtn.click();
+    // 冻结时间，使两次主题选择确定性落在 300ms 防抖窗口内（不再依赖两次 awaited click
+    // 的真实耗时，避免并行负载下动作性检查/稳定态轮询把间隔自然拉长超过 300ms 而双 PUT）。
+    await page.clock.pauseAt(new Date("2026-11-14T08:01:00Z"));
 
-    // 等待防抖计时器到期并发送 PUT 请求
-    await page.waitForResponse(
+    // 冻结后 requestAnimationFrame 停摆，动作性稳定态检查不可用，故用 force 跳过动作性
+    // 但仍派发真实 UI 点击；先滚入视口规避固定抽屉内元素在 force 点击时的视口误差。
+    await coolBtn.scrollIntoViewIfNeeded();
+    await coolBtn.click({ force: true });
+    await darkBtn.scrollIntoViewIfNeeded();
+    await darkBtn.click({ force: true });
+
+    // 先注册响应监听（先于推进时钟），防漏收已经完成的响应。
+    const putResponsePromise = page.waitForResponse(
       (res) => res.url().includes("/api/user/settings") && res.request().method() === "PUT",
     );
+
+    // 前299不发：推进到 299ms，300ms 防抖计时器尚未到期，页面内不得有任何 PUT 调用。
+    await page.clock.runFor(299);
+    const putCallsAt299 = await page.evaluate(() => (window as any).__themePutCalls);
+    expect(putCallsAt299).toBe(0);
+
+    // 300发：推进越过 300ms 边界，防抖到期，应发出唯一一次 dark PUT。
+    await page.clock.runFor(1);
+
+    // 异步 HTTP 真正跨过观测栅栏，而非读 Node 数组竞态；若防抖被改大到 301ms，
+    // 计时器未到期，这里以显式计数断言失败（而非 waitForResponse 全局超时挂起）。
+    await expect.poll(() => putRequests.length, { timeout: 2_000 }).toBe(1);
+
+    await putResponsePromise;
 
     // 验证：300ms 防抖合并为单次 PUT，且只发送最后一次选中的末值 "dark"
     expect(putRequests.length).toBe(1);
