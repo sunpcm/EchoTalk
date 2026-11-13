@@ -4,10 +4,12 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **WG20 当前快照（2026-11-13）：** 只读基线与夹具核对完成；主控完整门禁、双浏览器 E2E 与额外
-> WebKit 重复补验均通过，零重试门槛已满足。当前夹具持续 503 至显式放行，历史“5 次 1 失败”
-> 与旧“唯一一次 503”假说保留，后者仍未证实。本轮仅文档收口，无产品/源码修改；完整数字、证据与
-> PG/hash 边界见 [PROJECT_STATUS 的 WG20 小节](./docs/PROJECT_STATUS.md)，最终回执与用户 Review 待。
+> **RF04E 当前快照（2026-11-14）：** 三次历史 main push 与 #128 iOS 失败传播的只读证据核对已完成，
+> 完整矩阵见 [CP-06 CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
+> 原始 R0 为 12 项 `exit 0`、E2E 与聚合 `exit 1`；追加零重试全量 E2E 为 `exit 0`，Chromium
+> 焦点失败未复现，但根因未证。门禁只能表述为“原始 12 项成功 + E2E 追加成功”，不是一次完整 13
+> 项全零重跑；原始聚合仍为 `exit 1`，不能概括为本地全绿。专用 PG 已停止并自动移除，683 份保护
+> 文件未改。最终独立 Review 与用户 Review 待主控回执。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -78,11 +80,11 @@
 
 **无需 Key，可直接开发：**
 
-- [ ] **RF-04 远端证据核对**：main CI（`42c61bb`、`6bda2cd`、`ef6cb53`）已实跑 OpenAPI
-      schema 与 TypeScript 类型生成门禁并成功；验收：按 RF-04 原契约逐项核对，更新
-      [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)，标明
-      `6bda2cd`/`ef6cb53` 的 run 因 #118 回退而无 iOS job（#128 起恢复 `test-ios-build`），
-      required check 配置未核。只改文档。
+- [x] **RF-04 远端证据核对**：`42c61bb`、`6bda2cd`、`ef6cb53` 的历史 main push 与
+      `5c28e1b` 的失败传播已只读核对，完整矩阵见
+      [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。本勾选只关闭
+      本次证据文档子卡；RF-04 总项、iOS 有限重试、required check、真实链路和本轮核对时的起始树
+      `4ec1a4d` 的 CI 仍未勾选。
 - [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长
       ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。
 
@@ -94,6 +96,13 @@
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。
+
+## 2026-11-14 RF04E 新观察
+
+- [ ] **RF04E 全量 E2E 焦点可达性待验**：本轮核对时的起始树 `4ec1a4d` 上，clean 首轮 Chromium
+      全量回归失败；七天区块仍 loading 只是失败现场；后续零重试 trace 全量诊断通过但未复现该失败，
+      根因仍未证。
+      该待验项保持未勾选，详见 [PROJECT_STATUS 的 RF04E 小节](./docs/PROJECT_STATUS.md)。
 
 ## 2026-11-07 历史发现与当前待验项
 

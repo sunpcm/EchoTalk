@@ -1,8 +1,11 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13。WG20 周语法 WebKit 补验当前快照见下方 WG20 小节：主控实际完成的完整
-> 13 项门禁及聚合均 `exit 0`，两个 WebKit 目标用例各重复 20 次且共 `40 passed`；本轮无产品修改、
-> 无源码修复。R2-13、R2-12、R2-14 以及 A6、B1、独立 WPH 的数字继续绑定各自当时快照，不改写旧数。
+> 最后核对：2026-11-14。RF04E 当前快照见下方 RF04E 小节：原始 R0 全量门禁因 E2E 一项 failure
+> 而聚合 `exit 1`；追加零重试全量 E2E 为 `exit 0`，但该失败未复现、根因未证。门禁只能记为
+> “原始 12 项 `exit 0` + E2E 追加 `exit 0`”，不是一次完整 13 项全零重跑，原始聚合仍为 `exit 1`，
+> 不能记为全绿。WG20 周语法 WebKit 补验是下方独立的历史快照：当时完整 13 项门禁及聚合全部成功，
+> 两个 WebKit 目标用例各重复 20 次且共 `40 passed`；该轮无产品修改、无源码修复。R2-13、
+> R2-12、R2-14 以及 A6、B1、独立 WPH 的数字继续绑定各自当时快照，不改写旧数。
 > 最终以主控回执为准；格式与独立 Review、提交/推送状态待主控处理，用户 Review 待。正式 macOS
 > 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
@@ -32,7 +35,39 @@
 
 ## 当前验证基线
 
-### WG20（WebKit 周语法重复稳定性补验）当前快照；最终回执与用户 Review 待
+### RF04E 已有远端 CI 证据核对（2026-11-14 当前快照；诊断完成但根因未证，Review 待）
+
+- 只读基线：worktree 为 `/private/tmp/echotalk-b1-implementation-20261112`，分支
+  `codex/B1-learning-events-20261112`，起始 HEAD `4ec1a4d2c89ec453a833bb06034e6a806e0c9ee1`；
+  文档写入前工作树 clean。`42c61bb`、`6bda2cd`、`ef6cb53` 是历史 main push attempt 1，
+  `5c28e1b` 的 #128 聚合失败是可核实的历史反证；完整远端矩阵与来源链接集中在
+  [CP-06 CI 质量门禁验证](./verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
+- 原始 R0 的完整 13 项本地门禁中 12 项 `exit 0`，`e2e` 为 `exit 1`，聚合也为 `exit 1`。Vitest
+  为 `1206 passed / 49 files`；backend 为 `941 passed / 3 warnings / 0 skip`，原生 coverage JSON
+  的 `percent_covered=81.55505107832009`，记为 `81.56% raw coverage`；build-script `47`、Fake API
+  `116`、API 类型 runner `8`、非 native iOS Node runner `37` 均通过；lint 为
+  `132 warning / 0 error / 0 new`，逐诊断与父基线精确相同。
+- 首轮全量双浏览器 E2E 为 `245 passed / 1 failed / exit 1`，配置为 `--retries=0 --workers=1`。
+  失败是 Chromium 的 `a11y-focus-touch.spec.ts:86`，第 93 行实际 `seen.length` 为 `5 < 6`。
+  `error-context` 中七天区块仍为 loading 只是失败现场，尚未证明为环境、产品或历史回归原因；
+  本轮不修改产品、源码、测试或断言。
+- 追加的 `retain-on-failure` trace 零重试完整双浏览器 E2E 已结束 `exit 0`：原始 JSON 主控机器核验
+  为 `246 passed`（Chromium `123` + WebKit `123`）；失败、跳过、flaky 和 retry 均为 0。每个
+  test 恰有 1 个 passed result；诊断运行全局 `workers=1`，两个 project 的 `retries=0`。证据为
+  `RF04E-e2e-diagnostic-results.json`、`RF04E-diagnostic-verified.json` 与
+  `ev/ev-RF04E-e2e-diagnostic-full.txt`。这是追加诊断，不覆盖原始 R0 的 `245 passed / 1 failed`
+  与 `exit 1`；焦点失败未复现，但原因仍未证明，不能写成已修复。
+- 本卡专用 empty tempfs PostgreSQL 已由主控核验精确 container ID、两个 owner 与 loopback 后停止，
+  `stop_exit=0`，并确认 `AutoRemove=true`；683 份保护文件未改。该保全与其余 12 项门禁成功都不能
+  覆盖原始 E2E/聚合 `exit 1`，因此当前本地结果不能概括为全绿。
+- 原始证据保留在
+  `/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/ev/ev-RF04E-full-e2e.txt`
+  及同目录对应聚合记录；追加诊断证据见上述三个文件。远端历史正向 run 不复用本次本地失败，也不
+  把本次失败写成远端 CI 结果；
+  本轮核对时的起始树 `4ec1a4d` 的 run count 为 `0`，required check、PR fail-block 与真实
+  Provider/IdP/LiveKit、设备、生产链路仍未验。独立 Review 与用户 Review 待主控回执。
+
+### WG20（WebKit 周语法重复稳定性补验）历史快照；最终回执与用户 Review 待
 
 - 只读基线：worktree 为
   `/private/tmp/echotalk-b1-implementation-20261112`，分支

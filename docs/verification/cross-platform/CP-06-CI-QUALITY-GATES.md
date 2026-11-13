@@ -2,8 +2,9 @@
 
 契约来源：`TODO.md` RF-04 CI 真实性与 CP-06 完整质量门禁。
 
-> §1–§4 保留 A30 本地接线与当时远端尚未运行的冻结历史。当前门禁拓扑、A64 远端
-> 基础证据及 A67 新增门禁的未验边界见 §5。
+> §1–§5 保留 A30 本地接线、A64 远端基础证据与 A67/A70 当时边界的冻结历史。§6 是
+> 2026-11-13 15:57:34 UTC 核对的 RF04E 当前追加段；各节数字继续绑定各自提交和运行，不能相加或
+> 互相替代。
 
 ## §1 CI 门禁对齐与命令映射
 
@@ -84,3 +85,77 @@ frontend10/schema/Ruff/backend 复验，已由主 Agent 独立核实；这次 A7
   完整 backend 与聚合 job 在 GitHub 当前树上均未执行。
 - 真实 IdP/Provider/LiveKit、设备与部署也未验。故 RF-04 继续未勾选，剩余门禁是当前远端树
   的完整 CI 运行与真实链路验收。
+
+## §6 RF04E 已有远端证据核对（2026-11-13 15:57:34 UTC）
+
+本节按安全摘要 `RF04E-remote-evidence.json` 与五个 Git 树的原生 YAML 解析结果
+`RF04E-workflow-static-audit-r1.json` 追加。初版私有 regex 提取无效，已从证据链排除。
+下列结论只覆盖所列历史提交、运行、job 和日志摘要；本轮核对时的起始树 `4ec1a4d` 上的原始本地
+E2E 失败、追加诊断与未证根因独立记录在 [PROJECT_STATUS 的 RF04E 小节](../../PROJECT_STATUS.md)，
+不能改写本节历史远端结果。
+
+### §6.1 三条 main push 正向证据
+
+| Git 树                                     | 触发与运行                                                                                             | 关键 job                                                                                          | 核对结果                                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `42c61bb08f5e234989198ef46ed7534a80c70796` | `main` push，attempt 1，run [42171326665](https://github.com/sunpcm/EchoTalk/actions/runs/42171326665) | FE `127739581878`；BE `127739582109`；macOS `127739582055`；iOS `127739582001`；CI `127741167480` | 五个 job 均 completed/success；iOS 日志含 `BUILD SUCCEEDED`；聚合四个 need 均 success |
+| `6bda2cde70eab1b53f96cf4cb58cdb06c0a7bb03` | `main` push，attempt 1，run [42172093887](https://github.com/sunpcm/EchoTalk/actions/runs/42172093887) | macOS `127742048834`；BE `127742049063`；FE `127742049210`；CI `127743546746`                     | 四个 job 均 completed/success；无 iOS job；聚合三个 need 均 success                   |
+| `ef6cb5320331dea7e4d73c201ecc1ba54beb779a` | `main` push，attempt 1，run [42245842228](https://github.com/sunpcm/EchoTalk/actions/runs/42245842228) | macOS `127987713250`；FE `127987713639`；BE `127987713954`；CI `127990531178`                     | 四个 job 均 completed/success；无 iOS job；聚合三个 need 均 success                   |
+
+三次运行的 frontend/backend 安全摘要都定位到对应 checkout SHA。三个 run 的 attempt 均为 1，但静态
+audit 同时记录 `ci_retry_policy_2=true`；这里的成功不能写成零重试稳定性。E2E 日志摘要分别给出
+`89 Chromium + 89 WebKit = 178 passed` 与两次 `80 Chromium + 80 WebKit = 160 passed`；不根据
+job 绿色补写未出现的 retry、skip 或测试语义。
+
+### §6.2 workflow 静态结构
+
+| Git 树    | workflow SHA256                                                    | jobs                   | aggregate needs    |
+| --------- | ------------------------------------------------------------------ | ---------------------- | ------------------ |
+| `42c61bb` | `969a50da306de4fce3dec0733f71fbcabc6723bdf62011f13400f7aa29c6b4e7` | FE、BE、macOS、iOS、CI | FE、BE、macOS、iOS |
+| `6bda2cd` | `930d6663fb840599d71492c57629e77968feb724ac3127aed0fa245c200e1a65` | FE、BE、macOS、CI      | FE、BE、macOS      |
+| `ef6cb53` | `930d6663fb840599d71492c57629e77968feb724ac3127aed0fa245c200e1a65` | FE、BE、macOS、CI      | FE、BE、macOS      |
+| `5c28e1b` | `982ddb365078a547447e6243be3714dd08a2c283bb5a6385568cd20e6d10e992` | FE、BE、macOS、iOS、CI | FE、BE、macOS、iOS |
+| `4ec1a4d` | `f98c2c2d7d3b5337bb35165db669188acc4086624bf88d16be0740ccda49e85a` | FE、BE、macOS、iOS、CI | FE、BE、macOS、iOS |
+
+五个树均由原生 YAML 解析确认聚合 job `if: always()`，并分别对当前 needs 的 result 做强断言。
+`42c61bb` 与 `5c28e1b`、`4ec1a4d` 含 iOS；`6bda2cd` 与 `ef6cb53` 因 #118 回退不含 iOS，
+不能反推两次运行曾通过 iOS。`4ec1a4d` 作为本轮核对时的起始树，只有静态 workflow 结构证据，
+没有该树的远端 run。
+
+### §6.3 RF-04 契约逐项核对
+
+| 契约项                                                                      | 已有证据                                                                                                                                                                                                                               | 核对边界                                                                                                                                                                                         |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 前端格式、Lint、TypeScript、Vitest、Build、Fake API、API 类型与双浏览器 E2E | `42c61bb`：Vitest `1133 / 41 files`、build-script `21`、Fake API `72`、API 类型 runner `8`、E2E `178 = 89+89`；`6bda2cd`/`ef6cb53`：Vitest `1007 / 39 files`、build-script `18`、Fake API `61`、API 类型 runner `8`、E2E `160 = 80+80` | 三个对应 run 的 step 日志均成功；数据只绑定各自 SHA，不能作为本轮核对时的起始树或 PR 运行通过                                                                                                    |
+| OpenAPI schema、TypeScript 生成类型与 Provider metadata                     | 三次均出现 `API types are current`、`OpenAPI schema is current` 和 `Provider metadata is current` 的摘要；API 类型 runner 均为 `8`                                                                                                     | 证明历史 step 和 tracked 产物一致性；未重新审查所有生成器实现与变体                                                                                                                              |
+| Ruff 与 backend 测试                                                        | 三次 Ruff format/check 均 success；backend 分别为 `773 passed / 3 warnings / 78.52%`、`644 / 3 / 78.61%`、`665 / 3 / 78.99%`                                                                                                           | coverage 精确值取 `Required test coverage of 59.0% reached. Total coverage: 78.52/78.61/78.99%` 日志行；term-missing 的 `TOTAL` 只显示取整 `79%`，不作为精确值。摘要没有给出零 skip 结论，未补写 |
+| Empty PostgreSQL 迁移与 59% coverage 阈值                                   | 三次均从空库迁移成功，日志明确显示 `c06_transcript_events (head)`；均显示达到 59% 阈值                                                                                                                                                 | 证明历史次次 run 的迁移与覆盖率门禁通过；未重放每个约束、索引、任务领取或幂等断言                                                                                                                |
+| macOS 与 iOS 构建                                                           | 三次 macOS job success；`42c61bb` 的 iOS job success 且日志含 `BUILD SUCCEEDED`                                                                                                                                                        | `42c61bb` 仅证明无签名模拟器编译；`6bda2cd`/`ef6cb53` 无 iOS job，不能写 iOS 通过                                                                                                                |
+| 聚合 `CI` 失败传播                                                          | `42c61bb` 四个 need success；`6bda2cd`/`ef6cb53` 三个 need success                                                                                                                                                                     | 证明当时各自 workflow 拓扑内的聚合成功；不能覆盖其树外的新增门禁或当前 required check                                                                                                            |
+
+### §6.4 iOS 恢复与历史失败反证
+
+PR #128 对应的 `5c28e1baa33a085738e341194595d9ccd7723598` 在 `main` push、attempt 1 的
+run [42473006604](https://github.com/sunpcm/EchoTalk/actions/runs/42473006604) 恢复四 job 聚合：
+
+- FE `128707973251`、BE `128707973472`、macOS `128707973437` 均 success。
+- iOS `128707973381` failure，失败发生在 `Select Xcode and prepare locked SPM dependencies`；
+  `Production web, explicit sync and unsigned simulator compile` 为 skipped。
+- 聚合 `CI` job `128709245911` failure；安全摘要明确 `IOS_BUILD_RESULT: failure` 后
+  `Process completed with exit code 1`。
+
+这说明 aggregate 在该历史树上实际拒绝了 iOS failure，是 workflow 失败传播的正向反证。证据未确认
+SPM 准备的失败根因，因此不主张网络、504、代码或环境归因，也不能把整个 run 改写成成功。iOS
+预下载有限重试仍需在对应分支 CI 通过后单独核销。
+
+### §6.5 尚未成立的范围
+
+- 三次正向运行都是 `main` push，不能替代 PR 运行，也不能证明当前 PR 的 fail-block enforcement。
+- 本轮未为格式、类型、迁移、E2E 等门禁逐类构造或读取失败负向 PR 运行；唯一已核负例是 #128 的
+  iOS failure/aggregate failure。不能由这一单例反推每一类失败都会在 PR 合并处被阻断。
+- required-check enforcement 与分支保护未读取、未更改；不能由 workflow job 存在或 main push 成功
+  推定其已 required。
+- `4ec1a4d` 是本轮核对时的起始树，其 workflow run count 为 `0`；任务分支 push 不触发现行 CI，
+  不能写成远端通过或失败。
+- 不覆盖真实 Provider/IdP/LiveKit/media/device、真实三端链路或生产；也不能据此证明历史测试中
+  每一项断言与全部 skip/retry 行为。

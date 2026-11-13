@@ -6,6 +6,14 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-14 RF04E 已有远端 CI 证据核对
+
+- [x] **RF04E 已有远端 CI 证据核对**：完成 `42c61bb`、`6bda2cd`、`ef6cb53` 历史 main push
+      与 `5c28e1b` iOS failure/aggregate failure 的只读证据核对，完整 run/job/契约矩阵见
+      [CP-06 CI 质量门禁验证](../../docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
+      本归档只表示证据文档子卡完成；RF-04 总项、iOS 有限重试、required check、真实链路和本轮核对
+      时的起始树 `4ec1a4d` 的 CI 仍未通过或未验。
+
 ## 2026-11-13 WG20 WebKit 周语法补验
 
 - [x] **WG20 周语法 WebKit 重复稳定性补验**：主控实跑完整 13 项门禁及聚合均 `exit 0`；
