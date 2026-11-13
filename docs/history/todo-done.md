@@ -475,3 +475,22 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       `moves-r0.json`。全仓 Markdown 相对链接与锚点由 Harness 用 Prettier Markdown AST 独立检查；
       旧 `check-doc-links.py` 只查三文件目标存在性且不查 fragment，不作为本轮通过证据。未 commit/push，
       待 Harness 独立评审后提交/PR/CI/squash。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）F4
+
+- [x] **F4 收窄会话切片的通用补丁入口**（P2）：`apps/vite-app/src/store/conversationSlice.ts` 的
+      `resetWithShellCoordination(patch: object)` 出现在 `ConversationSlice` 公共类型上，经窄 façade 可传入任意键。
+      改为不出现在窄 façade 的公共类型里，或把入参收窄为协调器声明的键。验收：`useConversationStore` 的类型上
+      不再能传入 `appView`；`navigation.test.ts` 与 `conversation.test.ts` 的行为断言不变；三测试树计数不降。
+
+      本地收口：`apps/vite-app/src/store/conversation.ts` 的 `ConversationStore` 改为
+      `Omit<ConversationSlice, "resetWithShellCoordination">`，`useConversationStore` 绑定收窄为
+      `StoreApi<ConversationStore>`；`apps/vite-app/src/store/appStore.ts` 在 `replace === true` 分支补回
+      `resetWithShellCoordination`（显式提供时不覆盖）。新增 `conversation-facade-f4.test.ts`（3 项 runtime 契约）
+      与 `conversation-facade.typecheck.ts`（type-only 编译期断言，覆盖 getState/selector/导出类型不暴露
+      `resetWithShellCoordination` 与 `appView`）。Harness/macOS Node 22 首轮 S1：Vitest 1226/1（唯一失败为
+      新增注释 `appView` 字面量触发 navigation.test.ts 断言）、lint 6err/132w；R1 改注释去字面量、6 断言改
+      `export type` 后 S2 Vitest 1227/51、lint 0err/132w、typecheck/build/format 全过；pytest 809/3w/80.19%、
+      本机 E2E 233/1（Chromium 117/0、WebKit 116/1，唯一既有 Provider 336×23）、Fake 108/类型 8/构建 21。
+      Harness 三组变异（M1 别名回退、M2 删保全分支、M3 无条件覆盖）均被目标断言捕获并逐字节恢复。未 commit/push，
+      F4 专属 CI/PR 尚未跑，本机计数不冒认 Linux CI。详见 `docs/history/2026-11.md`。
