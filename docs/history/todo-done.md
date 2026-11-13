@@ -14,6 +14,21 @@
       本归档只表示证据文档子卡完成；RF-04 总项、iOS 有限重试、required check、真实链路和本轮核对
       时的起始树 `4ec1a4d` 的 CI 仍未通过或未验。
 
+## 2026-11-14 CF20 Chromium 焦点就绪竞态回归
+
+- [x] **CF20 本地实现**：仅改原 Playwright spec，以共享 `weekly-progress` 就绪 helper 和
+      held/release 门控绑定原焦点断言；产品字节、原共享 `openDashboard` 与 Fake API 数据未改，
+      weekly-progress route gate 为明确新增回归。
+- [x] **CF20 定向验证**：删除 helper 唯一等待的私有 mutation 被 Chromium/WebKit 各 3 次杀死；
+      正式定向复验为 `80 passed / 0 failed / 0 skip / 0 flaky / 0 retry / exit 0`。详细门禁数字与
+      边界见 [PROJECT_STATUS 的 CF20 小节](../PROJECT_STATUS.md)。
+- [x] **RF04E 全量 E2E 焦点可达性**：当前 CF20 base
+      `c5f9c7274ac85f6fb77212b8944c97e6edae41df` 上的完整双浏览器 E2E 为
+      `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0；原焦点用例已在
+      这两个 project 中完成本地实现验证。
+- 本归档只表示本地实现与机器核验完成；最终完整门禁与 Review/提交/发布见主控同卡回执，
+  用户 Review 待。
+
 ## 2026-11-13 WG20 WebKit 周语法补验
 
 - [x] **WG20 周语法 WebKit 重复稳定性补验**：主控实跑完整 13 项门禁及聚合均 `exit 0`；

@@ -4,12 +4,16 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **RF04E 当前快照（2026-11-14）：** 三次历史 main push 与 #128 iOS 失败传播的只读证据核对已完成，
-> 完整矩阵见 [CP-06 CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
-> 原始 R0 为 12 项 `exit 0`、E2E 与聚合 `exit 1`；追加零重试全量 E2E 为 `exit 0`，Chromium
-> 焦点失败未复现，但根因未证。门禁只能表述为“原始 12 项成功 + E2E 追加成功”，不是一次完整 13
-> 项全零重跑；原始聚合仍为 `exit 1`，不能概括为本地全绿。专用 PG 已停止并自动移除，683 份保护
-> 文件未改。最终独立 Review 与用户 Review 待主控回执。
+> **CF20 当前快照（2026-11-14）：** 根因是测试就绪竞态；最小语义屏障仅改原 Playwright spec，
+> 产品字节、原共享 `openDashboard` 与 Fake API 数据未改。Mutation 被双浏览器杀死，定向复验
+> `80 passed`；完整 E2E `248 passed = Chromium 124 + WebKit 124`，两轮均为零失败/跳过/flaky/retry。
+> 详细 base、写集与门禁数字见 [PROJECT_STATUS CF20 小节](./docs/PROJECT_STATUS.md)。
+> 最终完整门禁与 Review/提交/发布见主控同卡回执；用户 Review 待。
+> **RF04E 历史快照（2026-11-14）：** 三次历史 main push 与 #128 iOS 失败传播的只读证据核对已
+> 完成，完整矩阵见 [CP-06 CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
+> 原始 R0 为 12 项 `exit 0`、E2E 与聚合 `exit 1`，记录为 `245 passed / 1 failed`；追加零重试诊断
+> 全量 E2E 为 `246 passed / 0 failed / exit 0`。两者继续绑定各自历史时点，不能概括 CF20 当前结果。
+> 原口径“原始 12 项成功 + E2E 追加成功”不是一次完整 13 项全零重跑，原始聚合仍为 `exit 1`。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -96,13 +100,6 @@
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。
-
-## 2026-11-14 RF04E 新观察
-
-- [ ] **RF04E 全量 E2E 焦点可达性待验**：本轮核对时的起始树 `4ec1a4d` 上，clean 首轮 Chromium
-      全量回归失败；七天区块仍 loading 只是失败现场；后续零重试 trace 全量诊断通过但未复现该失败，
-      根因仍未证。
-      该待验项保持未勾选，详见 [PROJECT_STATUS 的 RF04E 小节](./docs/PROJECT_STATUS.md)。
 
 ## 2026-11-07 历史发现与当前待验项
 

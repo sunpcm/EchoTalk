@@ -1,13 +1,17 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-14。RF04E 当前快照见下方 RF04E 小节：原始 R0 全量门禁因 E2E 一项 failure
-> 而聚合 `exit 1`；追加零重试全量 E2E 为 `exit 0`，但该失败未复现、根因未证。门禁只能记为
-> “原始 12 项 `exit 0` + E2E 追加 `exit 0`”，不是一次完整 13 项全零重跑，原始聚合仍为 `exit 1`，
-> 不能记为全绿。WG20 周语法 WebKit 补验是下方独立的历史快照：当时完整 13 项门禁及聚合全部成功，
-> 两个 WebKit 目标用例各重复 20 次且共 `40 passed`；该轮无产品修改、无源码修复。R2-13、
-> R2-12、R2-14 以及 A6、B1、独立 WPH 的数字继续绑定各自当时快照，不改写旧数。
-> 最终以主控回执为准；格式与独立 Review、提交/推送状态待主控处理，用户 Review 待。正式 macOS
-> 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
+> 最后核对：2026-11-14。CF20 当前状态见下方独立小节：根因已确认是焦点用例未等待周进度数据
+> 就绪的测试竞态；最小语义屏障只在原 Playwright spec 实现，产品字节未改。定向稳定性
+> `80 passed`，完整双浏览器 E2E `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/
+> retry 均为 0；详细证据、base 与四文件写集集中在 CF20 小节。最终完整门禁与 Review/提交/发布
+> 见主控同卡回执；用户 Review 待。
+> RF04E 小节是历史快照：原始 R0 的 `245 passed / 1 failed`、追加诊断的 `246 passed / 0 failed`
+> 以及当时“原始 12 项 `exit 0` + E2E 追加 `exit 0`、不是一次完整 13 项全零重跑”的口径均不改写，
+> 也不能概括 CF20 当前结果。WG20 周语法 WebKit 补验同样是独立历史快照：当时两个 WebKit 目标
+> 用例各重复 20 次且共 `40 passed`；该轮无产品修改、无源码修复。R2-13、R2-12、R2-14 以及 A6、
+> B1、独立 WPH 的数字继续绑定各自当时快照。
+> 最终 Review 与提交/发布见主控同卡回执；用户 Review 待。正式 macOS 客户端、Tauri 选型、
+> native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -35,7 +39,7 @@
 
 ## 当前验证基线
 
-### RF04E 已有远端 CI 证据核对（2026-11-14 当前快照；诊断完成但根因未证，Review 待）
+### RF04E 已有远端 CI 证据核对（2026-11-14 历史快照）
 
 - 只读基线：worktree 为 `/private/tmp/echotalk-b1-implementation-20261112`，分支
   `codex/B1-learning-events-20261112`，起始 HEAD `4ec1a4d2c89ec453a833bb06034e6a806e0c9ee1`；
@@ -49,14 +53,14 @@
   `132 warning / 0 error / 0 new`，逐诊断与父基线精确相同。
 - 首轮全量双浏览器 E2E 为 `245 passed / 1 failed / exit 1`，配置为 `--retries=0 --workers=1`。
   失败是 Chromium 的 `a11y-focus-touch.spec.ts:86`，第 93 行实际 `seen.length` 为 `5 < 6`。
-  `error-context` 中七天区块仍为 loading 只是失败现场，尚未证明为环境、产品或历史回归原因；
+  `error-context` 中七天区块仍为 loading；该当时快照尚未证明其与环境、产品或历史回归原因的关系，
   本轮不修改产品、源码、测试或断言。
 - 追加的 `retain-on-failure` trace 零重试完整双浏览器 E2E 已结束 `exit 0`：原始 JSON 主控机器核验
   为 `246 passed`（Chromium `123` + WebKit `123`）；失败、跳过、flaky 和 retry 均为 0。每个
   test 恰有 1 个 passed result；诊断运行全局 `workers=1`，两个 project 的 `retries=0`。证据为
   `RF04E-e2e-diagnostic-results.json`、`RF04E-diagnostic-verified.json` 与
   `ev/ev-RF04E-e2e-diagnostic-full.txt`。这是追加诊断，不覆盖原始 R0 的 `245 passed / 1 failed`
-  与 `exit 1`；焦点失败未复现，但原因仍未证明，不能写成已修复。
+  与 `exit 1`；该诊断当时未复现焦点失败，原因也仍未证明，不能写成已修复。
 - 本卡专用 empty tempfs PostgreSQL 已由主控核验精确 container ID、两个 owner 与 loopback 后停止，
   `stop_exit=0`，并确认 `AutoRemove=true`；683 份保护文件未改。该保全与其余 12 项门禁成功都不能
   覆盖原始 E2E/聚合 `exit 1`，因此当前本地结果不能概括为全绿。
@@ -65,7 +69,50 @@
   及同目录对应聚合记录；追加诊断证据见上述三个文件。远端历史正向 run 不复用本次本地失败，也不
   把本次失败写成远端 CI 结果；
   本轮核对时的起始树 `4ec1a4d` 的 run count 为 `0`，required check、PR fail-block 与真实
-  Provider/IdP/LiveKit、设备、生产链路仍未验。独立 Review 与用户 Review 待主控回执。
+  Provider/IdP/LiveKit、设备、生产链路仍未验。最终 Review 与提交/发布见主控同卡回执；
+  用户 Review 待。
+- CF20 根因与当前验证转入下方独立小节；本段继续只绑定原始 R0 的 `245 passed / 1 failed` 与追加
+  诊断的 `246 passed / 0 failed`，两者均为历史快照，不概括本轮定向稳定性或完整 E2E。
+
+### CF20 Chromium 焦点就绪竞态回归（本地实现与机器核验完成；最终 Review/发布见主控回执）
+
+- 主控受控对照确认根因是测试就绪竞态：`weekly-progress` 请求 held 时七天区块保持 loading，
+  原焦点遍历稳定得到 `5 < 6`；同一请求放行后 7 个日期按钮真实挂载，焦点序列为 `12`、包含
+  “文档对话”且没有不可见焦点。`CF20-regression-RED-ports-clear` 的 3 次 Chromium RED 均在
+  原 `seen >= 6` 处失败，`0 skip / 0 retry / exit 1`。更早的 `CF20-regression-RED` 因端口占用
+  得到 0 tests，保留为执行失败记录，不混入任何正式通过数；占用者没有直接证据，保持未知。
+- 本卡只读基线为 worktree `/private/tmp/echotalk-b1-implementation-20261112`、分支
+  `codex/B1-learning-events-20261112`、base/HEAD
+  `c5f9c7274ac85f6fb77212b8944c97e6edae41df`。仓库写集恰为 `TODO.md`、
+  `apps/vite-app/e2e/a11y-focus-touch.spec.ts`、`docs/PROJECT_STATUS.md` 与
+  `docs/history/todo-done.md`；不沿用上方 RF04E 历史快照的 base。
+- 当前实现只改 `apps/vite-app/e2e/a11y-focus-touch.spec.ts`，新增共享
+  `waitForDashboardWeeklyProgress` 及其唯一 `toHaveCount(7)` 等待。正常 dashboard 用例与受控慢
+  请求用例共同消费该 helper；慢请求用例在请求 held、真实 UI 往返完成后先证明 `ready === false`，
+  再显式放行请求、等待 helper settle，随后原样执行 `tabThrough` 和原三条焦点断言。没有固定
+  sleep、`test.step`、第二份 count7、产品 instrumentation 或算法变更；原共享 `openDashboard`
+  和 Fake API 数据未改，weekly-progress route gate 是本次回归明确新增。
+- 主控在私有副本只删除共享 helper 内唯一等待；Chromium 3 + WebKit 3 共 6 次均在
+  `expect(ready).toBe(false)` 得到 `true`，`retry=0 / exit 1`，跟踪 spec 未变。该变异证明回归
+  依赖真实异步就绪契约；`finally` 对正常路径和变异路径均幂等 release 并收束 readiness。
+- 正式 `CF20-stability-20` 机器核验为原焦点与慢请求两个用例在 Chromium、WebKit 各重复 20 次，
+  共 `80 passed / 0 failed / 0 skip / 0 flaky / 0 retry / exit 0`。每个 test 恰有 1 个 passed
+  result；两个 project 均为 `repeatEach=20 / retries=0`，全局 `workers=1`。运行期间 spec 冻结
+  hash 全程一致。
+- 完整双浏览器 E2E 机器核验为 `248 passed = Chromium 124 + WebKit 124`，
+  `0 failed / 0 skip / 0 flaky / 0 retry / exit 0`；每个 test 恰有 1 个 passed result。证据为
+  `CF20-full-e2e-results.json`、`CF20-full-e2e-verified.json` 及对应主控日志。
+- frontend 强制 lint、typecheck、build 均 `exit 0`；Vitest 为 `1206 passed / 49 files`，
+  build-script `47 passed`，Fake API `116 passed`，API 类型 runner `8 passed`，均 `0 skip`。
+  lint 为 `132 warning / 0 error / 0 new`，逐诊断精确等于父基线。
+- backend 为 `941 passed / 3 warnings / 0 skip`，本轮实算 raw coverage
+  `81.58342792281498%`；非 native iOS Node runner 为 `37 passed / 0 skip / exit 0`。这些数字
+  绑定当前主控回执，不改写上方 RF04E 或 WG20 的历史 coverage。
+- 本卡专用 PG 已按精确 container ID、两个 owner 与 `127.0.0.1` 核验后停止，
+  `stop_exit=0`，并确认 `auto-remove`。原 dashboard 目标 body 去除新增
+  `waitForDashboardWeeklyProgress(page)` 调用后与基线逐字等同；683 份保护文件全部未变。
+- 本轮完整 13 项门禁及聚合 `exit 0`（后端、前端、浏览器与最终格式分组执行）；Review/提交/发布见主控同卡回执，
+  用户 Review 待。
 
 ### WG20（WebKit 周语法重复稳定性补验）历史快照；最终回执与用户 Review 待
 

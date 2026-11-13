@@ -49,6 +49,17 @@ async function openDashboard(page: Page) {
   await expect(page.getByRole("button", { name: "恢复练习" })).toBeVisible();
 }
 
+function dashboardWeeklyDayButtons(page: Page) {
+  return page
+    .getByTestId("weekly-progress")
+    .getByRole("list", { name: "最近七天的已完成会话" })
+    .getByRole("button");
+}
+
+async function waitForDashboardWeeklyProgress(page: Page) {
+  await expect(dashboardWeeklyDayButtons(page)).toHaveCount(7);
+}
+
 /** 读取当前焦点元素的名称，以及它是否有非透明的 outline 或 ring。 */
 function describeFocus(page: Page) {
   return page.evaluate(() => {
@@ -88,11 +99,56 @@ test("every keyboard-focusable control on the dashboard shows a visible focus in
   browserName,
 }) => {
   await openDashboard(page);
+  await waitForDashboardWeeklyProgress(page);
 
   const seen = await tabThrough(page, 40, browserName === "webkit" ? "Alt+Tab" : "Tab");
   expect(seen.length).toBeGreaterThanOrEqual(6);
   expect(seen.map((s) => s.name).join("|")).toContain("文档对话");
   expect(seen.filter((s) => !s.visible)).toEqual([]);
+});
+
+test("dashboard focus audit waits for a controlled slow weekly progress request", async ({
+  page,
+  browserName,
+}) => {
+  let releaseWeekly!: () => void;
+  const weeklyReleased = new Promise<void>((resolve) => {
+    releaseWeekly = resolve;
+  });
+  let weeklyRequestStarted!: () => void;
+  const weeklyStarted = new Promise<void>((resolve) => {
+    weeklyRequestStarted = resolve;
+  });
+  await page.route("**/api/sessions/weekly-progress?*", async (route) => {
+    weeklyRequestStarted();
+    await weeklyReleased;
+    await route.continue();
+  });
+
+  let readiness: Promise<void> | undefined;
+  try {
+    await openDashboard(page);
+    await weeklyStarted;
+    let ready = false;
+    readiness = waitForDashboardWeeklyProgress(page).then(() => {
+      ready = true;
+    });
+
+    const weekly = page.getByTestId("weekly-progress");
+    await expect(weekly.getByRole("status")).toHaveText("正在加载七天概览…");
+    await expect(dashboardWeeklyDayButtons(page)).toHaveCount(0);
+    expect(ready).toBe(false);
+    releaseWeekly();
+    await readiness;
+
+    const seen = await tabThrough(page, 40, browserName === "webkit" ? "Alt+Tab" : "Tab");
+    expect(seen.length).toBeGreaterThanOrEqual(6);
+    expect(seen.map((s) => s.name).join("|")).toContain("文档对话");
+    expect(seen.filter((s) => !s.visible)).toEqual([]);
+  } finally {
+    releaseWeekly();
+    await readiness;
+  }
 });
 
 test("primary buttons on the ended view show a visible focus indicator", async ({
