@@ -551,3 +551,22 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       （pytest 自身 67.89s）。7 项目标 AssertionError 变异全部 RED/逐字节恢复，新增 28 个契约用例 GREEN。
       未 commit/push/PR/merge，I2 专属 Linux CI 尚未运行，本机计数不冒认 Linux CI。详见实施报告与
       `docs/history/2026-11.md`。
+
+## 2026-11-14 D1 状态页最终 main/CI 回执
+
+- [x] **D1 状态页最终 main/CI 回执**：把 `docs/PROJECT_STATUS.md` 当前验证基线固定到最终产品 main
+      [`58254b98d8dcd6a81982ebe0436f6742fa4a974a`](https://github.com/sunpcm/EchoTalk/commit/58254b98d8dcd6a81982ebe0436f6742fa4a974a)
+      （tree `86f4d99880ca41bb0c497ce682efaec3e66e64c7`）与最终 main push CI
+      [`43441014970`](https://github.com/sunpcm/EchoTalk/actions/runs/43441014970)（五作业均成功），并
+      记录 I2 [PR #164](https://github.com/sunpcm/EchoTalk/pull/164)（source `dc4fb2602fa2aa9456087017c772647867128252`，
+      PR CI [`43439468324`](https://github.com/sunpcm/EchoTalk/actions/runs/43439468324)、Guard
+      [`43439468312`](https://github.com/sunpcm/EchoTalk/actions/runs/43439468312)）均已成功。最终 main
+      CI 数字：Vitest 1227/51、E2E 234（Chromium 117/WebKit 117，retry/skip/flaky 0，3.8m）、Fake API
+      108、API 类型生成器 8、构建脚本 21、backend pytest 841/3 warnings/80.59%（63.61s）。macOS Harness
+      fresh 完整 15 门禁：除 E2E 外 14 项全过，完整 E2E 首次 232 passed/2 failed（Chromium 117/0、
+      WebKit 115/2，retry/skip/flaky 0）：其一仍为既有 Provider 336×23，其二为
+      `weekly-progress.spec.ts:97` 概览失败安全提示 alert 未出现（根因未明）；`weekly-progress` 目标用例
+      双浏览器各 5 次定向重放 10/10 通过（Chromium 5/WebKit 5，19.1s），重放通过不追认为整树通过。
+      云端独立评审报告的 Linux E2E 233/1（WebKit 主题用例，1 worker 90/90 定向重放，来源为用户转交的
+      云端报告、非本轮亲跑，主题防抖根因待定位）保留为历史亲跑。只改文档，产品/测试/配置/锁/依赖/DB/
+      迁移零改动。
