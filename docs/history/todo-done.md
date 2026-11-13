@@ -530,3 +530,24 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       （Chromium 117/0、WebKit 116/1，retry/skip/flaky 0，唯一既有 Provider 336×23）；API 81 定义 AST/71 导出、
       135 个原 test/fixture/config 字节不变、两个 E2E 除 matcher 外 AST 一致、26 边界样例正确。H2 Linux CI
       尚未运行（待 PR），本机计数不冒认 Linux CI。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）I2
+
+- [x] **I2 分析任务最小可观测性**：为 Job 的领取、成功、可重试失败、耗尽、陈旧恢复输出结构化日志事件，
+      并提供队列积压与最老等待时长的只读查询（供健康检查或运维脚本使用）；不引入指标库或外部服务。
+      验收：pytest 覆盖各事件的字段与脱敏（不含转录正文、凭据）；现有用例零改动通过。
+
+      本地收口：新增 `backend/services/analysis_observability.py`（专属日志/事务缓冲，提交后输出，
+      异常/取消丢弃，不做通用事件总线），在真实事务 owner（`analysis_worker.py`、`analysis_jobs.py`）
+      接线，并为 `analysis_jobs.py` 增加 UTC 只读 `queue_snapshot`（单聚合 SELECT、无 autoflush，最老
+      pending 从 created_at 计等待秒数）；新增 `test_analysis_observability.py`、
+      `test_analysis_queue_snapshot.py` 覆盖六事件字段与脱敏、提交前无成功事件、取消/回滚无伪成功、
+      并发缓冲隔离、commit 失败无伪成功、handler 故障不改业务，以及队列空/混合/延迟 pending/未来时间/
+      不 autoflush。R1 补测阶段产品 3 路径字节冻结；本包前端/路由/schema/ORM/迁移/配置/锁零改动，
+      旧 59 pytest 零改动。
+      Harness/macOS 三阶段 15 项：E0 全 E2E 233/1（Chromium 117/0、WebKit 116/1，唯一既有 Provider
+      336×23）、U0 十一项（Vitest 1227/51、Fake 108、类型 8、构建 21、lint 0 error/132 旧 warnings、
+      typecheck/build/生成漂移/format 均过）、S1 Ruff 两项 + 全 pytest 841 passed/3 warnings/80.59%
+      （pytest 自身 67.89s）。7 项目标 AssertionError 变异全部 RED/逐字节恢复，新增 28 个契约用例 GREEN。
+      未 commit/push/PR/merge，I2 专属 Linux CI 尚未运行，本机计数不冒认 Linux CI。详见实施报告与
+      `docs/history/2026-11.md`。

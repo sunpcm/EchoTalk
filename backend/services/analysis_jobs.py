@@ -4,11 +4,12 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.session import Session
+from services.analysis_observability import record_event, transaction_events
 from services.analysis_service import (
     AnalysisServiceError,
     analyze_session,
@@ -120,6 +121,12 @@ async def claim_next_job(
 
     transition_job(job, AnalysisJobStatus.running, now=current_time)
     await db.flush()
+    record_event(
+        "analysis_job_claimed",
+        job_id=job.id,
+        session_id=job.session_id,
+        attempt_count=job.attempt_count,
+    )
     return job.id
 
 
@@ -146,11 +153,21 @@ async def recover_stale_jobs(
             transition_job(job, AnalysisJobStatus.failed, now=current_time)
             job.last_error_code = "worker_timeout"
             job.last_error = "Analysis worker stopped before completing the job"
+            outcome = "failed"
         else:
             transition_job(job, AnalysisJobStatus.pending, now=current_time)
             job.next_retry_at = current_time
             job.last_error_code = "worker_timeout"
             job.last_error = "Analysis worker stopped before completing the job"
+            outcome = "pending"
+        record_event(
+            "analysis_job_stale_recovered",
+            job_id=job.id,
+            session_id=job.session_id,
+            attempt_count=job.attempt_count,
+            error_code="worker_timeout",
+            outcome=outcome,
+        )
     await db.flush()
     return len(jobs)
 
@@ -177,6 +194,12 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
     job.last_error_code = None
     job.last_error = None
     await db.flush()
+    record_event(
+        "analysis_job_succeeded",
+        job_id=job.id,
+        session_id=job.session_id,
+        attempt_count=job.attempt_count,
+    )
 
 
 def _safe_error(exc: Exception) -> tuple[str, str]:
@@ -210,12 +233,25 @@ async def record_job_failure(
     retryable = getattr(exc, "retryable", True)
     if job.attempt_count >= MAX_ATTEMPTS or not retryable:
         transition_job(job, AnalysisJobStatus.failed, now=current_time)
+        if not retryable:
+            event_name = "analysis_job_non_retryable_failure"
+        else:
+            event_name = "analysis_job_exhausted"
     else:
         transition_job(job, AnalysisJobStatus.pending, now=current_time)
         delay_index = min(job.attempt_count - 1, len(RETRY_DELAYS_SECONDS) - 1)
         job.next_retry_at = current_time + timedelta(
             seconds=RETRY_DELAYS_SECONDS[delay_index]
         )
+        event_name = "analysis_job_retryable_failure"
+    record_event(
+        event_name,
+        job_id=job.id,
+        session_id=job.session_id,
+        attempt_count=job.attempt_count,
+        error_code=code,
+        retryable=retryable,
+    )
     await db.flush()
     return job
 
@@ -226,12 +262,14 @@ async def process_job(
 ) -> None:
     """Run one claimed job, rolling back partial results before recording failure."""
     try:
-        async with session_factory() as db, db.begin():
-            await execute_claimed_job(job_id, db)
+        with transaction_events():
+            async with session_factory() as db, db.begin():
+                await execute_claimed_job(job_id, db)
     except Exception as exc:
         logger.error("Analysis job %s failed (%s)", job_id, type(exc).__name__)
-        async with session_factory() as db, db.begin():
-            await record_job_failure(job_id, exc, db)
+        with transaction_events():
+            async with session_factory() as db, db.begin():
+                await record_job_failure(job_id, exc, db)
 
 
 def retry_job(
@@ -266,3 +304,32 @@ def can_retry_job(
         and job.started_at is not None
         and job.started_at <= current_time - stale_after
     )
+
+
+async def queue_snapshot(
+    db: AsyncSession,
+    *,
+    now: datetime | None = None,
+) -> tuple[int, int]:
+    """Return ``(pending_count, oldest_pending_age_seconds)`` for observability.
+
+    ``pending_count`` counts every ``pending`` job, including delayed retries
+    (jobs whose ``next_retry_at`` is still in the future). ``oldest_pending_age_seconds``
+    is the whole number of seconds the oldest pending job has waited since its
+    ``created_at``, clamped to zero when the system clock is behind the stored
+    timestamp. An empty queue returns ``(0, 0)``.
+
+    This is a single aggregate SELECT with no row lock, flush, commit or add, and
+    never triggers an autoflush write.
+    """
+    current_time = now or utc_now()
+    stmt = select(func.count(), func.min(AnalysisJob.created_at)).where(
+        AnalysisJob.status == AnalysisJobStatus.pending
+    )
+    with db.no_autoflush:
+        row = (await db.execute(stmt)).one()
+    pending_count, oldest_created_at = row
+    if oldest_created_at is None:
+        return 0, 0
+    age_seconds = int(max(0.0, (current_time - oldest_created_at).total_seconds()))
+    return pending_count, age_seconds
