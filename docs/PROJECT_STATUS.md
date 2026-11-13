@@ -47,8 +47,19 @@ PR CI [`43439468324`](https://github.com/sunpcm/EchoTalk/actions/runs/4343946832
 WebKit 115/2，retry/skip/flaky 0）：其一仍为既有 Provider 336×23（WebKit），其二为
 `weekly-progress.spec.ts:97`「概览失败安全提示与显式重试」alert 未出现（根因待定位，详见
 [history/2026-11.md](./history/2026-11.md)）。云端独立评审报告的 Linux E2E 233/1（WebKit 主题用例，
-1 worker 90/90 定向重放，来源为用户转交的云端报告、非本轮亲跑，主题防抖根因待定位）一并保留为历史
+1 worker 90/90 定向重放，来源为用户转交的云端报告、非本轮亲跑，当次无 trace 无法追认根因）一并保留为历史
 亲跑，不并入当前 Linux 基线。
+
+D1 状态页文档收口已合并 [PR #165](https://github.com/sunpcm/EchoTalk/pull/165)（source
+`b62b42d120117337b4214f9b4fda70c0718932aa`）；文档 main 现为
+[`7548165bcc37ec514e04cda90700bffb3504cdc0`](https://github.com/sunpcm/EchoTalk/commit/7548165bcc37ec514e04cda90700bffb3504cdc0)
+（tree `4fcb40bfc6cf50da4c1f4dee35aa1b7d1873ea0e`）。PR CI
+[`43470904516`](https://github.com/sunpcm/EchoTalk/actions/runs/43470904516)、Guard
+[`43470904525`](https://github.com/sunpcm/EchoTalk/actions/runs/43470904525) 成功；合并后 main CI
+[`43472309050`](https://github.com/sunpcm/EchoTalk/actions/runs/43472309050) attempt1 前后端 success、
+native 两作业取消（runner_id=0、steps 为空；更深原因未独立证实）、汇总 failure，仅失败取消项补跑一次，
+attempt2 五作业 success。
+上表计数仍绑定产品 main 58254b98 与其 main CI 回读，不因 D1 文档合并而改变。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -65,10 +76,12 @@ WebKit 115/2，retry/skip/flaky 0）：其一仍为既有 Provider 336×23（Web
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - 本机（macOS Harness）fresh 完整 E2E 首次 232 passed / 2 failed：其一仍是已记录的 WebKit Provider
   select 高度 336×23px 问题（最终 main Linux CI 为 234 passed，见上方基线，该问题不在 Linux CI 复现）；
-  其二为 `weekly-progress.spec.ts:97`「概览失败安全提示与显式重试」alert 未出现，根因待定位；两者定向
-  重放与首次失败详情见 [history/2026-11.md](./history/2026-11.md)，重放通过不追认为整树通过。
+  其二为 `weekly-progress.spec.ts:97`「概览失败安全提示与显式重试」alert 未出现，根因待定位；
+  `weekly-progress` 定向重放 10/10 与首次失败详情见 [history/2026-11.md](./history/2026-11.md)，
+  重放通过不追认为整树通过；Provider 336×23 为既有问题，未做定向重放。
 - 云端独立评审另报告 Linux E2E 233/1（WebKit 主题用例）并做 1 worker 90/90 定向重放；来源为用户
-  转交的云端报告、非本轮亲跑，主题防抖根因待定位。
+  转交的云端报告、非本轮亲跑，当次无 trace 无法追认根因。本机原版自然失败已定位为 >300ms 点击前提
+  缺口、测试已确定性修正，见 [history/2026-11.md](./history/2026-11.md)。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策

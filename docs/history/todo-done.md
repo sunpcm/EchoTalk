@@ -570,3 +570,22 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       云端独立评审报告的 Linux E2E 233/1（WebKit 主题用例，1 worker 90/90 定向重放，来源为用户转交的
       云端报告、非本轮亲跑，主题防抖根因待定位）保留为历史亲跑。只改文档，产品/测试/配置/锁/依赖/DB/
       迁移零改动。
+
+## 2026-11-14 T1 主题防抖偶发失败时序修正
+
+- [x] **T1 主题防抖偶发失败时序修正**：F2 主题同步用例偶发失败，根因是两次主题点击间隔超过产品 300ms
+      防抖窗口，测试前提有误；本轮只修测试时序，产品 300ms/真实 UI/HTTP 与失败恢复不变。修复：
+      `apps/vite-app/e2e/theme-sync.spec.ts` 首用例新增 299/301 双侧边界断言，用页面时钟 + 页面内 fetch
+      旁路观测（计数后委托原 fetch）证明「前 299ms 不发、到 300ms 发」，响应监听先于推进时钟注册；原 26
+      断言语义全保留，后两用例 body 与其余 137 个 test/fixture/config 字节零改。产品 `src/store/settings.ts`
+      逐字节恢复原值（防抖时长 300ms、214 行；主题 197 行）。
+
+      本地收口：Harness/macOS R1 core 14/14 exit 0 —— Vitest 1227/51（23.51s）、Fake API 108/类型 8/
+      构建 21、pytest 841/3 warnings/80.59%（pytest 119.26s，与压力并行、勿据此比较性能）、lint 0 error/
+      132 warnings；source bytes 前后稳定。完整 E2E 首次 233/1（Chromium 117/0、WebKit 116/1，
+      retry/skip/flaky 0，56.261s），唯一失败 `a11y-focus-touch.spec:94`（127 断言 Provider 336×23）；
+      weekly-progress 本次通过，但 D1 首次 232/2 及 WP 10/10 重放根因未知历史仍保留。Harness 独立 scratch
+      300/300（3 用例 × 2 浏览器 × repeat50，Chromium 150/WebKit 150，4 workers，retry/skip/flaky 0，
+      341.862s）；三组变异（299→前299零发、301→300时计数1、pendingIntent.theme 强制 cool→原 body dark）
+      各双浏览器 2/2 被目标断言捕获，备份/finally 逐字节恢复。未 commit/push/PR/merge，T1 专属 Linux CI
+      尚未运行，本机计数不冒认 Linux CI。详见 `docs/history/2026-11.md` 与实施报告。
