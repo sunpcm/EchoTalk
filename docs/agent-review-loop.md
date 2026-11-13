@@ -155,7 +155,7 @@ exit 0`；再次全量为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，
 WebKit Provider select 实测失败。首轮失败和定向结果都保留；仅 DocTalk 首轮失败原因未确认，不能
 归因于环境、历史基线或回归，也不能称全树全绿。
 
-B1-4 已实现本人数据结构化 JSON 导出。主控独立代码/测试 Review 为 APPROVED，产品返修使用 `1/2`，
+历史 B1-4 已实现本人数据结构化 JSON 导出。主控独立代码/测试 Review 为 APPROVED，产品返修使用 `1/2`，
 用户 Review 仍待。主控代跑的目标套件为 `20 passed / 0 skip / exit 0`，完整 backend 为
 `898 passed / 3 warnings / 0 skip / 80.86% / exit 0`；Vitest 1206 passed/49 files、Fake API
 110 passed/0 skip、构建脚本 21、API 类型测试 8 均 exit 0。format、lint、typecheck、build、
@@ -174,17 +174,40 @@ B1-4 的完整双浏览器 E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / e
 baseline 默认 preview 零写，只有显式确认参数才写。零语法错误没有持久来源行，只能校验 coverage
 结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider 事实。
 
-B1-4 停在用户 Review，提交/推送状态以同卡交付回执为准，不开 PR、不合并、不部署。B1-5 未启动；
-B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
-`learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除单例
-控制行或重新锚定；本卡不实现。最新状态见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
+B1-5 已完成本地实施与主控独立代码/测试 Review。`DELETE /api/user/account` 先验 Bearer 身份，再取
+learning-event control `FOR UPDATE` gate，最后复用同一已验证身份完成本地 User 映射/flush；匿名或
+错误 Bearer 不执行业务 SQL、不等待 gate。服务在调用方同一事务显式删除本人 12 类业务数据，成功只在
+commit 完成后返回固定 `200 {"status":"deleted"}`，失败整体 rollback 并返回通用 500。坏 baseline/
+跨归属失败关闭；合法删除后按剩余真实 `baseline_snapshot` 更新全局控制数量/摘要，保留 singleton、
+revision、cutover_at、phase 和既有 gate。无 control 时用 SREX 表锁并重读封闭 prepare 窗口，不删除
+单例或重新锚定。旧 Job、stale recovery、worker 和晚到写入不能复活数据。
+
+B1-5 目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，目标是完整树子集，不能相加。Vitest
+`1206 passed / 49 files`、Fake API `113 passed / 0 skip / exit 0`、build-script 21、API 类型 8、
+iOS 脚本 Node runner 37 均 exit 0；lint 为 `132 warning / 0 error`，warning 行清单与 B1-4 逐行
+相同。独立合成 PG 正常探针覆盖 12 表删除/他人逐值保留、坏 baseline、跨 user lease、双删除、首次
+cutover、真实 Bearer、未链接旧 User 与 worker 锁序；两项运行时变异被真实 count/死锁断言杀死。
+临时 PG 已停止并自动移除。
+
+完整双浏览器 E2E 保留 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
+`[webkit] e2e/a11y-focus-touch.spec.ts:94:5` 的设置抽屉三 Provider select `336x23 < 44px`，
+断言位于第 127 行；UI/样式/E2E 未改，不能写全树全绿。第一次完整 format 返回 exit 1，唯一问题是
+Node Fake 测试文件；该文件与六份收口 MD 已按现有 Prettier 纯格式化，最终完整 format 以主控补跑
+回执为准。OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schema 逐值未变；
+18 份既有迁移字节未变，无新 DDL、依赖、UI 或 workflow。
+
+主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；用户 Review 仍待。B1-0～B1-5 已完成本地
+实施与完成项归档，当前停在用户 Review，不启动下一卡。提交/推送状态以同卡最终交付回执为准，不预填
+SHA，不开 PR、不合并、不部署。最新状态见 [PROJECT_STATUS 的 B1 小节](./PROJECT_STATUS.md) 与
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
-B1-4 的 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计已同卡完成；A3 固定
-missing/unmodeled/deviation 清单逐字未改。更新 canonical OpenAPI 和 TypeScript 类型只属于必要
-生成步骤，不能代替 Fake API 真实成功响应验证。B1-5 如新增 HTTP 接口，同一卡必须继续同步 Fake
-API 成功响应 fixture、Node 契约测试和现有 A3 operation 覆盖审计；不得静默扩大 missing/空 schema
-豁免，合法空响应也需显式、按实际状态码审阅。这些卡不新增产品 UI 或真实依赖。
+历史 B1-4 的 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计已同卡完成；A3
+固定 missing/unmodeled/deviation 清单逐字未改。更新 canonical OpenAPI 和 TypeScript 类型只属于
+必要生成步骤，不能代替 Fake API 真实成功响应验证。B1-5 已按同一门禁完成 `DELETE
+/api/user/account` 的真实 HTTP 成功 fixture、Session/Job 删除后失效、重复删除幂等、导出六业务
+数组为空的 Node 断言与 A3 operation 审计，固定 missing/unmodeled/deviation 清单未扩大；合法空
+响应仍需按实际状态码审阅。B1-4/B1-5 都没有新增产品 UI 或真实依赖。
 
 仓库 CI 只在 `main`/`master` push 或 PR 上触发；任务分支 push 不触发远端 CI，远端 CI 未执行。
 不得修改工作流触发条件。证据口径为主控本地完整门禁加本 §3.4 的合成 PostgreSQL。

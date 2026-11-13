@@ -7,15 +7,24 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from auth import CurrentUser
+from auth import AuthIdentity, CurrentUser
 from database import get_db
-from dependencies import get_current_user
+from dependencies import (
+    get_authenticated_identity,
+    get_current_user,
+    get_current_user_from_identity,
+)
 from models.user import (
     User,
     UserSettings,
 )
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
+from schemas.user_account_deletion import UserAccountDeletionResponse
 from schemas.user_data_export import UserDataExport
+from services.learning_event_cutover import lock_cutover_control_for_update
+from services.user_account_deletion import (
+    delete_user_account as delete_user_account_data,
+)
 from services.user_data_export import (
     build_user_data_export,
     get_user_data_export_session_factory,
@@ -32,7 +41,24 @@ from utils.crypto import decrypt_api_key, encrypt_api_key
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+USER_ACCOUNT_DELETION_ERROR = "Unable to delete user account."
 USER_DATA_EXPORT_ERROR = "Unable to export user data."
+
+
+async def _lock_account_deletion_control(
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Serialize with event writers before mapping or locking the local user."""
+    await lock_cutover_control_for_update(db)
+
+
+async def _get_account_deletion_user(
+    _identity: AuthIdentity = Depends(get_authenticated_identity),
+    _control_lock: None = Depends(_lock_account_deletion_control),
+    current_user: CurrentUser = Depends(get_current_user_from_identity),
+) -> CurrentUser:
+    """Reject unauthenticated requests before waiting for the deletion gate."""
+    return current_user
 
 
 def get_key_status(has_key: bool, is_valid: bool | None) -> str:
@@ -137,6 +163,35 @@ async def export_user_data(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+@router.delete("/user/account", response_model=UserAccountDeletionResponse)
+async def delete_current_user_account(
+    current_user: CurrentUser = Depends(_get_account_deletion_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserAccountDeletionResponse | JSONResponse:
+    """Permanently delete the authenticated account and all owned local data."""
+    try:
+        await delete_user_account_data(db=db, user_id=current_user.id)
+        await db.commit()
+    except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception as rollback_exc:
+            logger.error(
+                "User account deletion rollback failed with %s",
+                type(rollback_exc).__name__,
+            )
+        logger.error(
+            "User account deletion failed with %s",
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": USER_ACCOUNT_DELETION_ERROR},
+        )
+
+    return UserAccountDeletionResponse(status="deleted")
 
 
 @router.get("/user/settings", response_model=UserSettingsResponse)

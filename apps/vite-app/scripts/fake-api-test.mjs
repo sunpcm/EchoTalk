@@ -1506,6 +1506,11 @@ const FAKE_SUCCESS_CASES = [
       path: "/api/assessments/grammar-only-contract/grammar",
     }),
   },
+  {
+    operation: "DELETE /api/user/account",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "DELETE", path: "/api/user/account" }),
+  },
 ];
 
 function contractDeviationsForResult(result) {
@@ -1753,6 +1758,89 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
     const anonymous = await timedFetch(`${serverInstance.baseUrl}/api/user/data-export`);
     assert.equal(anonymous.status, 401);
     assert.equal((await anonymous.json()).detail, "Authentication required.");
+  });
+
+  it("DELETE /api/user/account 返回固定成功正文且仍要求认证", async () => {
+    const result = results.get("DELETE /api/user/account");
+    assert.ok(result, "未取得 DELETE /api/user/account 的真实 HTTP 响应");
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.body, { status: "deleted" });
+
+    const anonymous = await timedFetch(`${serverInstance.baseUrl}/api/user/account`, {
+      method: "DELETE",
+    });
+    assert.equal(anonymous.status, 401);
+    await anonymous.json();
+  });
+
+  it("删除后 Session 与 Job 失效，重复删除幂等且导出不返回固定历史", async () => {
+    const isolated = await startFakeApiServer();
+    try {
+      const createdResponse = await timedFetch(`${isolated.baseUrl}/api/sessions`, {
+        method: "POST",
+        headers: {
+          ...AUTH_HEADER,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mode: "scenario" }),
+      });
+      assert.equal(createdResponse.status, 201);
+      const session = await createdResponse.json();
+
+      const endedResponse = await timedFetch(`${isolated.baseUrl}/api/sessions/${session.id}/end`, {
+        method: "POST",
+        headers: AUTH_HEADER,
+      });
+      assert.equal(endedResponse.status, 200);
+      const jobResponse = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/${session.id}/analysis-status`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(jobResponse.status, 200);
+      assert.equal((await jobResponse.json()).status, "pending");
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const deletedResponse = await timedFetch(`${isolated.baseUrl}/api/user/account`, {
+          method: "DELETE",
+          headers: AUTH_HEADER,
+        });
+        assert.equal(deletedResponse.status, 200);
+        assert.deepEqual(await deletedResponse.json(), { status: "deleted" });
+      }
+
+      const sessionAfterDelete = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/${session.id}`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(sessionAfterDelete.status, 404);
+      await sessionAfterDelete.json();
+
+      const jobAfterDelete = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/${session.id}/analysis-status`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(jobAfterDelete.status, 404);
+      await jobAfterDelete.json();
+
+      const exportAfterDelete = await timedFetch(`${isolated.baseUrl}/api/user/data-export`, {
+        headers: AUTH_HEADER,
+      });
+      assert.equal(exportAfterDelete.status, 200);
+      const exportBody = await exportAfterDelete.json();
+      assert.equal(exportBody.schema_version, 1);
+      for (const section of [
+        "sessions",
+        "transcripts",
+        "pronunciation_assessments",
+        "grammar_assessments",
+        "learning_events",
+        "knowledge_states",
+      ]) {
+        assert.deepEqual(exportBody[section], [], section);
+      }
+    } finally {
+      await terminateServer(isolated.child);
+    }
   });
 
   it("全部成功响应的状态与字段偏差恰为固定的具体清单", () => {

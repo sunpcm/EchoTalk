@@ -1,6 +1,10 @@
 # EchoTalk 已完成事项归档
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
+>
+> 本文各条数字和“未启动”“未来协调”等状态均绑定写入时的历史快照，后续完成不改写旧值；当前状态以
+> [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
+> 和 [TODO.md](../../TODO.md) 为准。
 
 ## 2026-11-12 B1 学习事件实施（B1-1）
 
@@ -75,6 +79,9 @@
       不合并。生产 DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未执行；任务分支 push
       不触发远端 CI，远端 CI 未执行。
 
+> **历史时点说明：** 上述 B1-5 未启动、未来协调口径属于 B1-3 当时快照；B1-5 后续完成记录见
+> [本平台整账号硬删除](#2026-11-13-b1-学习事件实施b1-5)。
+
 ## 2026-11-13 B1 学习事件实施（B1-4）
 
 - [x] **B1-4 本人数据结构化 JSON 导出**（依赖 B1-1、B1-2）：新增只读
@@ -109,6 +116,55 @@
       累计同步内存缓冲带来随账户数据增长的快照时长与内存风险，本卡不新增阈值、分页、异步任务、
       UI、依赖或限额。用户 Review 待；文档收口时尚未提交/推送，最终状态以同卡回执为准；不开 PR、
       不合并、不部署。生产/真实数据、Provider、LiveKit、IdP、设备与远端 CI 未执行；B1-5 未启动。
+
+> **历史时点说明：** 上述 B1-5 未启动为 B1-4 当时快照；后续完成记录见
+> [本平台整账号硬删除](#2026-11-13-b1-学习事件实施b1-5)。
+
+## 2026-11-13 B1 学习事件实施（B1-5）
+
+- [x] **B1-5 本平台整账号硬删除**（依赖 B1-1、B1-2、B1-4）：新增
+      `DELETE /api/user/account`、薄路由和专用 schema/service，仅使用经 Bearer 验证并映射的本人 ID。
+      路由先完成不读业务库的 Bearer 验签，再取得 learning-event control gate，最后复用同一已验证
+      身份完成本地 User 映射/flush；缺失或错误 Bearer 不执行业务 SQL，也不等待 control gate。服务在
+      调用方同一事务显式删除 `users`、`user_profiles`、`user_settings`（含加密 Key 副本）、
+      `sessions`、`transcripts`、`session_contexts`、`analysis_jobs`、`pronunciation_assessments`、
+      `grammar_errors`、`learning_events`、`knowledge_states` 和 `call_leases`，保留全局 `skills`、
+      control 行和他人数据。成功固定返回 `200 {"status":"deleted"}` 且只在 commit 完成后发送；
+      异常整体 rollback 并返回通用 500，重复删除幂等，旧 Job、stale recovery、worker 和晚到写入
+      不会复活数据。
+      删除前校验原控制数量/摘要、canonical baseline 和跨归属关系，坏 baseline 或跨 user lease 失败
+      关闭，不通过删除、`SET NULL` 或重算漂白坏数据。合法删除本人 `baseline_snapshot` 后按剩余真实
+      事件更新全局数量/摘要，保留 singleton、revision、cutover_at、phase 和既有 gate；无 control 时
+      用 SREX 表锁重读并封闭 prepare 窗口，不删除单例或重新锚定。实际 `claim_next_job` 仍无 gate，
+      全部新旧 worker 必须保持停止到 `traffic_resumed`；数据库锁和部署代码不能证明未知旧进程已退出。
+      Fake API 最小真实成功 fixture 与 Node 契约覆盖 Session/Job 删除后失效、重复删除幂等和随后导出
+      六业务数组为空；A3 固定 missing/unmodeled/deviation 清单未扩大。OpenAPI/TypeScript 只新增
+      DELETE path 和一个响应 schema，旧 path/schema 逐值未变；18 份既有迁移字节不变，无新 DDL、
+      依赖、产品 UI 或 workflow。
+      结果：fixture native 前置为 `1 passed / exit 0`；初始 RED backend 为
+      `32 failed / 1 passed / 0 skip / exit 1`，Fake API 为
+      `108 passed / 4 failed / 0 skip / exit 1`，删除语义增量 RED 为
+      `108 passed / 5 failed / 0 skip / exit 1`。R0 主控目标为 `34 passed`，但独立 Review
+      CHANGES REQUESTED，匿名/错误 Bearer 会在认证前取得全局 control `FOR UPDATE`；R1 新增真实
+      Bearer 回归 RED 为 `2 failed / 34 deselected / 0 skip / exit 1`，修复身份验证顺序后保留原 34
+      项并达到目标 `36 passed / 0 skip / exit 0`。完整 backend 为
+      `934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，36 项是完整树子集；Vitest
+      `1206 passed / 49 files`、Fake API `113 passed / 0 skip / exit 0`、build-script 21、API 类型
+      8、iOS 脚本 Node runner 37 均 exit 0。lint 为 `132 warning / 0 error`，warning 行清单与
+      B1-4 逐行相同。
+      独立合成 PostgreSQL 正常探针全为 exit 0，覆盖 12 表本人数据无残留、他人数据逐值保留、两项
+      并发删除、坏 baseline、跨 user lease、双删除、首次 cutover、真实 Bearer、未链接旧 User 与
+      worker 锁序；两项运行时变异各被真实 count/死锁断言杀死 1 次。临时 PG 已停止并自动移除。
+      完整双浏览器 E2E 保留 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
+      `[webkit] e2e/a11y-focus-touch.spec.ts:94:5` 的设置抽屉三 Provider select
+      `336x23 < 44px`，断言位于第 127 行；本轮 UI/样式/E2E 未改，不能写成全树全绿或未经证据归因
+      环境。第一次完整 format 按实测 `exit 1` 保留，唯一问题是 Node `fake-api-test.mjs`；本卡随后以
+      现有 Prettier 对该 Node 文件和六份收口 MD 做纯格式化，最终完整 format 由主控补跑并以回执为准。
+      主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；用户 Review 仍待。B1-0～B1-5 已完成
+      本地实施、主控代码/测试 Review 与完成项归档，当前停在 B1-5 用户 Review，不启动下一卡。提交/
+      推送尚未执行，最终状态以同卡交付回执为准，不预填 SHA；不开 PR、不合并、不部署。生产发布/
+      DDL/切换、真实数据、生产级不可恢复删除、真实 Provider/IdP/LiveKit、设备、原生 iOS、远端 CI、
+      生产备份及法定/特殊保留均未验收；外部身份后续可按原机制重新创建空账号，本卡无 tombstone。
 
 ## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
 

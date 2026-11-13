@@ -5,6 +5,7 @@ const host = "127.0.0.1";
 const port = Number(process.env.E2E_API_PORT ?? 18181);
 const sessions = new Map();
 const analysisJobs = new Map();
+let accountDeleted = false;
 
 function sendJson(response, status, body, extraHeaders = {}) {
   response.writeHead(status, {
@@ -17,6 +18,18 @@ function sendJson(response, status, body, extraHeaders = {}) {
 
 function userDataExportFixture() {
   const exportedAt = new Date().toISOString();
+  if (accountDeleted) {
+    return {
+      schema_version: 1,
+      exported_at: exportedAt,
+      sessions: [],
+      transcripts: [],
+      pronunciation_assessments: [],
+      grammar_assessments: [],
+      learning_events: [],
+      knowledge_states: [],
+    };
+  }
   const sessionId = "78100000-0000-4000-8000-000000000001";
   const jobId = "78100000-0000-4000-8000-000000000002";
   const pronunciationId = "78100000-0000-4000-8000-000000000003";
@@ -661,6 +674,14 @@ const server = createServer(async (request, response) => {
       llm_status: "unconfigured",
       tts_status: "unconfigured",
     });
+    return;
+  }
+
+  if (method === "DELETE" && pathname === "/api/user/account") {
+    sessions.clear();
+    analysisJobs.clear();
+    accountDeleted = true;
+    sendJson(response, 200, { status: "deleted" });
     return;
   }
 

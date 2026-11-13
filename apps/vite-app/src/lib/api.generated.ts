@@ -482,6 +482,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/user/account": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Delete Current User Account
+     * @description Permanently delete the authenticated account and all owned local data.
+     */
+    delete: operations["delete_current_user_account_api_user_account_delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/user/data-export": {
     parameters: {
       query?: never;
@@ -1237,6 +1257,17 @@ export interface components {
       session_id: string;
       /** Timestamp Ms */
       timestamp_ms: number;
+    };
+    /**
+     * UserAccountDeletionResponse
+     * @description Fixed acknowledgement returned only after account deletion commits.
+     */
+    UserAccountDeletionResponse: {
+      /**
+       * Status
+       * @constant
+       */
+      status: "deleted";
     };
     /**
      * UserDataExport
@@ -2239,6 +2270,37 @@ export interface operations {
         };
         content: {
           "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_current_user_account_api_user_account_delete: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UserAccountDeletionResponse"];
         };
       };
       /** @description Validation Error */

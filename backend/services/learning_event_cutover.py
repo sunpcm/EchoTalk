@@ -29,6 +29,8 @@ _BASELINE_DETAILS = {
     "legacy_synthetic_impact": "unknown",
 }
 _HEX64 = re.compile(r"[0-9a-f]{64}")
+_EARLY_PHASES = frozenset({PREPARED, LEGACY_WRITES_STOPPED})
+_COMPLETE_PHASES = frozenset({BASELINES_WRITTEN, EVENTS_ENABLED, TRAFFIC_RESUMED})
 
 
 class CutoverError(RuntimeError):
@@ -78,7 +80,7 @@ def _baseline_result(row: LearningEventCutover) -> BaselineResult:
     if (
         row.cutover_at is None
         or row.baseline_digest is None
-        or row.phase not in {BASELINES_WRITTEN, EVENTS_ENABLED, TRAFFIC_RESUMED}
+        or row.phase not in _COMPLETE_PHASES
     ):
         raise CutoverError(
             "cutover_phase_order",
@@ -104,17 +106,38 @@ def _validate_revision(revision: str) -> str:
 
 
 async def _control_for_update(db: AsyncSession) -> LearningEventCutover:
-    row = await db.scalar(
-        select(LearningEventCutover)
-        .where(LearningEventCutover.id == 1)
-        .with_for_update()
-    )
+    row = await lock_cutover_control_for_update(db)
     if row is None:
         raise CutoverError(
             "cutover_not_prepared",
             "learning-event cutover has not been prepared",
         )
     return row
+
+
+async def lock_cutover_control_for_update(
+    db: AsyncSession,
+) -> LearningEventCutover | None:
+    """Take the singleton write lock before any user mapping or data deletion."""
+    row = await db.scalar(
+        select(LearningEventCutover)
+        .where(LearningEventCutover.id == 1)
+        .with_for_update()
+    )
+    if row is not None:
+        return row
+
+    # A row lock cannot protect an absent singleton from a concurrent prepare
+    # insert. Hold a table lock across the absence check so baseline creation
+    # cannot race account deletion and leave the control digest stale.
+    await db.execute(
+        text("LOCK TABLE learning_event_cutover IN SHARE ROW EXCLUSIVE MODE")
+    )
+    return await db.scalar(
+        select(LearningEventCutover)
+        .where(LearningEventCutover.id == 1)
+        .with_for_update()
+    )
 
 
 def _require_revision(row: LearningEventCutover, revision: str) -> None:
@@ -483,6 +506,101 @@ async def _verify_persisted_baseline_set(
                 "baseline_state_changed",
                 "persisted baseline payload no longer matches its canonical shape",
             )
+
+
+async def validate_baseline_control_for_account_deletion(
+    db: AsyncSession,
+    *,
+    row: LearningEventCutover,
+) -> None:
+    """Fail closed unless the fixed baseline control matches persisted events."""
+    if row.phase in _EARLY_PHASES:
+        if (
+            row.cutover_at is not None
+            or row.baseline_count != 0
+            or row.baseline_digest is not None
+        ):
+            raise CutoverError(
+                "baseline_state_changed",
+                "early cutover phase contains an incomplete baseline shape",
+            )
+        unexpected_baseline = await db.scalar(
+            select(LearningEvent.apply_seq)
+            .where(LearningEvent.event_type == "baseline_snapshot")
+            .limit(1)
+        )
+        if unexpected_baseline is not None:
+            raise CutoverError(
+                "baseline_state_changed",
+                "baseline events exist before the baseline cutover",
+            )
+        return
+
+    if row.phase not in _COMPLETE_PHASES:
+        raise CutoverError(
+            "cutover_phase_order",
+            "account deletion cannot operate in this cutover phase",
+        )
+    if (
+        row.cutover_at is None
+        or row.baseline_count < 0
+        or row.baseline_digest is None
+        or _HEX64.fullmatch(row.baseline_digest) is None
+    ):
+        raise CutoverError(
+            "cutover_control_incomplete",
+            "baseline cutover control row is structurally incomplete",
+        )
+
+    unexpected_revision = await db.scalar(
+        select(LearningEvent.apply_seq)
+        .where(
+            LearningEvent.event_type == "baseline_snapshot",
+            LearningEvent.cutover_revision.is_distinct_from(row.revision),
+        )
+        .limit(1)
+    )
+    if unexpected_revision is not None:
+        raise CutoverError(
+            "baseline_state_changed",
+            "baseline events belong to a different cutover revision",
+        )
+    await _verify_persisted_baseline_set(
+        db,
+        revision=row.revision,
+        row=row,
+    )
+
+
+async def refresh_baseline_control_after_account_deletion(
+    db: AsyncSession,
+    *,
+    row: LearningEventCutover,
+) -> None:
+    """Recompute the fixed control digest from the surviving baseline events."""
+    if row.phase not in _COMPLETE_PHASES:
+        return
+    result = await db.execute(
+        select(
+            LearningEvent.user_id,
+            LearningEvent.skill_id,
+            LearningEvent.p_mastery_snapshot,
+        )
+        .where(
+            LearningEvent.event_type == "baseline_snapshot",
+            LearningEvent.cutover_revision == row.revision,
+        )
+        .order_by(LearningEvent.user_id, LearningEvent.skill_id)
+    )
+    remaining = [(row[0], row[1], row[2]) for row in result.all()]
+    if any(p_mastery is None for _, _, p_mastery in remaining):
+        raise CutoverError(
+            "baseline_state_changed",
+            "surviving baseline event has no mastery snapshot",
+        )
+    row.baseline_count = len(remaining)
+    row.baseline_digest = _digest_rows(remaining)
+    await db.flush()
 
 
 async def _assert_only_revision_baselines(

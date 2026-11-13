@@ -1,30 +1,32 @@
 # EchoTalk 当前状态
 
 > 最后核对：2026-11-13。当前 Linux 基线仍按 A6（PR #155）代码 `87e0fd5` 的历史快照记录；
-> B1-4 本轮代码/测试 Review 已通过，用户 Review 待；B1-5 未启动。历史 B1-1/B1-2/B1-3 的
-> 合成 PostgreSQL、完整本机门禁与独立代码 Review 结果见下文。
+> B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档，当前停在 B1-5 用户 Review；
+> 生产发布、真实数据和真实依赖仍未验收。历史 B1-1～B1-4 的合成 PostgreSQL、完整本机门禁与
+> 独立代码 Review 结果见下文，各自数字只属于当时卡。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
 
 ## 当前功能
 
-| 领域           | 当前实现                                                                             | 状态与边界                                                        |
-| -------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离      | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收 |
-| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                    | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明        |
-| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束 | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭       |
-| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                      | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收      |
-| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态   | 已实现                                                            |
-| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照       | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI      |
-| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                  | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务          |
-| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast   | 已实现；密钥轮换和 Provider 连通性需按环境验收                    |
-| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                  | 已实现 Web 流程；原生端文件选择未验收                             |
-| 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标             | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成           |
-| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现    |
-| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                              | 真机全链路、原生登录与发布未验收                                  |
-| macOS          | 仅 `tools/macos-m1-native-probe` 探测工程                                            | **未实现**正式客户端，等待 CP-03 设备证据                         |
-| 数字人         | 只有待办                                                                             | **未实现**                                                        |
+| 领域           | 当前实现                                                                             | 状态与边界                                                              |
+| -------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离      | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收       |
+| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                    | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明              |
+| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束 | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭             |
+| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                      | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收            |
+| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态   | 已实现                                                                  |
+| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照       | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI            |
+| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人 12 类业务数据，保留控制行和他人数据    | 已实现；代码/测试 Review APPROVED，用户 Review 待；生产不可恢复性未验收 |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                  | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                |
+| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast   | 已实现；密钥轮换和 Provider 连通性需按环境验收                          |
+| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                  | 已实现 Web 流程；原生端文件选择未验收                                   |
+| 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标             | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                 |
+| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现          |
+| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                              | 真机全链路、原生登录与发布未验收                                        |
+| macOS          | 仅 `tools/macos-m1-native-probe` 探测工程                                            | **未实现**正式客户端，等待 CP-03 设备证据                               |
+| 数字人         | 只有待办                                                                             | **未实现**                                                              |
 
 ## 当前验证基线
 
@@ -56,8 +58,9 @@
 ### A3（Fake API 契约校验，PR #141/#147）合并收口
 
 Fake API 的成功响应与缺失 operation 受仓内 OpenAPI 校验，既有偏差精确固定；A3 该轮为 108 项
-通过；B1-4 当前 Fake API 为 `110 passed / 0 skip / exit 0`，见本文
-[B1 小节](#b1学习事件台账b1-4-本轮实现完成用户-review-待)。
+通过；历史 B1-4 Fake API 为 `110 passed / 0 skip / exit 0`，当前 B1-5 为
+`113 passed / 0 skip / exit 0`，见本文
+[B1 小节](#b1学习事件台账b1-5-本轮实现完成用户-review-待)。
 最终实现 source `b1d3756` 合入 `main@a7841b7`，文档后由PR #147收口；历史及偏差清单见归档。
 
 ### A4a（只读 data 层，PR #149）合并收口
@@ -110,7 +113,7 @@ worker head fixture 适配，最终本机门禁和专用合成 PostgreSQL 结果
 导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
 AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
 
-### B1（学习事件台账）B1-4 本轮实现完成；用户 Review 待
+### B1（学习事件台账）B1-5 本轮实现完成；用户 Review 待
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -183,7 +186,7 @@ select 失败。首轮失败与 DocTalk 定向结果均保留；DocTalk 首轮�
 行，校验只能检查 coverage 结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider
 事实。
 
-B1-4 的本人数据结构化 JSON 导出已实现，主控独立代码/测试 Review 为 APPROVED，产品返修使用
+**历史 B1-4** 的本人数据结构化 JSON 导出已实现，主控独立代码/测试 Review 为 APPROVED，产品返修使用
 `1/2`；用户 Review 仍待。下列结果均由主控代跑，实施节点没有冒领测试或数据库执行。初始 backend
 基线为 `878 passed / 3 warnings / 0 skip / 80.51% / exit 0`；首轮 RED backend 为
 `10 failed / 0 skip / exit 1`，首轮 RED Fake API 为 `106 passed / 4 failed / 0 skip / exit 1`。
@@ -223,13 +226,38 @@ READ COMMITTED mutation 被真实并发后提交事件泄漏断言杀死，产�
 500 且无下载头。同步导出会完整缓冲在内存中，内存占用和快照持续时间随账户数据增长；本卡没有新增
 阈值、分页、异步任务、UI 或真实依赖。
 
-B1-5 未启动，未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要；保留控制行
-`learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除单例
-控制行或重新锚定。B1-4 的提交/推送状态以同卡交付回执为准，不开 PR、不合并、不部署。生产
-DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未执行。仓库 CI 仅在 `main`/`master`
-push 与 PR 上触发，任务分支 push 不触发远端 CI；远端 CI 未执行。其顺序、依赖和验收见
-[`TODO.md`](../TODO.md)，设计政策与实现门禁见
-[`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
+**当前 B1-5** 已实现本平台整账号硬删除。`DELETE /api/user/account` 仅使用 Bearer 映射的本人 ID，
+先完成无业务库读取的身份验签，再取得 learning-event control gate，最后复用同一身份完成本地 User
+映射/flush。服务在调用方同一事务显式删除 12 类本人数据：users、user_profiles、user_settings、
+sessions、transcripts、session_contexts、analysis_jobs、pronunciation_assessments、
+grammar_errors、learning_events、knowledge_states 和 call_leases；全局 skills、控制行及其他用户
+数据保留。成功固定返回 `200 {"status":"deleted"}` 且只在 commit 完成后发送；异常整体 rollback，
+日志和正文只保留通用错误。重复删除幂等，旧 Job、stale recovery、worker 与晚到写入不能复活数据。
+
+删除前验证原控制数量、摘要、canonical baseline 与跨归属关系，坏数据失败关闭，不通过删除或
+`SET NULL` 漂白。删除合法 baseline 后按剩余真实事件更新全局数量/摘要，保留 singleton、revision、
+cutover_at、phase 和既有 gate；无 control 时用 SREX 表锁封闭 prepare 窗口，不重新从
+`knowledge_states` 锚定。`claim_next_job` 本身仍无 gate，全部新旧 worker 必须保持停止到
+`traffic_resumed`；部署代码、数据库锁和表锁不能证明未知旧进程已经退出。
+
+主控实测 B1-5 目标为 `36 passed / 0 skip / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，36 项是完整树子集，不能相加。Vitest
+`1206 passed / 49 files`，Fake API `113 passed / 0 skip / exit 0`，build-script 21、API 类型 8、
+iOS 脚本 Node runner 37 均 exit 0；lint 为 `132 warning / 0 error`，warning 行清单与 B1-4 逐行
+相同。独立合成 PG 正常探针覆盖 12 表删除/他人逐值保留、坏 baseline、跨 user lease、双删除、
+首次 cutover、真实 Bearer、未链接旧 User 和 worker 锁序；两项运行时变异被真实 count/死锁断言
+杀死。临时 PG 已停止并自动移除。
+
+第一次完整 format 按原始事实返回 exit 1，唯一问题是 `apps/vite-app/scripts/fake-api-test.mjs`；
+该文件与六份收口 MD 已由现有 Prettier 纯格式化，主控仍须补跑完整 format 后以最终回执为准。
+OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schema 逐值未变；18 份既有迁移
+字节未变，无新 DDL、依赖、产品 UI 或 workflow。主控代码/测试 Review 为 APPROVED，产品返修使用
+`1/2`；用户 Review 仍待。B1-0～B1-5 已完成本地实施与完成项归档，不启动下一卡。提交/推送状态以
+同卡最终交付回执为准，当前不预填 SHA；不开 PR、不合并、不部署。生产 DDL/切换/部署、真实数据、
+真实不可恢复删除、真实 Provider/LiveKit/IdP/设备、原生 iOS、远端 CI、备份与法定/特殊保留均未
+验收。仓库 CI 仅在 `main`/`master` push 与 PR 上触发，任务分支 push 不触发远端 CI。设计与完成记录见
+[`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md) 和
+[`history/todo-done.md`](./history/todo-done.md)。
 
 ## 已知限制和近期风险
 
@@ -240,9 +268,9 @@ push 与 PR 上触发，任务分支 push 不触发远端 CI；远端 CI 未执�
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
-- B1-4 完整双浏览器 E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置
-  抽屉三个 Provider select 的 `336x23 < 44px`；UI/样式/E2E/配置相对父提交未改，按范围外遗留保留，
-  不能据此称全树全绿或未经证实归因环境。聚合门禁 exit 0 不覆盖该原始失败。
+- B1-5 完整双浏览器 E2E 仍为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置
+  抽屉三个 Provider select 的 `336x23 < 44px`；UI/样式/E2E/配置相对父提交未改，按同名范围外
+  遗留保留，不能据此称全树全绿或未经证实归因环境。聚合门禁 exit 0 不覆盖该原始失败。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策

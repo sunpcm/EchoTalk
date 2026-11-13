@@ -1712,6 +1712,21 @@
         "title": "TranscriptResponse",
         "type": "object"
       },
+      "UserAccountDeletionResponse": {
+        "description": "Fixed acknowledgement returned only after account deletion commits.",
+        "properties": {
+          "status": {
+            "const": "deleted",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "UserAccountDeletionResponse",
+        "type": "object"
+      },
       "UserDataExport": {
         "description": "Stable version-1 structured export returned as a JSON attachment.",
         "properties": {
@@ -3801,6 +3816,56 @@
         "summary": "Get Session Token",
         "tags": [
           "会话管理"
+        ]
+      }
+    },
+    "/api/user/account": {
+      "delete": {
+        "description": "Permanently delete the authenticated account and all owned local data.",
+        "operationId": "delete_current_user_account_api_user_account_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAccountDeletionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Current User Account",
+        "tags": [
+          "用户设置"
         ]
       }
     },

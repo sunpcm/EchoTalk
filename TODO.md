@@ -4,49 +4,12 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-## 2026-11-12 B1 学习事件实施（B1-4 本轮代码/测试 Review 通过；用户 Review 待；B1-5 未启动）
-
-设计见 [B1 学习事件台账设计](./docs/LEARNING_EVENTS_DESIGN.md)。用户已于 2026-11-12 确认
-七项数据生命周期、切换、导出和删除政策。B1-0～B1-4 的完成记录见
-[已完成事项归档](./docs/history/todo-done.md)。历史 B1-2/B1-3 的具名测试数字保留在归档与
-[当前状态](./docs/PROJECT_STATUS.md)，不与 B1-4 结果相加或替代。
-
-B1-4 的本人数据结构化 JSON 导出已实现；主控独立代码/测试 Review 结论为 APPROVED，产品返修使用
-`1/2`。主控代跑的目标套件为 `20 passed / 0 skip / exit 0`，完整 backend 为
-`898 passed / 3 warnings / 0 skip`、覆盖率 `80.86%`、exit 0。完整双浏览器 E2E 必须保留原始
-`233 passed / 1 failed / 0 skip / 0 retry / exit 1`；唯一失败是同名范围外遗留的 WebKit Provider
-select `336x23 < 44px`。聚合门禁可能容忍 `e2e=1` 并返回 0，不能据此写成全树全绿。完整数字、
-失败位置和其余门禁见 [PROJECT_STATUS 的 B1 小节](./docs/PROJECT_STATUS.md)。
-
-用户 Review 仍待，不能把代码/测试 Review APPROVED 写成用户验收。提交/推送状态以同卡交付回执为准；
-不开 PR、不合并、不部署。B1-5 未启动。
-
-切换期间，实际 Job 领取函数 `claim_next_job` 本身没有 gate；全部新旧 worker 必须保持停止到
-`traffic_resumed`。部署代码不代表启动或停止进程，显式停写声明、数据库锁和表锁都不能证明未知
-旧进程已经退出。
-
-后续仅按顺序推进 B1-5。每卡先有可失败的测试再写实现；原迁移只增不改，不弱化既有测试。生产
-切换、真实数据和音频采集不在本批范围。B1-5 如新增 HTTP 接口，写集必须同时
-包含对应 Fake API 成功响应 fixture、Node 契约测试和现有 A3 operation 覆盖审计更新；更新
-OpenAPI/TypeScript 不能替代真实成功响应契约，不能静默扩大 missing/空 schema 豁免。不新增产品
-UI 或真实依赖。
-
-B1-4 已完成并移入历史归档。当前未完成清单只剩 B1-5：
-
-- [ ] **B1-5 本平台整账号硬删除**（依赖 B1-1、B1-2、B1-4）：注销整个账号时，在同一受控事务中
-      硬删本人学习事件、转录、分析 Job/结果、评估、知识状态及其他已确认派生数据；不匿名化保留
-      副本，不操作外部 IdP，不增加单会话删除入口。
-      验收：先覆盖外键顺序、事务回滚、重放幂等、跨账号隔离、删除后无业务残留的 RED 测试；实现后
-      在合成库验证整账号删除及旧 Job/worker 不复活数据。备份和法定/特殊保留的生产方案
-      另批决定，未落地前不得宣称生产级不可恢复删除。若新增 HTTP 注销接口，写集还必须同步 Fake API
-      成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计；成功状态、响应体与删除语义必须由
-      真实契约验证，不能以缺失或空 schema 的静默豁免代替。OpenAPI/TS 按既有工具生成，不新增
-      产品 UI 或真实依赖。B1-5 在未来实现中还必须协调合法删除本人 `baseline_snapshot` 事件后的
-      全局控制数量/摘要；保留控制行 `learning_event_cutover.revision`、
-      `learning_event_cutover.cutover_at` 和既有门控，不得删除单例控制行或重新锚定。本卡不实现
-      该协调。
-
-每卡同步更新本清单、设计状态和相关架构/项目状态；B1-5 后做最终文档收口。
+> **B1 当前状态（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与完成项归档。
+> 这不表示用户 Review、生产发布、真实数据/Provider/IdP/LiveKit/设备验收已经完成。B1-5 的提交、
+> 推送与最终证据以同卡交付回执为准。完成记录见
+> [已完成事项归档](./docs/history/todo-done.md)，当前实现与验证边界见
+> [PROJECT_STATUS 的 B1 小节](./docs/PROJECT_STATUS.md) 和
+> [B1 学习事件台账设计](./docs/LEARNING_EVENTS_DESIGN.md)。
 
 ## 2026-11-10 云端评审后续（R2）
 

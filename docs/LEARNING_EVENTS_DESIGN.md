@@ -1,7 +1,9 @@
 # EchoTalk 学习事件台账设计（B1 Approved Design）
 
 > 历史交付：本设计随 PR #150 交付并合入，当时仅完成设计，主控独立审阅 APPROVED。
-> 当前政策：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；设计已定稿，B1 已拆卡并进入实施。
+> 当前批次状态：用户已于 2026-11-12 确认 §6、§7 和 §9 的实施政策；B1-0～B1-5 于
+> 2026-11-13 完成本地实施、主控代码/测试 Review 与文档收口。用户 Review、生产切换、真实数据和
+> 真实外部依赖仍未验收，当前停在 B1-5 用户 Review。
 > 历史 B1-1/B1-2 状态：B1-1 的 `LearningEvent` ORM/注册、`b1_learning_events` 迁移及 schema
 > 回归已在专用合成 PostgreSQL 验证；B1-2 已实现 §3–§5 的同事务事件写入、幂等、用户锁与 BKT
 > 合成隔离，主控独立代码 Review 为 APPROVED。历史 B1-2 目标套件为
@@ -15,12 +17,18 @@
 > `233 passed / 1 failed / 0 skip / 0 retry / exit 1`；
 > DocTalk 首轮失败原因未确认；再次全量中 WebKit Provider select 仍按实测失败保留。不能归因于
 > 环境、历史基线或回归，也不能称全树全绿。
-> 当前 B1-4 状态：本人数据结构化 JSON 导出已实现，主控代码/测试 Review 为 APPROVED，产品返修
+> 历史 B1-4 状态：本人数据结构化 JSON 导出已实现，主控代码/测试 Review 为 APPROVED，产品返修
 > 使用 `1/2`。主控代跑的目标套件为 `20 passed / 0 skip / exit 0`，完整 backend 为
 > `898 passed / 3 warnings / 0 skip`、覆盖率 `80.86%`、exit 0；完整双浏览器 E2E 为
 > `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是同名范围外遗留的 WebKit
-> Provider select `336x23 < 44px`。用户 Review 仍待；B1-5 未启动。提交/推送状态以同卡交付回执
-> 为准，不开 PR、不合并、不部署。生产库未执行 DDL、切换或真实数据处理。
+> Provider select `336x23 < 44px`。这些数字只属于 B1-4 当时基线。
+> 当前 B1-5 状态：本平台整账号硬删除及 `DELETE /api/user/account` 已实现，主控代码/测试 Review
+> 为 APPROVED，产品返修使用 `1/2`。目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
+> `934 passed / 3 warnings / 0 skip / 81.64% / exit 0`；Fake API 为
+> `113 passed / 0 skip / exit 0`。完整双浏览器 E2E 仍保留同名范围外遗留的
+> `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是 WebKit 三 Provider select
+> `336x23 < 44px`，不能写成全树全绿。用户 Review 仍待；提交/推送状态以同卡最终交付回执为准，
+> 不开 PR、不合并、不部署。生产库未执行 DDL、切换或真实数据处理。
 > 范围是分析结果事件、写入幂等、派生校验、本人数据导出和本平台整账号删除；音频采集及真实
 > 外部服务接入不在本项内。
 
@@ -248,7 +256,27 @@ Session 开始时间、Transcript 时间、Assessment 创建时间、Event `appl
 `float` 边界均拒绝 `NaN` 与 `±Inf`，合法的 JSON `null` 仍表示为 `None/null`。成功响应只使用
 `application/json`、`no-store`、固定附件文件名与 `nosniff`。本卡没有新增 UI、依赖、分页、异步
 任务或配额；完整导出在内存中同步缓冲，内存占用和快照持续时间会随账户数据增长，是已登记风险。
-整账号硬删及其 API 仍由未启动的 B1-5 交付；生产数据、生产备份和外部 IdP 均不在当前授权内。
+
+B1-5 已按上述政策实现 `DELETE /api/user/account`。请求仅使用经 Bearer 映射的本人 ID，不接受
+客户端替换身份；身份验签不读业务库，control gate 在本地 User 映射和 flush 前取得，随后复用同一
+已验证身份。路由在同一调用方事务中显式删除 `users`、`user_profiles`、`user_settings`（含加密 Key
+副本）、`sessions`、`transcripts`、`session_contexts`、`analysis_jobs`、
+`pronunciation_assessments`、`grammar_errors`、`learning_events`、`knowledge_states` 和
+`call_leases`，不匿名化或保留副本；全局 `skills` 与控制行保留。成功固定返回
+`200 {"status":"deleted"}`，且只在 commit 完成后发送；异常整体 rollback 并返回不泄漏数据的通用
+500。
+
+删除前先校验跨用户/跨来源归属和原控制数量、摘要及 canonical baseline 完整性，坏关系不通过
+`SET NULL`、删除或重算被“漂白”。合法删除后按剩余真实 `baseline_snapshot` 事件重算全局数量与摘要，
+保留 singleton、revision、cutover_at、phase 和既有 gate；无 control 时使用 SREX 表锁并重读封闭
+prepare 窗口，不重新从 `knowledge_states` 锚定。旧 Job、stale recovery、worker 与晚到写入不能复活
+已删除数据。外部 IdP 不受本接口操作，本版没有 tombstone 或身份封禁；未来登录可依原自动映射机制
+重新创建空账号。生产数据、生产备份、法定/特殊保留和外部 IdP 均不在当前授权内，因此不能宣称
+生产级不可恢复删除。
+
+整账号事务与全局控制锁的扫描成本会随账户数据增长；本版没有新增限额或异步删除。切换期间
+`claim_next_job` 本身仍无 gate，全部新旧 worker 必须保持停止到 `traffic_resumed`；数据库锁和部署
+代码都不能证明未知旧进程已经退出。
 
 ## 8. 单条线性 Alembic 形状（本轮专用合成库已验证）
 
@@ -379,15 +407,23 @@ B1-3 新增迁移 `b1_learning_event_cutover`，父 revision 为 `b1_learning_ev
 6. 本版不开放成功后的重新分析；失败重试与只读重算保留。
 7. 现有四参数冻结为 `bkt-v1`；新版本不改写旧事件。
 
-政策确认不等于整批实施完成。历史 B1-1/B1-2 已实现 ORM、迁移、schema 回归、同事务事件写入与
-BKT 隔离；历史 B1-3 已实现切换基线与只读校验，并保持具名测试数字。B1-4 的结构化 JSON 导出已
-实现，主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；目标套件
-`20 passed / 0 skip / exit 0`、完整 backend `898 passed / 3 warnings / 0 skip`、覆盖率
-`80.86%`，完整双浏览器 E2E 仍为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`。用户 Review
-仍待；代码 Review APPROVED 不等于用户验收或全 E2E 通过。提交/推送状态以同卡交付回执为准，不开
-PR、不合并、不部署。B1-5 的整账号删除未启动。B1-5 未来必须协调合法删除本人
-`baseline_snapshot` 事件后的全局控制数量/摘要；保留控制行 `learning_event_cutover.revision`、
-`learning_event_cutover.cutover_at` 和既有门控，不得删除单例控制行或重新锚定，本卡不实现。生产库
-未执行 DDL，也没有生产切换、真实数据处理或上线证据。其顺序、依赖和验收见
-[`TODO.md`](../TODO.md)；任务分支 push 不触发远端 CI，远端 CI 未执行；真实 Provider/LiveKit/IdP/
-设备未验证，音频采集与真实外部服务不在本范围。
+B1-0～B1-5 已于 2026-11-13 完成本地实施、主控代码/测试 Review 与完成项归档；历史 B1-1～B1-4
+的具名数字继续只属于各自卡。B1-5 的目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，是完整树的子集关系；Vitest 保持
+`1206 passed / 49 files`，Fake API 为 `113 passed / 0 skip / exit 0`，build-script 21、API 类型
+8、iOS 脚本 Node runner 37 均 exit 0。lint 为 `132 warning / 0 error`，warning 行清单与 B1-4
+逐行相同。完整双浏览器 E2E 保留
+`233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败仍是同名范围外 WebKit 三 Provider
+select `336x23 < 44px`；聚合入口不覆盖该原始失败。
+
+B1-5 第一次完整 format 曾因 Node `fake-api-test.mjs` 返回 exit 1；该文件与六份收口 MD 已由现有
+Prettier 纯格式化，最终完整 format 以主控补跑回执为准，不能提前写成全绿。OpenAPI/TypeScript
+只新增 DELETE path 与一个响应 schema，旧 path/schema 逐值未变；18 份既有迁移字节未改，无新 DDL、
+依赖、产品 UI 或 workflow 变更。目标数据库语义均以独立合成 PostgreSQL 验证，临时 PG 已停止并
+自动移除。
+
+主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；用户 Review 仍待。代码 Review APPROVED
+不等于用户验收或全 E2E 通过。提交/推送状态以同卡最终交付回执为准，当前文档不预填 SHA，不开 PR、
+不合并、不部署。生产库未执行 DDL、切换、真实数据处理或不可恢复删除；真实 Provider/IdP/LiveKit、
+设备、原生 iOS、远端 CI、生产备份与法定/特殊保留均未验收，音频采集与真实外部服务不在本范围。
+任务分支 push 不触发远端 CI。
