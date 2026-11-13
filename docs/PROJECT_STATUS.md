@@ -1,9 +1,9 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13，F2（修复 session-start 未等待响应解析）已合入 `main@38c4a69` 并经 Linux CI 复核，
-> 见下方"当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
-> [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
-> [`history/`](./history/)，不在本文追加。
+> 最后核对：2026-11-13，F4（收窄会话切片通用补丁入口）已完成本地实施与 Harness/macOS 亲跑，见下方
+> "当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
+> 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
+> 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
 ## 当前功能
 
@@ -25,26 +25,27 @@
 
 ## 当前验证基线
 
-当前基线绑定已核 F2 最终 `main@38c4a69ca33a48cead69f60edcdbb4b391626ea3` 与其 Linux CI
-（[CI 43366625704](https://github.com/sunpcm/EchoTalk/actions/runs/43366625704) 与
-[PR Guard 43366625968](https://github.com/sunpcm/EchoTalk/actions/runs/43366625968) 六项 success）。
-本轮 F3 只改文档，无新的产品代码基线。
+当前基线为本轮 F4 的 Harness/macOS 亲跑（非 Linux CI）。本机结果绑定前端子树
+`ba03a14f6be135c083253092b1a673e24542f261`、后端子树
+`db2cff7896c30066350122f0cf4d218eb9dc98fa`。
 
-| 测试树 / 门禁  | 最近实测结果（F2 Linux CI，已核）                                | 日志     |
-| -------------- | ---------------------------------------------------------------- | -------- |
-| Vitest         | 1224 passed（50 个文件）                                         | frontend |
-| Playwright E2E | 234 passed（Chromium 117 + WebKit 117，实际 retry/skip/flaky 0） | frontend |
-| Fake API 契约  | 108 passed                                                       | frontend |
-| API 类型生成器 | 8 passed                                                         | frontend |
-| 构建脚本       | 21 passed                                                        | frontend |
-| backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁）                | backend  |
+| 测试树 / 门禁  | 最近实测结果（F4 Harness/macOS，非 Linux CI）                             | 日志     |
+| -------------- | ------------------------------------------------------------------------- | -------- |
+| Vitest         | 1227 passed（51 个文件）                                                  | frontend |
+| Playwright E2E | 233 passed / 1 failed（Chromium 117/0、WebKit 116/1，retry/skip/flaky 0） | frontend |
+| Fake API 契约  | 108 passed                                                                | frontend |
+| API 类型生成器 | 8 passed                                                                  | frontend |
+| 构建脚本       | 21 passed                                                                 | frontend |
+| backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁）                         | backend  |
 
-F2 本机 Harness/macOS 亲跑另记（非 Linux CI）：Vitest 1224/50、E2E 233/1（Chromium 117/0、
-WebKit 116/1，唯一既有 a11y Provider 336×23，skip/retry 0）、定向压力 300/300、pytest
-809/3 warnings/80.19%、108/8/21，完整细节见 [history/2026-11.md](./history/2026-11.md)。
+E2E 唯一失败为既有 a11y Provider 336×23px 高度问题（无新增失败）；前端 lint 132 warnings / 0 error。
+Linux CI 回执以对应 PR 的最终 head 为准，已核对照快照 F3（`main@3827861`，
+[CI 43372070616](https://github.com/sunpcm/EchoTalk/actions/runs/43372070616) 与
+[PR Guard 43372070672](https://github.com/sunpcm/EchoTalk/actions/runs/43372070672)，Vitest 1224/50、
+E2E 234、pytest 809/3w/80.19%、108/8/21）；那是 F3 的 Linux 计数，不是 F4 的 CI。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
-命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1 的逐卡收口与历史快照
+命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F3 的逐卡收口与历史快照
 基线已移入 [history/2026-11.md](./history/2026-11.md)。
 
 ## 已知限制和近期风险
@@ -57,7 +58,7 @@ WebKit 116/1，唯一既有 a11y Provider 336×23，skip/retry 0）、定向压�
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - 本机 E2E 开工基线为 233 passed / 1 failed，仍是已记录的 WebKit Provider select 高度
-  336×23px 问题，没有新增失败；最终 F2 基线以 Linux CI 为准。
+  336×23px 问题，没有新增失败；最终基线以对应 PR 的 Linux CI 回执为准。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策

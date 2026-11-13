@@ -17,13 +17,6 @@
 契约测试；写明"测试零改动"的，测试一行不动，做不到就停下说明原因；不新增依赖、不改锁文件、不改数据库结构、
 不执行迁移，除非工作包明确要求并经用户同意。
 
-### 批次 F：复核遗留
-
-- [ ] **F4 收窄会话切片的通用补丁入口**（P2）：`apps/vite-app/src/store/conversationSlice.ts` 的
-      `resetWithShellCoordination(patch: object)` 出现在 `ConversationSlice` 公共类型上，经窄 façade 可传入任意键。
-      改为不出现在窄 façade 的公共类型里，或把入参收窄为协调器声明的键。验收：`useConversationStore` 的类型上
-      不再能传入 `appView`；`navigation.test.ts` 与 `conversation.test.ts` 的行为断言不变；三测试树计数不降。
-
 ### 批次 G：契约补全
 
 - [ ] **G1 后端为空 schema 的成功响应补响应模型**：`GET /api/health`、`GET /api/health/ready`、
