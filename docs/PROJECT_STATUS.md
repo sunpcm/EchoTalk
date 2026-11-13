@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13，G1（后端空 schema 成功响应补响应模型）已完成本地实施与 Harness/macOS 亲跑，见下方
+> 最后核对：2026-11-13，I2（分析任务最小可观测性）已完成本地实施与 Harness/macOS 亲跑，见下方
 > "当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
@@ -25,26 +25,28 @@
 
 ## 当前验证基线
 
-当前基线为本轮 G1 的 Harness/macOS 亲跑（非 Linux CI）。本机结果绑定对应提交与子树；
+当前基线为本轮 I2 的 Harness/macOS 亲跑（非 Linux CI）。本机结果绑定对应提交与子树；
 CI 回执以对应 PR 的最终 head 为准。
 
-| 测试树 / 门禁  | 最近实测结果（G1 Harness/macOS，非 Linux CI）                             | 日志     |
+| 测试树 / 门禁  | 最近实测结果（I2 Harness/macOS，非 Linux CI）                             | 日志     |
 | -------------- | ------------------------------------------------------------------------- | -------- |
 | Vitest         | 1227 passed（51 个文件）                                                  | frontend |
 | Playwright E2E | 233 passed / 1 failed（Chromium 117/0、WebKit 116/1，retry/skip/flaky 0） | frontend |
 | Fake API 契约  | 108 passed                                                                | frontend |
 | API 类型生成器 | 8 passed                                                                  | frontend |
 | 构建脚本       | 21 passed                                                                 | frontend |
-| backend pytest | 813 passed，3 warnings，80.23% 覆盖率（59% 门禁）                         | backend  |
+| backend pytest | 841 passed，3 warnings，80.59% 覆盖率（59% 门禁）                         | backend  |
 
 E2E 唯一失败为既有 a11y Provider 336×23px 高度问题（无新增失败）；前端 lint 132 warnings / 0 error。
-本地文档收口时 G1 专属 Linux CI 尚未运行，最终回执以对应 PR 为准。最近已核 Linux 基线为 H2：
-`main@714e166`（PR #162），[CI 43422540225](https://github.com/sunpcm/EchoTalk/actions/runs/43422540225) 与
-[PR Guard 43422540273](https://github.com/sunpcm/EchoTalk/actions/runs/43422540273)，Vitest 1227/51、
-E2E 234（Chromium 117/WebKit 117，0 retry/skip/flaky）、pytest 809/3 warnings/80.19%、108/8/21。
+本地文档收口时 I2 专属 Linux CI 尚未运行，最终回执以对应 PR 为准。最近已核 Linux 基线为 G1
+（PR #163，source head `f1bff3431d69c486768c914e3babd565ec8fb284`），
+[CI 43428362306](https://github.com/sunpcm/EchoTalk/actions/runs/43428362306) 与
+[PR Guard 43428362337](https://github.com/sunpcm/EchoTalk/actions/runs/43428362337)，Vitest 1227/51、
+E2E 234（Chromium 117/WebKit 117，实际 retry/skip/flaky 0，CI 配置 retries 2）、
+pytest 813/3 warnings/80.23%、108/8/21。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
-命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2 的逐卡收口与历史快照
+命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
 基线已移入 [history/2026-11.md](./history/2026-11.md)。
 
 ## 已知限制和近期风险

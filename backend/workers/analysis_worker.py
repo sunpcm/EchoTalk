@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from config import settings
 from database import async_session_maker, engine
 from services.analysis_jobs import claim_next_job, process_job, recover_stale_jobs
+from services.analysis_observability import transaction_events
 
 logger = logging.getLogger(__name__)
 
@@ -68,15 +69,16 @@ async def run_forever(
         while not stopping.is_set():
             processing = False
             try:
-                async with factory() as db, db.begin():
-                    if stopping.is_set():
-                        raise _StopBeforeCommit
-                    recovered = await recover_stale_jobs(db)
-                    if stopping.is_set():
-                        raise _StopBeforeCommit
-                    job_id = await claim_next_job(db)
-                    if stopping.is_set():
-                        raise _StopBeforeCommit
+                with transaction_events():
+                    async with factory() as db, db.begin():
+                        if stopping.is_set():
+                            raise _StopBeforeCommit
+                        recovered = await recover_stale_jobs(db)
+                        if stopping.is_set():
+                            raise _StopBeforeCommit
+                        job_id = await claim_next_job(db)
+                        if stopping.is_set():
+                            raise _StopBeforeCommit
             except _StopBeforeCommit:
                 return
 
