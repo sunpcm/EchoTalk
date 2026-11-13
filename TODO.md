@@ -19,15 +19,6 @@
 
 ### 批次 F：复核遗留
 
-- [ ] **F1 data 层契约测试补齐**（P1；只加测试，不改生产代码，不改四个组件的既有测试）：在
-      `apps/vite-app/src/data/readonly-query*.test.ts` 增加契约用例，覆盖 (1) `settlementDrift:"discard"`
-      结算时只校验 seq、principal、revision，不因生命周期或上下文漂移丢弃，对照 `revalidate` 会丢弃；
-      (2) `clearCursorOnFirstPage` 首页刷新开始即清 cursor，刷新失败或被取消后 cursor 仍为空、`loadMore` 不发请求；
-      (3) `cancel()` 取消 more 后 cursor 保留并可用同一 cursor 重试，取消 primary 后保留 items，迟到结果不写回；
-      (4) DP profile 的 `concurrent:"override"` 最新覆盖与午夜定时为窗口结束 +100ms；(5) WP profile 去重大小写不敏感；
-      (6) AS 适配层 `queriedIdentity` 只在首屏成功时提交、取消后不提交。背景：复核时把这些逐一改坏，
-      既有 AS 116 项、DP 23 项与契约 45 项全部仍通过。验收：对每一项做一次受控变异，变异后新增用例失败、
-      恢复后通过，逐项列在报告里；既有 Vitest 用例不变且全部通过。
 - [ ] **F2 修复 E2E 偶发失败**（P2）：`apps/vite-app/e2e/session-start.spec.ts:13-20` 的 response 监听里
       `await res.json()` 未被测试等待，偶发 `response.json: Test ended`（复核时冻结版本 80 次中 2 次、
       基线 `196f2ba` 80 次中 1 次，非第一批回归）。改为 `page.waitForResponse` 或在断言前等待监听完成。

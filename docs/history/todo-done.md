@@ -425,3 +425,22 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
 本轮只收口被误回退后已恢复的交付记录。主控在 `echotalk_restore_test` 上迁移到
 `c06_transcript_events` 后，backend pytest 为 794 passed、3 warnings、覆盖率
 78.84%，59% 门禁保持。资源身份和验收见 `docs/agent-review-loop.md` §19。
+
+## 架构演进工作包（第二批）F1
+
+- [x] **F1 data 层契约测试补齐**（P1；只加测试，不改生产代码，不改四个组件的既有测试）：在
+      `apps/vite-app/src/data/readonly-query*.test.ts` 增加契约用例，覆盖 (1) `settlementDrift:"discard"`
+      结算时只校验 seq、principal、revision，不因生命周期或上下文漂移丢弃，对照 `revalidate` 会丢弃；
+      (2) `clearCursorOnFirstPage` 首页刷新开始即清 cursor，刷新失败或被取消后 cursor 仍为空、`loadMore` 不发请求；
+      (3) `cancel()` 取消 more 后 cursor 保留并可用同一 cursor 重试，取消 primary 后保留 items，迟到结果不写回；
+      (4) DP profile 的 `concurrent:"override"` 最新覆盖与午夜定时为窗口结束 +100ms；(5) WP profile 去重大小写不敏感；
+      (6) AS 适配层 `queriedIdentity` 只在首屏成功时提交、取消后不提交。背景：复核时把这些逐一改坏，
+      既有 AS 116 项、DP 23 项与契约 45 项全部仍通过。验收：对每一项做一次受控变异，变异后新增用例失败、
+      恢复后通过，逐项列在报告里；既有 Vitest 用例不变且全部通过。
+
+      本地收口：新增 `apps/vite-app/src/data/readonly-query-f1.test.ts`（R1 为 703 行、18 项），
+      定向 18/18、全量 Vitest 1224/1224、typecheck、prettier 通过；受控变异实施者 18 组逐组真实推断
+      失败并恢复，Harness 独立 19 组（含补充第 19 项）逐字节恢复后 GREEN。R0（11 项/1217）经静态核验
+      标注 S0 后记 R0 CHANGES REQUESTED，R1 以单因素 primary/more 矩阵与真实日期窗口关闭。
+      **尚未 CI / PR / APPROVED**：本段本地计数不能挂在旧 A6 Linux CI 名下，仅代表本机自测，待
+      Harness 独立评审后合并。详见实施报告与 `docs/history/2026-11.md`。
