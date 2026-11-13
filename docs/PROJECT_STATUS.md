@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13，I2（分析任务最小可观测性）已完成本地实施与 Harness/macOS 亲跑，见下方
+> 最后核对：2026-11-14，D1（状态页最终 main/CI 回执）已固定产品 main 与最终 main CI 结果，见下方
 > "当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
@@ -25,25 +25,30 @@
 
 ## 当前验证基线
 
-当前基线为本轮 I2 的 Harness/macOS 亲跑（非 Linux CI）。本机结果绑定对应提交与子树；
-CI 回执以对应 PR 的最终 head 为准。
+当前基线为最终 main Linux CI 回执（Harness 回读原始日志，非本机亲跑）。产品 main
+[`58254b98d8dcd6a81982ebe0436f6742fa4a974a`](https://github.com/sunpcm/EchoTalk/commit/58254b98d8dcd6a81982ebe0436f6742fa4a974a)
+（tree `86f4d99880ca41bb0c497ce682efaec3e66e64c7`）；最终 main push CI
+[`43441014970`](https://github.com/sunpcm/EchoTalk/actions/runs/43441014970) 五作业均成功；I2 经
+[PR #164](https://github.com/sunpcm/EchoTalk/pull/164)（source `dc4fb2602fa2aa9456087017c772647867128252`，
+PR CI [`43439468324`](https://github.com/sunpcm/EchoTalk/actions/runs/43439468324)、Guard
+[`43439468312`](https://github.com/sunpcm/EchoTalk/actions/runs/43439468312)）均已成功。
 
-| 测试树 / 门禁  | 最近实测结果（I2 Harness/macOS，非 Linux CI）                             | 日志     |
-| -------------- | ------------------------------------------------------------------------- | -------- |
-| Vitest         | 1227 passed（51 个文件）                                                  | frontend |
-| Playwright E2E | 233 passed / 1 failed（Chromium 117/0、WebKit 116/1，retry/skip/flaky 0） | frontend |
-| Fake API 契约  | 108 passed                                                                | frontend |
-| API 类型生成器 | 8 passed                                                                  | frontend |
-| 构建脚本       | 21 passed                                                                 | frontend |
-| backend pytest | 841 passed，3 warnings，80.59% 覆盖率（59% 门禁）                         | backend  |
+| 测试树 / 门禁  | 最终 main CI 结果（Linux）                                      | 日志     |
+| -------------- | --------------------------------------------------------------- | -------- |
+| Vitest         | 1227 passed（51 个文件，23.60s）                                | frontend |
+| Playwright E2E | 234 passed（Chromium 117/WebKit 117，retry/skip/flaky 0，3.8m） | frontend |
+| Fake API 契约  | 108 passed                                                      | frontend |
+| API 类型生成器 | 8 passed                                                        | frontend |
+| 构建脚本       | 21 passed                                                       | frontend |
+| backend pytest | 841 passed，3 warnings，80.59% 覆盖率（59% 门禁，63.61s）       | backend  |
 
-E2E 唯一失败为既有 a11y Provider 336×23px 高度问题（无新增失败）；前端 lint 132 warnings / 0 error。
-本地文档收口时 I2 专属 Linux CI 尚未运行，最终回执以对应 PR 为准。最近已核 Linux 基线为 G1
-（PR #163，source head `f1bff3431d69c486768c914e3babd565ec8fb284`），
-[CI 43428362306](https://github.com/sunpcm/EchoTalk/actions/runs/43428362306) 与
-[PR Guard 43428362337](https://github.com/sunpcm/EchoTalk/actions/runs/43428362337)，Vitest 1227/51、
-E2E 234（Chromium 117/WebKit 117，实际 retry/skip/flaky 0，CI 配置 retries 2）、
-pytest 813/3 warnings/80.23%、108/8/21。
+前端 lint 132 warnings / 0 error；Ruff format/check 全过。上述计数为 Harness 回读最终 main CI 原始
+日志（非本轮亲跑）。macOS Harness 本机 fresh 完整 E2E 首次 232 passed/2 failed（Chromium 117/0、
+WebKit 115/2，retry/skip/flaky 0）：其一仍为既有 Provider 336×23（WebKit），其二为
+`weekly-progress.spec.ts:97`「概览失败安全提示与显式重试」alert 未出现（根因待定位，详见
+[history/2026-11.md](./history/2026-11.md)）。云端独立评审报告的 Linux E2E 233/1（WebKit 主题用例，
+1 worker 90/90 定向重放，来源为用户转交的云端报告、非本轮亲跑，主题防抖根因待定位）一并保留为历史
+亲跑，不并入当前 Linux 基线。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -58,8 +63,12 @@ pytest 813/3 warnings/80.23%、108/8/21。
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
-- 本机 E2E 开工基线为 233 passed / 1 failed，仍是已记录的 WebKit Provider select 高度
-  336×23px 问题，没有新增失败；最终基线以对应 PR 的 Linux CI 回执为准。
+- 本机（macOS Harness）fresh 完整 E2E 首次 232 passed / 2 failed：其一仍是已记录的 WebKit Provider
+  select 高度 336×23px 问题（最终 main Linux CI 为 234 passed，见上方基线，该问题不在 Linux CI 复现）；
+  其二为 `weekly-progress.spec.ts:97`「概览失败安全提示与显式重试」alert 未出现，根因待定位；两者定向
+  重放与首次失败详情见 [history/2026-11.md](./history/2026-11.md)，重放通过不追认为整树通过。
+- 云端独立评审另报告 Linux E2E 233/1（WebKit 主题用例）并做 1 worker 90/90 定向重放；来源为用户
+  转交的云端报告、非本轮亲跑，主题防抖根因待定位。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策
