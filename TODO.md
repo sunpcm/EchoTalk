@@ -4,10 +4,10 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **B1 / R2-14 当前状态（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与
+> **B1 / R2-14 当次快照（2026-11-13）：** B1-0～B1-5 已完成本地实施、主控代码/测试 Review 与
 > 完成项归档。独立 WPH 的 `246 passed / 0 failed / 0 skip / 0 retry / exit 0` 及
 > `backend 934 passed / 81.45% / Fake API 113` 保留为历史快照。R2-14 Compose 就绪与一次性迁移
-> 编排已完成本地合成验证，独立代码 Review 为 APPROVED；当前完整 13 项门禁及聚合均 `exit 0`，
+> 编排已完成本地合成验证，独立代码 Review 为 APPROVED；当次快照的完整 13 项门禁及聚合均 `exit 0`，
 > backend 为 `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest 为
 > `1206 passed / 49 files`，Fake API 为 `116 passed / 0 skip`，完整双浏览器 E2E 仍为
 > `246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`）。最终 Review/发布
@@ -40,10 +40,11 @@
 - [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：覆盖 LiveKit 容器背景为主题色、增加
       场景名与计时页头、手机上字幕优先、`thinking` 使用独立文案。验收：模块桩布局 E2E 覆盖 390 与 1280；
       真实 LiveKit 下的人工验收单列，未做不得勾选整项。
-- [ ] **R2-12 macOS 构建产物与同步脚本**（P-2，P2；壳工程受 CP-03 阻断）：`build.mjs` 支持
-      `--platform macos` 产出 `dist/macos/<mode>` 与 manifest；新增 `sync-macos.mjs` 的校验逻辑与 `node:test`。
-      验收：`test:build` 新增 macOS 用例通过；拿到 web/ios 产物或 mode 不符时在调用外部工具前失败。
-      不创建 `src-tauri/`。
+- [x] **R2-12 macOS 构建产物与同步脚本**（纯脚本实施/本地验收完成；用户 Review 待）：
+      `build.mjs --platform macos` 产出 `dist/macos/<mode>` 与 manifest；`sync-macos.mjs` 在调用
+      外部工具前校验来源产物和 mode；新增 Turbo 任务将 `ANALYZE` 纳入缓存输入。正式客户端、壳与
+      Tauri 选型仍未创建或确认。详细门禁和边界见
+      [PROJECT_STATUS 的 R2-12 小节](./docs/PROJECT_STATUS.md)。
 - [ ] **R2-13 组件目录按页面边界归位**（P-3，P2；排在 R2-07 之后）：抽出 `Dashboard`，按 §2.4 P-3 的目标结构
       `git mv`。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
 - [x] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2）：本文记录的本地合成实施、完整
@@ -58,7 +59,7 @@
       Python 标准库和 `ProxyHandler({})` 显式绕过环境代理，HTTP timeout `4`、容器 timeout `5s`。
       旧 `/api/health/ready` 的认证、用户配置判断和 OpenAPI 语义保持不变。完整合同见
       [Compose 启动与系统就绪合同](./docs/COMPOSE_STARTUP_CONTRACT.md)。
-      当前完整 13 项门禁及聚合 `exit 0`；backend
+      当次快照的完整 13 项门禁及聚合 `exit 0`；backend
       `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest
       `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
       `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，build-script `21`、API 类型 runner `8`、

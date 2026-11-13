@@ -1,12 +1,9 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13。R2-14 Compose 系统就绪与一次性迁移已完成本地合成验证，源码 10 文件
-> 与主控冻结 hash 清单逐项一致，独立代码 Review 为 APPROVED。当前完整 13 项门禁及聚合均
-> `exit 0`：backend `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest
-> `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
-> `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。最终 Review/发布见主控同卡回执；用户
-> Review 待。生产发布、原 Compose 整栈、真实外部依赖与设备仍未验收。
-> A6、B1 和独立 WPH 的数字继续绑定各自历史快照，不改写当时结果。
+> 最后核对：2026-11-13。R2-12 macOS 纯静态构建工具、同步前校验和 Turbo 缓存已完成本地实施与
+> 本地验收，独立代码 Review 为 APPROVED；当前门禁和边界见下方 R2-12 小节，用户 Review 待。
+> R2-14 以及 A6、B1、独立 WPH 的数字继续绑定各自当次快照，不改写当时结果。正式 macOS 客户端、
+> Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -29,16 +26,39 @@
 | 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标             | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                 |
 | 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现          |
 | iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                              | 真机全链路、原生登录与发布未验收                                        |
-| macOS          | 仅 `tools/macos-m1-native-probe` 探测工程                                            | **未实现**正式客户端，等待 CP-03 设备证据                               |
+| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存 | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验   |
 | 数字人         | 只有待办                                                                             | **未实现**                                                              |
 
 ## 当前验证基线
 
-### R2-14（Compose 系统就绪与一次性迁移）本地合成完成；用户 Review 待
+### R2-12（macOS 构建产物与同步脚本）本地实施/验收完成；用户 Review 待
+
+- `build.mjs --platform macos` 生成共享 Vite 静态产物 `dist/macos/<mode>` 与 manifest；
+  `sync-macos.mjs` 在调用任何外部工具前校验来源产物、平台和 mode。新增 Turbo 任务把 `ANALYZE`
+  显式纳入环境输入并缓存 `stats.html`，同时保留 Vite 的 `ANALYZE` 配置和输出语义。本卡只交付纯
+  脚本，不创建 `src-tauri/` 或正式壳，也不确认为 Tauri 选型。
+- R1 独立代码 Review 为 APPROVED，8 文件 hash 未漂移；R1 format、quality、build-script 均为
+  `0`。build-script 为 `47/47`，其中新增 `26`、`0 skip`；iOS 脚本为 `37/37`；私有控制为
+  `26 pass`，`4` 个变异均被杀死。
+- R0 其余十个门禁均为 `0`：Vitest `1206 passed / 49 files`，Fake API `116 passed`，API 类型
+  `8 passed`，backend `941 passed / 3 warnings / 0 skip / 81.56% raw coverage`，E2E
+  `246 passed / 0 failed / 0 skip / 0 retry`，schema、metadata 与 Ruff 均 `exit 0`。lint 为
+  `132 warning / 0 error`，逐诊断与父基线相同。
+- R0 聚合为 `1`，原因是 Turbo 缓存缺陷；R1 三个受影响门禁聚合为 `0`，按门禁汇总的 13 项均记录
+  为 `0`。上述结果不是一次从空缓存开始的完整全零重跑。
+- 三种 mode 的实际 TSC/Vite 静态构建均为 `0`；验证使用不带 dotenv 的合成源码副本和公开
+  `example.test` 配置，产物 app hash 与 R1 相同。缺 native config 时的实际 CLI 预期为 `exit 1`，
+  未调用 Tauri。
+- 风险：旧默认 build task 仍使用 `$ANALYZE`；本卡不改，也不宣称旧任务缺陷已复现，缓存策略另行
+  复核。
+- 当前边界仅为 macOS 静态构建产物和同步前校验。正式壳、Tauri 选型、native 认证、真实设备、
+  签名、公证与发布均未创建或验收。提交/推送状态以主控最终回执为准，本文不预填成功。
+
+### R2-14（Compose 系统就绪与一次性迁移）当次快照；用户 Review 待
 
 - 公开 `GET /api/health/system-ready` 不依赖用户身份，只使用共享 PostgreSQL 执行 `SELECT 1`；
   成功为 typed `200 {"status":"ready"}`，连接、查询、超时或释放失败为通用 typed
-  `503 {"status":"not_ready"}`。连接 Context 完整释放后才响应；数据库操作预算为 `0.5s`，为当前
+  `503 {"status":"not_ready"}`。连接 Context 完整释放后才响应；数据库操作预算为 `0.5s`，为当次
   asyncpg 约 `2s` 的 graceful close 留余量，完整响应目标 `<3s`。旧 `/api/health/ready` 的认证、
   用户配置判断和 OpenAPI 语义未改。
 - Compose 的 `echotalk-migrate` 使用 API 角色、同一 `DATABASE_URL` 和既有环境边界执行
@@ -46,7 +66,7 @@
   analysis-worker 依赖迁移成功，Web 依赖 API `service_healthy`。API healthcheck 使用镜像已有
   Python 标准库和 `ProxyHandler({})` 绕过环境代理，HTTP timeout `4`、容器 timeout `5s`，不嵌入
   Token。完整合同见 [COMPOSE_STARTUP_CONTRACT.md](./COMPOSE_STARTUP_CONTRACT.md)。
-- 当前完整 13 项门禁及聚合 `exit 0`；backend `941 passed / 3 warnings / 0 skip / 81.57% raw Total
+- 当次快照的完整 13 项门禁及聚合 `exit 0`；backend `941 passed / 3 warnings / 0 skip / 81.57% raw Total
 coverage`，Vitest `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
   `246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`）；build-script
   `21`、API 类型 runner `8`、非 native iOS 脚本 runner `37` 均 `exit 0`；lint 为
@@ -161,7 +181,7 @@ Provider select 的
 Chromium/WebKit 最终检查均为三个控件各 `336x44`、`appearance:auto`、2px solid outline。主控
 代码/测试 Review 与真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修 `0/2`。整卡 Review
 与提交/推送以同卡最终回执为准；用户 Review 待。上述 backend/Fake/E2E 数字只属于 WPH 当时
-快照，后续 R2-14 的当前基线见上方 R2-14 小节。
+快照，后续 R2-14 的当次快照见上方 R2-14 小节。
 
 历史交付：B1 新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，当时定义只追加事件、Job 写入
 幂等、合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
@@ -314,13 +334,12 @@ OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schem
 - CI 前端固定使用与锁文件一致的 Playwright 1.62.1 / Ubuntu 26.04 官方预装镜像及 digest，
   避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
-- 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
+- R2-12 本轮前端 lint warning/error 数量与 R2-12 小节一致，主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - 历史 B1-5 的完整双浏览器 E2E 当时为
   `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置抽屉三个 Provider select
   的 `336x23 < 44px`；该历史快照及当时范围外判断继续保留。后续独立 WPH 已完成修复，其历史快照
-  与当前 R2-14 的双浏览器 E2E 均为
-  `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，但仍不能把当前结果回写成当时已通过。
+  与 R2-14 当次快照的 E2E 数量分别在各自小节集中记录，不能把这些后续结果回写成当时已通过。
 - Compose 的一次性迁移、公开 system-ready 和容器依赖门控已经形成本地合同并通过原生 config、
   HTTP 探针和独立自有 PG 验证；原 Compose 整栈、镜像、真实 `.env`、生产 rollout、真实
   Provider/IdP/LiveKit 与设备未验收，不能把本地门禁写成生产就绪。

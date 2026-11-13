@@ -3,7 +3,7 @@
  * 遵守 docs/CROSS_PLATFORM_ARCHITECTURE.md §8.2 契约
  */
 
-export const ALLOWED_PLATFORMS = Object.freeze(["web", "ios"]);
+export const ALLOWED_PLATFORMS = Object.freeze(["web", "ios", "macos"]);
 export const ALLOWED_MODES = Object.freeze(["development", "staging", "production"]);
 
 export class BuildValidationError extends Error {
@@ -92,24 +92,29 @@ export function validateBuildConfig({ platform, mode, env = {}, rawArgs = [] }) 
   const devToken = env.VITE_DEV_AUTH_TOKEN;
   const hasDevToken = typeof devToken === "string" && devToken.trim().length > 0;
 
-  // 针对 iOS 平台的 production 与 staging 校验
-  if (platform === "ios" && (mode === "production" || mode === "staging")) {
+  // iOS 与 macOS 的 production/staging 共用原生端安全配置校验
+  if (
+    (platform === "ios" || platform === "macos") &&
+    (mode === "production" || mode === "staging")
+  ) {
+    const platformLabel = platform === "ios" ? "iOS" : "macOS";
+
     if (hasDevToken) {
       throw new BuildValidationError(
-        `[EchoTalk Build] ${mode} 环境下的 iOS 构建禁止配置 VITE_DEV_AUTH_TOKEN`,
+        `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建禁止配置 VITE_DEV_AUTH_TOKEN`,
       );
     }
 
     if (authMode !== "oidc") {
       throw new BuildValidationError(
-        `[EchoTalk Build] ${mode} 环境下的 iOS 构建必须使用 OIDC 认证 (VITE_AUTH_MODE=oidc)，禁止使用 ${authMode || "未配置"}`,
+        `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建必须使用 OIDC 认证 (VITE_AUTH_MODE=oidc)，禁止使用 ${authMode || "未配置"}`,
       );
     }
 
     const apiBaseUrl = env.VITE_API_BASE_URL;
     if (!apiBaseUrl || !apiBaseUrl.trim()) {
       throw new BuildValidationError(
-        `[EchoTalk Build] ${mode} 环境下的 iOS 构建必须配置 VITE_API_BASE_URL`,
+        `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建必须配置 VITE_API_BASE_URL`,
       );
     }
     validateApiUrl(apiBaseUrl, { requireHttps: true });
@@ -117,34 +122,34 @@ export function validateBuildConfig({ platform, mode, env = {}, rawArgs = [] }) 
     const authority = env.VITE_OIDC_AUTHORITY;
     if (!authority || !authority.trim()) {
       throw new BuildValidationError(
-        `[EchoTalk Build] ${mode} 环境下的 iOS 构建必须配置 VITE_OIDC_AUTHORITY`,
+        `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建必须配置 VITE_OIDC_AUTHORITY`,
       );
     }
     try {
       const authUrl = new URL(authority.trim());
       if (authUrl.protocol !== "https:") {
         throw new BuildValidationError(
-          `[EchoTalk Build] ${mode} 环境下的 iOS 构建 VITE_OIDC_AUTHORITY 必须为 HTTPS`,
+          `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建 VITE_OIDC_AUTHORITY 必须为 HTTPS`,
         );
       }
     } catch (err) {
       if (err instanceof BuildValidationError) throw err;
       throw new BuildValidationError(
-        `[EchoTalk Build] ${mode} 环境下的 iOS 构建 VITE_OIDC_AUTHORITY 格式非法`,
+        `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建 VITE_OIDC_AUTHORITY 格式非法`,
       );
     }
 
     const clientId = env.VITE_OIDC_CLIENT_ID;
     if (!clientId || !clientId.trim()) {
       throw new BuildValidationError(
-        `[EchoTalk Build] ${mode} 环境下的 iOS 构建必须配置 VITE_OIDC_CLIENT_ID`,
+        `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建必须配置 VITE_OIDC_CLIENT_ID`,
       );
     }
 
     const redirectUri = env.VITE_OIDC_REDIRECT_URI;
     if (!redirectUri || !redirectUri.trim()) {
       throw new BuildValidationError(
-        `[EchoTalk Build] ${mode} 环境下的 iOS 构建必须配置 VITE_OIDC_REDIRECT_URI`,
+        `[EchoTalk Build] ${mode} 环境下的 ${platformLabel} 构建必须配置 VITE_OIDC_REDIRECT_URI`,
       );
     }
   }
@@ -190,9 +195,9 @@ export function createManifest({ platform, mode, env = {} }) {
 }
 
 /**
- * 严格校验 iOS 同步所需的 Manifest Schema
+ * 严格校验平台同步所需的 Manifest Schema；默认保持 iOS 语义
  */
-export function validateManifestSchema(manifest, expectedMode) {
+export function validateManifestSchema(manifest, expectedMode, expectedPlatform = "ios") {
   if (!manifest || typeof manifest !== "object") {
     throw new BuildValidationError("[EchoTalk Sync] 构建标识 manifest 格式非法");
   }
@@ -201,10 +206,12 @@ export function validateManifestSchema(manifest, expectedMode) {
     throw new BuildValidationError("[EchoTalk Sync] 产物标识记录未成功构建，禁止同步。");
   }
 
-  if (manifest.platform !== "ios") {
-    throw new BuildValidationError(
-      `[EchoTalk Sync] 产物平台不匹配: 期望 "ios"，实际为 "${manifest.platform}"。禁止将 Web 产物同步至 iOS。`,
-    );
+  if (manifest.platform !== expectedPlatform) {
+    const mismatchMessage =
+      expectedPlatform === "ios"
+        ? `[EchoTalk Sync] 产物平台不匹配: 期望 "ios"，实际为 "${manifest.platform}"。禁止将 Web 产物同步至 iOS。`
+        : `[EchoTalk Sync] 产物平台不匹配: 期望 "${expectedPlatform}"，实际为 "${manifest.platform}"。禁止将其他平台产物同步至 macOS。`;
+    throw new BuildValidationError(mismatchMessage);
   }
 
   if (manifest.mode !== expectedMode) {

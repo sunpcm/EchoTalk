@@ -162,6 +162,10 @@ iOS同步只接受匹配platform=ios及mode的已成功构建产物，验证失�
 
 Turbo缓存显式包含影响构建的公开环境变量、根构建控制变量及相关脚本/配置输入；输出同时覆盖默认dist和平台子目录。新增命令优先使用现有Node/pnpm/Capacitor，不新增依赖、锁文件或env密钥文件。
 
+**R2-12 纯脚本扩展（2026-11-13）**：保留上述 CP-01 历史范围，本轮只新增 macOS 静态产物脚本，不创建正式壳。`build:macos` 将共享 Vite 客户端构建到 `dist/macos/<mode>` 并生成同结构 manifest；staging/production 复用原生端 HTTPS、OIDC 与拒绝开发 Token 的公开配置校验。`sync:macos` 在调用外部工具前严格校验目标产物、manifest 与 `src-tauri/tauri.conf.json`，并以 Tauri v2 候选 CLI 的 inline JSON `--config` 覆盖 `frontendDist`，源原生配置保持不变。Turbo 为 `build:macos` 纳入 Vite/环境/native 配置输入、显式 `ANALYZE` 环境变量输入与 `stats.html` 缓存输出。
+
+这项纯脚本扩展不代表 Tauri 选型、正式 `src-tauri` 工程、原生能力、认证回跳、签名、设备或发布验收已确认；相关结论仍受 CP-03/CP-04 门禁约束。默认 iOS 构建与同步校验保持原行为，不改既有 iOS 原生配置。
+
 ### 8.3 单端通话范围（用户决策，2026-10-21）
 
 同一账号在Web、iOS、macOS之间同时只允许一端通话；另一端必须由用户明确接管。旧端失去占用后不得自动抢回。不将设备占用等同于sessions.status=active；历史遗留active记录不证明LiveKit实际连接。租约、Token撤销/房间隔离、过期释放及接管接口须另行冻结契约并验证，当前阶段尚未落实此约束。

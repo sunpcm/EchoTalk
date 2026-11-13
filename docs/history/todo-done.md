@@ -6,13 +6,21 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-13 R2-12 macOS 构建产物与同步前校验
+
+- [x] **R2-12 macOS 构建产物与同步脚本**：完成共享 Vite 的 macOS 纯静态构建产物
+      `dist/macos/<mode>`、manifest、外部工具启动前的来源/平台/mode 校验，以及将 `ANALYZE`
+      纳入 Turbo 缓存输入的任务。独立代码 Review 为 APPROVED，本地验收完成，用户 Review 待；
+      正式壳、Tauri 选型、native 认证、真实设备、签名、公证与发布均未创建或验收。详细门禁和
+      边界见 [PROJECT_STATUS](../PROJECT_STATUS.md)。
+
 ## 2026-11-13 R2-14 Compose 系统就绪与一次性迁移
 
 - [x] **R2-14 Compose 系统就绪与一次性迁移**：本文记录的本地验证为在 `b744e63` 父提交上完成
       本地合成实施。新增公开、无用户身份的 `GET /api/health/system-ready`，只使用共享
       PostgreSQL 连接执行 `SELECT 1`；成功返回 typed `200 {"status":"ready"}`，连接、查询、超时
       或资源释放失败统一返回 typed `503 {"status":"not_ready"}`，不返回底层异常、地址或配置。
-      readiness 只在连接 Context 完整释放后响应；最终数据库操作预算为 `0.5s`，为当前 asyncpg
+      readiness 只在连接 Context 完整释放后响应；最终数据库操作预算为 `0.5s`，为当次快照中的 asyncpg
       约 `2s` 的 shielded graceful close 留余量，完整响应目标 `<3s`。旧 `/api/health/ready` 的
       函数、认证和用户配置判断未改；真实路由无 Bearer/错误 Bearer 均 `200`，旧 ready 错误
       Bearer 仍 `401`。
@@ -40,7 +48,7 @@
       通用 `503`，耗时 `2.518465s`、checkedout 为 0；unpause 后返回 `200`，用户数不变。真实连接
       释放后再注入异常仍返回 `503`。R1 同一正式返修轮确认并修复两个 P1：其一，等待查询预算再叠加
       asyncpg 约 2 秒取消清理，导致 3.5 秒硬期限先命中，最终改为服务内 0.5 秒操作预算；其二，
-      环境代理会截获 loopback healthcheck，最终只在当前探针使用 `ProxyHandler({})`。FastAPI
+      环境代理会截获 loopback healthcheck，最终只在当次探针使用 `ProxyHandler({})`。FastAPI
       延迟 `IncludedRouter` 曾使 OpenAPI 测试直接读取 `app.routes` 时 `StopIteration`，属另一项夹具
       修正，改为从公开 `routers.health.router` 枚举相对 route，未改产品语义。两个 P1 同属 R1，
       正式产品返修仍使用 `1/2`。

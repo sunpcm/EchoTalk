@@ -63,6 +63,27 @@
       "env": ["VITE_*", "ECHOTALK_BUILD_*"],
       "outputs": ["dist/ios/**"]
     },
+    "build:macos": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "index.html",
+        "package.json",
+        "tsconfig*.json",
+        "postcss.config.*",
+        "vite.config.*",
+        "scripts/**",
+        ".env",
+        ".env.*",
+        "eslint.config.*",
+        ".browserslistrc",
+        "browserslist",
+        "src-tauri/tauri.conf.json"
+      ],
+      "env": ["VITE_*", "ECHOTALK_BUILD_*", "ANALYZE"],
+      "outputs": ["dist/macos/**", "stats.html"]
+    },
     "test:build": {
       "inputs": ["scripts/**", "package.json", "turbo.json"],
       "outputs": []
