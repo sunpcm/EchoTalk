@@ -19,10 +19,6 @@
 
 ### 批次 F：复核遗留
 
-- [ ] **F3 当前层文档瘦身**（P2；只改文档）：`docs/PROJECT_STATUS.md` 回到"当前功能 + 当前验证基线 +
-      已知限制 + 历史索引"，不超过 150 行，基线绑定最终 main 提交及其 CI；逐卡收口记录移入
-      `docs/history/2026-11.md`。`docs/FRONTEND_DATA_LAYER_CONTRACT.md` 开头的逐卡状态流水移入历史，
-      正文只留现行契约。验收：搬运部分逐行守恒；全仓 Markdown 相对链接与锚点检查无新增失效。
 - [ ] **F4 收窄会话切片的通用补丁入口**（P2）：`apps/vite-app/src/store/conversationSlice.ts` 的
       `resetWithShellCoordination(patch: object)` 出现在 `ConversationSlice` 公共类型上，经窄 façade 可传入任意键。
       改为不出现在窄 façade 的公共类型里，或把入参收窄为协调器声明的键。验收：`useConversationStore` 的类型上
