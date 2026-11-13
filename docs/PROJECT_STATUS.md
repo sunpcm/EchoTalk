@@ -1,9 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-13，F2（修复 session-start 未等待响应解析）的 Harness 亲跑结果（macOS）已复核：
-> Vitest 1224/50、本机 E2E 233/1、pytest 809/3 warnings/80.19%、108/8/21。此前 F1（PR #158）合入
-> `main@7b300b0` 的 Linux CI 为已核快照，见下方历史基线。
-> 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
+> 最后核对：2026-11-13，F2（修复 session-start 未等待响应解析）已合入 `main@38c4a69` 并经 Linux CI 复核，
+> 见下方"当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
 
@@ -27,103 +25,27 @@
 
 ## 当前验证基线
 
-当前验证基线绑定 F2（修复 session-start 未等待响应解析）的 Harness 亲跑结果（macOS，非 Linux CI）：
-source `main@7b300b02f2ff9d28f5b6e1dd13cd258e5028c3fb` + 本 E2E 文件
-`apps/vite-app/e2e/session-start.spec.ts` SHA
-`48987073a30ea2168f474af87a6bc6b10091f5c8c088f34ef07cb20883129127`。
+当前基线绑定已核 F2 最终 `main@38c4a69ca33a48cead69f60edcdbb4b391626ea3` 与其 Linux CI
+（[CI 43366625704](https://github.com/sunpcm/EchoTalk/actions/runs/43366625704) 与
+[PR Guard 43366625968](https://github.com/sunpcm/EchoTalk/actions/runs/43366625968) 六项 success）。
+本轮 F3 只改文档，无新的产品代码基线。
 
-| 测试树 / 门禁  | 最近实测结果（Harness 亲跑 / macOS）                                     | 日志     |
-| -------------- | ------------------------------------------------------------------------ | -------- |
-| Vitest         | 1224 passed（50 个文件）                                                 | frontend |
-| Playwright E2E | 233 passed / 1 failed（0 skip、无 retry；唯一既有 a11y Provider 336×23） | frontend |
-| Fake API 契约  | 108 passed                                                               | frontend |
-| API 类型生成器 | 8 passed                                                                 | frontend |
-| 构建脚本       | 21 passed                                                                | frontend |
-| backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁）                        | backend  |
+| 测试树 / 门禁  | 最近实测结果（F2 Linux CI，已核）                                | 日志     |
+| -------------- | ---------------------------------------------------------------- | -------- |
+| Vitest         | 1224 passed（50 个文件）                                         | frontend |
+| Playwright E2E | 234 passed（Chromium 117 + WebKit 117，实际 retry/skip/flaky 0） | frontend |
+| Fake API 契约  | 108 passed                                                       | frontend |
+| API 类型生成器 | 8 passed                                                         | frontend |
+| 构建脚本       | 21 passed                                                        | frontend |
+| backend pytest | 809 passed，3 warnings，80.19% 覆盖率（59% 门禁）                | backend  |
 
-本机全量 E2E 首次 233/1 的唯一既有失败（a11y Provider 336×23）与定向压力 300/300 的完整细节见
-[history/2026-11.md](./history/2026-11.md)；该本机 E2E 计数不冒认全绿。
+F2 本机 Harness/macOS 亲跑另记（非 Linux CI）：Vitest 1224/50、E2E 233/1（Chromium 117/0、
+WebKit 116/1，唯一既有 a11y Provider 336×23，skip/retry 0）、定向压力 300/300、pytest
+809/3 warnings/80.19%、108/8/21，完整细节见 [history/2026-11.md](./history/2026-11.md)。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
-命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。
-
-此前已核的 F1（PR #158）Linux CI 快照（保留存档，不背书上方 F2 本机计数）：代码 head
-`82447c7` 合入 `main@7b300b0`，tree `1f86e32` 整树一致，[CI 43360032607](https://github.com/sunpcm/EchoTalk/actions/runs/43360032607)
-与 [PR Guard 43360032589](https://github.com/sunpcm/EchoTalk/actions/runs/43360032589) 六项成功，
-Vitest1224、Linux E2E234、pytest809/80.19%、108/8/21。该 Linux CI 是 F1 合并快照，不是 F2 的 CI。
-
-历史基线继续按快照绑定：B1 source `3b418e8` 的 [CI run 43152122060](https://github.com/sunpcm/EchoTalk/actions/runs/43152122060)
-与 [PR Guard run 43152122194](https://github.com/sunpcm/EchoTalk/actions/runs/43152122194) 为 Vitest
-1161/45、E2E 234、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；PR #140 head `ed3ac8ba` 的 Fake API 为 75 passed；A3 原 head
-`437f6ff8` 为 103 passed；修正提交 `45e5212` 的本地快照为 108 passed，但本机 macOS E2E
-为 233/1，Linux ARM64 两轮为 233/1、232/2，均不能计为通过。这些记录只属于各自快照，
-不替换上方当前基线（F1 S1 本机计数）。
-
-### A3（Fake API 契约校验，PR #141/#147）合并收口
-
-Fake API 的成功响应与缺失 operation 受仓内 OpenAPI 校验，既有偏差精确固定；当前108项通过。
-最终实现 source `b1d3756` 合入 `main@a7841b7`，文档后由PR #147收口；历史及偏差清单见归档。
-
-### A4a（只读 data 层，PR #149）合并收口
-
-最小 controller/hook、契约及45项独立契约测试已合并；未引入依赖。默认键补修的三项官方
-RED→GREEN与私有7探针证据见历史。source `250a582` 六项CI后合入整树一致的 `main@3daa0a4`。
-
-### A4b（WeeklyGrammar 数据查询迁移，PR #151）合并收口
-
-组件仅渲染与 retry 转发，认证、生命周期、请求槽与 timer 移入 data controller/hook；原
-JSX/文案/ARIA/class 和 146 个测试/fixture/config 文件保持不变。原 WG14、data45、全量
-Vitest1206/49、Linux E2E234（0 skip/retry）与 pytest809/80.19% 通过；三处真实变异均被原 WG
-断言捕获。最终 source `7659808` 六项 CI 后合入 `main@2598867`。真实服务/设备边界仍未验证。
-
-### A4c（WeeklyProgress 数据查询迁移，PR #152）合并收口
-
-两个 controller 共用一套订阅；原 WP31、data45、146 份测试/fixture/config 与界面 AST 保持。
-主控全量 Vitest1206/49、六项 CI、Linux E2E234（0 skip/retry）、pytest809/80.19% 通过；
-额外 React/jsdom 探针6/6，认证 revision、重复 cursor、日窗口下界三处变异均被原 WP 断言捕获；
-最终 source `d47c3aa` 的 CI `43162885071` 与 PR Guard `43162885101` 成功后，以整树一致的
-`main@5c7ab36` 合入。只做行为等价抽取，未改变依赖、HTTP、数据库或外部服务边界；
-真实服务/设备仍未验证。
-
-### A4d（DailyProgress 数据查询迁移，PR #153）合并收口
-
-保留单套认证/lifecycle/午夜+100ms、原读取时点与summary+rows原子发布；146原测试/渲染AST不变。
-私有8行为/4重入、4原DP变异、1206/49、Linux234、pytest809/80.19%通过；source130bbb6六CI后合入整树一致maina1afaca。真实服务/设备未验。
-
-### A4e（ActiveSessions 只读迁移，PR #154）合并收口
-
-Data controller持有分页/请求归属/tombstone，UI/写流程/单订阅中枢与146原测试逐字保全。
-R1统一内部cursor，取消/失败组合的两项回归RED→GREEN；主控9项、补充13项/DP6与3原AS变异通过。
-代码fb47cf4六CI原始日志确认1206/49、Linux234零skip/retry、pytest809/80.19%、108/8/21。
-最终b69c527六CI通过并已真实合入；本机233/1仍为既有WebKit高度差异，不计为通过。
-
-### A6（分层依赖门禁，PR #155）代码验收完成
-
-零依赖error规则落实三组禁止边；用户清理整体移至store，四份完整AST仅import/mock路径规范化后相同，
-其余144份测试/fixture/config逐字保全。真实依赖7→0，主控22项、补充19项及真实逆向import失败验证通过。
-force lint/typecheck/build零缓存、1206/49及上述六CI通过；全批冷启动总审APPROVED。
-重构前后7份构建产物逐字节相同；无用户行为、HTTP、文案、依赖或数据库结构变化。
-额外本机首轮全量232/2仍记失败：已知WebKit336×23px及一次DocTalk标题未出现。旧新普通/8会话预置
-合计80次零重试定向均通过，旧新完整重放各233/1、DocTalk均通过，唯一失败仍为上述高度；
-首次232/2独立保留为P2待查观察，根因未明，不归因基线、环境或本卡回归，本机全树均不计通过。
-真实Provider/LiveKit/IdP、设备与生产环境未验；B1仍只交付设计，未实施草案。
-
-### A5（导航切片，PR #148）合并收口
-
-导航与会话切片组合在同一原子容器，未引入Router；18文件的340个case与1624个expect相关调用
-AST保持。最终source `ae13222` 六项CI后合入 `main@0ea16a4`，详细过程见历史与验证文档。
-
-### B1（学习事件台账）设计交付
-
-B1 已新增并独立归档 `docs/LEARNING_EVENTS_DESIGN.md`，定义只追加事件、Job 写入幂等、
-合成结果排除、`knowledge_states` 重算校验、来源关系、保留选项及一条以
-`c06_transcript_events` 为父 revision 的 Markdown Alembic 草案。主控已完成设计审阅并
-APPROVED；Python 草案经 `ast.parse` 成功，父 revision 已核对存在。
-
-本次仅交付设计，未建表、未创建迁移文件、未执行 DDL。legacy 基线切换、旧 pending/failed Job、
-retention、未来重分析身份与 `bkt-v1` 参数冻结仍等待用户政策确认；A4a 方案 A 不属于 B1 授权。
-PR #150 的六项 CI 已通过，原始日志确认 Vitest 1161/45、E2E 234、pytest 809/80.19%，
-且已合入 `main@4ee8b35`；B1 仍仅设计交付。
+命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1 的逐卡收口与历史快照
+基线已移入 [history/2026-11.md](./history/2026-11.md)。
 
 ## 已知限制和近期风险
 
@@ -135,7 +57,7 @@ PR #150 的六项 CI 已通过，原始日志确认 Vitest 1161/45、E2E 234、p
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - 本机 E2E 开工基线为 233 passed / 1 failed，仍是已记录的 WebKit Provider select 高度
-  336×23px 问题，没有新增失败；最终 A3 基线以 Linux CI 为准。
+  336×23px 问题，没有新增失败；最终 F2 基线以 Linux CI 为准。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策
@@ -149,21 +71,3 @@ PR #150 的六项 CI 已通过，原始日志确认 Vitest 1161/45、E2E 234、p
 | 评审手册的单轮回执                  | [history/review-loop-receipts.md](./history/review-loop-receipts.md) |
 
 历史文件只追加、不改写；其中的计数和结论只属于当时的提交。
-
-## 文档职责与更新规则
-
-- `README.md`：项目入口、快速启动和稳定概览。
-- `docs/PROJECT_STATUS.md`（本文）：当前功能、当前验证基线和已知限制；可以覆盖更新，目标不超过 150 行。
-- `docs/ARCHITECTURE.md`：运行时、数据所有权、部署拓扑与架构风险。
-- `TODO.md`：唯一未完成事项清单，必须带验收条件；勾选后移入 `docs/history/todo-done.md`。
-- `docs/history/`：按月的实施记录与决策流水。一轮工作结束时在当月文件**顶部**追加一节，
-  写明日期、PR 或提交、行为变化、验证证据和仍未覆盖的边界。
-- `docs/PHASE_*_TECH_STACK.md` 与 `docs/PHASE_*_MANUAL_TEST.md`：阶段实现细节与人工验收步骤。
-
-以下变更必须在同一个 PR 中更新本文的"当前功能"或"当前验证基线"：
-
-1. 新增、删除或改变用户可见功能。
-2. 改变认证、密钥、数据所有权、生产配置或外部 Provider 边界。
-3. 改变 CI 能证明的范围，或完成此前只能人工验证的事项。
-
-不要把"代码存在"、"CI 通过"和"生产已验证"混为同一状态。

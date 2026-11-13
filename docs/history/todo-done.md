@@ -458,3 +458,20 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       （Chromium/WebKit 各 150，3 用例各浏览器各 50，retries0/skip0/flaky0）；本机全量 E2E 首次 233/1
       （唯一既有 a11y Provider 336×23）；Vitest 1224/50、pytest 809/3w/80.19%、108/8/21。未 commit/push，
       待 Harness 独立评审后提交/PR/CI/squash。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）F3
+
+- [x] **F3 当前层文档瘦身**（P2；只改文档）：`docs/PROJECT_STATUS.md` 回到"当前功能 + 当前验证基线 +
+      已知限制 + 历史索引"，不超过 150 行，基线绑定最终 main 提交及其 CI；逐卡收口记录移入
+      `docs/history/2026-11.md`。`docs/FRONTEND_DATA_LAYER_CONTRACT.md` 开头的逐卡状态流水移入历史，
+      正文只留现行契约。验收：搬运部分逐行守恒；全仓 Markdown 相对链接与锚点检查无新增失效。
+
+      本地收口：`docs/PROJECT_STATUS.md` 瘦身为"当前功能 + 当前验证基线 + 已知限制 + 历史索引"四类
+      （73 行，≤150 达标），当前基线绑定 F2 最终 `main@38c4a69` 与其 Linux CI（CI `43366625704`、
+      Guard `43366625968` 六项 success，Vitest 1224/50、E2E 234、pytest 809/3w/80.19%、108/8/21）；
+      F2 本机 Harness/macOS 另记 E2E 233/1。`docs/FRONTEND_DATA_LAYER_CONTRACT.md` 开头的逐卡状态
+      流水（19 行）、`docs/PROJECT_STATUS.md` 的历史基线快照与逐卡收口（77 行）及文档职责与更新规则
+      （17 行）均逐行守恒移入 `docs/history/2026-11.md`，各块原文件/起止行/行数/SHA256 见实施报告
+      `moves-r0.json`。全仓 Markdown 相对链接与锚点由 Harness 用 Prettier Markdown AST 独立检查；
+      旧 `check-doc-links.py` 只查三文件目标存在性且不查 fragment，不作为本轮通过证据。未 commit/push，
+      待 Harness 独立评审后提交/PR/CI/squash。详见实施报告与 `docs/history/2026-11.md`。
