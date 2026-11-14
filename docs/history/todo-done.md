@@ -589,3 +589,36 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
       341.862s）；三组变异（299→前299零发、301→300时计数1、pendingIntent.theme 强制 cool→原 body dark）
       各双浏览器 2/2 被目标断言捕获，备份/finally 逐字节恢复。未 commit/push/PR/merge，T1 专属 Linux CI
       尚未运行，本机计数不冒认 Linux CI。详见 `docs/history/2026-11.md` 与实施报告。
+
+## 2026-11-14 P1 Provider 触控目标修复（本地收口，文档待评审）
+
+- [x] **P1 Provider 原生 select 触控目标修复**：仅在共享 `SettingsProviderFields.tsx` 增加
+      `appearance-none`、右侧留白和装饰箭头，保留 44px 最小高度、原生 SELECT、全部选项/默认值、
+      可访问名称、键盘/焦点、保存与网络语义；无平台分支或自制下拉。冻结源码 SHA-256 为
+      `48275c4d1c94ac88a2425618cd031fec590773a68a74fce9334a1f9ca4a2c9c8`。
+      Harness 独立原 target WebKit 1 fail（原 spec127 抓到三 Provider 336×23），候选三主题 × 两字号 ×
+      双浏览器私有矩阵 12/12：普通高 44px、200% 高 66px，minHeight 44px、appearance none；标签/焦点/
+      选择/Tab、无裁切/横向溢出及截图箭头可见通过。Harness 自有副本移除 appearance-none 后原断言再次
+      RED，backup/finally 逐字节恢复，正式 lane 从未变异。
+
+      Harness/macOS 15 门禁全 exit 0：Vitest 1227/51（9.03s）、Fake 108/类型 8/构建 21、pytest
+      841/3 warnings/80.59%（自身 62.65s、命令 66.90s）、lint 132 warnings/0 errors；完整 E2E
+      234/0（Chromium 117/WebKit 117，retry/skip/flaky 0，Playwright 54.409s、命令 55.39s），source
+      前后稳定。所有正式测试字节保全，无新增测试计数；实施自测仅 format/lint/typecheck，首节点 EPERM
+      与 Harness 真正 RED/GREEN 分别记录。本机结果不冒认为新 PR/main CI，发布后由 Harness 补完整回执。
+      本条归档只指该范围本地实施/验证收口，文档仍待 Review；TODO 无对应 active 子卡，未改其他事项。
+      P2 大字号深色 Provider 文字可读性差在基线亦存在，本轮未修；真实设备、OS 弹窗与深色可读性未验收。
+      D1 首 232/2、T1 首 233/1、WP 10/10 与历史主题失败不抹去；W1 尚未实施，WP 根因未明。
+      未 commit/push/PR/merge/部署。详见 [本月历史](./2026-11.md) 与本地实施报告。
+
+本条同轮补充：当前 main CI 基线已按 Harness 实时日志回读更新为 `f19b6ae` / CI
+[43484069428](https://github.com/sunpcm/EchoTalk/actions/runs/43484069428) attempt1 五作业 success，
+frontend 1227/51、Node runner 8/21/108、E2E234（4.5m），backend841/3 warnings/80.59%/59.97s；
+旧 `58254b98`/D1 回执仍为历史，本轮 P1 本机数据不变。真实 ArrowDown/Enter 选择尚未验收：额外 Mac
+双浏览器私有探针未改变选项，原生 popup 操作前提仍待核对；focus/Tab/selectOption 已通过不等同于该项通过。
+正式产品、测试与断言标准不因此放宽。
+
+R1 同轮键盘边界补充：STT 单选项导致的首轮私有探针错误单列；修正后候选直接方向键、增加 Space 先打开
+均双浏览器 2 fail，基线完整原组件运行同一 Space/ArrowDown/Enter 探针也 2 fail（LLM 预期 openrouter、
+实际 siliconflow）。真实方向键选择仍未验证，无证据为本轮引入；副本恢复 receipt 的 restored_bytes 与
+formal_lane_unchanged 均 true。focus/Tab/selectOption 已通过，全部首失败保留，正式文件/测试标准未放宽。
