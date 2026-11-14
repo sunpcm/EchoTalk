@@ -6,6 +6,21 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 A19 P2 Room 快照与引用所有权
+
+- [x] **A19 P2 Room 快照与引用所有权（FINAL_READY）**：Room 初次 Web 门禁改为每次实际读取的
+      无订阅纯快照，hidden/offline 继续失败关闭，unknown/null 保持兼容；RoomContextSync 移除
+      无人消费的可选 `onRoom`/`roomRef`，只在已提交的 layout effect 中发布所需 Room，替换或卸载
+      时仍同步停止所属本地音轨。并发 render、SDK Room commit 替换、StrictMode 与健康重渲染已有
+      A19P2 行为回归。首轮 TESTS RED 为 `2 passed / 3 failed`；R1 只迁移既有 CON-04 的非断言
+      夹具 setup，所有旧 `expect` 保持不变。最终 13 项门禁组合均 `exit 0`，Vitest 为
+      `1211 passed / 49 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。详细当前数字、
+      TDD/首轮 GREEN/R1 历史与证据边界见
+      [PROJECT_STATUS 的 A19 P2 小节](../PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)和
+      [CP-05 Native Room](../../docs/verification/cross-platform/CP-05-NATIVE-ROOM.md)。A82 旧完整失败
+      因果仍未证明，A82C 历史计数不得复用。最终文档 format、独立 Review、当前任务分支提交和推送
+      以主控同卡回执为准，用户 Review 待；不开 PR、不合并、不部署，真实外部链路仍未验收。
+
 ## 2026-11-15 A82C Native Room 本地夹具就绪
 
 - [x] **Native Room 回归夹具就绪（仅 A82 本地子项）**：当前两条 native/DOM 交叉异步用例先保存

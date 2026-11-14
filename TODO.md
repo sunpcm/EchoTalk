@@ -4,12 +4,16 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **A82C 当前卡（2026-11-15，FINAL_READY）：** 仅 A82 的 Native Room 本地夹具就绪子项完成并归档；
-> 当前 13 项门禁分组均 `exit 0`。重复通过只证明该夹具在当前范围内稳定，旧完整失败因果仍未证明，
-> 真实设备、Provider、IdP、LiveKit、远端 CI、部署与相关 RF 总项仍未关闭。详细数字集中在
-> [PROJECT_STATUS 的 A82C 小节](./docs/PROJECT_STATUS.md#a82c-native-room-夹具就绪证据与文档核销final_ready本地夹具就绪子项完成)，归档见
-> [已完成事项](./docs/history/todo-done.md#2026-11-15-a82c-native-room-本地夹具就绪)。A84C、CF20、
-> RF04E、WG20 的数字与失败均按各自时点保留为历史快照。
+> **A19 P2 当前卡（2026-11-15，FINAL_READY 并归档）：** Room 初始 Web 快照纯读取、提交后
+> 引用发布和 RoomContextSync 接口减法已完成；R1 修正共享快照夹具后，13 项门禁组合均 `exit 0`，
+> Vitest `1211 passed / 49 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。详细当前数字、
+> TDD/R1 历史与边界集中在 PROJECT_STATUS，归档见已完成事项。A82C、A84C、CF20、RF04E 与 WG20
+> 的数字、失败和 Review 状态继续绑定各自时点；A82 旧完整失败因果仍未证明。
+> 详见
+> [PROJECT_STATUS 的 A19 P2 小节](./docs/PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)与
+> [已完成事项归档](./docs/history/todo-done.md#2026-11-15-a19-p2-room-快照与引用所有权)。
+> 最终文档 format、独立 Review、当前任务分支提交和推送以主控同卡回执为准；用户 Review 待。
+> 本卡不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -507,8 +511,6 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 记录各端版本、最低支持 OS、已知限制与回滚步骤；验收：发布候选通过不等于已对外发布，部署、上传和商店提交由用户确认发布边界后执行。
 
 ### 后续候选（不阻断本轮）
-
-- [ ] 在回归保护下简化Room初始Web快照与RoomContextSync引用所有权，移除多余可选回调并补并发渲染/SDK身份变化测试（A19 P2）。
 
 - [ ] 在回归保护下减少start/resume重复生命周期逻辑及全局测试注入入口；A18维护候选，不阻断本地增量。
 

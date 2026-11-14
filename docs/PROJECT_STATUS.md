@@ -1,11 +1,11 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡 A82C 为 `FINAL_READY`，只核销 Native Room 本地夹具就绪子项。
-> 主控已完成旧 A82 集成日志 SHA 复核、隔离依赖恢复、合成 PostgreSQL 15.19 启动与 18 份既有迁移
-> 重放；当前本轮 13 项门禁分组均 `exit 0`，完整数字、证据与边界集中在本页 A82C 小节。
-> A84C、CF20、RF04E 与 WG20 均转为各自时点的历史快照；其测试数字、失败记录和 Review/提交状态
-> 继续绑定原 base 与日期，不能用作 A82C 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立
-> WPH 的数字同样绑定各自当时快照。独立Review/提交发布见主控同卡回执，用户Review待。
+> 最后核对：2026-11-15。当前卡 A19 P2 为 `FINAL_READY`：R1 修正共享快照测试夹具后，13 项门禁
+> 组合均 `exit 0`，完整 Vitest 为 `1211 passed / 49 files / 0 skip`，三项有效私有行为变异均被
+> 对应断言杀死。A82C、A84C、CF20、RF04E 与 WG20 均绑定各自时点的历史快照；其测试数字、失败
+> 记录和 Review/提交状态不能转作 A19 P2 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立
+> WPH 的数字同样绑定各自当时快照。最终文档 format、独立 Review、提交和当前任务分支推送见主控
+> 同卡回执；用户 Review 待。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
@@ -34,7 +34,54 @@
 
 ## 当前验证基线
 
-### A82C Native Room 夹具就绪证据与文档核销（FINAL_READY；本地夹具就绪子项完成）
+### A19 P2 Room 快照与引用所有权（FINAL_READY）
+
+- 只读基线：唯一实施 worktree 为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，基线为
+  `a0a54292da5352dd25e83de2840a4bd5f28341a4`。允许写集只为任务卡列出的两个平台/组件文件、
+  两份对应测试及四份文档；不改后端、依赖、锁、迁移、服务或业务协议。
+- Web 初始门禁：新增无订阅纯读取 `getWebLifecycleSnapshot`，每次实际调用都读取当前
+  visibility/online；visible、hidden/offline 与 unknown/null 契约不变，读取本身不注册监听。
+  `RoomSession` 不再为初始检查创建临时生命周期 adapter，也不再冻结首次快照。
+- Room 所有权：`RoomContextSync` 只接收必需 `roomRef`，删除无人消费的可选 `onRoom` 和可选
+  `roomRef`，且不再在 render 阶段写引用。所有权只在已提交的 layout effect 中发布；Room 替换
+  或卸载时仍同步停止旧 Room 的本地音轨，并在引用仍属于该 Room 时清空。同步生命周期 callback、
+  迟到 callback 隔离、A77 timer 所有权和 ActiveConversation 的第二清理链未改。
+- 回归场景：A19P2 覆盖后续实际 render 读取 hidden、并发 render 已创建但未提交 Room、SDK Room
+  commit 替换、StrictMode effect replay 与健康重渲染。首轮 TESTS RED 精准选中 5 项，结果为
+  `2 passed / 3 failed`，其余 102 项未选；校验期间不用固定 sleep、retry、skip、延长 timeout 或
+  直接调用内部 helper 制造行为结果。
+- RCA 证据：修正测试夹具后，两文件为
+  `107 total / 106 passed / 1 failed / 0 skip / exit 1`，唯一失败是并发所有权场景。主控私有 load
+  反事实仅移除 render 写 `roomRef` 的块后，同一用例 `1 passed / exit 0`；恢复原杠杆后再次
+  `1 failed / exit 1`，全程两个生产文件 hash 未改。该因果只绑定本卡新场景，不反推或改写 A82
+  旧失败根因。
+- 首轮 GREEN 历史：实现后两文件为 `107 total / 106 passed / 1 failed / 0 skip`，新并发等 5 项已
+  通过，唯一失败是既有 CON-04 订阅后快照夹具；完整 Vitest 为
+  `1210 passed / 1 failed / 1211 total / 0 skip`。全仓 format 当时
+  `exit 1`，仅指向 `RoomSession.tsx`、`VoiceInterface.test.tsx` 与
+  `docs/history/todo-done.md`。这些结果作为返修前历史保留，不覆盖原始 r0 与 ev。
+- R1 修正：CON-04 的纯 getter 与 adapter 改为共享同一 `readSnapshot` 读取事实和计数；纯 getter
+  使用仅覆盖本用例的 `mockImplementationOnce`，防止跨例泄漏。只迁移该既有 `it` 的非断言
+  setup 与陈旧注释，四条原 `expect` 链字节未变；订阅后安全复核、产品门禁与断言均未放宽。
+- 最终门禁：13 项门禁组合全部 `exit 0`。完整 Vitest 为
+  `1211 passed / 49 files / 0 skip`；R1 后两文件默认配置正向复验为 `107 passed / 0 skip`。
+- 浏览器与后端：完整 E2E 为 `248 passed = Chromium 124 + WebKit 124`，每项测试恰有一个
+  result，`retry / skip / flaky / unexpected` 均为 `0`；backend 为
+  `941 passed / 3 warnings / 0 skip`，raw coverage 为 `81.54086265607265%`。
+- 辅助门禁：build-script `47`、Fake API `116`、API 类型 runner `8`、iOS 侧仅 Node runner
+  `37`，均通过；iOS 计数不代表真实 iOS 设备验收。lint 为 `132 warning / 0 error / 0 new`，
+  文件、消息、规则多重集保持，行号允许随修改移位。
+- 变异与保护：三项有效私有行为变异均为 `exit 1` 并被对应断言杀死，分别是 render 提前发布、
+  冻结 SDK ownership 依赖与冻结 Web 首次快照；最初一轮私有 Vite 路径解析失败未形成行为变异，
+  不计有效杀死。两个旧测试文件共 `530` 条既有 `expect` 语句 AST 保持，仅 CON-04 发生非断言
+  arrange 迁移；`682` 个保护文件未改。
+- 交付边界：A19P2 只进入当前任务分支的最终提交与推送；不开 PR、不合并、不部署。最终文档
+  format、独立 Review、提交和推送以主控同卡回执为准，用户 Review 待。真实设备、真实
+  LiveKit/Provider/IdP、远端新 CI、部署和生产链路均未验收。
+
+### A82C Native Room 夹具就绪证据与文档核销（历史快照；当时 FINAL_READY）
 
 - 只读基线：唯一实施 worktree 为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支

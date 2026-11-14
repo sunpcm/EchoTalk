@@ -7,6 +7,7 @@ import {
   createLifecycleAdapter,
   detectPlatform,
   getLiveKitWsUrl,
+  getWebLifecycleSnapshot,
   type LifecycleAdapter,
   type WebLifecycleEvent,
 } from "@/platform";
@@ -53,7 +54,7 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
   const [isNativeReady, setIsNativeReady] = React.useState(!isNative);
 
   // 初次进入已有 Token 的 Room 前进行 Web 快照检查
-  const initialSnap = !isNative ? createLifecycleAdapter().getSnapshot() : null;
+  const initialSnap = !isNative ? getWebLifecycleSnapshot() : null;
   const isInitialBlocked =
     !isNative &&
     initialSnap !== null &&
@@ -477,35 +478,18 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
   );
 }
 
-/** 同步 Room 上下文引用，并在 Room 真正替换或退出时停止本地音轨。 */
-function RoomContextSync({
-  onRoom,
-  roomRef,
-}: {
-  onRoom?: (room: TrackHolderRoom | null) => void;
-  roomRef?: React.MutableRefObject<TrackHolderRoom | null>;
-}) {
+/** Room 提交后发布所属引用，并在真正替换或退出时停止本地音轨。 */
+function RoomContextSync({ roomRef }: { roomRef: React.MutableRefObject<TrackHolderRoom | null> }) {
   const room = useRoomContext();
-  const onRoomRef = useRef(onRoom);
-  onRoomRef.current = onRoom;
 
-  // ROOM-02: render 阶段同步绑定，消除 child 已提交但 passive effect 未运行的空窗
-  if (roomRef) {
-    roomRef.current = room;
-  }
-
-  // ROOM-03: 只依赖稳定的 room/roomRef，正常 store 重渲染不得触发 cleanup
+  // ROOM-02/03: 只发布已提交 Room；正常 store 重渲染不得触发 cleanup
   useLayoutEffect(() => {
-    if (roomRef) {
-      roomRef.current = room;
-    }
-    onRoomRef.current?.(room);
+    roomRef.current = room;
     return () => {
       stopRoomLocalTracks(room);
-      if (roomRef && roomRef.current === room) {
+      if (roomRef.current === room) {
         roomRef.current = null;
       }
-      onRoomRef.current?.(null);
     };
   }, [room, roomRef]);
 

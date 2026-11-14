@@ -14,8 +14,9 @@ const mockTrackStop = vi.fn();
 const mockDisconnectNeverResolves = vi.fn(() => new Promise<void>(() => {}));
 
 // 创建一个与 Room 结构一致的真实 Mock 对象
-function createMockRoom(id = "default") {
+function createMockRoom(id = "default", stopTrack = mockTrackStop) {
   return {
+    objectId: id,
     disconnect: mockDisconnectNeverResolves,
     localParticipant: {
       trackPublications: new Map([
@@ -23,7 +24,7 @@ function createMockRoom(id = "default") {
           `track-pub-${id}`,
           {
             track: {
-              stop: mockTrackStop,
+              stop: stopTrack,
             },
           },
         ],
@@ -37,6 +38,7 @@ let currentMockRoom = createMockRoom();
 interface MockRoomContextValue {
   instanceId: string;
   room: {
+    objectId: string;
     disconnect: () => Promise<void>;
     localParticipant: {
       trackPublications: Map<unknown, { track?: { stop?: () => void } }>;
@@ -50,6 +52,56 @@ const MockRoomContext = React.createContext<MockRoomContextValue | null>(null);
 
 let roomInstanceCounter = 0;
 let onLiveKitRoomLayoutEffect: (() => void) | null = null;
+let replaceCurrentLiveKitRoomState: (() => MockLiveKitRoomInstance) | null = null;
+let liveKitRoomSuspendsBeforeCommit = false;
+let liveKitRoomSuspensePromise = new Promise<never>(() => {});
+let suspendedLiveKitRoom: MockRoomContextValue["room"] | null = null;
+const liveKitRoomInstances = new Map<string, MockLiveKitRoomInstance>();
+
+interface MockLiveKitRoomInstance {
+  instanceId: string;
+  room: MockRoomContextValue["room"];
+  trackStopMock: ReturnType<typeof vi.fn>;
+}
+
+function createMockLiveKitRoomInstance(): MockLiveKitRoomInstance {
+  roomInstanceCounter += 1;
+  const id = `room-instance-${roomInstanceCounter}`;
+  const trackStopMock = vi.fn(() => {
+    mockTrackStop();
+  });
+  const room = createMockRoom(id, trackStopMock);
+  const instance = {
+    instanceId: id,
+    room,
+    trackStopMock,
+  };
+  liveKitRoomInstances.set(id, instance);
+  return instance;
+}
+
+function replaceMockLiveKitRoom(options?: { suspendBeforeCommit?: boolean }) {
+  if (options?.suspendBeforeCommit) {
+    liveKitRoomSuspendsBeforeCommit = true;
+    liveKitRoomSuspensePromise = new Promise<never>(() => {});
+    suspendedLiveKitRoom = null;
+  }
+  const replaceRoom = replaceCurrentLiveKitRoomState;
+  if (!replaceRoom) {
+    throw new Error("LiveKitRoom test replacement control is not mounted");
+  }
+  return replaceRoom();
+}
+
+function LiveKitRoomCommitProbe() {
+  const context = React.useContext(MockRoomContext);
+  if (liveKitRoomSuspendsBeforeCommit) {
+    suspendedLiveKitRoom = context?.room ?? null;
+    throw liveKitRoomSuspensePromise;
+  }
+  return null;
+}
+
 const capturedRoomCallbacks = new Map<
   string,
   {
@@ -85,29 +137,9 @@ vi.mock("@livekit/components-react", () => ({
       useAppStore.getState().connectionState === "active" ? "connected" : "connecting";
     const [connState, setConnState] = React.useState(initialConnState);
 
-    const [{ instanceId, room, trackStopMock }] = React.useState(() => {
-      roomInstanceCounter += 1;
-      const id = `room-instance-${roomInstanceCounter}`;
-      const stopFn = vi.fn(() => {
-        mockTrackStop();
-      });
-      const instRoom = {
-        disconnect: mockDisconnectNeverResolves,
-        localParticipant: {
-          trackPublications: new Map([
-            [
-              `track-pub-${id}`,
-              {
-                track: {
-                  stop: stopFn,
-                },
-              },
-            ],
-          ]),
-        },
-      };
-      return { instanceId: id, room: instRoom, trackStopMock: stopFn };
-    });
+    const [{ instanceId, room, trackStopMock }, setRoomInstance] = React.useState(
+      createMockLiveKitRoomInstance,
+    );
 
     const handleConnected = React.useCallback(() => {
       setConnState("connected");
@@ -116,6 +148,20 @@ vi.mock("@livekit/components-react", () => ({
 
     React.useLayoutEffect(() => {
       onLiveKitRoomLayoutEffect?.();
+    }, []);
+
+    React.useLayoutEffect(() => {
+      const replaceRoom = () => {
+        const replacement = createMockLiveKitRoomInstance();
+        setRoomInstance(replacement);
+        return replacement;
+      };
+      replaceCurrentLiveKitRoomState = replaceRoom;
+      return () => {
+        if (replaceCurrentLiveKitRoomState === replaceRoom) {
+          replaceCurrentLiveKitRoomState = null;
+        }
+      };
     }, []);
 
     React.useEffect(() => {
@@ -132,7 +178,11 @@ vi.mock("@livekit/components-react", () => ({
       <MockRoomContext.Provider
         value={{ instanceId, room, trackStopMock, connectionState: connState }}
       >
-        <div data-testid="livekit-room" data-instance-id={instanceId}>
+        <div
+          data-testid="livekit-room"
+          data-instance-id={instanceId}
+          data-room-object-id={room.objectId}
+        >
           <button data-testid="trigger-connected" onClick={handleConnected}>
             trigger-connected
           </button>
@@ -146,6 +196,7 @@ vi.mock("@livekit/components-react", () => ({
             trigger-disconnected
           </button>
           {children}
+          <LiveKitRoomCommitProbe />
         </div>
       </MockRoomContext.Provider>
     );
@@ -300,6 +351,7 @@ vi.mock("@/platform", async (importOriginal) => {
   return {
     ...actual,
     getLiveKitWsUrl: vi.fn(({ tokenWsUrl }) => tokenWsUrl || "wss://test.livekit.io"),
+    getWebLifecycleSnapshot: vi.fn(() => ({ ...mockCurrentSnapshot })),
     createWebLifecycleAdapter: vi.fn(createHealthyWebLifecycleAdapter),
     createLifecycleAdapter: vi.fn((options?: any) => {
       const resolvedPlatform = options?.platform ?? actual.detectPlatform();
@@ -330,10 +382,15 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
     delete (window as any).Capacitor;
     currentFakeApp = null;
     onLiveKitRoomLayoutEffect = null;
+    replaceCurrentLiveKitRoomState = null;
+    liveKitRoomSuspendsBeforeCommit = false;
+    liveKitRoomSuspensePromise = new Promise<never>(() => {});
+    suspendedLiveKitRoom = null;
     mockWebLifecycleListeners.clear();
     mockCurrentSnapshot = { visibility: "visible", online: true };
     mockLifecycleDispose.mockClear();
     roomInstanceCounter = 0;
+    liveKitRoomInstances.clear();
     capturedRoomCallbacks.clear();
     capturedDataChannelListeners.length = 0;
     capturedAuthSnapshotListeners.clear();
@@ -348,6 +405,8 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
   });
 
   afterEach(() => {
+    liveKitRoomSuspendsBeforeCommit = false;
+    replaceCurrentLiveKitRoomState = null;
     vi.restoreAllMocks();
   });
 
@@ -1400,6 +1459,34 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       expect(screen.queryByTestId("connection-failed-view")).not.toBeInTheDocument();
     });
 
+    it("A19P2 re-reads the Web snapshot on a later render and fails closed after it becomes hidden", async () => {
+      mockCurrentSnapshot = { visibility: "visible", online: true };
+
+      useAppStore.setState({
+        sessionGen: 1,
+        sessionId: "sess-a19p2-web-snapshot",
+        token: ["tok", "a19p2", "web", "snapshot"].join("-"),
+        wsUrl: "wss://lk.test",
+        connectionState: "connecting",
+        appView: "session",
+      });
+
+      render(<VoiceInterface />);
+      expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+
+      mockCurrentSnapshot = { visibility: "hidden", online: true };
+      act(() => {
+        useAppStore.setState({ error: "A19P2 force render after snapshot change" });
+      });
+
+      await waitFor(() => {
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+      });
+      expect(useAppStore.getState().token).toBeNull();
+      expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+      expect(screen.getByTestId("connection-failed-view")).toBeInTheDocument();
+    });
+
     it("stops local tracks, unmounts room, and enters connection_failed on Web suspend event", () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -1684,19 +1771,22 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
       let snapshotReadCount = 0;
       mockCurrentSnapshot = { visibility: "visible", online: true };
 
-      // 初次渲染与订阅生效会各自创建 adapter，计数必须跨 adapter 实例共享：
-      // 第一次 snapshot 读取返回 visible，订阅后的第二次读取返回 hidden。
+      const readSnapshot = (): platform.WebLifecycleSnapshot => {
+        snapshotReadCount += 1;
+        if (snapshotReadCount === 1) {
+          return { visibility: "visible", online: true };
+        }
+        return { visibility: "hidden", online: true };
+      };
+
+      // 初次 render 的纯 getter 与订阅后的 adapter.getSnapshot 必须读取同一事实序列：
+      // 第一次读取返回 visible，订阅后的第二次读取返回 hidden。
+      vi.mocked(platform.getWebLifecycleSnapshot).mockImplementationOnce(readSnapshot);
       vi.mocked(platform.createWebLifecycleAdapter).mockImplementation(() => {
         const ownedListeners = new Set<(event: any) => void>();
         return {
           capabilities: { webEvents: true, nativeAppState: false },
-          getSnapshot: () => {
-            snapshotReadCount += 1;
-            if (snapshotReadCount === 1) {
-              return { visibility: "visible", online: true };
-            }
-            return { visibility: "hidden", online: true };
-          },
+          getSnapshot: readSnapshot,
           subscribe: (listener: (event: any) => void) => {
             ownedListeners.add(listener);
             mockWebLifecycleListeners.add(listener);
@@ -2437,6 +2527,167 @@ describe("VoiceInterface - CP-02 client end release & generation protection", ()
         // 组件正常卸载退出
         unmount();
         expect(mockTrackStop).toHaveBeenCalled();
+      });
+    });
+
+    describe("A19P2 Room render ownership and replacement", () => {
+      function seedA19P2WebRoom(sessionId: string) {
+        useAppStore.setState({
+          sessionGen: 1,
+          sessionId,
+          token: `tok-${sessionId}`,
+          wsUrl: "wss://lk.test",
+          connectionState: "active",
+          appView: "session",
+        });
+      }
+
+      function dispatchLifecycleEvent(event: {
+        type: "suspend";
+        snapshot: { visibility: "hidden"; online: true };
+      }) {
+        for (const listener of Array.from(mockWebLifecycleListeners)) {
+          listener(event);
+        }
+      }
+
+      it("A19P2 keeps a suspended SDK Room render unowned until it commits", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        seedA19P2WebRoom("sess-a19p2-suspended-room");
+
+        render(
+          <React.Suspense fallback={<div data-testid="a19p2-suspense-fallback" />}>
+            <VoiceInterface />
+          </React.Suspense>,
+        );
+
+        const committedRoomElement = screen.getByTestId("livekit-room");
+        const committedRoomId = committedRoomElement.getAttribute("data-room-object-id")!;
+        const committedRoom = liveKitRoomInstances.get(committedRoomId)!;
+        expect(committedRoom).toBeDefined();
+        expect(committedRoom.trackStopMock).not.toHaveBeenCalled();
+
+        let replacement!: MockLiveKitRoomInstance;
+        act(() => {
+          React.startTransition(() => {
+            replacement = replaceMockLiveKitRoom({ suspendBeforeCommit: true });
+          });
+        });
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        expect(suspendedLiveKitRoom?.objectId).toBe(replacement.room.objectId);
+        expect(screen.queryByTestId("a19p2-suspense-fallback")).not.toBeInTheDocument();
+        expect(screen.getByTestId("livekit-room")).toHaveAttribute(
+          "data-room-object-id",
+          committedRoomId,
+        );
+        expect(replacement.trackStopMock).not.toHaveBeenCalled();
+
+        const assertOwnershipDuringCallback = vi.fn(() => {
+          expect(committedRoom.trackStopMock).toHaveBeenCalledTimes(1);
+          expect(replacement.trackStopMock).not.toHaveBeenCalled();
+        });
+        mockWebLifecycleListeners.add(assertOwnershipDuringCallback);
+
+        act(() => {
+          dispatchLifecycleEvent({
+            type: "suspend",
+            snapshot: { visibility: "hidden", online: true },
+          });
+        });
+
+        expect(assertOwnershipDuringCallback).toHaveBeenCalledTimes(1);
+        expect(replacement.trackStopMock).not.toHaveBeenCalled();
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
+      });
+
+      it("A19P2 transfers ownership on a committed SDK Room replacement and later events stop only the replacement", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        seedA19P2WebRoom("sess-a19p2-committed-room-replacement");
+
+        render(<VoiceInterface />);
+
+        const initialRoomElement = screen.getByTestId("livekit-room");
+        const initialRoomId = initialRoomElement.getAttribute("data-room-object-id")!;
+        const initialRoom = liveKitRoomInstances.get(initialRoomId)!;
+        const initialRoomStopsBeforeCommit = initialRoom.trackStopMock.mock.calls.length;
+
+        let replacement!: MockLiveKitRoomInstance;
+        act(() => {
+          replacement = replaceMockLiveKitRoom();
+        });
+
+        await waitFor(() => {
+          expect(screen.getByTestId("livekit-room")).toHaveAttribute(
+            "data-room-object-id",
+            replacement.room.objectId,
+          );
+        });
+
+        const initialRoomStopsAfterCommit = initialRoom.trackStopMock.mock.calls.length;
+        const replacementRoomStopsAfterCommit = replacement.trackStopMock.mock.calls.length;
+        expect(initialRoomStopsAfterCommit).toBeGreaterThan(initialRoomStopsBeforeCommit);
+        expect(replacementRoomStopsAfterCommit).toBe(0);
+
+        const assertOwnershipDuringCallback = vi.fn(() => {
+          expect(initialRoom.trackStopMock).toHaveBeenCalledTimes(initialRoomStopsAfterCommit);
+          expect(replacement.trackStopMock).toHaveBeenCalledTimes(
+            replacementRoomStopsAfterCommit + 1,
+          );
+        });
+        mockWebLifecycleListeners.add(assertOwnershipDuringCallback);
+
+        act(() => {
+          dispatchLifecycleEvent({
+            type: "suspend",
+            snapshot: { visibility: "hidden", online: true },
+          });
+        });
+
+        expect(assertOwnershipDuringCallback).toHaveBeenCalledTimes(1);
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
+      });
+
+      it("A19P2 does not stop a healthy room through StrictMode replay or rerenders", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        seedA19P2WebRoom("sess-a19p2-strict-mode");
+
+        render(
+          <React.StrictMode>
+            <VoiceInterface />
+          </React.StrictMode>,
+        );
+
+        const roomElement = screen.getByTestId("livekit-room");
+        const roomId = roomElement.getAttribute("data-room-object-id")!;
+        const room = liveKitRoomInstances.get(roomId)!;
+        const strictModeSettledStopBaseline = room.trackStopMock.mock.calls.length;
+
+        act(() => {
+          useAppStore.setState({ error: "A19P2 unrelated rerender" });
+        });
+        expect(screen.getByTestId("livekit-room")).toHaveAttribute("data-room-object-id", roomId);
+        expect(room.trackStopMock).toHaveBeenCalledTimes(strictModeSettledStopBaseline);
+
+        const assertSynchronousInterruption = vi.fn(() => {
+          expect(room.trackStopMock).toHaveBeenCalledTimes(strictModeSettledStopBaseline + 1);
+        });
+        mockWebLifecycleListeners.add(assertSynchronousInterruption);
+
+        act(() => {
+          dispatchLifecycleEvent({
+            type: "suspend",
+            snapshot: { visibility: "hidden", online: true },
+          });
+        });
+
+        expect(assertSynchronousInterruption).toHaveBeenCalledTimes(1);
+        expect(useAppStore.getState().connectionState).toBe("connection_failed");
+        expect(useAppStore.getState().token).toBeNull();
       });
     });
 
