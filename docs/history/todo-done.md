@@ -691,3 +691,25 @@ formal_lane_unchanged 均 true。focus/Tab/selectOption 已通过，全部首失
       全为WebKit深色对比度；后端841/3warnings/80.59%/50.85s。历史根因未知、无trace，三格输入对照均原AA通过，
       不能说已复现CI RED；本机GREEN不预报新PR/CI。产品配色、Provider深色P2、真实LiveKit/Provider/IdP/设备等边界
       不因本条勾掉。完整过程、首失败与来源见[本轮记录](./2026-11-14-g2-theme-contrast-ci.md)。
+
+## 2026-11-14 G3 Agent DataChannel 与分析错误码契约设计（设计 APPROVED R0，待用户确认）
+
+以下原 G3 卡仅勾选后归档，卡文原样保留；完成的是设计轮，不表示机器契约已实施。
+根 TODO 保留用户确认及另拆实施/验收待办。
+
+- [x] **G3 Agent DataChannel 消息与分析错误码的机器可读契约**（先出设计，用户确认后实施）：`agent_error`
+      的 payload 由前端 `agentErrorMessage.ts` 手写收窄，后端 Agent 侧另有一套；分析 Job 的 `error_code` 是
+      字符串约定。设计需回答 schema 放在哪里、前后端如何共同引用、如何进 CI 漂移门禁，不新增运行时依赖优先。
+      验收（设计轮）：设计文档 + 现有消息与错误码的完整清单（逐条指到代码行）；本轮不改代码。
+
+设计产物为 [AGENT_AND_ANALYSIS_CONTRACT_DESIGN.md](../AGENT_AND_ANALYSIS_CONTRACT_DESIGN.md)，
+已独立评审 APPROVED R0，仍待用户确认、未实施。完整清单区分 Agent 九码发送/五码诊断/开放接收与分析四个生产码/
+五项已知策略；未来生成头需指向新入口，原默认输出字节/生成算法保全，仅补设计，不改脚本。
+
+Harness 转交本机15类门禁：14非浏览器全exit0，Vitest1227/51、Fake125、types8/build21，
+pytest841/3warnings/80.59071729957806%（70.61s、命令75.55s），lint132warnings/0errors、format8.74s。
+完整E2E首次233/1（WebKit theme-storage 冷启动SecurityError场景），限定一次完整重放234/0；首失败保留，
+根因未知、主题未修复，不据此证明稳定性。实施方只运行静态/四MD格式检查，未跑三树或服务。
+完整数字、命令来源、首失败、私有toy和未验证边界见[本轮记录](./2026-11-14-g3-contract-design.md)。
+
+本轮仅设计文档收口；实施方停Review、不commit/push。后续仅设计PR与CI收尾，暂不merge，不实施、不启动H1/I1。
