@@ -80,9 +80,21 @@ test("窄屏七天按钮、键盘选日、真实55条分页/空态与零隐式�
 
 test("概览失败安全提示与显式重试，成功后继续真实 HTTP 查询", async ({ page }) => {
   const calls = await prepare(page);
+  await page.addInitScript(() => {
+    const initialPageShow = new Promise<void>((resolve) => {
+      window.addEventListener("pageshow", () => resolve(), { once: true });
+    });
+    Object.assign(window, { __waitForInitialWeeklyPageShow: () => initialPageShow });
+  });
   let failures = 1;
   await page.route("**/api/sessions/weekly-progress?*", async (route) => {
     if (failures-- > 0) {
+      // 初始 pageshow 的刷新须在首个查询仍在途时合并，不能消耗这次失败。
+      await page.evaluate(() =>
+        (
+          window as unknown as { __waitForInitialWeeklyPageShow: () => Promise<void> }
+        ).__waitForInitialWeeklyPageShow(),
+      );
       await route.fulfill({
         status: 503,
         contentType: "application/json",

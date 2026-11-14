@@ -622,3 +622,27 @@ R1 同轮键盘边界补充：STT 单选项导致的首轮私有探针错误单�
 均双浏览器 2 fail，基线完整原组件运行同一 Space/ArrowDown/Enter 探针也 2 fail（LLM 预期 openrouter、
 实际 siliconflow）。真实方向键选择仍未验证，无证据为本轮引入；副本恢复 receipt 的 restored_bytes 与
 formal_lane_unchanged 均 true。focus/Tab/selectOption 已通过，全部首失败保留，正式文件/测试标准未放宽。
+
+## 2026-11-14 W1 weekly-progress 初始生命周期响应顺序修正（本地已验收，文档待 Review）
+
+- [x] **W1 单次503夹具与初始pageshow竞争修正**：只在原目标用例登记真实初始pageshow并使首个503等待事件后
+      结算，保留原生resume/在途合并产品契约与真实UI/HTTP成功路径。原6断言及全文件48断言AST保全，prepare/
+      其他3body逐字节，其他672份已记录文件原字节；无产品改动、无私有hooks入正式、无sleep/retry/断言放宽。
+      冻结spec SHA-256：`46380a6a481b401536fe23eebf9abf2c566cc33bd532ea76d24dc962d37a242a`。
+
+      Harness原版自然100/100（53.792s）未复现；真实初始事件单变量对照2目标RED/2positive（18.3s）证明受控
+      时序的夹具脆弱前提，D1无trace历史不追认同因。候选目标全文配私有真实load屏障C/W 2/2（5.150296s），
+      native pageshow isTrusted=true/persisted=false后才结算503，原6语义完整通过；隐藏错误与空retry两个故障
+      变异各双浏览器2/2命中保留的spec109/spec114目标断言，backup/finally恢复，正式lane从未变异，恢复后
+      目标2/2 GREEN（4.7s）。
+
+      Harness/macOS最终15门禁全部exit0：Vitest1227/51（自身10.47s、命令12.16s），Fake108/类型8/构建21，
+      lint132warnings/0errors，pytest841/3warnings/80.59%（自身61.69s、命令65.89s）；完整E2E234/0，
+      C117/W117、retry/skip/flaky0，51.519538s/命令52.42s。全文件400/400（C200/W200，repeat50/workers4，
+      retry/skip/flaky0，216.198592s），source稳定、正式用例仍4/全局234。独立spec tsc通过不等于项目tsconfig
+      已覆盖e2e。浏览器/三树均Harness亲跑，实施者未跑浏览器；其自有真实/合成probe均未运行，首次TS2352保留。
+
+      已发布P1 main基线为6606107/tree9451ff0、PR167与mainCI43573445537，本轮不预告W1新PR/CI。
+      D1首232/2、T1首233/1、WP旧10/10与P1全部键盘首失败保留；Provider高度已修，深色可读性P2及真实方向键/
+      OS popup仍未验。TODO无对应active子卡、未改其他卡；本条为本地代码验收收口，文档待Review，未commit/
+      push/PR/merge/部署，不开始下一包。完整证据、来源与历史边界见 [本月历史](./2026-11.md)。
