@@ -6,6 +6,19 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-14 A84C 文档收口
+
+- [x] **A84 历史状态校正**：旧 A84 r0 交付记录“待 Review”只是交付时点；后续旧快照已在
+      `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9` 完成独立 APPROVED、7 个有效变异及
+      lane/main 15 项复验。该结论绑定 2026-11-01 的
+      `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 快照，不表示当前 `44cb125…` 已通过。
+      A84C 当前已达到 `FINAL_READY`：当前 13 项门禁分组执行均 `exit 0`，目标三文件 `29 passed`，
+      专用 PG 迁移和两项入口变异完成，PG 已核验精确 ID/双 owner/loopback 后 stop `exit 0` 并
+      验证 auto-remove，SDK 实际版本为 `1.6.10`；旧 `1.4.3` 与旧 `37` 目标保持历史，不与当前
+      结果混算。最终 Review/提交发布见主控同卡回执，用户 Review 待；本次授权只推送
+      当前任务分支，不更新 main、不建 PR、不 merge。详细证据与外部未验边界见
+      [PROJECT_STATUS 的 A84C 小节](../PROJECT_STATUS.md)。
+
 ## 2026-11-14 RF04E 已有远端 CI 证据核对
 
 - [x] **RF04E 已有远端 CI 证据核对**：完成 `42c61bb`、`6bda2cd`、`ef6cb53` 历史 main push

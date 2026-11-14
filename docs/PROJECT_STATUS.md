@@ -1,13 +1,17 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-14。CF20 当前状态见下方独立小节：根因已确认是焦点用例未等待周进度数据
-> 就绪的测试竞态；最小语义屏障只在原 Playwright spec 实现，产品字节未改。定向稳定性
-> `80 passed`，完整双浏览器 E2E `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/
-> retry 均为 0；详细证据、base 与四文件写集集中在 CF20 小节。最终完整门禁与 Review/提交/发布
-> 见主控同卡回执；用户 Review 待。
+> 最后核对：2026-11-14。当前主结论是 A84C `FINAL_READY`：本卡仅修改四份文档；当前目标三文件
+> `29 passed` 是完整 backend `941 passed` 的子集，完整双浏览器 E2E 为
+> `248 passed = Chromium 124 + WebKit 124`。当前实际 `livekit-agents 1.6.10` 与四个依赖/安装
+> 来源一致；旧 A84 的 `1.4.3`、`37` 目标、`603 backend` 与 7 个变异均只绑定历史快照。当前已核
+> 13 项门禁分组执行均为 `exit 0`；最终 Review/提交发布见主控同卡回执，用户 Review 待。
+> 详细数字、SDK 分版本证据、冷导入和变异边界集中在本页下方 A84C 小节。
+> CF20 已转为历史快照：其定向稳定性 `80 passed` 不是本轮 A84C 补验；完整双浏览器 E2E
+> `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0。详细证据、base 与
+> 四文件写集保留在下方 CF20 小节，不在当前头摘要重写。
 > RF04E 小节是历史快照：原始 R0 的 `245 passed / 1 failed`、追加诊断的 `246 passed / 0 failed`
 > 以及当时“原始 12 项 `exit 0` + E2E 追加 `exit 0`、不是一次完整 13 项全零重跑”的口径均不改写，
-> 也不能概括 CF20 当前结果。WG20 周语法 WebKit 补验同样是独立历史快照：当时两个 WebKit 目标
+> 也不能概括 CF20 历史快照结果。WG20 周语法 WebKit 补验同样是独立历史快照：当时两个 WebKit 目标
 > 用例各重复 20 次且共 `40 passed`；该轮无产品修改、无源码修复。R2-13、R2-12、R2-14 以及 A6、
 > B1、独立 WPH 的数字继续绑定各自当时快照。
 > 最终 Review 与提交/发布见主控同卡回执；用户 Review 待。正式 macOS 客户端、Tauri 选型、
@@ -38,6 +42,62 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### A84C LiveKit 语音连接策略文档收口（FINAL_READY；最终 Review/提交发布见主控回执）
+
+- 只读基线：worktree 为 `/private/tmp/echotalk-b1-implementation-20261112`，分支
+  `codex/B1-learning-events-20261112`，起始 HEAD/base 均为
+  `44cb125493af4e46e38f7199e197b3cc9bd87bd3`，文档写入前工作树 clean。本轮只允许修改
+  `TODO.md`、`docs/PROJECT_STATUS.md`、`docs/history/todo-done.md` 与
+  `docs/verification/cross-platform/RF-10-SESSION-CONNECT-POLICY.md` 四份文档；交付报告写在
+  `/private/tmp/A84C-implementation.md`。
+- 历史事实：A84 r0 在源码内记录的“停在 Review”是旧交付时点，其后旧独立评审已正式
+  APPROVED。旧快照为 `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d`，最终提交为
+  `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9`；7 个变异均有效、lane/main 15 项复验通过。
+  回执见 [review-final.md](/Users/sunpcm/code/EchoTalk/.review/reports/workflow-eval-r2/a84/reviewer/review-final.md)
+  与 [milestone-summary.md](/Users/sunpcm/code/EchoTalk/.review/reports/workflow-eval-r2/a84/reviewer/milestone-summary.md)。
+  该提交不是当前 `44cb125…` 的祖先，因此旧 Review/提交/门禁结果不能转写为当前结果。
+- 当前测试与质量门禁：`A84C-full-gates.json` 的 13 个键分组执行均为 `exit 0`。最终
+  Review/提交发布见主控同卡回执，用户 Review 待。证据见
+  [A84C-full-gates.json](/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/A84C-full-gates.json)。
+  Vitest 为
+  `1206 passed / 49 files`；完整双浏览器 E2E 为 `248 passed = Chromium 124 + WebKit 124`，
+  每个 test 恰有一个 passed result，失败/跳过/flaky/retry 均为 0，`workers=1`；backend 为
+  `941 passed / 3 warnings / 0 skip`，原生覆盖率 `rawCoverage=81.54086265607265%`；
+  build-script 为 `47`、Fake API 为 `116`、API 类型 runner 为 `8`、非 native iOS Node runner
+  为 `37`，均通过；lint 为 `132 warning / 0 error / 0 new`，逐诊断与 CF20 一致。
+- 当前针对性测试只运行本卡三份相关文件，共 `29 passed`。旧 A84 的 `37` 目标包含另一文件，
+  两者不混算或相加；当前 `29` 是完整 backend `941` 的子集。
+- 本卡专用 empty tempfs PostgreSQL 已按 `15.19` 启动并真跑 18 份既有迁移，`exit 0`；主控随后
+  完成精确 container ID、双 owner 与 `127.0.0.1` 核验，stop `exit 0`，并验证
+  `auto-remove=true`，资源不再保留。
+- 当前实际 SDK 为 `livekit-agents 1.6.10`，`pyproject.toml`、`uv.lock`、`requirements.txt` 与
+  installed 四处一致，本卡无需升级或安装。旧 A84 的 `livekit-agents 1.4.3` 只属于历史快照。
+  当前三个 STT/LLM/TTS role 仍为 `10s / 3 / 2s`，独立不可恢复错误阈值仍为 3；窄适配器每次
+  创建全新 SDK 选项，真实 entrypoint 通过零参数 wrapper 延迟读取当前 `AgentSession`，通用
+  orchestrator 注入合同未改。
+- 当前冷导入使用真实生产零参数 factory。在合法且各 role 不同的 Catalog 替代快照下创建 2 个
+  未 start 的 SDK Session，真实公开 `conn_options` 的 9 个 role 字段与独立错误阈值均正确；两个
+  对象隔离，修改第二个不污染第一个，当前 `AgentSession` 绑定被实际消费，`finally` 已关闭全部
+  Session，asyncio 任务回到基线；真实 App 的 config/database 未被导入。
+- 网络证据须区分能力探测与服务连接：导入 `urllib3._has_ipv6` 时曾有 1 次 `bind(::1, 0)`
+  能力探测被拒；两次探针审计计数归类失败 `exit 1` 均保留，根因已由调用栈和本机源码证明。
+  分阶段审计显示 Session 构造/关闭阶段零新增 IO，全程零 outbound connect、DNS、send、
+  `Session.start` 与真实 dotenv 读取；正向 probe `exit 0`。不能把上述 1 次被阻断能力探测写成
+  0 次“导入联网尝试”，也不能把它混同 0 次服务连接。
+- 旧 7 个变异继续绑定历史回执。主控已逐个实核其原始 `check.log` SHA、kill marker 与变异前后
+  源码指纹，并写
+  [A84C-historical-mutations-verified.json](/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/A84C-historical-mutations-verified.json)；
+  这些结果仍只属于历史，不与当前两项新变异混算。当前只针对 `agent.py` 后续变化新验 2 个私有
+  入口变异：删除 `conn_options` 被 `POLICY_CONSUMPTION_FAILED` 杀死；捕获旧构造绑定被
+  `DYNAMIC_BINDING_FAILED` 杀死；两者均 `exit 1`，源码未改。
+- 与旧
+  [audit-r0.json](/Users/sunpcm/code/EchoTalk/.review/reports/workflow-eval-r2/a84/reviewer/audit-r0.json)
+  逐文件比对，当前 Catalog、session policy 和三份相关测试共 5 个源码/测试文件 hash 不变；
+  `agent.py` 只多日志脱敏 import 与入口调用 3 行，Session factory 边界 AST 未变。
+- 当前授权只允许提交并推送本任务分支；不更新 main、不建 PR、不 merge、不部署。最终
+  Review/提交发布见主控同卡回执，用户 Review 待。真实 Provider、IdP、
+  LiveKit/Worker、设备、远端新 CI、生产部署和 RF-12 前置仍未由此关闭；RF-10 整项继续未勾选。
 
 ### RF04E 已有远端 CI 证据核对（2026-11-14 历史快照）
 

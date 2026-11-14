@@ -4,15 +4,26 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **CF20 当前快照（2026-11-14）：** 根因是测试就绪竞态；最小语义屏障仅改原 Playwright spec，
-> 产品字节、原共享 `openDashboard` 与 Fake API 数据未改。Mutation 被双浏览器杀死，定向复验
+> **A84C 当前结论（2026-11-14，FINAL_READY）：** 本卡仅收口四份文档；当前目标三文件
+> `29 passed`，是完整 backend `941 passed` 的子集；完整双浏览器 E2E 为
+> `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0。
+> 当前实际 `livekit-agents 1.6.10` 与四个依赖/安装来源一致；旧 A84 的 `1.4.3`、`37` 目标、
+> `603 backend` 和 7 个变异均只作历史证据，不与当前数字混算。
+> 当前 5 个源码/测试文件 hash 与旧 audit 相同，`agent.py` 只多日志脱敏 3 行、factory 边界 AST
+> 未变；当前两项入口变异均被指定 marker 杀死。当前 13 项门禁分组执行均为 `exit 0`；最终
+> Review/提交发布见主控同卡回执，用户 Review 待。详细数字集中在
+> [PROJECT_STATUS A84C 小节](./docs/PROJECT_STATUS.md)。
+> **CF20 历史快照（2026-11-14）：** 根因是测试就绪竞态；最小语义屏障仅改原 Playwright spec，
+> 产品字节、原共享 `openDashboard` 与 Fake API 数据未改。Mutation 被双浏览器杀死，历史定向复验
 > `80 passed`；完整 E2E `248 passed = Chromium 124 + WebKit 124`，两轮均为零失败/跳过/flaky/retry。
-> 详细 base、写集与门禁数字见 [PROJECT_STATUS CF20 小节](./docs/PROJECT_STATUS.md)。
-> 最终完整门禁与 Review/提交/发布见主控同卡回执；用户 Review 待。
+> 这组 `80 passed` 不是本轮 A84C 补验，详细 base、写集与门禁数字见
+> [PROJECT_STATUS CF20 小节](./docs/PROJECT_STATUS.md)。最终完整门禁与 Review/提交/发布见主控
+> 同卡回执；用户 Review 待。
 > **RF04E 历史快照（2026-11-14）：** 三次历史 main push 与 #128 iOS 失败传播的只读证据核对已
 > 完成，完整矩阵见 [CP-06 CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
 > 原始 R0 为 12 项 `exit 0`、E2E 与聚合 `exit 1`，记录为 `245 passed / 1 failed`；追加零重试诊断
-> 全量 E2E 为 `246 passed / 0 failed / exit 0`。两者继续绑定各自历史时点，不能概括 CF20 当前结果。
+> 全量 E2E 为 `246 passed / 0 failed / exit 0`。两者继续绑定各自历史时点，不能概括 CF20
+> 历史快照结果。
 > 原口径“原始 12 项成功 + E2E 追加成功”不是一次完整 13 项全零重跑，原始聚合仍为 `exit 1`。
 
 ## 2026-11-10 云端评审后续（R2）
@@ -406,15 +417,16 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
       APIConnectOptions 3 次混同。远端 CI、真实 Provider 与部署仍未验证，RF-10 整项继续
       保持未勾选；见
       [RF-10 普通 OpenAI 兼容客户端策略验证](./docs/verification/cross-platform/RF-10-LLM-CLIENT-POLICY.md)。
-      A84 b/r0 已完成 LiveKit AgentSession STT/LLM/TTS 连接策略显式化文件实施并停在
-      Review：纯标准库 frozen Catalog 冻结三个 role 的 10 秒 timeout、3 次重试、2 秒
-      重试间隔及独立不可恢复错误阈值 3；新窄适配器通过公开 `APIConnectOptions` 与
-      `SessionConnectOptions` 每次创建全新选项，`agent.py` 以零参数 wrapper 在真实会话
-      创建时动态读取当前 `AgentSession` 并注入策略，未改 orchestrator 通用注入合同。
-      真实 SDK dataclass 默认、各 role 合法替代策略、跨 Job 隔离和生产入口消费回归已文件
-      落地；实施方未运行门禁，主 Agent 固定入口 15 项检查、独立 Review 与 main 复验尚未
-      完成，RF-10 整项保持未勾选；见
-      [RF-10 LiveKit 语音连接策略验证](./docs/verification/cross-platform/RF-10-SESSION-CONNECT-POLICY.md)。
+      A84 LiveKit AgentSession 连接策略本地子项已完成：旧交付后的独立 Review 已 APPROVED，旧
+      7 个有效变异与提交 `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9` 保留为 2026-11-01 历史；
+      当前 A84C 在 `44cb125…` base 上已达到 `FINAL_READY`，当前 13 项门禁分组执行均为
+      `exit 0`；最终 Review/提交发布见主控回执，用户 Review 待。本次授权只提交并推送当前任务
+      分支，不更新 main、不建 PR、不 merge。
+      历史与当前结果、SDK 版本和证据边界见
+      [PROJECT_STATUS A84C 小节](./docs/PROJECT_STATUS.md)、
+      [RF-10 LiveKit 语音连接策略验证](./docs/verification/cross-platform/RF-10-SESSION-CONNECT-POLICY.md)
+      及[已完成事项归档](./docs/history/todo-done.md#2026-11-14-a84c-文档收口)。真实外部链路和
+      RF-10 整体仍保持未完成。
 
 ### Phase 7：受控升级
 
