@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-14，P1 Provider 触控目标修复已由 Harness 完成本机验证；既有 main CI 与本轮本机结果
-> 分别列于"当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
+> 最后核对：2026-11-14，P1 已合并，W1 测试前提修正已由 Harness 完成独立代码验收与本机验证；
+> 已发布 main CI 与 W1 本机结果分别列于"当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
@@ -25,32 +25,34 @@
 
 ## 当前验证基线
 
-当前基线为 Harness 实时回读的既有 main Linux CI（非本机亲跑）。main 仍为
-[`f19b6aee9da0d210bfaf2719ebe9d41e639294fc`](https://github.com/sunpcm/EchoTalk/commit/f19b6aee9da0d210bfaf2719ebe9d41e639294fc)，
-tree `96beba24bcc6df4e2db1dfc0d0d2748a5713f158`，未观察到增量；main CI
-[`43484069428`](https://github.com/sunpcm/EchoTalk/actions/runs/43484069428) attempt1 五作业均 completed/success。
-计数来自 [frontend job 132087746583](https://github.com/sunpcm/EchoTalk/actions/runs/43484069428/job/132087746583)
-与 [backend job 132087746452](https://github.com/sunpcm/EchoTalk/actions/runs/43484069428/job/132087746452) 原始日志回读。
+当前 main 基线已合入 P1：
+[`6606107b669a9efe49ac271d16b7375fff6d7144`](https://github.com/sunpcm/EchoTalk/commit/6606107b669a9efe49ac271d16b7375fff6d7144)，
+tree `9451ff084b461558309f88b336fd00c07165440c`；main CI
+[`43573445537`](https://github.com/sunpcm/EchoTalk/actions/runs/43573445537) attempt1 五作业 success。
+P1 [PR #167](https://github.com/sunpcm/EchoTalk/pull/167)（source `18348daba65ad345fc2337dccee394bc3b30b531`）的
+[PR CI 43572873254](https://github.com/sunpcm/EchoTalk/actions/runs/43572873254) 与
+[Guard 43572873219](https://github.com/sunpcm/EchoTalk/actions/runs/43572873219) 首次六检查 success。
+下表是 Harness 实时回读 [frontend job 132382512493](https://github.com/sunpcm/EchoTalk/actions/runs/43573445537/job/132382512493)
+及 [backend job 132382512440](https://github.com/sunpcm/EchoTalk/actions/runs/43573445537/job/132382512440) 的原始日志，非本机亲跑。
 
-| 测试树 / 门禁  | 当前 main CI 结果（Linux）                      | 日志     |
-| -------------- | ----------------------------------------------- | -------- |
-| Vitest         | 1227 passed（51 个文件）                        | frontend |
-| Playwright E2E | 234 passed（4.5m）                              | frontend |
-| Fake API 契约  | 108 passed                                      | frontend |
-| API 类型生成器 | 8 passed                                        | frontend |
-| 构建脚本       | 21 passed                                       | frontend |
-| backend pytest | 841 passed，3 warnings，80.59% 覆盖率（59.97s） | backend  |
+| 测试树 / 门禁  | 当前 main CI 结果（Linux）                                | 日志     |
+| -------------- | --------------------------------------------------------- | -------- |
+| Vitest         | 1227 passed（51 个文件）                                  | frontend |
+| Playwright E2E | 234 passed（Chromium 117/WebKit 117，retry 标记 0，3.5m） | frontend |
+| Fake API 契约  | 108 passed                                                | frontend |
+| API 类型生成器 | 8 passed                                                  | frontend |
+| 构建脚本       | 21 passed                                                 | frontend |
+| backend pytest | 841 passed，3 warnings，80.59% 覆盖率（40.85s）           | backend  |
 
-旧 `58254b98`、D1 与相应 CI 回执继续保存在 [history/2026-11.md](./history/2026-11.md)。
-下列 P1 结果绑定基于该 main 的本地冻结候选，不预告本轮尚未发布的 PR/main CI。
-
-P1 冻结候选由 Harness/macOS 亲跑 15 项门禁全部 exit 0：Vitest 1227/51、Fake API 108、类型生成器 8、
-构建脚本 21、pytest 841/3 warnings/80.59%；完整 E2E **234 passed / 0 failed**（Chromium 117/WebKit 117，
-retry/skip/flaky 0，Playwright **54.409s**、命令 **55.39s**）。所有正式测试字节保全，无新增测试计数。
-Provider 原生 select 在三主题 × 两字号 × 双浏览器矩阵 12/12 通过，三个控件普通字号高 44px、200% 高 66px，
-min-height 44px、appearance none；箭头可见，标签/focus/Tab/selectOption、无垂直裁切和横向溢出通过。
-这些是本轮本机回执，非实施节点亲跑，也不是新 PR/main CI；P1 发布后完整回执由 Harness 补充。
-冻结源码 SHA、原版 RED、变异与完整门禁明细见 [history/2026-11.md](./history/2026-11.md)。
+W1 冻结候选由 Harness/macOS 亲跑 15 门禁全部 exit 0：Vitest 1227/51、Fake108/类型8/构建21、
+pytest 841/3 warnings/80.59%，source 前后稳定。完整 E2E **234/0**（C117/W117，实际 retry/skip/flaky0，
+Playwright **51.519538s**、命令 **52.42s**）；全文件 4 用例 × 双浏览器 × repeat50/workers4 为
+**400/400**（C200/W200，retry/skip/flaky0，**216.198592s**），正式用例仍4、全局234。
+真实初始 load 被图像拖迟的独立反事实中，候选 C/W 2/2：首个503在 native pageshow 后才结算，原错误提示、
+显式重试、50行及请求数2保全；错误提示/重试故障变异也由保留的目标断言捕获。此为修正单次503夹具与初始
+pageshow竞争的本机证据，不是 W1 新 PR/main CI。实施方未跑浏览器；项目 tsconfig 仍仅 include src。
+P1 此前本机234/0、Provider高度/键盘边界，W1完整时序、变异及耗时，旧582/f19/D1回执均见
+[history/2026-11.md](./history/2026-11.md)。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -65,9 +67,9 @@ min-height 44px、appearance none；箭头可见，标签/focus/Tab/selectOption
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
-- 历史失败继续保留：D1 本机首轮 232/2、T1 首轮 233/1，其中 Provider 336×23px 已在 P1 修复并通过本机
-  验证；`weekly-progress.spec.ts:97` 概览失败提示的根因仍未明确，W1 尚未实施。WP 定向重放 10/10 与本轮
-  完整 E2E 234/0 均不抹去首次失败或证明该问题已修复，详见 [history/2026-11.md](./history/2026-11.md)。
+- W1 已修复可重复的单次503夹具与初始pageshow竞争，未改产品；原版自然100/100未复现，D1那一次无trace，
+  不能追认同因。D1首232/2、T1首233/1、WP旧10/10及P1全部键盘首失败保留；Provider高度已由P1修复，
+  本机234/0不抹去这些历史，详见 [history/2026-11.md](./history/2026-11.md)。
 - P2：200% 大字号、深色主题的 Provider 文字在暗底可读性差，原版截图同样存在；本轮未修复，不能把高度、
   箭头与裁切检查通过当作深色文字可读性已验收。真实设备与 OS 原生下拉弹窗仍未验收。
 - 真实方向键选择仍未验证：同一 Space/ArrowDown/Enter 私有探针在基线与候选双浏览器均未改值，
