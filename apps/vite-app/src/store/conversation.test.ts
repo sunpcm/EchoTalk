@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useAppStore } from "./appStore";
-import { _setLifecycleOptionsForTesting } from "./conversation";
 import type { ConversationSessionProjection, ConversationSessionState } from "./conversationState";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
-import type { AppStateSource } from "@/platform";
+import type { AppStateSource, LifecycleAdapter, LifecycleOptions, PlatformType } from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -40,11 +39,51 @@ vi.mock("@/lib/auth", () => ({
   }),
 }));
 
+const platformTest = vi.hoisted(() => {
+  const state: {
+    options: LifecycleOptions | null;
+    realCreate: ((options?: LifecycleOptions) => LifecycleAdapter) | null;
+    realDetect: (() => PlatformType) | null;
+  } = { options: null, realCreate: null, realDetect: null };
+
+  const detectPlatform = vi.fn<() => PlatformType>(() => {
+    if (state.options?.platform) {
+      return state.options.platform;
+    }
+    return state.realDetect ? state.realDetect() : "web";
+  });
+
+  const createLifecycleAdapter = vi.fn<() => LifecycleAdapter>(() => {
+    if (!state.realCreate) {
+      throw new Error("@/platform real createLifecycleAdapter not initialized");
+    }
+    return state.realCreate(state.options ?? undefined);
+  });
+
+  return { state, detectPlatform, createLifecycleAdapter };
+});
+
+vi.mock("@/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/platform")>();
+  platformTest.state.realCreate = actual.createLifecycleAdapter;
+  platformTest.state.realDetect = actual.detectPlatform;
+  return {
+    ...actual,
+    detectPlatform: platformTest.detectPlatform,
+    createLifecycleAdapter: platformTest.createLifecycleAdapter,
+  };
+});
+
+/** 测试内局部生命周期注入：仅在测试文件作用域内控制 native/Web 分类与适配器事实。 */
+function setLifecycleOptionsForTest(options: LifecycleOptions | null): void {
+  platformTest.state.options = options;
+}
+
 describe("useConversationStore", () => {
   beforeEach(() => {
     useAppStore.getState().goHome();
     vi.clearAllMocks();
-    _setLifecycleOptionsForTesting(null);
+    setLifecycleOptionsForTest(null);
     authSnapshotListeners.clear();
     vi.mocked(auth.getAuthSnapshot).mockReturnValue({
       state: "authenticated",
@@ -58,7 +97,7 @@ describe("useConversationStore", () => {
   });
 
   afterEach(() => {
-    _setLifecycleOptionsForTesting(null);
+    setLifecycleOptionsForTest(null);
     vi.restoreAllMocks();
   });
 
@@ -2900,7 +2939,7 @@ describe("useConversationStore", () => {
       await useAppStore.getState().startSession("scenario");
       const fakeApp = createFakeApp();
       fakeApp.getState.mockImplementation(() => new Promise(() => {}));
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
       vi.useFakeTimers();
       try {
         const retry = useAppStore.getState().recheckReadiness();
@@ -2924,7 +2963,7 @@ describe("useConversationStore", () => {
       vi.mocked(api.checkHealthReady).mockRejectedValueOnce(readinessFailure());
       await useAppStore.getState().startSession("scenario");
       const fakeApp = createFakeApp();
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
       let resolve!: (value: api.HealthReadyResponse) => void;
       vi.mocked(api.checkHealthReady).mockReturnValueOnce(
         new Promise((res) => {
@@ -2953,7 +2992,7 @@ describe("useConversationStore", () => {
             resolveGetState = resolve;
           }),
       );
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockResolvedValue({
@@ -3009,7 +3048,7 @@ describe("useConversationStore", () => {
             resolveGetState = resolve;
           }),
       );
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       vi.mocked(api.getSessionDetail).mockResolvedValue({
         id: validUuid,
@@ -3057,7 +3096,7 @@ describe("useConversationStore", () => {
 
     it("fails closed with lifecycleUnavailable when native initializes as inactive, allowing explicit retry", async () => {
       const fakeApp = createFakeApp(false);
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       await useAppStore.getState().startSession("free_talk");
 
@@ -3068,7 +3107,7 @@ describe("useConversationStore", () => {
 
       // 允许显式重试
       const retryApp = createFakeApp(true);
-      _setLifecycleOptionsForTesting({ platform: "ios", app: retryApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: retryApp });
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockResolvedValue({
         id: "retry-sess",
@@ -3094,7 +3133,7 @@ describe("useConversationStore", () => {
       fakeApp.addListener.mockRejectedValue(
         new Error("Sensitive internal CoreBluetooth / iOS error"),
       );
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       await useAppStore.getState().startSession("free_talk");
 
@@ -3114,7 +3153,7 @@ describe("useConversationStore", () => {
     it("fails closed when getState rejects without leaking raw error", async () => {
       const fakeApp = createFakeApp();
       fakeApp.getState.mockRejectedValueOnce(new Error("App.getState bridge timeout"));
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       await useAppStore.getState().startSession("free_talk");
 
@@ -3130,7 +3169,7 @@ describe("useConversationStore", () => {
       try {
         const fakeApp = createFakeApp();
         fakeApp.getState.mockImplementation(() => new Promise(() => {}));
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
         const pStart = useAppStore.getState().startSession("free_talk");
         expect(useAppStore.getState().connectionState).toBe("checking_health");
@@ -3154,7 +3193,7 @@ describe("useConversationStore", () => {
 
         // 显式重试能够成功
         const retryApp = createFakeApp(true);
-        _setLifecycleOptionsForTesting({ platform: "ios", app: retryApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: retryApp });
         vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
         vi.mocked(api.createSession).mockResolvedValue({
           id: "retry-after-10s",
@@ -3185,7 +3224,7 @@ describe("useConversationStore", () => {
       try {
         const fakeApp = createFakeApp();
         fakeApp.getState.mockImplementation(() => new Promise(() => {}));
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
         const pResume = useAppStore.getState().resumeSession(validUuid, validOrigin);
         expect(useAppStore.getState().connectionState).toBe("checking_health");
@@ -3211,7 +3250,7 @@ describe("useConversationStore", () => {
             resolveGetState = resolve;
           }),
       );
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       const p1 = useAppStore.getState().startSession("free_talk");
       expect(useAppStore.getState().connectionState).toBe("checking_health");
@@ -3256,7 +3295,7 @@ describe("useConversationStore", () => {
             resolveGetState = resolve;
           }),
       );
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       const promise = useAppStore.getState().startSession("free_talk");
       expect(useAppStore.getState().connectionState).toBe("checking_health");
@@ -3297,7 +3336,7 @@ describe("useConversationStore", () => {
             resolveGetState = resolve;
           }),
       );
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       const promise = useAppStore.getState().startSession("free_talk");
       expect(useAppStore.getState().connectionState).toBe("checking_health");
@@ -3329,7 +3368,7 @@ describe("useConversationStore", () => {
             resolveFirstGetState = resolve;
           }),
       );
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp1 });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp1 });
 
       const p1 = useAppStore.getState().startSession("free_talk");
       expect(useAppStore.getState().connectionState).toBe("checking_health");
@@ -3347,7 +3386,7 @@ describe("useConversationStore", () => {
 
       // 用户立即开启新会话
       const fakeApp2 = createFakeApp(true);
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp2 });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp2 });
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockResolvedValue({
         id: "sess-2-fresh",
@@ -3382,7 +3421,7 @@ describe("useConversationStore", () => {
       try {
         const fakeApp1 = createFakeApp();
         fakeApp1.getState.mockImplementation(() => new Promise(() => {}));
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp1 });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp1 });
 
         const p1 = useAppStore.getState().startSession("free_talk");
         expect(useAppStore.getState().connectionState).toBe("checking_health");
@@ -3393,7 +3432,7 @@ describe("useConversationStore", () => {
 
         // 用户开启 Attempt 2
         const fakeApp2 = createFakeApp(true);
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp2 });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp2 });
         vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
         vi.mocked(api.createSession).mockResolvedValue({
           id: "sess-attempt-2",
@@ -3429,7 +3468,7 @@ describe("useConversationStore", () => {
     it("cancels in-flight startup when native goes to background during createSession phase", async () => {
       let resolveCreate!: (s: api.Session) => void;
       const fakeApp = createFakeApp(true);
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
       vi.mocked(api.createSession).mockImplementation(
@@ -3472,7 +3511,7 @@ describe("useConversationStore", () => {
 
     it("checks attribution and drops API calls if synchronous subscriber resets on checking_health set in native mode", async () => {
       const fakeApp = createFakeApp(true);
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       const unsub = useAppStore.subscribe((state) => {
         if (state.connectionState === "checking_health") {
@@ -3490,7 +3529,7 @@ describe("useConversationStore", () => {
 
     it("does not automatically replay startSession or createSession when appStateChange occurs after active", () => {
       const fakeApp = createFakeApp(true);
-      _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+      setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
       useAppStore.setState({
         sessionId: "active-call-sess",
@@ -3510,7 +3549,7 @@ describe("useConversationStore", () => {
     });
 
     it("Web environment: unknown visibility and null online start cleanly without delay", async () => {
-      _setLifecycleOptionsForTesting({
+      setLifecycleOptionsForTest({
         platform: "web",
         webOptions: {
           window: {
@@ -3549,7 +3588,7 @@ describe("useConversationStore", () => {
     });
 
     it("Web environment: explicit hidden or offline refuses to start with lifecycleUnavailable", async () => {
-      _setLifecycleOptionsForTesting({
+      setLifecycleOptionsForTest({
         platform: "web",
         webOptions: {
           window: {
@@ -3578,7 +3617,7 @@ describe("useConversationStore", () => {
     describe("START-01 & START-02 regressions", () => {
       it("START-01 (startSession): safely releases to idle when authRevision changes synchronously upon checking_health set, and allows explicit retry", async () => {
         const fakeApp = createFakeApp(true);
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
         // 订阅 store：首次 checking_health 时同步使 getAuthRevision 递增，但不派发 authSnapshot 通知
         const unsub = useAppStore.subscribe((state) => {
@@ -3620,7 +3659,7 @@ describe("useConversationStore", () => {
 
       it("START-01 (resumeSession): safely releases to idle when authRevision changes synchronously upon checking_health set, returns false, and allows explicit retry", async () => {
         const fakeApp = createFakeApp(true);
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
         // 订阅 store：首次 checking_health 时同步使 getAuthRevision 递增，但不派发 authSnapshot 通知
         const unsub = useAppStore.subscribe((state) => {
@@ -3677,7 +3716,7 @@ describe("useConversationStore", () => {
             return Promise.resolve({ remove: removeMock });
           }),
         };
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
         vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
         vi.mocked(api.createSession).mockResolvedValue({
@@ -3718,7 +3757,7 @@ describe("useConversationStore", () => {
             return Promise.resolve({ remove: removeMock });
           }),
         };
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
         vi.mocked(api.getSessionDetail).mockResolvedValue({
           id: validUuid,
@@ -3759,7 +3798,7 @@ describe("useConversationStore", () => {
             });
           }),
         };
-        _setLifecycleOptionsForTesting({ platform: "ios", app: fakeApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: fakeApp });
 
         const pStart = useAppStore.getState().startSession("free_talk");
 
@@ -3776,7 +3815,7 @@ describe("useConversationStore", () => {
 
         // 开启新启动，验证旧 setup 不影响新 tracker
         const freshApp = createFakeApp(true);
-        _setLifecycleOptionsForTesting({ platform: "ios", app: freshApp });
+        setLifecycleOptionsForTest({ platform: "ios", app: freshApp });
         vi.mocked(api.checkHealthReady).mockResolvedValue({ status: "ok" });
         vi.mocked(api.createSession).mockResolvedValue({
           id: "sess-after-cancel",

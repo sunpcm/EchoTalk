@@ -6,6 +6,22 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 A18P2 启动/恢复生命周期减重与实例隔离
+
+- [x] **A18P2 启动/恢复生命周期减重与实例隔离（FINAL_READY）**：移除模块级 `currentStartupTracker`、
+      `testingLifecycleOptions` 与全局测试注入 `_setLifecycleOptionsForTesting`，`createConversationSlice`
+      工厂只拥有自己的 tracker/adapter/监听/计时器；start/resume 重复生命周期编排抽成实例内公共
+      `runStartupLifecycle`。R1 将 helper 由 async 改为同步返回（`awaitNativeReady` 仅 native 分支异步
+      等待 ready），恢复 Web 零额外 await，并修新 fixture 类型。新增
+      `conversationLifecycleIsolation.test.ts` 覆盖 start/start、start/resume、resume/start、
+      resume/resume 与 cancel/late 跨实例隔离，两旧测试文件迁移到局部 platform mock。最终 13 项门禁
+      组合均 `exit 0`，Vitest `1216 passed / 50 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。
+      详细当前数字、TDD/R1 历史与证据边界见
+      [PROJECT_STATUS 的 A18P2 小节](../PROJECT_STATUS.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)和
+      [CP-05 原生启动与显式恢复](../../docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)。
+      最终文档 format、独立 Review、当前任务分支提交和推送以主控同卡回执为准，用户 Review 待；
+      不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
+
 ## 2026-11-15 A19 P2 Room 快照与引用所有权
 
 - [x] **A19 P2 Room 快照与引用所有权（FINAL_READY）**：Room 初次 Web 门禁改为每次实际读取的
@@ -716,6 +732,17 @@ commit/push/pull/rebase/merge/部署，当前候选远端 CI、真实 Provider/I
 
 ### 后续候选（不阻断本轮）
 
+- [x] 在回归保护下减少 start/resume 重复生命周期逻辑及全局测试注入入口（A18P2 本地独立完成，见
+      [CP-05 原生启动与显式恢复](../../docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)）：
+      移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入
+      `_setLifecycleOptionsForTesting`，`createConversationSlice` 工厂只拥有自己的
+      tracker/adapter/监听/计时器，start/resume 复用实例内公共 `runStartupLifecycle`；新增
+      `conversationLifecycleIsolation.test.ts` 覆盖 start/start、start/resume、resume/start、
+      resume/resume 与 cancel/late 跨实例隔离，两旧测试文件迁移到局部 platform mock。公共动作签名/
+      返回值/状态机、原生 10 秒 deadline、同步重入/取消与请求顺序不变。R1 恢复 Web 同步 setup +
+      仅 native 等待 ready 并修新 fixture 类型。13 项门禁全 `exit 0`，Vitest `1216 passed / 50 files /
+0 skip`，三项有效私有行为变异均被对应断言杀死；详细门禁与变异计数见
+      [PROJECT_STATUS.md](../PROJECT_STATUS.md) A18P2 小节。
 - [x] 将回答推荐scope键的id/text直接拼接替换为无歧义元组编码，并覆盖分隔符外部ID（A33 本地独立完成，见 [回答推荐作用域编码验证](../../docs/verification/cross-platform/CP-05-ANSWER-SCOPE.md)）；消除冒号等外部ID边界碰撞。
 - [x] 强化 `SettingsDrawer`/`useSettingsForm` 的 LLM 模型水合回归：真实组件与 Hook 必须先
       断言初始缺省值，再覆盖 `llm_model: null` 到既有默认值、`null` 后切到合法自定义模型文本

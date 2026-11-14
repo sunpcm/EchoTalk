@@ -1,11 +1,8 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡 A19 P2 为 `FINAL_READY`：R1 修正共享快照测试夹具后，13 项门禁
-> 组合均 `exit 0`，完整 Vitest 为 `1211 passed / 49 files / 0 skip`，三项有效私有行为变异均被
-> 对应断言杀死。A82C、A84C、CF20、RF04E 与 WG20 均绑定各自时点的历史快照；其测试数字、失败
-> 记录和 Review/提交状态不能转作 A19 P2 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立
-> WPH 的数字同样绑定各自当时快照。最终文档 format、独立 Review、提交和当前任务分支推送见主控
-> 同卡回执；用户 Review 待。
+> 最后核对：2026-11-15。当前卡 A18P2（启动/恢复生命周期减重与实例隔离）处于 `FINAL_READY`：
+> 产品已移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入
+> `_setLifecycleOptionsForTesting`，start/resume 复用实例内公共 `runStartupLifecycle`，新增跨实例隔离回归并迁移两旧测试文件到局部 platform mock；13 项门禁组合全 `exit 0`，完整 Vitest `1216 passed / 50 files / 0 skip`，完整双浏览器 E2E `248 = Chromium 124 + WebKit 124`，backend `941 passed / 3 warnings / 0 skip`，三项有效私有行为变异均被对应断言杀死，详细数字与 TDD/R1 历史见下方 A18P2 小节。A19 P2、A82C、A84C、CF20、RF04E 与 WG20 均绑定各自时点的历史快照；其测试数字、失败记录和 Review/提交状态不能转作 A18P2 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立 WPH 的数字同样绑定各自当时快照。最终文档 format、独立 Review、提交和当前任务分支推送见主控同卡回执；用户 Review 待。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
@@ -33,6 +30,55 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### A18P2 启动/恢复生命周期减重与实例隔离（FINAL_READY）
+
+- 只读基线：唯一实施 worktree 为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，基线 `da185dc095dd85fb3292c35c4e6cc7b9e3297c7c`，
+  开工工作树 clean。允许写集仅为任务卡列出的两个 store 文件、三份 store 测试与四份文档；不改
+  appStore、platform、RoomSession、API/auth、UI 文案/活动列表、后端/迁移、依赖锁或 E2E/CI。
+- 实现：移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入
+  `_setLifecycleOptionsForTesting`，删除 `conversation.ts` 对 setter 的 re-export；`isNativeIos()`
+  直接读 `detectPlatform()`，`createLifecycleAdapter()` 改为无参调用；`createConversationSlice`
+  内新增实例级 `currentStartupTracker`，把 start/resume 重复的生命周期创建/cleanup/就绪 guard 抽成
+  实例内公共 `runStartupLifecycle`，两动作复用同一 tracker 身份与资源隔离。公共动作签名/返回值/
+  状态机、认证 principal/revision/代际、Cloud disabled 能力门禁、原生 10 秒 deadline、先去重槽位
+  再初始化及同步通知重入、旧回调/就绪/timeout/finally 隔离与全部请求顺序/取消不新增 end POST
+  语义均不变；R1 将 `runStartupLifecycle` 由 async 改为同步返回（`awaitNativeReady` 仅在 native 分支
+  异步等待 ready），Web 分支零额外 await，恢复共同 setup 与 Web guard 同步执行，既有 native 10 秒与
+  同步重入/取消契约不动。
+- 新增回归：`conversationLifecycleIsolation.test.ts` 用真实 `createConversationSlice` 构造两个
+  独立 Zustand 物理容器，覆盖 start/start、start/resume、resume/start、resume/resume 与
+  cancel/late 五条 A18P2 跨实例隔离断言：第二实例不得 dispose/退订第一实例，取消/完成一实例不影响
+  另一实例资源，各自 late 结果不能写其他实例。两旧测试文件改为局部 `vi.mock("@/platform")` +
+  `detectPlatform`/`createLifecycleAdapter` mock 控制 native/Web 分类与 adapter 事实，旧 expect 链
+  保持；新增回归失败路径补异常安全 test-owned finally cleanup（取消各自 store、释放本例挂起 ready
+  并 `Promise.allSettled` 收束 pending）。
+- TDD/R1 历史（保留，不覆盖旧失败）：原新文件 5 条全行为 RED（`0 passed / 5 failed / 0 skip / exit 1`，
+  四对动作均误 dispose 第一、cancel 误 dispose 第二）；私有 load 仅将 tracker 声明移入 factory 后
+  同 5 条 `5 passed / 0 failed / 0 skip / exit 0`，恢复原杠杆默认配置再次 `5 failed / exit 1`，全程两个
+  生产与测试 hash 保持（RED5 → 词法作用域私有 GREEN5 → 原 RED5 因果，仅证本次实例隔离）。首轮联合
+  三文件 `130 = 110 passed / 20 failed / 0 skip / exit 1`（新增 5 条隔离全 pass，旧回归 20 失败，根因
+  `runStartupLifecycle` 声明 async 让 Web 多一次微任务）；quality `exit 2` 唯一 TS2345 为新隔离测试约
+  151 行 `api.endSession` mock 与真实 `Session` 返回不符；format `exit 1` 仅 conversation.test.ts 与
+  conversationSlice.ts。R1 恢复 Web 同步 setup + 仅 native 等待 ready，并修新 fixture 类型。
+- 最终门禁：13 项门禁组合全部 `exit 0`。完整 Vitest 为 `1216 passed / 50 files / 0 skip`；联合三文件
+  默认配置正向复验为 `130 passed / 0 skip`，变异后默认配置再次 `130 passed / 0 skip`。
+- 浏览器与后端：完整 E2E 为 `248 passed = Chromium 124 + WebKit 124`，每项测试恰有一个 passed result，
+  `retry / skip / flaky / unexpected` 均为 `0`；backend 为 `941 passed / 3 warnings / 0 skip`，raw
+  coverage 为 `81.66855845629966%`。
+- 辅助门禁：build-script `47`、Fake API `116`、API 类型 runner `8`、iOS 侧仅 Node runner `37`，均通过；
+  iOS 计数不代表真实 iOS 设备验收。lint 为 `132 warning / 0 error / 0 new`，文件、消息、规则多重集保持，
+  行号允许随修改移位。
+- 变异与保护：三项有效私有行为变异均为 `exit 1` 并被对应断言杀死——tracker 重置为模块级时新 5 项隔离
+  断言 fail；native 期限 `10000→9000` 时旧 9999ms 仍 checking 断言 fail 1；Web 两入口恢复无条件 await 时
+  旧立即 capabilities 调用断言 fail 1。各命令 `exit 1`，未选 119 项不计覆盖率，跟踪生产文件 hash 未改。
+  旧 `610` 条既有 `expect` 语句 AST 保持（conversation `591` / navigation `19`）；`125` 个完整旧 callback
+  （conversation `120` / navigation `5`）除 setter 标识符映射与空白注释外 token 一致；`682` 个保护文件未改。
+- 交付边界：A18P2 只进入当前任务分支的最终提交与推送；不开 PR、不合并、不部署。最终文档 format、独立
+  Review、提交和推送以主控同卡回执为准，用户 Review 待。真实设备、真实 LiveKit/Provider/IdP、远端新 CI、
+  部署和生产链路均未验收。旧「不 push/deploy」为 A18 当时时点表述。
 
 ### A19 P2 Room 快照与引用所有权（FINAL_READY）
 

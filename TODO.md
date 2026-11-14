@@ -4,14 +4,16 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **A19 P2 当前卡（2026-11-15，FINAL_READY 并归档）：** Room 初始 Web 快照纯读取、提交后
-> 引用发布和 RoomContextSync 接口减法已完成；R1 修正共享快照夹具后，13 项门禁组合均 `exit 0`，
-> Vitest `1211 passed / 49 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。详细当前数字、
-> TDD/R1 历史与边界集中在 PROJECT_STATUS，归档见已完成事项。A82C、A84C、CF20、RF04E 与 WG20
-> 的数字、失败和 Review 状态继续绑定各自时点；A82 旧完整失败因果仍未证明。
+> **A18P2 当前卡（2026-11-15，FINAL_READY 并归档）：** 启动/恢复生命周期减重与实例隔离已完成；
+> 移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入 setter，start/resume
+> 复用实例内公共 `runStartupLifecycle`，新增跨实例隔离回归；R1 恢复 Web 同步 setup + 仅 native 等待
+> ready、并修新 fixture 类型后，13 项门禁组合均 `exit 0`，Vitest `1216 passed / 50 files / 0 skip`，
+> 三项有效私有行为变异均被对应断言杀死。详细当前数字、TDD/R1 历史与边界集中在 PROJECT_STATUS，归档见
+> 已完成事项。A19 P2、A82C、A84C、CF20、RF04E 与 WG20 的数字、失败和 Review 状态继续绑定各自时点；
+> A82 旧完整失败因果仍未证明。
 > 详见
-> [PROJECT_STATUS 的 A19 P2 小节](./docs/PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)与
-> [已完成事项归档](./docs/history/todo-done.md#2026-11-15-a19-p2-room-快照与引用所有权)。
+> [PROJECT_STATUS 的 A18P2 小节](./docs/PROJECT_STATUS.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)与
+> [已完成事项归档](./docs/history/todo-done.md#2026-11-15-a18p2-启动恢复生命周期减重与实例隔离)。
 > 最终文档 format、独立 Review、当前任务分支提交和推送以主控同卡回执为准；用户 Review 待。
 > 本卡不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
 
@@ -512,7 +514,7 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 
 ### 后续候选（不阻断本轮）
 
-- [ ] 在回归保护下减少start/resume重复生命周期逻辑及全局测试注入入口；A18维护候选，不阻断本地增量。
+- [x] 在回归保护下减少start/resume重复生命周期逻辑及全局测试注入入口；A18维护候选，不阻断本地增量。已由 A18P2 收口，见 [CP-05 原生启动与显式恢复](./docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)。
 
 - [ ] Android / Windows：产品确认进入范围后独立做平台最小验证。
 - [ ] 后台持续语音、实时跨设备接力、桌面托盘/全局快捷键与自动更新：有明确需求后单独设计和验收。

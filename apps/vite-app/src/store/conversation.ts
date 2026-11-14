@@ -2,7 +2,6 @@ import type { StoreApi, UseBoundStore } from "zustand";
 import { useAppStore } from "./appStore";
 import type { ConversationSlice } from "./conversationSlice";
 
-export { _setLifecycleOptionsForTesting } from "./conversationSlice";
 export type { ConnectionState } from "./conversationState";
 export type { ConversationSlice as ConversationStore } from "./conversationSlice";
 
