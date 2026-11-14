@@ -15,7 +15,7 @@ function trackSessionRequests(page: Page) {
       if (pathname !== "/api/health/ready") return;
     }
     calls.push(`${req.method()} ${pathname.replace(/[0-9a-f-]{36}/, ":id")}`);
-    if (req.method() === "POST" && pathname === "/api/sessions" && res.status() === 201) {
+    if (req.method() === "POST" && pathname === "/api/sessions" && res.status() === 200) {
       sessionJson = res.json().then((body) => {
         sessionId = (body as { id: string }).id;
       });

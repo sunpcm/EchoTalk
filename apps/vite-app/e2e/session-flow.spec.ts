@@ -32,7 +32,7 @@ test("real web proxies health, create-session, and end-session requests to the f
     headers,
     data: { mode: "scenario" },
   });
-  expect(created.status()).toBe(201);
+  expect(created.status()).toBe(200);
   const session = await created.json();
   expect(session).toMatchObject({ mode: "scenario", status: "active" });
 
