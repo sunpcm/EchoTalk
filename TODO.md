@@ -4,27 +4,12 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **A84C 当前结论（2026-11-14，FINAL_READY）：** 本卡仅收口四份文档；当前目标三文件
-> `29 passed`，是完整 backend `941 passed` 的子集；完整双浏览器 E2E 为
-> `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0。
-> 当前实际 `livekit-agents 1.6.10` 与四个依赖/安装来源一致；旧 A84 的 `1.4.3`、`37` 目标、
-> `603 backend` 和 7 个变异均只作历史证据，不与当前数字混算。
-> 当前 5 个源码/测试文件 hash 与旧 audit 相同，`agent.py` 只多日志脱敏 3 行、factory 边界 AST
-> 未变；当前两项入口变异均被指定 marker 杀死。当前 13 项门禁分组执行均为 `exit 0`；最终
-> Review/提交发布见主控同卡回执，用户 Review 待。详细数字集中在
-> [PROJECT_STATUS A84C 小节](./docs/PROJECT_STATUS.md)。
-> **CF20 历史快照（2026-11-14）：** 根因是测试就绪竞态；最小语义屏障仅改原 Playwright spec，
-> 产品字节、原共享 `openDashboard` 与 Fake API 数据未改。Mutation 被双浏览器杀死，历史定向复验
-> `80 passed`；完整 E2E `248 passed = Chromium 124 + WebKit 124`，两轮均为零失败/跳过/flaky/retry。
-> 这组 `80 passed` 不是本轮 A84C 补验，详细 base、写集与门禁数字见
-> [PROJECT_STATUS CF20 小节](./docs/PROJECT_STATUS.md)。最终完整门禁与 Review/提交/发布见主控
-> 同卡回执；用户 Review 待。
-> **RF04E 历史快照（2026-11-14）：** 三次历史 main push 与 #128 iOS 失败传播的只读证据核对已
-> 完成，完整矩阵见 [CP-06 CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
-> 原始 R0 为 12 项 `exit 0`、E2E 与聚合 `exit 1`，记录为 `245 passed / 1 failed`；追加零重试诊断
-> 全量 E2E 为 `246 passed / 0 failed / exit 0`。两者继续绑定各自历史时点，不能概括 CF20
-> 历史快照结果。
-> 原口径“原始 12 项成功 + E2E 追加成功”不是一次完整 13 项全零重跑，原始聚合仍为 `exit 1`。
+> **A82C 当前卡（2026-11-15，FINAL_READY）：** 仅 A82 的 Native Room 本地夹具就绪子项完成并归档；
+> 当前 13 项门禁分组均 `exit 0`。重复通过只证明该夹具在当前范围内稳定，旧完整失败因果仍未证明，
+> 真实设备、Provider、IdP、LiveKit、远端 CI、部署与相关 RF 总项仍未关闭。详细数字集中在
+> [PROJECT_STATUS 的 A82C 小节](./docs/PROJECT_STATUS.md#a82c-native-room-夹具就绪证据与文档核销final_ready本地夹具就绪子项完成)，归档见
+> [已完成事项](./docs/history/todo-done.md#2026-11-15-a82c-native-room-本地夹具就绪)。A84C、CF20、
+> RF04E、WG20 的数字与失败均按各自时点保留为历史快照。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -417,15 +402,12 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
       APIConnectOptions 3 次混同。远端 CI、真实 Provider 与部署仍未验证，RF-10 整项继续
       保持未勾选；见
       [RF-10 普通 OpenAI 兼容客户端策略验证](./docs/verification/cross-platform/RF-10-LLM-CLIENT-POLICY.md)。
-      A84 LiveKit AgentSession 连接策略本地子项已完成：旧交付后的独立 Review 已 APPROVED，旧
-      7 个有效变异与提交 `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9` 保留为 2026-11-01 历史；
-      当前 A84C 在 `44cb125…` base 上已达到 `FINAL_READY`，当前 13 项门禁分组执行均为
-      `exit 0`；最终 Review/提交发布见主控回执，用户 Review 待。本次授权只提交并推送当前任务
-      分支，不更新 main、不建 PR、不 merge。
-      历史与当前结果、SDK 版本和证据边界见
+      A84 LiveKit AgentSession 连接策略的旧实现与 A84C 文档收口均已完成；A84C 于 2026-11-14
+      达到 `FINAL_READY`，其 SDK 版本、门禁、目标测试与变异数字只属于该历史快照，不作为
+      A82C 的当前结果。证据边界见
       [PROJECT_STATUS A84C 小节](./docs/PROJECT_STATUS.md)、
       [RF-10 LiveKit 语音连接策略验证](./docs/verification/cross-platform/RF-10-SESSION-CONNECT-POLICY.md)
-      及[已完成事项归档](./docs/history/todo-done.md#2026-11-14-a84c-文档收口)。真实外部链路和
+      及[已完成事项归档](./docs/history/todo-done.md#2026-11-14-a84c-文档收口历史快照)。真实外部链路和
       RF-10 整体仍保持未完成。
 
 ### Phase 7：受控升级
@@ -516,12 +498,6 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。macOS 探针 CI 已随 PR #117 合并；B r1 已修复 Node runner 误收集并通过主控本地四项检查，PR #119 为验证 draft，原生 iOS 仍待真实 CI。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 已 Review APPROVED、以单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 精确 fast-forward 本地 main，并完成 main 完整门禁；lane 独立消费探针与 3 项有效变异未在 main 重复。A77 已把 Room 物理 adapter/Room 与认证业务监听归属分离；r1 产品 Vitest 为 940 passed/25 failed/965 total，r2 已修复 native pending 占位 hidden 被误判为真实 inactive，并把 Web 订阅后快照与 native pending 分开：Web 立即失败，native 等 `whenReady` 后重读 snapshot/能力并按原 10 秒 deadline 对账；旧 timer 不得清空新句柄，刷新后当前 native 业务监听仍可停轨。r2 独立 9 项时序与 A76 compat 5 项在 formatter 前通过，随后 format/lint/typecheck 通过，完整 Vitest 为 958 passed/9 failed/967 total，失败均由 stale timer fixture 残留 fake 全局时钟导致后续 A76 异步等待超时；r3 已清理该 fixture，并通过 967 Vitest/33 files、18 build-script、61 Fake API、8 type generator、148 双浏览器 E2E、576 backend/80.09% coverage、schema 与 Ruff。auth revision、原 deadline、ready snapshot 三个产品变异产生 11/6/4 项失败并精确还原；第四项 timer-handle 变异未被原 967 测试杀死，但实际 timer 队列确认卸载后残留本 Room timer，因此 r4 已补真实队列与卸载清理回归，产品逻辑不变。r1 只执行官方返修 native 预检，baseline3 是历史 r0 实测，当前 r4 仍待主 Agent 停写后完整代跑、复验第四项变异必被杀死并由独立 Review 判定，见 [A76 冻结实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md) 与 [A77 本地实施记录](./docs/verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)；三端真实异常联动仍待外部验收，本计划不要求新增遥测上报，整项保持未勾选。
-- [ ] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再
-      等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；A83 b/r0 的
-      正式 receipt 已核销 A82 Review APPROVED、正常 hook 单提交、main 精确 fast-forward
-      与完整 15 项门禁。该次失败已观察到的直接事实仅为 callback map 未就绪，显式等待已新增；
-      触发失败的完整因果尚未独立证明，有限次通过不构成因果或概率证明，见
-      [CP-06 Native Room 回归夹具就绪](./docs/verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
 
 ### CP-07：发布候选与交付
 

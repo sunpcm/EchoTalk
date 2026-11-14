@@ -1,21 +1,12 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-14。当前主结论是 A84C `FINAL_READY`：本卡仅修改四份文档；当前目标三文件
-> `29 passed` 是完整 backend `941 passed` 的子集，完整双浏览器 E2E 为
-> `248 passed = Chromium 124 + WebKit 124`。当前实际 `livekit-agents 1.6.10` 与四个依赖/安装
-> 来源一致；旧 A84 的 `1.4.3`、`37` 目标、`603 backend` 与 7 个变异均只绑定历史快照。当前已核
-> 13 项门禁分组执行均为 `exit 0`；最终 Review/提交发布见主控同卡回执，用户 Review 待。
-> 详细数字、SDK 分版本证据、冷导入和变异边界集中在本页下方 A84C 小节。
-> CF20 已转为历史快照：其定向稳定性 `80 passed` 不是本轮 A84C 补验；完整双浏览器 E2E
-> `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0。详细证据、base 与
-> 四文件写集保留在下方 CF20 小节，不在当前头摘要重写。
-> RF04E 小节是历史快照：原始 R0 的 `245 passed / 1 failed`、追加诊断的 `246 passed / 0 failed`
-> 以及当时“原始 12 项 `exit 0` + E2E 追加 `exit 0`、不是一次完整 13 项全零重跑”的口径均不改写，
-> 也不能概括 CF20 历史快照结果。WG20 周语法 WebKit 补验同样是独立历史快照：当时两个 WebKit 目标
-> 用例各重复 20 次且共 `40 passed`；该轮无产品修改、无源码修复。R2-13、R2-12、R2-14 以及 A6、
-> B1、独立 WPH 的数字继续绑定各自当时快照。
-> 最终 Review 与提交/发布见主控同卡回执；用户 Review 待。正式 macOS 客户端、Tauri 选型、
-> native 认证、设备与签名均未创建或验收。
+> 最后核对：2026-11-15。当前卡 A82C 为 `FINAL_READY`，只核销 Native Room 本地夹具就绪子项。
+> 主控已完成旧 A82 集成日志 SHA 复核、隔离依赖恢复、合成 PostgreSQL 15.19 启动与 18 份既有迁移
+> 重放；当前本轮 13 项门禁分组均 `exit 0`，完整数字、证据与边界集中在本页 A82C 小节。
+> A84C、CF20、RF04E 与 WG20 均转为各自时点的历史快照；其测试数字、失败记录和 Review/提交状态
+> 继续绑定原 base 与日期，不能用作 A82C 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立
+> WPH 的数字同样绑定各自当时快照。独立Review/提交发布见主控同卡回执，用户Review待。
+> 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
@@ -43,7 +34,56 @@
 
 ## 当前验证基线
 
-### A84C LiveKit 语音连接策略文档收口（FINAL_READY；最终 Review/提交发布见主控回执）
+### A82C Native Room 夹具就绪证据与文档核销（FINAL_READY；本地夹具就绪子项完成）
+
+- 只读基线：唯一实施 worktree 为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，起始 HEAD/base 均为
+  `18801fcb48a36d9ec751c948ff2ed34417794a19`，文档写入前工作树 clean。本轮仅允许修改
+  `TODO.md`、`docs/PROJECT_STATUS.md`、`docs/history/todo-done.md` 与
+  `docs/verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md` 四份文档。
+- 历史证据链：主控已独立重读旧 A82
+  [integration.json](/Users/sunpcm/code/EchoTalk/.review/reports/workflow-eval-r2/a82/reviewer/integration.json)
+  的 15 份 `main_checks` 原始日志，SHA 全部匹配；旧提交
+  `d8c9ff9d8f69ef0d55add4c955bb096b790f6e2c` 与当时 `APPROVED`、正常 hook 单提交、main
+  精确 fast-forward、完整门禁均属于已核验历史，不是 A82C 当前定向验证或当前门禁结果。
+- 隔离依赖与 PG：主控已恢复隔离 worktree/依赖，并以本轮新建的 empty tmpfs PostgreSQL `15.19`
+  监听 `127.0.0.1:55433`；18 份既有迁移全部重放成功，`exit 0`。该 PG 当前仍由持续批次独占使用，
+  整批结束才清理；本文不把迁移成功单独表述为测试或质量门禁通过。
+- 当前卡只核销 Native Room 本地夹具就绪子项。既有两处跨异步 native/DOM 就绪用例先保存当前
+  DOM 实例，再等待同一实例的 callback map 项及所需字段登记；目标用例仍在同一 native callback
+  返回前读取 `stopCalledDuringCallback`，证明本地轨同步停止未被等待延后。本卡产品与测试字节仍
+  零改，也不修改依赖、锁、迁移、服务或共享工具；权威实施边界见
+  [CP-06 Native Room 回归夹具就绪](./verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
+- 源码审计：当前两条目标与旧 A82 完整 callback 并非完全相同；差异仅为 `6` 处
+  `useConversationStore → useAppStore` 的 typed store facade 标识。当前 `conversation.ts` 明确
+  以同一物理容器提供 typed facade；除上述标识外，guards 与 callback 返回前同步停轨断言一致。
+  因此不得表述为“整段 AST 完全相同”。
+- 当前门禁证据：主控机器回执为
+  [verified-summary.json](/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/continuation-20261115/A82C/reviewer/verified-summary.json)
+  与
+  [full-gates.json](/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/continuation-20261115/A82C/reviewer/full-gates.json)。
+  `full-gates.json` 的 `quality`、`vitest`、`build-script`、`fake`、`api-check`、`api-test`、
+  `e2e`、`backend-format`、`backend-lint`、`schema`、`metadata`、`backend-test`、`format`
+  共 13 项分组均为 `exit 0`。
+- 当前完整测试树：Vitest 为 `1206 passed / 49 files / 0 skip`；完整双浏览器 E2E 为
+  `248 passed = Chromium 124 + WebKit 124`，每个 test 恰有一个 passed result，
+  `retry / skip / flaky / unexpected` 均为 `0`；backend 为
+  `941 passed / 3 warnings / 0 skip`，raw coverage 为 `81.69693530079455%`。build-script 为
+  `47`、Fake API 为 `116`、API 类型 runner 为 `8`；iOS 侧仅运行 Node runner `37`，不代表
+  真实 iOS。lint 为 `132 warnings / 0 errors / 0 new`，且与 A84C 逐诊断精确一致。
+- 当前 Native 定向证据：两条目标在 `20` 个独立进程中执行，每个进程均为 `retry=0`；每次恰选中
+  `2` 项并全部通过，共 `40 passed`。每次另有 `84` 项未选，不计入目标覆盖率；该 `40` 是定向
+  执行结果，不与 Vitest `1206` 相加。
+- 语义边界：已观察到的直接事实是 callback map 项尚未就绪；显式等待只移除这一夹具竞态。
+  触发旧失败的完整因果仍未独立证明，有限次重复通过也不能替代因果或概率证据，更不能据此宣称
+  真实设备故障已修复。
+- 外部边界：真实 LiveKit/Provider、IdP、设备、远端新 CI、部署与生产链路仍未验证；本子项不关闭
+  RF-07、RF-09、RF-12 或其他 RF 总项，也不启动 A19/A18。当前停在 `FINAL_READY`，不推进产品或
+  下一卡。
+  独立Review/提交发布见主控同卡回执，用户Review待。
+
+### A84C LiveKit 语音连接策略文档收口（2026-11-14 历史快照；当时 FINAL_READY）
 
 - 只读基线：worktree 为 `/private/tmp/echotalk-b1-implementation-20261112`，分支
   `codex/B1-learning-events-20261112`，起始 HEAD/base 均为
@@ -56,8 +96,9 @@
   `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9`；7 个变异均有效、lane/main 15 项复验通过。
   回执见 [review-final.md](/Users/sunpcm/code/EchoTalk/.review/reports/workflow-eval-r2/a84/reviewer/review-final.md)
   与 [milestone-summary.md](/Users/sunpcm/code/EchoTalk/.review/reports/workflow-eval-r2/a84/reviewer/milestone-summary.md)。
-  该提交不是当前 `44cb125…` 的祖先，因此旧 Review/提交/门禁结果不能转写为当前结果。
-- 当前测试与质量门禁：`A84C-full-gates.json` 的 13 个键分组执行均为 `exit 0`。最终
+  该提交不是 A84C 的 `44cb125…` base 的祖先，因此旧 Review/提交/门禁结果不能转写为 A84C
+  快照结果。
+- A84C 快照测试与质量门禁：`A84C-full-gates.json` 的 13 个键分组执行均为 `exit 0`。最终
   Review/提交发布见主控同卡回执，用户 Review 待。证据见
   [A84C-full-gates.json](/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/A84C-full-gates.json)。
   Vitest 为
@@ -66,19 +107,19 @@
   `941 passed / 3 warnings / 0 skip`，原生覆盖率 `rawCoverage=81.54086265607265%`；
   build-script 为 `47`、Fake API 为 `116`、API 类型 runner 为 `8`、非 native iOS Node runner
   为 `37`，均通过；lint 为 `132 warning / 0 error / 0 new`，逐诊断与 CF20 一致。
-- 当前针对性测试只运行本卡三份相关文件，共 `29 passed`。旧 A84 的 `37` 目标包含另一文件，
-  两者不混算或相加；当前 `29` 是完整 backend `941` 的子集。
-- 本卡专用 empty tempfs PostgreSQL 已按 `15.19` 启动并真跑 18 份既有迁移，`exit 0`；主控随后
+- A84C 快照针对性测试只运行当时三份相关文件，共 `29 passed`。旧 A84 的 `37` 目标包含另一文件，
+  两者不混算或相加；该 `29` 是当时完整 backend `941` 的子集。
+- A84C 快照专用 empty tempfs PostgreSQL 已按 `15.19` 启动并真跑 18 份既有迁移，`exit 0`；主控随后
   完成精确 container ID、双 owner 与 `127.0.0.1` 核验，stop `exit 0`，并验证
   `auto-remove=true`，资源不再保留。
-- 当前实际 SDK 为 `livekit-agents 1.6.10`，`pyproject.toml`、`uv.lock`、`requirements.txt` 与
-  installed 四处一致，本卡无需升级或安装。旧 A84 的 `livekit-agents 1.4.3` 只属于历史快照。
-  当前三个 STT/LLM/TTS role 仍为 `10s / 3 / 2s`，独立不可恢复错误阈值仍为 3；窄适配器每次
-  创建全新 SDK 选项，真实 entrypoint 通过零参数 wrapper 延迟读取当前 `AgentSession`，通用
+- A84C 快照实际 SDK 为 `livekit-agents 1.6.10`，`pyproject.toml`、`uv.lock`、`requirements.txt`
+  与 installed 四处一致，该快照无需升级或安装。旧 A84 的 `livekit-agents 1.4.3` 只属于更早的
+  历史快照。A84C 快照三个 STT/LLM/TTS role 为 `10s / 3 / 2s`，独立不可恢复错误阈值仍为 3；窄适配器每次
+  创建全新 SDK 选项，真实 entrypoint 通过零参数 wrapper 延迟读取快照时 `AgentSession`，通用
   orchestrator 注入合同未改。
-- 当前冷导入使用真实生产零参数 factory。在合法且各 role 不同的 Catalog 替代快照下创建 2 个
+- A84C 快照冷导入使用当时生产零参数 factory。在合法且各 role 不同的 Catalog 替代快照下创建 2 个
   未 start 的 SDK Session，真实公开 `conn_options` 的 9 个 role 字段与独立错误阈值均正确；两个
-  对象隔离，修改第二个不污染第一个，当前 `AgentSession` 绑定被实际消费，`finally` 已关闭全部
+  对象隔离，修改第二个不污染第一个，当时 `AgentSession` 绑定被实际消费，`finally` 已关闭全部
   Session，asyncio 任务回到基线；真实 App 的 config/database 未被导入。
 - 网络证据须区分能力探测与服务连接：导入 `urllib3._has_ipv6` 时曾有 1 次 `bind(::1, 0)`
   能力探测被拒；两次探针审计计数归类失败 `exit 1` 均保留，根因已由调用栈和本机源码证明。
@@ -88,16 +129,16 @@
 - 旧 7 个变异继续绑定历史回执。主控已逐个实核其原始 `check.log` SHA、kill marker 与变异前后
   源码指纹，并写
   [A84C-historical-mutations-verified.json](/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/A84C-historical-mutations-verified.json)；
-  这些结果仍只属于历史，不与当前两项新变异混算。当前只针对 `agent.py` 后续变化新验 2 个私有
+  这些结果仍只属于历史，不与 A84C 快照新增两项变异混算。A84C 快照只针对 `agent.py` 当时变化新验 2 个私有
   入口变异：删除 `conn_options` 被 `POLICY_CONSUMPTION_FAILED` 杀死；捕获旧构造绑定被
   `DYNAMIC_BINDING_FAILED` 杀死；两者均 `exit 1`，源码未改。
 - 与旧
   [audit-r0.json](/Users/sunpcm/code/EchoTalk/.review/reports/workflow-eval-r2/a84/reviewer/audit-r0.json)
-  逐文件比对，当前 Catalog、session policy 和三份相关测试共 5 个源码/测试文件 hash 不变；
+  逐文件比对，A84C 快照的 Catalog、session policy 和三份相关测试共 5 个源码/测试文件 hash 不变；
   `agent.py` 只多日志脱敏 import 与入口调用 3 行，Session factory 边界 AST 未变。
-- 当前授权只允许提交并推送本任务分支；不更新 main、不建 PR、不 merge、不部署。最终
-  Review/提交发布见主控同卡回执，用户 Review 待。真实 Provider、IdP、
+- A84C 快照的真实 Provider、IdP、
   LiveKit/Worker、设备、远端新 CI、生产部署和 RF-12 前置仍未由此关闭；RF-10 整项继续未勾选。
+  独立Review/提交发布见主控同卡回执，用户Review待。
 
 ### RF04E 已有远端 CI 证据核对（2026-11-14 历史快照）
 
@@ -121,9 +162,9 @@
   `RF04E-e2e-diagnostic-results.json`、`RF04E-diagnostic-verified.json` 与
   `ev/ev-RF04E-e2e-diagnostic-full.txt`。这是追加诊断，不覆盖原始 R0 的 `245 passed / 1 failed`
   与 `exit 1`；该诊断当时未复现焦点失败，原因也仍未证明，不能写成已修复。
-- 本卡专用 empty tempfs PostgreSQL 已由主控核验精确 container ID、两个 owner 与 loopback 后停止，
+- RF04E 快照专用 empty tempfs PostgreSQL 已由主控核验精确 container ID、两个 owner 与 loopback 后停止，
   `stop_exit=0`，并确认 `AutoRemove=true`；683 份保护文件未改。该保全与其余 12 项门禁成功都不能
-  覆盖原始 E2E/聚合 `exit 1`，因此当前本地结果不能概括为全绿。
+  覆盖原始 E2E/聚合 `exit 1`，因此该历史快照的本地结果不能概括为全绿。
 - 原始证据保留在
   `/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/ev/ev-RF04E-full-e2e.txt`
   及同目录对应聚合记录；追加诊断证据见上述三个文件。远端历史正向 run 不复用本次本地失败，也不
@@ -131,10 +172,10 @@
   本轮核对时的起始树 `4ec1a4d` 的 run count 为 `0`，required check、PR fail-block 与真实
   Provider/IdP/LiveKit、设备、生产链路仍未验。最终 Review 与提交/发布见主控同卡回执；
   用户 Review 待。
-- CF20 根因与当前验证转入下方独立小节；本段继续只绑定原始 R0 的 `245 passed / 1 failed` 与追加
-  诊断的 `246 passed / 0 failed`，两者均为历史快照，不概括本轮定向稳定性或完整 E2E。
+- CF20 根因与验证转入下方独立历史快照；本段继续只绑定原始 R0 的 `245 passed / 1 failed` 与追加
+  诊断的 `246 passed / 0 failed`，两者均不概括 CF20 快照的定向稳定性或完整 E2E。
 
-### CF20 Chromium 焦点就绪竞态回归（本地实现与机器核验完成；最终 Review/发布见主控回执）
+### CF20 Chromium 焦点就绪竞态回归（2026-11-14 历史快照；最终 Review/发布见主控回执）
 
 - 主控受控对照确认根因是测试就绪竞态：`weekly-progress` 请求 held 时七天区块保持 loading，
   原焦点遍历稳定得到 `5 < 6`；同一请求放行后 7 个日期按钮真实挂载，焦点序列为 `12`、包含
@@ -146,7 +187,7 @@
   `c5f9c7274ac85f6fb77212b8944c97e6edae41df`。仓库写集恰为 `TODO.md`、
   `apps/vite-app/e2e/a11y-focus-touch.spec.ts`、`docs/PROJECT_STATUS.md` 与
   `docs/history/todo-done.md`；不沿用上方 RF04E 历史快照的 base。
-- 当前实现只改 `apps/vite-app/e2e/a11y-focus-touch.spec.ts`，新增共享
+- CF20 快照实现只改 `apps/vite-app/e2e/a11y-focus-touch.spec.ts`，新增共享
   `waitForDashboardWeeklyProgress` 及其唯一 `toHaveCount(7)` 等待。正常 dashboard 用例与受控慢
   请求用例共同消费该 helper；慢请求用例在请求 held、真实 UI 往返完成后先证明 `ready === false`，
   再显式放行请求、等待 helper settle，随后原样执行 `tabThrough` 和原三条焦点断言。没有固定
@@ -167,12 +208,12 @@
   lint 为 `132 warning / 0 error / 0 new`，逐诊断精确等于父基线。
 - backend 为 `941 passed / 3 warnings / 0 skip`，本轮实算 raw coverage
   `81.58342792281498%`；非 native iOS Node runner 为 `37 passed / 0 skip / exit 0`。这些数字
-  绑定当前主控回执，不改写上方 RF04E 或 WG20 的历史 coverage。
-- 本卡专用 PG 已按精确 container ID、两个 owner 与 `127.0.0.1` 核验后停止，
+  绑定该历史快照的主控回执，不改写上方 RF04E 或 WG20 的历史 coverage。
+- CF20 快照专用 PG 已按精确 container ID、两个 owner 与 `127.0.0.1` 核验后停止，
   `stop_exit=0`，并确认 `auto-remove`。原 dashboard 目标 body 去除新增
   `waitForDashboardWeeklyProgress(page)` 调用后与基线逐字等同；683 份保护文件全部未变。
-- 本轮完整 13 项门禁及聚合 `exit 0`（后端、前端、浏览器与最终格式分组执行）；Review/提交/发布见主控同卡回执，
-  用户 Review 待。
+- 该快照完整 13 项门禁及聚合 `exit 0`（后端、前端、浏览器与最终格式分组执行）。
+  独立Review/提交发布见主控同卡回执，用户Review待。
 
 ### WG20（WebKit 周语法重复稳定性补验）历史快照；最终回执与用户 Review 待
 
@@ -188,18 +229,18 @@
   `246 passed / 0 failed / 0 skip / 0 retry`，其中 Chromium `123`、WebKit `123`
   （`--retries=0 --workers=1`）。Node 构建脚本 `47 passed`、Fake API `116 passed`、API 类型
   runner `8 passed`、非 native iOS 脚本 `37 passed`，均 `0 fail / 0 skip` 且 `exit 0`。
-- 目标 WebKit 补验使用当前 HEAD、macOS WebKit 与 Fake API 夹具，两个周语法用例各重复 20 次，
+- 目标 WebKit 补验使用该快照 HEAD、macOS WebKit 与 Fake API 夹具，两个周语法用例各重复 20 次，
   共 `40 passed / 0 failed / 0 skip / 0 flaky / 0 unexpected`；所有 `result.retry=0`，每个
   test 恰有 1 个 result，耗时 `52.763s`，配置为
-  `repeatEach=20 / retries=0 / workers=1`。未能发现当前夹具重复失败，不靠放宽断言或增加重试。
-- 当前 PostgreSQL 为本卡自建 empty tempfs PG `15.19`，仅监听 `127.0.0.1:55433`，18 份迁移
+  `repeatEach=20 / retries=0 / workers=1`。未能发现该快照夹具重复失败，不靠放宽断言或增加重试。
+- WG20 快照 PostgreSQL 为当时自建 empty tempfs PG `15.19`，仅监听 `127.0.0.1:55433`，18 份迁移
   `exit 0`。精确容器 ID、两个 owner 与 loopback 已核验后停库，停库 `exit 0`，并确认
-  `AutoRemove=true`；本卡 PG 已清理，未启动其他卡环境。
+  `AutoRemove=true`；该快照 PG 已清理，未启动其他卡环境。
 - lint 为 `132 warning / 0 error`；逐项诊断与 R213 父基线字节完全一致，新增诊断 `0`。当前失败
-  夹具在失败阶段会持续返回 `503`，直到测试显式放行；当前 `retry` 等同 `refresh`，认证快照
+  夹具在失败阶段会持续返回 `503`，直到测试显式放行；该快照中 `retry` 等同 `refresh`，认证快照
   变化可能触发额外读取。历史“无重试 5 次失败 1 次”保留，“认证刷新耗掉唯一一次 503”仍是未经
-  证明的假说，不能把当前夹具写成当时唯一一次 `503`。
-- 本轮仅补验和文档收口，没有产品修改或源码修复。重复通过只证明当前 HEAD/夹具在 macOS
+  证明的假说，不能把该快照夹具写成当时唯一一次 `503`。
+- 该快照只做补验和文档收口，没有产品修改或源码修复。重复通过只证明该快照 HEAD/夹具在 macOS
   WebKit + Fake API 下的稳定性，不证明历史根因，也不替代真实后端身份、真实 Provider/IdP/
   LiveKit、设备、远端 CI、生产或部署验收。证据位于
   `/Users/sunpcm/code/EchoTalk/.review/reports/b1-implementation-20261112/`：

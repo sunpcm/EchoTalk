@@ -6,17 +6,29 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
-## 2026-11-14 A84C 文档收口
+## 2026-11-15 A82C Native Room 本地夹具就绪
+
+- [x] **Native Room 回归夹具就绪（仅 A82 本地子项）**：当前两条 native/DOM 交叉异步用例先保存
+      当前 DOM 实例，再等待同一实例的 callback map 项及所需字段登记；目标断言仍在 native
+      callback 返回前验证本地轨同步停止。主控当前 13 项门禁分组均 `exit 0`，两条目标在 20 个
+      独立进程中按零重试执行并通过。详细计数、覆盖率、源码审计与边界见
+      [PROJECT_STATUS 的 A82C 小节](../PROJECT_STATUS.md)。
+      本归档仅关闭本地夹具就绪子项；旧 A82 的 15 份 main 回执 SHA 匹配只属于历史证据，且当前
+      两条目标与旧 A82 完整 callback 存在 6 处 typed store facade 标识差异，不能写成整段 AST
+      完全相同。旧失败完整因果、真实设备/Provider/IdP/LiveKit、远端 CI、部署与 RF 总项仍未关闭。
+      独立Review/提交发布见主控同卡回执，用户Review待。
+
+## 2026-11-14 A84C 文档收口（历史快照）
 
 - [x] **A84 历史状态校正**：旧 A84 r0 交付记录“待 Review”只是交付时点；后续旧快照已在
       `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9` 完成独立 APPROVED、7 个有效变异及
       lane/main 15 项复验。该结论绑定 2026-11-01 的
-      `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 快照，不表示当前 `44cb125…` 已通过。
-      A84C 当前已达到 `FINAL_READY`：当前 13 项门禁分组执行均 `exit 0`，目标三文件 `29 passed`，
-      专用 PG 迁移和两项入口变异完成，PG 已核验精确 ID/双 owner/loopback 后 stop `exit 0` 并
-      验证 auto-remove，SDK 实际版本为 `1.6.10`；旧 `1.4.3` 与旧 `37` 目标保持历史，不与当前
-      结果混算。最终 Review/提交发布见主控同卡回执，用户 Review 待；本次授权只推送
-      当前任务分支，不更新 main、不建 PR、不 merge。详细证据与外部未验边界见
+      `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 快照，不表示 A84C 的 `44cb125…` base
+      在当时已通过。A84C 于 2026-11-14 达到 `FINAL_READY`：该历史快照的 13 项门禁分组执行均为
+      `exit 0`，目标三文件 `29 passed`，专用 PG 迁移和两项入口变异完成，PG 已核验精确 ID/
+      双 owner/loopback 后 stop `exit 0` 并验证 auto-remove，SDK 实际版本为 `1.6.10`；旧
+      `1.4.3` 与旧 `37` 目标仍是更早历史，不与 A84C 快照结果混算。所有数字均不作为 A82C
+      当前结果。独立Review/提交发布见主控同卡回执，用户Review待。详细证据与外部未验边界见
       [PROJECT_STATUS 的 A84C 小节](../PROJECT_STATUS.md)。
 
 ## 2026-11-14 RF04E 已有远端 CI 证据核对
@@ -35,7 +47,7 @@
 - [x] **CF20 定向验证**：删除 helper 唯一等待的私有 mutation 被 Chromium/WebKit 各 3 次杀死；
       正式定向复验为 `80 passed / 0 failed / 0 skip / 0 flaky / 0 retry / exit 0`。详细门禁数字与
       边界见 [PROJECT_STATUS 的 CF20 小节](../PROJECT_STATUS.md)。
-- [x] **RF04E 全量 E2E 焦点可达性**：当前 CF20 base
+- [x] **RF04E 全量 E2E 焦点可达性**：CF20 历史快照 base
       `c5f9c7274ac85f6fb77212b8944c97e6edae41df` 上的完整双浏览器 E2E 为
       `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0；原焦点用例已在
       这两个 project 中完成本地实现验证。
@@ -45,10 +57,10 @@
 ## 2026-11-13 WG20 WebKit 周语法补验
 
 - [x] **WG20 周语法 WebKit 重复稳定性补验**：主控实跑完整 13 项门禁及聚合均 `exit 0`；
-      WebKit 零重试重复补验达到当前门槛，完整数字与证据见
+      WebKit 零重试重复补验达到当时门槛，完整数字与证据见
       [PROJECT_STATUS 的 WG20 小节](../PROJECT_STATUS.md)。历史“无重试 5 次失败 1 次”保留；
-      旧“认证刷新耗掉唯一一次 503”假说仍未证实，当前夹具为持续返回 503 直到测试显式放行。
-      本轮仅文档收口，无产品修改或源码修复。最终回执与用户 Review 待主控处理。
+      旧“认证刷新耗掉唯一一次 503”假说仍未证实，该历史快照夹具为持续返回 503 直到测试显式放行。
+      该轮仅文档收口，无产品修改或源码修复。最终回执与用户 Review 待主控处理。
 
 ## 2026-11-13 R2-13 组件目录按页面边界归位
 
