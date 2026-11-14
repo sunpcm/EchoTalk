@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-14，W1 已合并；G2 本机验收已完成，已验证发布 CI 与本机候选分列。
-> 已验证基线 CI 与 G2 本机候选分别列于"当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
+> 最后核对：2026-11-14，G2 PR169 已合并；主题对比度测试前提修正已完成本机验收。
+> 旧全绿基线、b8 main CI 失败与本轮候选实测分别列于"当前验证基线"，不以本机结果替代发布 CI。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
@@ -25,28 +25,30 @@
 
 ## 当前验证基线
 
-最近已验证的 main 基线已合入 W1：
-[`c5b18fee9038fc6ed42dfee46c8dc97dfb4ad705`](https://github.com/sunpcm/EchoTalk/commit/c5b18fee9038fc6ed42dfee46c8dc97dfb4ad705)，
-tree `1d8e8ea95111c5ad256d63349368aec9568a038e`；main CI
-[`43579088158`](https://github.com/sunpcm/EchoTalk/actions/runs/43579088158) attempt1 五作业 success。
-下表 CI 列由 Harness 回读 [frontend job 132399740695](https://github.com/sunpcm/EchoTalk/actions/runs/43579088158/job/132399740695)
-及 [backend job 132399740442](https://github.com/sunpcm/EchoTalk/actions/runs/43579088158/job/132399740442) 原始日志，非实施方亲跑。
+旧全绿发布验证基线为 [c5b18fe](https://github.com/sunpcm/EchoTalk/commit/c5b18fee9038fc6ed42dfee46c8dc97dfb4ad705)
+（tree `1d8e8ea95111c5ad256d63349368aec9568a038e`）；
+[CI43579088158](https://github.com/sunpcm/EchoTalk/actions/runs/43579088158) attempt1 五作业 success。
+G2 [PR169](https://github.com/sunpcm/EchoTalk/pull/169) squash 至
+[b8a9bad](https://github.com/sunpcm/EchoTalk/commit/b8a9baddff8a3102b8ef3815afead90667aa351a)；
+[mainCI43594803847](https://github.com/sunpcm/EchoTalk/actions/runs/43594803847) **failure**：E2E **230pass/1flaky/3fail**，
+均为 WebKit dark theme-contrast；后端 **841/3 warnings/80.59%（50.85s）**。历史 CI 原因仍未知，无 trace 可读。
+下表 c5 列来自 Harness 回读旧 CI 日志；本轮候选列为 Harness/macOS 亲跑，均非实施方执行。
 
-| 测试树 / 门禁  | 已验证基线 c5b18fe CI（Linux）             | G2 本机候选（Harness/macOS）                      |
+| 测试树 / 门禁  | 已验证基线 c5b18fe CI（Linux）             | G2 CI收尾候选（Harness/macOS）                    |
 | -------------- | ------------------------------------------ | ------------------------------------------------- |
 | Vitest         | 1227 passed / 51 文件                      | 1227 passed / 51 文件                             |
-| Playwright E2E | 234 passed，C117/W117，retry 标记0（4.7m） | 234/0，C117/W117，retry/skip/flaky0（52.301661s） |
-| Fake API 契约  | 108 passed                                 | **125 passed（新增17）**                          |
+| Playwright E2E | 234 passed，C117/W117，retry 标记0（4.7m） | 234/0，C117/W117，retry/skip/flaky0（54.884196s） |
+| Fake API 契约  | 108 passed                                 | **125 passed（本轮不增）**                        |
 | API 类型生成器 | 8 passed                                   | 8 passed                                          |
 | 构建脚本       | 21 passed                                  | 21 passed                                         |
-| backend pytest | 841 passed，3 warnings，80.59%（58.61s）   | 841 passed，3 warnings，80.59%（63.40s）          |
+| backend pytest | 841 passed，3 warnings，80.59%（58.61s）   | 841 passed，3 warnings，80.59%（62.77s）          |
 
-G2 本机冻结候选由 Harness/macOS 分阶段完成15门禁，代码独立APPROVED R1，source前后稳定；
-完整E2E命令53.27s，lint132 warnings/0 errors。已发布CI列来自上述Harness日志回读，均非实施方亲跑。
-创建会话统一精确200，五个缺失operation补齐，成功响应真实HTTP覆盖 **26/26**、缺失[]；独立HTTP4/4与四个直接目标变异通过。
-G2 本机125与 c5 已发布108分列；G2 发布验证另以对应 PR/main 运行核对。实施方未跑浏览器或三树，
-其首次 Fake 监听 EPERM 导致125 cancelled、Harness首次E2E214/20（全为旧201断言）均保留在
-[history/2026-11.md](./history/2026-11.md)，其中另存 W1 压力/真实初始事件证据及 P1 历史。
+本轮14项非浏览器门禁全exit0，加完整E2E共15项通过；完整E2E命令55.83s，pytest命令67.08s，format7.37s。
+目标18用例 × 双浏览器 × repeat10 为 **360/360**（C180/W180，retry/skip/flaky0，**97.765687s**）。
+只修本spec的主题输入、水合和样式前提，保留18独立用例/21次AA调用及扫描算法字节；两组有效私有变异恢复后360/234绿，source稳定。
+G2创建会话精确200、成功HTTP覆盖26/26及Fake125（新增17）保留；本轮未新增正式用例，产品配色不动。
+候选发布验证另以对应PR/main运行核对，不预告新CI。原失败、受控对照边界及本轮实测详见
+[本轮记录](./history/2026-11-14-g2-theme-contrast-ci.md)；原G2/P1/W1与旧首失败仍在[月史](./history/2026-11.md)。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -74,16 +76,19 @@ G2 本机125与 c5 已发布108分列；G2 发布验证另以对应 PR/main 运�
 - 云端独立评审另报告 Linux E2E 233/1（WebKit 主题用例）并做 1 worker 90/90 定向重放；来源为用户
   转交的云端报告、非本轮亲跑，当次无 trace 无法追认根因。本机原版自然失败已定位为 >300ms 点击前提
   缺口、测试已确定性修正，见 [history/2026-11.md](./history/2026-11.md)。
+- 本轮已补对比度测试的确定输入/就绪前提；三格受控对照仅证明共享settings通道，原AA均通过，未复现CI RED。
+  历史WebKit深色CI因果仍未知；本机360/234通过不等同Linux CI已修复，详见[本轮记录](./history/2026-11-14-g2-theme-contrast-ci.md)。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
 ## 历史与决策
 
-| 内容                                | 位置                                                                 |
-| ----------------------------------- | -------------------------------------------------------------------- |
-| 2026 年 11 月各轮实施记录与当时基线 | [history/2026-11.md](./history/2026-11.md)                           |
-| 2026 年 10 月各轮实施记录           | [history/2026-10.md](./history/2026-10.md)                           |
-| 已合并与明确未采纳的方案            | [history/decisions.md](./history/decisions.md)                       |
-| 已完成的待办事项                    | [history/todo-done.md](./history/todo-done.md)                       |
-| 评审手册的单轮回执                  | [history/review-loop-receipts.md](./history/review-loop-receipts.md) |
+| 内容                                | 位置                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| G2 主题对比度 CI 收尾与当前验收     | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md) |
+| 2026 年 11 月各轮实施记录与当时基线 | [history/2026-11.md](./history/2026-11.md)                                                 |
+| 2026 年 10 月各轮实施记录           | [history/2026-10.md](./history/2026-10.md)                                                 |
+| 已合并与明确未采纳的方案            | [history/decisions.md](./history/decisions.md)                                             |
+| 已完成的待办事项                    | [history/todo-done.md](./history/todo-done.md)                                             |
+| 评审手册的单轮回执                  | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                       |
 
 历史文件只追加、不改写；其中的计数和结论只属于当时的提交。
