@@ -14,9 +14,97 @@ const ACTIVE_SESSION = {
   ended_at: null,
 };
 
-async function applyTheme(page: Page, theme: (typeof THEMES)[number]) {
+async function openWithTheme(page: Page, theme: (typeof THEMES)[number]) {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+  await page.addInitScript((t) => localStorage.setItem("echotalk-theme", t), theme);
+  // 仅本场景的 GET：启动与打开抽屉均水合同一主题，不读取共享 Fake default。
+  await page.route("**/api/user/settings", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      json: {
+        is_custom_mode: false,
+        is_custom_verified: false,
+        subscription_tier: "free",
+        theme,
+        stt_provider: null,
+        llm_provider: null,
+        llm_model: null,
+        tts_provider: null,
+        has_stt_key: false,
+        has_llm_key: false,
+        has_tts_key: false,
+        stt_status: "unconfigured",
+        llm_status: "unconfigured",
+        tts_status: "unconfigured",
+      },
+    });
+  });
+  await page.goto("/");
+  await waitForThemeReady(page, theme);
+}
+
+async function waitForThemeReady(page: Page, theme: (typeof THEMES)[number]) {
+  // 已有 tokens 的终值；只等待水合/样式前提，不重复执行或轮询 AA 扫描。
+  const colors = {
+    warm: { background: "rgb(251, 247, 241)", color: "rgb(44, 38, 32)" },
+    cool: { background: "rgb(241, 245, 251)", color: "rgb(32, 38, 52)" },
+    dark: { background: "rgb(23, 24, 27)", color: "rgb(237, 235, 230)" },
+  }[theme];
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const settingsModule = "/src/store/settings.ts";
+        const { useSettingsStore } = await import(settingsModule);
+        const { loading, settings, theme: storeTheme } = useSettingsStore.getState();
+        const root = document.querySelector("#root > div.bg-bg");
+        if (!root) return null;
+        const bodyStyle = getComputedStyle(document.body);
+        const rootStyle = getComputedStyle(root);
+        return {
+          loading,
+          storeTheme,
+          settingsTheme: settings?.theme,
+          domTheme: document.documentElement.getAttribute("data-theme"),
+          reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+          bodyBackground: bodyStyle.backgroundColor,
+          rootBackground: rootStyle.backgroundColor,
+          bodyColor: bodyStyle.color,
+          rootColor: rootStyle.color,
+          transitionsDisabled: [...document.querySelectorAll("body, #root, #root *")].every(
+            (el) => {
+              const style = getComputedStyle(el);
+              return [style.transitionDuration, style.transitionDelay].every((value) =>
+                value.split(",").every((duration) => parseFloat(duration) === 0),
+              );
+            },
+          ),
+          activeTransitions: document
+            .getAnimations()
+            .filter(
+              (animation) =>
+                "transitionProperty" in animation &&
+                animation.playState !== "finished" &&
+                animation.playState !== "idle",
+            ).length,
+        };
+      }),
+    )
+    .toEqual({
+      loading: false,
+      storeTheme: theme,
+      settingsTheme: theme,
+      domTheme: theme,
+      reducedMotion: true,
+      bodyBackground: colors.background,
+      rootBackground: colors.background,
+      bodyColor: colors.color,
+      rootColor: colors.color,
+      transitionsDisabled: true,
+      activeTransitions: 0,
+    });
 }
 
 /** 返回 scope 内对比度不达标的可见文字（去重后）。 */
@@ -91,11 +179,11 @@ for (const theme of THEMES) {
     await page.route("**/api/sessions/active*", (route) =>
       route.fulfill({ json: { items: [ACTIVE_SESSION], next_cursor: null } }),
     );
-    await page.goto("/");
+    await openWithTheme(page, theme);
     await expect(page.getByRole("button", { name: /进入练习/ }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "结束记录" })).toBeVisible();
     await page.waitForLoadState("networkidle");
-    await applyTheme(page, theme);
+    await waitForThemeReady(page, theme);
 
     expect(await findLowContrast(page, "main")).toEqual([]);
 
@@ -108,28 +196,28 @@ for (const theme of THEMES) {
       (url) => /^\/api\/(sessions|assessments|curriculum)(?:\/|$)/.test(url.pathname),
       (route) => route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
     );
-    await page.goto("/");
+    await openWithTheme(page, theme);
     await expect(page.getByText("加载活动会话失败")).toBeVisible();
     await expect(page.getByText("七天概览加载失败，请重试")).toBeVisible();
-    await applyTheme(page, theme);
+    await waitForThemeReady(page, theme);
 
     expect(await findLowContrast(page, "main")).toEqual([]);
   });
 
   test(`settings drawer meets AA contrast (${theme})`, async ({ page }) => {
-    await page.goto("/");
+    await openWithTheme(page, theme);
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
     await page.getByRole("button", { name: "自定义模型设置" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("dialog").getByRole("switch").click();
-    await applyTheme(page, theme);
+    await waitForThemeReady(page, theme);
 
     expect(await findLowContrast(page, "dialog.settings-drawer")).toEqual([]);
   });
 
   for (const sessionId of ["analysis-success", "grammar-only", "grammar-only-empty"]) {
     test(`ended view ${sessionId} meets AA contrast (${theme})`, async ({ page }) => {
-      await page.goto("/");
+      await openWithTheme(page, theme);
       await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
       await page.evaluate(async (id) => {
         const { useAppStore } = await import("/src/store/appStore.ts");
@@ -145,7 +233,7 @@ for (const theme of THEMES) {
       }, sessionId);
       await expect(page.getByRole("button", { name: "返回主页" })).toBeVisible();
       await expect(page.locator(".animate-spin")).toHaveCount(0);
-      await applyTheme(page, theme);
+      await waitForThemeReady(page, theme);
 
       expect(await findLowContrast(page, "main")).toEqual([]);
     });

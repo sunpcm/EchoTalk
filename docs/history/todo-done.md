@@ -673,3 +673,21 @@ formal_lane_unchanged 均 true。focus/Tab/selectOption 已通过，全部首失
       直接脱敏断言捕获，不混为同一证据。最近已发布W1 main为c5b18fe/tree1d8e8ea、mainCI43579088158，
       G2本机125与c5已发布108分列，G2发布验证另以对应PR/main运行核对。详见 [本月历史](./2026-11.md)。
       本条仅G2范围收口，其他TODO卡未改；文档待Review，不commit/push/PR/merge/部署，不开始下个包。
+
+## 2026-11-14 G2 CI 收尾补充（主题对比度测试前提，本机已验收）
+
+- [x] **G2 CI 收尾：主题对比度测试的确定输入与就绪前提**：只改本spec，导航前reduce、本地与服务端主题一致，
+      使用真实store水合/目标DOM/媒体与computed样式屏障；18独立用例、21次AA调用及原扫描算法字节保全。
+      冻结spec SHA-256：`c8cd45e60496d26238375e310925245839b43a6fd5dfcab3099332534cabde3a`；代码独立APPROVED R0。
+      原G2卡已归档，本条仅追加收尾补充，不重加进行中的TODO卡。
+
+      Harness亲跑14非浏览器门禁全exit0：Vitest1227/51、Fake125、types8/build21、pytest841/3warnings/80.59%
+      （62.77s、命令67.08s）、format7.37s；全量E2E234（C117/W117，retry/skip/flaky0，54.884196s、命令55.83s），
+      目标18×2×10=360（C180/W180，retry/skip/flaky0，97.765687s）。两有效私有变异分别命中原AA spec204与
+      新就绪spec95，备份恢复后360/234 GREEN，正式代码前后稳定；实施方未跑浏览器或三树。
+
+      [PR169](https://github.com/sunpcm/EchoTalk/pull/169)已合并至b8a9bad，但
+      [mainCI43594803847](https://github.com/sunpcm/EchoTalk/actions/runs/43594803847)为failure：230pass/1flaky/3fail，
+      全为WebKit深色对比度；后端841/3warnings/80.59%/50.85s。历史根因未知、无trace，三格输入对照均原AA通过，
+      不能说已复现CI RED；本机GREEN不预报新PR/CI。产品配色、Provider深色P2、真实LiveKit/Provider/IdP/设备等边界
+      不因本条勾掉。完整过程、首失败与来源见[本轮记录](./2026-11-14-g2-theme-contrast-ci.md)。
