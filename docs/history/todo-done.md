@@ -6,6 +6,19 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 RDOC 路线图历史快照口径修正
+
+- [x] **RDOC 路线图历史快照口径修正（FINAL_READY）**：只修正
+      [架构演进规划](../ARCHITECTURE_ROADMAP.md) §3.4 与 B1 实施顺序中的三处时点标签、当前验证
+      索引和旧暂停边界。R2-14 的 `941 / 81.57% / 246` 等历史数字，B1/WPH 的失败与证据，
+      A18P2 细节，路线图架构、业务政策、范围及阶段退出条件均保持原样。当前实现/验证指向
+      [PROJECT_STATUS 的当前验证基线](../PROJECT_STATUS.md#当前验证基线)；旧“停在此卡、不启动
+      下一卡”注明为历史暂停，后续下一卡以用户最新授权与 [TODO.md](../../TODO.md) 为准。
+      本卡为纯文档修改，实施节点未跑测试、服务或 PG，未读取 runtime 或凭据。完整机器门禁数字、
+      技术 Review、最终 format、当前任务分支提交发布与用户 Review 状态见
+      [PROJECT_STATUS 的 RDOC 小节](../PROJECT_STATUS.md#rdoc-路线图历史快照口径修正final_ready)。
+      本归档不复制细数字。
+
 ## 2026-11-15 A18P2 启动/恢复生命周期减重与实例隔离
 
 - [x] **A18P2 启动/恢复生命周期减重与实例隔离（FINAL_READY）**：移除模块级 `currentStartupTracker`、

@@ -1,6 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡 A18P2（启动/恢复生命周期减重与实例隔离）处于 `FINAL_READY`：
+> 最后核对：2026-11-15。本轮文档卡 RDOC（路线图历史快照口径修正）处于 `FINAL_READY`；最近产品卡
+> A18P2（启动/恢复生命周期减重与实例隔离）处于 `FINAL_READY`：
 > 产品已移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入
 > `_setLifecycleOptionsForTesting`，start/resume 复用实例内公共 `runStartupLifecycle`，新增跨实例隔离回归并迁移两旧测试文件到局部 platform mock；13 项门禁组合全 `exit 0`，完整 Vitest `1216 passed / 50 files / 0 skip`，完整双浏览器 E2E `248 = Chromium 124 + WebKit 124`，backend `941 passed / 3 warnings / 0 skip`，三项有效私有行为变异均被对应断言杀死，详细数字与 TDD/R1 历史见下方 A18P2 小节。A19 P2、A82C、A84C、CF20、RF04E 与 WG20 均绑定各自时点的历史快照；其测试数字、失败记录和 Review/提交状态不能转作 A18P2 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立 WPH 的数字同样绑定各自当时快照。最终文档 format、独立 Review、提交和当前任务分支推送见主控同卡回执；用户 Review 待。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
@@ -30,6 +31,31 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### RDOC 路线图历史快照口径修正（FINAL_READY）
+
+- 本卡只修正路线图中的历史时点标签与当前验证索引：R2-14 的 `941 / 81.57% / 246` 等数字继续绑定
+  其历史快照，B1/WPH 的失败和证据不改；§3.4 与 B1 实施顺序的当前实现/验证统一指向本节最新的
+  A18P2 小节。
+- 旧“停在此卡、不启动下一卡”明确为历史暂停边界；后续已按用户授权继续多卡工作，当前下一卡和
+  未完成项以 [TODO.md](../TODO.md) 为准。路线图架构、业务政策、范围与阶段退出条件均未改变。
+- 主控完整机器核验的 13 项门禁全部 `exit 0`；Vitest 为 `1216 passed / 50 files / 0 skip`。完整
+  双浏览器 E2E 为 `248 = Chromium 124 + WebKit 124`，每项恰有一个 passed result，
+  `retry / skip / flaky / unexpected` 均为 `0`。
+- backend 为 `941 passed / 3 warnings / 0 skip`，coverage 原始值为
+  `81.54086265607265%`。build-script 为 `47`、Fake API 为 `116`、API 类型 runner 为 `8`、
+  iOS 侧仅 Node 脚本为 `37`，各命令均 `exit 0`。
+- lint 为 `132 warning / 0 error / 0 new`；lint 比较按 file/message/rule 多重集，忽略行号；本卡
+  源文件保持不变，687 个保护文件未变。路线图原有 37 处含数字的代码片段与全部代码围栏均保留；
+  文中 `246` 代码片段只重述既有 R2-14 结果，不新增历史数字。
+- 本批合成 PG 清理小结：`停止 0；原观察器 1；独立确认 0，原日志保留`。原 auto-remove
+  观察器把预期 `No such object` 与实际 `error: no such object` 按大小写比较后误判；按原精确 ID、
+  容器名分别 inspect 均为 `1 / [] / no such object`。独立 `docker ps` 的精确 ID 列表为空且命令
+  `exit 0`，新的只读确认命令 `exit 0`，`pg-cleanup.json` 已实际落盘，auto-remove 已确认，其它
+  资源未动。该 `exit 1` 属私有观察器问题，不是产品回归，仓内源码未为此修改。
+- 本卡为纯文档修改，实施节点不跑测试、服务或 PG，不读取 runtime 或凭据。技术 Review、最终
+  format、正常提交发布以同卡回执为准，用户 Review 待。归档见
+  [todo-done.md](./history/todo-done.md#2026-11-15-rdoc-路线图历史快照口径修正)。
 
 ### A18P2 启动/恢复生命周期减重与实例隔离（FINAL_READY）
 

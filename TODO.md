@@ -4,7 +4,7 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **A18P2 当前卡（2026-11-15，FINAL_READY 并归档）：** 启动/恢复生命周期减重与实例隔离已完成；
+> **A18P2 最近产品卡（2026-11-15，FINAL_READY 并归档）：** 启动/恢复生命周期减重与实例隔离已完成；
 > 移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入 setter，start/resume
 > 复用实例内公共 `runStartupLifecycle`，新增跨实例隔离回归；R1 恢复 Web 同步 setup + 仅 native 等待
 > ready、并修新 fixture 类型后，13 项门禁组合均 `exit 0`，Vitest `1216 passed / 50 files / 0 skip`，
@@ -16,6 +16,16 @@
 > [已完成事项归档](./docs/history/todo-done.md#2026-11-15-a18p2-启动恢复生命周期减重与实例隔离)。
 > 最终文档 format、独立 Review、当前任务分支提交和推送以主控同卡回执为准；用户 Review 待。
 > 本卡不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
+
+> **RDOC 路线图历史快照口径修正（2026-11-15，FINAL_READY 并归档）：** 仅修正
+> `ARCHITECTURE_ROADMAP.md` §3.4 与 B1 实施顺序中的历史时点、当前验证索引和旧暂停边界；
+> R2-14 的 `941 / 81.57% / 246` 等数字、B1/WPH 失败与证据、路线图架构和产品范围均保持原样。
+> 当前实现/验证统一指向 [PROJECT_STATUS 的当前验证基线](./docs/PROJECT_STATUS.md#当前验证基线)，
+> 下一卡以用户最新授权和本文件当前未完成事项为准。完整机器门禁数字、技术 Review、最终 format、
+> 当前任务分支提交发布与用户 Review 状态见
+> [PROJECT_STATUS 的 RDOC 小节](./docs/PROJECT_STATUS.md#rdoc-路线图历史快照口径修正final_ready)；
+> 本文不复制细数字。归档见
+> [已完成事项](./docs/history/todo-done.md#2026-11-15-rdoc-路线图历史快照口径修正)。
 
 ## 2026-11-10 云端评审后续（R2）
 

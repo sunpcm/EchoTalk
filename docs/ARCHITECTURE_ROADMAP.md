@@ -149,11 +149,13 @@ backend 路由  ──导出──▶  openapi.json  ──生成──▶  前�
 焦点；**该 WPH 历史快照**的双浏览器 E2E 为
 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，backend 为
 `934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Fake API 为 `113 passed / 0 skip`。
-后续 R2-14 已完成本地 Compose 就绪/迁移编排，当前 backend 为
-`941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Fake API 为
-`116 passed / 0 skip`，双浏览器仍为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整
-13 项门禁及聚合均 `exit 0`。主控代码/测试 Review 与 WPH 真实截图 Review 均 APPROVED；R2-14
-最终 Review/发布见主控同卡回执，用户 Review 待。历史 B1-3/B1-4/B1-5 的
+R2-14 历史快照（2026-11-13；当时交付边界）记录本地 Compose 就绪/迁移编排当时已完成，backend
+为 `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Fake API 为
+`116 passed / 0 skip`，双浏览器为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，当时完整
+13 项门禁及聚合均为 `exit 0`。主控代码/测试 Review 与 WPH 真实截图 Review 均 APPROVED；该历史
+快照的最终 Review/发布以同卡回执为准，用户 Review 待。当前实现与验证以
+[PROJECT_STATUS 的当前验证基线](./PROJECT_STATUS.md#当前验证基线)（尤其 A18P2 小节）为准。
+历史 B1-3/B1-4/B1-5 的
 `233 passed / 1 failed` 当时快照继续保留。B1-0～B1-5 与 R2-14 已完成本地实施与完成项归档，
 但原 Compose 整栈、生产发布和真实依赖仍未验收。不开 PR、不合并、不部署。完整测试数字、历史
 失败与风险见 [PROJECT_STATUS](./PROJECT_STATUS.md)；不能把代码 Review APPROVED、本地 Compose
@@ -218,15 +220,17 @@ OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missin
 B1-5 之后的独立 WPH 小修复已完成，主控代码/测试与真实截图 Review 为 APPROVED。**WPH 历史快照**
 的双浏览器 E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，backend 为
 `934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Fake API 为 `113 passed / 0 skip`。
-后续 R2-14 已完成本地合成实施与独立代码 Review，当前 13 项完整门禁及聚合 `exit 0`，backend 为
+R2-14 历史快照（2026-11-13；当时交付边界）记录本地合成实施与独立代码 Review 当时已完成，
+当时 13 项完整门禁及聚合为 `exit 0`，backend 为
 `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Fake API 为
-`116 passed / 0 skip`，双浏览器仍为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡最终
-Review 与发布见主控同卡回执；用户 Review 待。不开 PR、不合并、不部署。B1-0～B1-5
-与 R2-14 已完成本地实施与完成项归档，不启动下一卡。历史 B1-3/B1-4/B1-5 当时的
+`116 passed / 0 skip`，双浏览器为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`。整卡最终
+Review 与发布以同卡回执为准；用户 Review 待。不开 PR、不合并、不部署。B1-0～B1-5
+与 R2-14 已完成本地实施与完成项归档。历史 B1-3/B1-4/B1-5 当时的
 `233 passed / 1 failed / 0 skip / 0 retry / exit 1` 与 WebKit Provider select `336x23 < 44px`
-失败原因继续按各自快照保留，不能把当前 246 结果改写为当时已通过。测试与当前风险见
-[PROJECT_STATUS 的 R2-14 小节](./PROJECT_STATUS.md)，不得把代码 Review APPROVED、本地 Compose
-合同或当前 E2E 通过写成用户验收、原整栈或生产切换完成。
+失败原因继续按各自快照保留，不能把 R2-14 的 `246` 结果改写为当时已通过。当前实现与验证以
+[PROJECT_STATUS 的当前验证基线](./PROJECT_STATUS.md#当前验证基线)（尤其 A18P2 小节）为准，
+不得把历史代码 Review APPROVED、本地 Compose 合同或历史 E2E 通过写成用户验收、原整栈或生产
+切换完成。
 
 1. **B1-1 模型、新增迁移与约束**：已建立 `learning_events` 的 ORM、identity、CHECK、唯一约束、
    外键、索引与新增迁移，旧迁移只增不改。本轮专用合成 PostgreSQL 已完成空库 upgrade 至 b1、
@@ -266,9 +270,11 @@ Review 与发布见主控同卡回执；用户 Review 待。不开 PR、不合�
    仍未验收。
 
 B1-0～B1-5、独立 WPH 与 R2-14 的本地实现及主控代码/测试 Review 已收口，完成记录归档；R2-14
-整卡最终 Review、提交/推送以主控同卡回执为准，用户 Review 待，不启动下一卡。原 Compose 整栈、
-生产切换、真实数据、真实不可恢复删除、真实外部依赖和音频采集另走独立授权与发布门禁；B1 人工
-切换期间全部新旧 worker 仍须保持停止到 `traffic_resumed`。
+整卡最终 Review、提交/推送以主控同卡回执为准，用户 Review 待。旧“停在此卡、不启动下一卡”只是
+当时交付暂停边界；后续已按用户授权继续多卡工作，下一卡及当前未完成项始终以用户最新授权和
+[TODO.md](../TODO.md) 为准。原 Compose 整栈、生产切换、真实数据、真实不可恢复删除、真实外部
+依赖和音频采集另走独立授权与发布门禁；B1 人工切换期间全部新旧 worker 仍须保持停止到
+`traffic_resumed`。
 
 排序的理由：
 
