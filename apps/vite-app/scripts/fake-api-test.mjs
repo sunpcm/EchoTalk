@@ -6,6 +6,7 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -700,7 +701,7 @@ describe("Fake API 契约与真实进程回归测试", () => {
         headers: { ...AUTH_HEADER, "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "scenario" }),
       });
-      assert.strictEqual(created.status, 201);
+      assert.strictEqual(created.status, 200);
       const session = await created.json();
 
       const token = await timedFetch(`${serverInstance.baseUrl}/api/sessions/${session.id}/token`, {
@@ -1148,7 +1149,7 @@ describe("Fake API 契约与真实进程回归测试", () => {
           headers: AUTH_HEADER,
           body: JSON.stringify({ mode: "free_talk" }),
         });
-        assert.strictEqual(s1Res.status, 201);
+        assert.strictEqual(s1Res.status, 200);
         const s1 = await s1Res.json();
 
         const s2Res = await timedFetch(`${isolatedServer.baseUrl}/api/sessions`, {
@@ -1156,7 +1157,7 @@ describe("Fake API 契约与真实进程回归测试", () => {
           headers: AUTH_HEADER,
           body: JSON.stringify({ mode: "scenario" }),
         });
-        assert.strictEqual(s2Res.status, 201);
+        assert.strictEqual(s2Res.status, 200);
         const s2 = await s2Res.json();
 
         const s3Res = await timedFetch(`${isolatedServer.baseUrl}/api/sessions`, {
@@ -1164,7 +1165,7 @@ describe("Fake API 契约与真实进程回归测试", () => {
           headers: AUTH_HEADER,
           body: JSON.stringify({ mode: "free_talk" }),
         });
-        assert.strictEqual(s3Res.status, 201);
+        assert.strictEqual(s3Res.status, 200);
         const s3 = await s3Res.json();
 
         const expectedIds = new Set([s1.id, s2.id, s3.id]);
@@ -1276,35 +1277,7 @@ function sortedOperationKeys(operationKeys) {
   return [...operationKeys].sort(compareOperationKeys);
 }
 
-const MISSING_OPERATION_SESSION_ID = "00000000-0000-4000-8000-000000000099";
-const MISSING_OPERATION_PROBES = [
-  {
-    operation: "POST /api/conversation/chat",
-    method: "POST",
-    path: "/api/conversation/chat",
-  },
-  {
-    operation: "POST /api/sessions/{session_id}/call/claim",
-    method: "POST",
-    path: `/api/sessions/${MISSING_OPERATION_SESSION_ID}/call/claim`,
-  },
-  {
-    operation: "POST /api/sessions/{session_id}/call/heartbeat",
-    method: "POST",
-    path: `/api/sessions/${MISSING_OPERATION_SESSION_ID}/call/heartbeat`,
-  },
-  {
-    operation: "POST /api/sessions/{session_id}/call/release",
-    method: "POST",
-    path: `/api/sessions/${MISSING_OPERATION_SESSION_ID}/call/release`,
-  },
-  {
-    operation: "PUT /api/user/settings",
-    method: "PUT",
-    path: "/api/user/settings",
-  },
-];
-const EXPECTED_MISSING_OPERATIONS = MISSING_OPERATION_PROBES.map(({ operation }) => operation);
+const EXPECTED_MISSING_OPERATIONS = [];
 
 const EXPECTED_UNMODELED_RESPONSES = [];
 
@@ -1322,13 +1295,6 @@ const EXPECTED_CONTRACT_DEVIATIONS = [
     field: "$[0].session_id",
     keyword: "format",
     reason: "format: 值不符合 format=uuid",
-  },
-  {
-    operation: "POST /api/sessions",
-    actualStatus: 201,
-    field: "status",
-    keyword: "declared-success-status",
-    reason: "Fake 返回 201，而 OpenAPI 仅声明 200",
   },
 ];
 
@@ -1374,7 +1340,7 @@ const FAKE_SUCCESS_CASES = [
   },
   {
     operation: "POST /api/sessions",
-    expectedStatus: 201,
+    expectedStatus: 200,
     buildRequest: () => ({
       method: "POST",
       path: "/api/sessions",
@@ -1384,6 +1350,58 @@ const FAKE_SUCCESS_CASES = [
       context.sessionId = body.id;
       context.sessionStartedAt = body.started_at;
     },
+  },
+  {
+    operation: "POST /api/conversation/chat",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "POST",
+      path: "/api/conversation/chat",
+      body: { session_id: context.sessionId, message: "Synthetic contract message" },
+    }),
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/call/claim",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "POST",
+      path: `/api/sessions/${context.sessionId}/call/claim`,
+      headers: { "x-e2e-call-lease-mode": "synthetic", "x-e2e-call-fixture": "contract" },
+      body: { device_id: "00000000-0000-4000-8000-000000000091" },
+    }),
+    capture: (body, context) => {
+      context.generation = body.generation;
+    },
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/call/heartbeat",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "POST",
+      path: `/api/sessions/${context.sessionId}/call/heartbeat`,
+      headers: { "x-e2e-call-lease-mode": "synthetic", "x-e2e-call-fixture": "contract" },
+      body: { device_id: "00000000-0000-4000-8000-000000000091", generation: context.generation },
+    }),
+  },
+  {
+    operation: "POST /api/sessions/{session_id}/call/release",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "POST",
+      path: `/api/sessions/${context.sessionId}/call/release`,
+      headers: { "x-e2e-call-lease-mode": "synthetic", "x-e2e-call-fixture": "contract" },
+      body: { device_id: "00000000-0000-4000-8000-000000000091", generation: context.generation },
+    }),
+  },
+  {
+    operation: "PUT /api/user/settings",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "PUT",
+      path: "/api/user/settings",
+      headers: { "x-e2e-settings-fixture": "contract" },
+      body: { theme: "cool" },
+    }),
   },
   {
     operation: "GET /api/sessions/{session_id}",
@@ -1549,7 +1567,6 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
   let serverInstance = null;
   const context = {};
   const results = new Map();
-  const missingResults = new Map();
 
   before(async () => {
     serverInstance = await startFakeApiServer();
@@ -1575,26 +1592,6 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
         body,
       });
     }
-
-    for (const probe of MISSING_OPERATION_PROBES) {
-      const response = await timedFetch(`${serverInstance.baseUrl}${probe.path}`, {
-        method: probe.method,
-        headers: {
-          ...AUTH_HEADER,
-          "Content-Type": "application/json",
-        },
-        body: "{}",
-      });
-      const contentType = response.headers.get("content-type") ?? "";
-      const body = /^application\/json\b/i.test(contentType)
-        ? await response.json()
-        : await response.text();
-      missingResults.set(probe.operation, {
-        contentType,
-        status: response.status,
-        body,
-      });
-    }
   });
 
   after(async () => {
@@ -1604,7 +1601,7 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
     }
   });
 
-  it("缺失 operation 由真实 fallback 验证，空 schema 清单固定且可输出", () => {
+  it("缺失 operation 清单为空，真实 HTTP 成功目录覆盖全部模型", () => {
     const classification = classifyOpenApiSuccessCoverage(
       openApi,
       FAKE_SUCCESS_CASES.map(({ operation }) => operation),
@@ -1614,29 +1611,16 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
       sortedOperationKeys(EXPECTED_MISSING_OPERATIONS),
     );
     assert.deepEqual(classification.unmodeledResponses, EXPECTED_UNMODELED_RESPONSES);
-    const actualMissingOperations = [];
-    for (const probe of MISSING_OPERATION_PROBES) {
-      const result = missingResults.get(probe.operation);
-      assert.ok(result, `未取得 ${probe.operation} 的缺失路由探针响应`);
-      assert.match(result.contentType, /^application\/json\b/i, probe.operation);
-      assert.equal(result.status, 404, probe.operation);
-      assert.equal(result.body.detail, `No fake route for ${probe.method} ${probe.path}`);
-      actualMissingOperations.push(probe.operation);
-    }
-    assert.deepEqual(
-      sortedOperationKeys(actualMissingOperations),
-      sortedOperationKeys(EXPECTED_MISSING_OPERATIONS),
-    );
     console.log(
       "[fake-api-contract]",
       JSON.stringify({
-        missingOperations: sortedOperationKeys(actualMissingOperations),
+        missingOperations: sortedOperationKeys(classification.missingOperations),
         unmodeledResponses: classification.unmodeledResponses,
       }),
     );
   });
 
-  it("Fake 成功路由恰好覆盖 OpenAPI 中除固定缺失项外的全部 operation", () => {
+  it("Fake 成功路由恰好覆盖 OpenAPI 中全部 operation", () => {
     const classification = classifyOpenApiSuccessCoverage(
       openApi,
       FAKE_SUCCESS_CASES.map(({ operation }) => operation),
@@ -1822,6 +1806,425 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
       mutatedViolations.some(
         ({ path, keyword }) => path === "$.protocol_version" && keyword === "const",
       ),
+    );
+  });
+});
+
+// G2：真实HTTP状态与跨操作语义；不把显式合成 Cloud/Provider 结果当作外部验收。
+describe("G2 五个补齐 operation 的真实 HTTP 行为边界", { timeout: 30_000 }, () => {
+  let instance;
+  before(async () => {
+    instance = await startFakeApiServer();
+  });
+  after(async () => {
+    await terminateServer(instance?.child);
+  });
+
+  const http = async (method, pathname, { body, headers = {}, authenticated = true } = {}) => {
+    const response = await timedFetch(`${instance.baseUrl}${pathname}`, {
+      method,
+      headers: {
+        ...(authenticated ? AUTH_HEADER : {}),
+        ...headers,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return { status: response.status, body: await response.json() };
+  };
+  const success = (operation, result) => {
+    assert.equal(result.status, 200, operation);
+    assert.deepEqual(contractDeviationsForResult({ operation, ...result }), [], operation);
+    return result.body;
+  };
+  const create = async () =>
+    success(
+      "POST /api/sessions",
+      await http("POST", "/api/sessions", { body: { mode: "free_talk" } }),
+    );
+  const call = (session, action, body, headers = {}) =>
+    http("POST", `/api/sessions/${session.id}/call/${action}`, { body, headers });
+  const cloud = () => ({
+    "x-e2e-call-lease-mode": "synthetic",
+    "x-e2e-call-fixture": randomUUID(),
+  });
+  const settingsFixture = () => ({ "x-e2e-settings-fixture": randomUUID() });
+  const getSettings = async (headers) =>
+    success("GET /api/user/settings", await http("GET", "/api/user/settings", { headers }));
+  const missingId = "00000000-0000-4000-8000-000000000099";
+
+  it("五个新增写接口即使带合成模式也拒绝缺失/错误认证", async () => {
+    for (const pathname of [
+      "/api/conversation/chat",
+      "/api/user/settings",
+      ...["claim", "heartbeat", "release"].map(
+        (action) => `/api/sessions/${missingId}/call/${action}`,
+      ),
+    ]) {
+      for (const headers of [{}, { Authorization: "Bearer wrong-token" }]) {
+        const result = await http(pathname === "/api/user/settings" ? "PUT" : "POST", pathname, {
+          body: {},
+          authenticated: false,
+          headers: { ...cloud(), ...headers },
+        });
+        assert.equal(result.status, 401, pathname);
+        assert.deepEqual(result.body, { detail: "Authentication required." });
+      }
+    }
+  });
+
+  it("聊天使用活动会话、成对持久转录可由详情读取，返回绑定真实响应模型", async () => {
+    const session = await create();
+    const replies = [];
+    for (const message of ["Synthetic first turn", "Synthetic second turn"]) {
+      replies.push(
+        success(
+          "POST /api/conversation/chat",
+          await http("POST", "/api/conversation/chat", {
+            body: { session_id: session.id, message },
+          }),
+        ),
+      );
+    }
+    const detail = success(
+      "GET /api/sessions/{session_id}",
+      await http("GET", `/api/sessions/${session.id}`),
+    );
+    assert.equal(detail.transcripts.length, 4);
+    assert.deepEqual(
+      detail.transcripts.map(({ role }) => role),
+      ["user", "assistant", "user", "assistant"],
+    );
+    assert.deepEqual(
+      detail.transcripts.filter(({ role }) => role === "user").map(({ content }) => content),
+      ["Synthetic first turn", "Synthetic second turn"],
+    );
+    assert.deepEqual(
+      detail.transcripts.filter(({ role }) => role === "assistant").map(({ id }) => id),
+      replies.map(({ transcript_id }) => transcript_id),
+    );
+    assert.ok(detail.transcripts.every(({ session_id }) => session_id === session.id));
+    assert.ok(replies.every(({ audio_base64 }) => audio_base64 === null));
+    assert.equal(new Set(detail.transcripts.map(({ id }) => id)).size, 4);
+  });
+
+  it("聊天拒绝不存在/已结束/坏输入，不增加转录且失败后服务可继续响应", async () => {
+    const session = await create();
+    for (const body of [
+      { session_id: "bad-id", message: "x" },
+      { session_id: session.id, message: 42 },
+      [],
+      null,
+    ]) {
+      assert.equal((await http("POST", "/api/conversation/chat", { body })).status, 422);
+    }
+    assert.equal(
+      (
+        await http("POST", "/api/conversation/chat", {
+          body: { session_id: missingId, message: "x" },
+        })
+      ).status,
+      404,
+    );
+    success(
+      "POST /api/sessions/{session_id}/end",
+      await http("POST", `/api/sessions/${session.id}/end`, { body: {} }),
+    );
+    assert.equal(
+      (
+        await http("POST", "/api/conversation/chat", {
+          body: { session_id: session.id, message: "x" },
+        })
+      ).status,
+      400,
+    );
+    assert.deepEqual(
+      success("GET /api/sessions/{session_id}", await http("GET", `/api/sessions/${session.id}`))
+        .transcripts,
+      [],
+    );
+  });
+
+  it("租约默认disabled三个端点503，模式拼错也不能静默启用", async () => {
+    const session = await create();
+    const device_id = randomUUID();
+    assert.equal(
+      success("GET /api/call-capabilities", await http("GET", "/api/call-capabilities"))
+        .call_lease_mode,
+      "disabled",
+    );
+    for (const action of ["claim", "heartbeat", "release"]) {
+      for (const headers of [{}, { "x-e2e-call-lease-mode": "livekit_cloud" }]) {
+        const result = await call(session, action, { device_id, generation: 1 }, headers);
+        assert.equal(result.status, 503);
+        assert.equal(result.body.detail.code, "call_leases_disabled");
+      }
+    }
+  });
+
+  it("租约模型先校验UUID/正整数和takeover类型，坏请求不会变成成功", async () => {
+    const session = await create();
+    const device_id = randomUUID();
+    assert.equal((await call(session, "claim", { device_id: "bad-id" })).status, 422);
+    assert.equal(
+      (await call(session, "claim", { device_id, takeover: "true" }, cloud())).status,
+      422,
+    );
+    assert.equal(
+      (await call(session, "claim", { device_id, takeover: null }, cloud())).status,
+      422,
+    );
+    for (const generation of [0, -1, 1.5, null]) {
+      for (const action of ["heartbeat", "release"])
+        assert.equal((await call(session, action, { device_id, generation }, cloud())).status, 422);
+    }
+    assert.equal((await call({ id: "invalid" }, "claim", { device_id }, cloud())).status, 422);
+  });
+
+  it("显式合成claim幂等、heartbeat续期、冲突需takeover且旧代际不可操作", async () => {
+    const headers = cloud();
+    assert.equal(
+      success(
+        "GET /api/call-capabilities",
+        await http("GET", "/api/call-capabilities", { headers }),
+      ).call_lease_mode,
+      "livekit_cloud",
+    );
+    const first = await create();
+    const second = await create();
+    const device_id = randomUUID();
+    const otherDevice = randomUUID();
+    const claim = success(
+      "POST /api/sessions/{session_id}/call/claim",
+      await call(first, "claim", { device_id }, headers),
+    );
+    const again = success(
+      "POST /api/sessions/{session_id}/call/claim",
+      await call(first, "claim", { device_id }, headers),
+    );
+    assert.equal(again.generation, claim.generation);
+    assert.equal(claim.state, "held");
+    assert.equal(claim.session_id, first.id);
+    assert.equal(claim.device_id, device_id);
+    const heartbeat = success(
+      "POST /api/sessions/{session_id}/call/heartbeat",
+      await call(first, "heartbeat", { device_id, generation: claim.generation }, headers),
+    );
+    assert.ok(Date.parse(heartbeat.expires_at) >= Date.parse(claim.expires_at));
+    const conflict = await call(second, "claim", { device_id: otherDevice }, headers);
+    assert.equal(conflict.status, 409);
+    assert.equal(conflict.body.detail.code, "call_in_use");
+    assert.equal(conflict.body.detail.conflict_session_id, first.id);
+    const takeover = success(
+      "POST /api/sessions/{session_id}/call/claim",
+      await call(second, "claim", { device_id: otherDevice, takeover: true }, headers),
+    );
+    assert.equal(takeover.generation, claim.generation + 1);
+    for (const action of ["heartbeat", "release"]) {
+      const stale = await call(first, action, { device_id, generation: claim.generation }, headers);
+      assert.equal(stale.status, 409);
+      assert.equal(stale.body.detail.code, "call_lease_lost");
+    }
+  });
+
+  it("合成释放允许已结束会话、完整tuple幂等，重获递增代际并拒绝旧owner", async () => {
+    const session = await create();
+    const headers = cloud();
+    const device_id = randomUUID();
+    assert.equal(
+      (await call(session, "release", { device_id, generation: 1 }, headers)).status,
+      409,
+    );
+    const lease = success(
+      "POST /api/sessions/{session_id}/call/claim",
+      await call(session, "claim", { device_id }, headers),
+    );
+    success(
+      "POST /api/sessions/{session_id}/end",
+      await http("POST", `/api/sessions/${session.id}/end`, { body: {} }),
+    );
+    for (const action of ["claim", "heartbeat"])
+      assert.equal(
+        (await call(session, action, { device_id, generation: lease.generation }, headers)).status,
+        400,
+      );
+    for (let attempt = 0; attempt < 2; attempt++) {
+      assert.deepEqual(
+        success(
+          "POST /api/sessions/{session_id}/call/release",
+          await call(session, "release", { device_id, generation: lease.generation }, headers),
+        ),
+        { released: true, generation: lease.generation },
+      );
+    }
+    assert.equal(
+      (
+        await call(
+          session,
+          "release",
+          { device_id: randomUUID(), generation: lease.generation },
+          headers,
+        )
+      ).status,
+      409,
+    );
+    const next = await create();
+    const reacquired = success(
+      "POST /api/sessions/{session_id}/call/claim",
+      await call(next, "claim", { device_id }, headers),
+    );
+    assert.equal(reacquired.generation, lease.generation + 1);
+    assert.equal(
+      (await call(session, "release", { device_id, generation: lease.generation }, headers)).status,
+      409,
+    );
+    for (const action of ["claim", "heartbeat", "release"])
+      assert.equal(
+        (
+          await call(
+            { id: missingId },
+            action,
+            { device_id, generation: lease.generation },
+            headers,
+          )
+        ).status,
+        404,
+      );
+  });
+
+  it("合成撤销失败返回502并保留旧租约，不能伪装Cloud成功或释放新owner", async () => {
+    const headers = cloud();
+    const session = await create();
+    const device_id = randomUUID();
+    const lease = success(
+      "POST /api/sessions/{session_id}/call/claim",
+      await call(session, "claim", { device_id }, headers),
+    );
+    const blocked = { ...headers, "x-e2e-call-revoke": "unavailable" };
+    for (const [action, body] of [
+      ["claim", { device_id: randomUUID(), takeover: true }],
+      ["release", { device_id, generation: lease.generation }],
+    ]) {
+      const result = await call(session, action, body, blocked);
+      assert.equal(result.status, 502);
+      assert.equal(result.body.detail.code, "call_provider_unavailable");
+      assert.equal(
+        success(
+          "POST /api/sessions/{session_id}/call/heartbeat",
+          await call(session, "heartbeat", { device_id, generation: lease.generation }, headers),
+        ).generation,
+        lease.generation,
+      );
+    }
+  });
+
+  it("显式租约fixture之间不共享owner或代际", async () => {
+    const session = await create();
+    for (const headers of [cloud(), cloud()]) {
+      const lease = success(
+        "POST /api/sessions/{session_id}/call/claim",
+        await call(session, "claim", { device_id: randomUUID() }, headers),
+      );
+      assert.equal(lease.generation, 1);
+    }
+  });
+
+  it("设置部分更新后GET一致，合成Provider验证显式选择且响应不回显任何Key", async () => {
+    const headers = settingsFixture();
+    const before = await getSettings(headers);
+    const values = {
+      theme: "dark",
+      is_custom_mode: true,
+      stt_provider: "deepgram",
+      llm_provider: "openrouter",
+      llm_model: "  synthetic-model  ",
+      tts_provider: "cartesia",
+      stt_key: "synthetic-stt-key-canary",
+      llm_key: "synthetic-llm-key-canary",
+      tts_key: "synthetic-tts-key-canary",
+    };
+    const rejected = await http("PUT", "/api/user/settings", { headers, body: values });
+    assert.equal(rejected.status, 422);
+    assert.equal(rejected.body.detail.code, "provider_key_validation_failed");
+    assert.deepEqual(await getSettings(headers), before);
+    const updated = success(
+      "PUT /api/user/settings",
+      await http("PUT", "/api/user/settings", {
+        headers: { ...headers, "x-e2e-provider-validation": "verified" },
+        body: values,
+      }),
+    );
+    assert.equal(updated.theme, "dark");
+    assert.equal(updated.llm_model, "synthetic-model");
+    assert.equal(updated.llm_provider, "openrouter");
+    assert.equal(updated.is_custom_mode, true);
+    assert.equal(updated.is_custom_verified, true);
+    for (const role of ["stt", "llm", "tts"]) {
+      assert.equal(updated[`has_${role}_key`], true);
+      assert.equal(updated[`${role}_status`], "verified");
+    }
+    assert.deepEqual(await getSettings(headers), updated);
+    const partial = success(
+      "PUT /api/user/settings",
+      await http("PUT", "/api/user/settings", { headers, body: { theme: "cool", llm_key: null } }),
+    );
+    assert.deepEqual(partial, { ...updated, theme: "cool" });
+    assert.deepEqual(await getSettings(headers), partial);
+    for (const value of [updated, partial, rejected.body, await getSettings(headers)]) {
+      assert.doesNotMatch(
+        JSON.stringify(value),
+        /synthetic-(?:stt|llm|tts)-key-canary|encrypted_|"(?:stt|llm|tts)_key"/,
+      );
+    }
+  });
+
+  it("设置无效值/验证失败/免费禁用拒绝且更新原子，不泄露输入", async () => {
+    const headers = settingsFixture();
+    const before = await getSettings(headers);
+    for (const body of [
+      { theme: "unknown" },
+      { stt_provider: "unknown" },
+      { llm_model: " " },
+      { llm_key: " " },
+      { tts_key: 123 },
+      [],
+    ]) {
+      assert.equal((await http("PUT", "/api/user/settings", { headers, body })).status, 422);
+      assert.deepEqual(await getSettings(headers), before);
+    }
+    assert.equal(
+      (await http("PUT", "/api/user/settings", { headers, body: { is_custom_mode: false } }))
+        .status,
+      403,
+    );
+    assert.deepEqual(await getSettings(headers), before);
+  });
+
+  it("设置fixture隔离，空/未知字段更新不改既有值", async () => {
+    const first = settingsFixture();
+    const second = settingsFixture();
+    const changed = success(
+      "PUT /api/user/settings",
+      await http("PUT", "/api/user/settings", { headers: first, body: { theme: "dark" } }),
+    );
+    assert.equal(changed.theme, "dark");
+    assert.equal((await getSettings(second)).theme, "warm");
+    assert.deepEqual(
+      success(
+        "PUT /api/user/settings",
+        await http("PUT", "/api/user/settings", {
+          headers: first,
+          body: { future_field: "ignored" },
+        }),
+      ),
+      changed,
+    );
+    assert.deepEqual(
+      success(
+        "PUT /api/user/settings",
+        await http("PUT", "/api/user/settings", { headers: first, body: {} }),
+      ),
+      changed,
     );
   });
 });

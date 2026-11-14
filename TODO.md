@@ -19,11 +19,6 @@
 
 ### 批次 G：契约补全
 
-- [ ] **G2 Fake API 补齐缺失 operation 并消除 `POST /api/sessions` 状态码偏差**：缺失 5 个
-      （`POST /conversation/chat`、三个 call lease 接口、`PUT /user/settings`）；契约声明 200 而 Fake 返回 201，
-      且 `e2e/session-start.spec.ts` 依赖 201。开工前先核对真实后端实际返回的状态码；契约、后端、Fake 三者
-      不一致时停下列证据等用户裁定，不自行选边。验收：缺失清单为空或逐条说明保留原因；偏差清单只剩有说明的
-      条目；E2E 计数不降。
 - [ ] **G3 Agent DataChannel 消息与分析错误码的机器可读契约**（先出设计，用户确认后实施）：`agent_error`
       的 payload 由前端 `agentErrorMessage.ts` 手写收窄，后端 Agent 侧另有一套；分析 Job 的 `error_code` 是
       字符串约定。设计需回答 schema 放在哪里、前后端如何共同引用、如何进 CI 漂移门禁，不新增运行时依赖优先。

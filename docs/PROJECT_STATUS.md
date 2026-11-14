@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-14，P1 已合并，W1 测试前提修正已由 Harness 完成独立代码验收与本机验证；
-> 已发布 main CI 与 W1 本机结果分别列于"当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
+> 最后核对：2026-11-14，W1 已合并；G2 本机验收已完成，已验证发布 CI 与本机候选分列。
+> 已验证基线 CI 与 G2 本机候选分别列于"当前验证基线"。本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
@@ -25,34 +25,28 @@
 
 ## 当前验证基线
 
-当前 main 基线已合入 P1：
-[`6606107b669a9efe49ac271d16b7375fff6d7144`](https://github.com/sunpcm/EchoTalk/commit/6606107b669a9efe49ac271d16b7375fff6d7144)，
-tree `9451ff084b461558309f88b336fd00c07165440c`；main CI
-[`43573445537`](https://github.com/sunpcm/EchoTalk/actions/runs/43573445537) attempt1 五作业 success。
-P1 [PR #167](https://github.com/sunpcm/EchoTalk/pull/167)（source `18348daba65ad345fc2337dccee394bc3b30b531`）的
-[PR CI 43572873254](https://github.com/sunpcm/EchoTalk/actions/runs/43572873254) 与
-[Guard 43572873219](https://github.com/sunpcm/EchoTalk/actions/runs/43572873219) 首次六检查 success。
-下表是 Harness 实时回读 [frontend job 132382512493](https://github.com/sunpcm/EchoTalk/actions/runs/43573445537/job/132382512493)
-及 [backend job 132382512440](https://github.com/sunpcm/EchoTalk/actions/runs/43573445537/job/132382512440) 的原始日志，非本机亲跑。
+最近已验证的 main 基线已合入 W1：
+[`c5b18fee9038fc6ed42dfee46c8dc97dfb4ad705`](https://github.com/sunpcm/EchoTalk/commit/c5b18fee9038fc6ed42dfee46c8dc97dfb4ad705)，
+tree `1d8e8ea95111c5ad256d63349368aec9568a038e`；main CI
+[`43579088158`](https://github.com/sunpcm/EchoTalk/actions/runs/43579088158) attempt1 五作业 success。
+下表 CI 列由 Harness 回读 [frontend job 132399740695](https://github.com/sunpcm/EchoTalk/actions/runs/43579088158/job/132399740695)
+及 [backend job 132399740442](https://github.com/sunpcm/EchoTalk/actions/runs/43579088158/job/132399740442) 原始日志，非实施方亲跑。
 
-| 测试树 / 门禁  | 当前 main CI 结果（Linux）                                | 日志     |
-| -------------- | --------------------------------------------------------- | -------- |
-| Vitest         | 1227 passed（51 个文件）                                  | frontend |
-| Playwright E2E | 234 passed（Chromium 117/WebKit 117，retry 标记 0，3.5m） | frontend |
-| Fake API 契约  | 108 passed                                                | frontend |
-| API 类型生成器 | 8 passed                                                  | frontend |
-| 构建脚本       | 21 passed                                                 | frontend |
-| backend pytest | 841 passed，3 warnings，80.59% 覆盖率（40.85s）           | backend  |
+| 测试树 / 门禁  | 已验证基线 c5b18fe CI（Linux）             | G2 本机候选（Harness/macOS）                      |
+| -------------- | ------------------------------------------ | ------------------------------------------------- |
+| Vitest         | 1227 passed / 51 文件                      | 1227 passed / 51 文件                             |
+| Playwright E2E | 234 passed，C117/W117，retry 标记0（4.7m） | 234/0，C117/W117，retry/skip/flaky0（52.301661s） |
+| Fake API 契约  | 108 passed                                 | **125 passed（新增17）**                          |
+| API 类型生成器 | 8 passed                                   | 8 passed                                          |
+| 构建脚本       | 21 passed                                  | 21 passed                                         |
+| backend pytest | 841 passed，3 warnings，80.59%（58.61s）   | 841 passed，3 warnings，80.59%（63.40s）          |
 
-W1 冻结候选由 Harness/macOS 亲跑 15 门禁全部 exit 0：Vitest 1227/51、Fake108/类型8/构建21、
-pytest 841/3 warnings/80.59%，source 前后稳定。完整 E2E **234/0**（C117/W117，实际 retry/skip/flaky0，
-Playwright **51.519538s**、命令 **52.42s**）；全文件 4 用例 × 双浏览器 × repeat50/workers4 为
-**400/400**（C200/W200，retry/skip/flaky0，**216.198592s**），正式用例仍4、全局234。
-真实初始 load 被图像拖迟的独立反事实中，候选 C/W 2/2：首个503在 native pageshow 后才结算，原错误提示、
-显式重试、50行及请求数2保全；错误提示/重试故障变异也由保留的目标断言捕获。此为修正单次503夹具与初始
-pageshow竞争的本机证据，不是 W1 新 PR/main CI。实施方未跑浏览器；项目 tsconfig 仍仅 include src。
-P1 此前本机234/0、Provider高度/键盘边界，W1完整时序、变异及耗时，旧582/f19/D1回执均见
-[history/2026-11.md](./history/2026-11.md)。
+G2 本机冻结候选由 Harness/macOS 分阶段完成15门禁，代码独立APPROVED R1，source前后稳定；
+完整E2E命令53.27s，lint132 warnings/0 errors。已发布CI列来自上述Harness日志回读，均非实施方亲跑。
+创建会话统一精确200，五个缺失operation补齐，成功响应真实HTTP覆盖 **26/26**、缺失[]；独立HTTP4/4与四个直接目标变异通过。
+G2 本机125与 c5 已发布108分列；G2 发布验证另以对应 PR/main 运行核对。实施方未跑浏览器或三树，
+其首次 Fake 监听 EPERM 导致125 cancelled、Harness首次E2E214/20（全为旧201断言）均保留在
+[history/2026-11.md](./history/2026-11.md)，其中另存 W1 压力/真实初始事件证据及 P1 历史。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -66,6 +60,9 @@ P1 此前本机234/0、Provider高度/键盘边界，W1完整时序、变异及�
   避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
+- G2 Fake 默认租约仍disabled/503；成功Cloud租约和Provider验证仅显式合成fixture，不代表真实撤销/验证。
+  保留两条UUID偏差：assessment `$.session_id` 绑定 `analysis-success-*`，grammar `$[0].session_id` 绑定
+  `grammar-only-*` 等具名合成场景及关联ID断言，避免扩大冻结fixture范围；UUID/schema校验未放宽。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
 - W1 已修复可重复的单次503夹具与初始pageshow竞争，未改产品；原版自然100/100未复现，D1那一次无trace，
   不能追认同因。D1首232/2、T1首233/1、WP旧10/10及P1全部键盘首失败保留；Provider高度已由P1修复，

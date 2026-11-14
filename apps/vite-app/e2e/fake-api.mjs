@@ -5,6 +5,103 @@ const host = "127.0.0.1";
 const port = Number(process.env.E2E_API_PORT ?? 18181);
 const sessions = new Map();
 const analysisJobs = new Map();
+const settingsFixtures = new Map();
+const callLeaseFixtures = new Map();
+let transcriptId = 0;
+
+const isUuid = (value) =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+async function readObject(request, response) {
+  try {
+    const body = await readJson(request);
+    if (body && typeof body === "object" && !Array.isArray(body)) return body;
+  } catch {
+    // 与新接口的模型校验一致：错误正文不能带入请求内容或密钥。
+  }
+  sendJson(response, 422, { detail: "Invalid request body" });
+  return null;
+}
+
+function defaultSettings() {
+  return {
+    is_custom_mode: false,
+    is_custom_verified: false,
+    subscription_tier: "free",
+    theme: "warm",
+    stt_provider: null,
+    llm_provider: null,
+    llm_model: null,
+    tts_provider: null,
+    has_stt_key: false,
+    has_llm_key: false,
+    has_tts_key: false,
+    stt_status: "unconfigured",
+    llm_status: "unconfigured",
+    tts_status: "unconfigured",
+  };
+}
+
+function updateSettings(current, body, validationFixture) {
+  const choices = {
+    theme: ["warm", "cool", "dark"],
+    stt_provider: ["deepgram"],
+    llm_provider: ["siliconflow", "openrouter"],
+    tts_provider: ["cartesia"],
+  };
+  for (const [name, values] of Object.entries(choices)) {
+    if (body[name] != null && !values.includes(body[name]))
+      return { status: 422, detail: "Invalid settings" };
+  }
+  if (body.is_custom_mode != null && typeof body.is_custom_mode !== "boolean") {
+    return { status: 422, detail: "Invalid settings" };
+  }
+  for (const name of ["llm_model", "stt_key", "llm_key", "tts_key"]) {
+    if (body[name] != null && (typeof body[name] !== "string" || !body[name].trim())) {
+      return { status: 422, detail: "Invalid settings" };
+    }
+  }
+  if (body.is_custom_mode === false) {
+    return { status: 403, detail: "Free tier users cannot disable custom mode." };
+  }
+  const next = { ...current };
+  for (const name of [
+    "is_custom_mode",
+    "theme",
+    "stt_provider",
+    "llm_provider",
+    "llm_model",
+    "tts_provider",
+  ]) {
+    if (body[name] != null)
+      next[name] = typeof body[name] === "string" ? body[name].trim() : body[name];
+  }
+  const providers = {};
+  for (const role of ["stt", "llm", "tts"]) {
+    const changed =
+      body[`${role}_key`] != null ||
+      (body[`${role}_provider`] != null &&
+        body[`${role}_provider`] !== current[`${role}_provider`]);
+    if (!changed) continue;
+    next[`has_${role}_key`] = body[`${role}_key`] != null || current[`has_${role}_key`];
+    const canValidate = next[`${role}_provider`] && next[`has_${role}_key`];
+    // 不访问真实 Provider，不持久化明文；验证成功只允许显式 Fake fixture。
+    if (canValidate && validationFixture !== "verified") providers[role] = "provider_error";
+    next[`${role}_status`] = next[`has_${role}_key`]
+      ? canValidate && validationFixture === "verified"
+        ? "verified"
+        : "error"
+      : "unconfigured";
+  }
+  if (Object.keys(providers).length) {
+    return { status: 422, detail: { code: "provider_key_validation_failed", providers } };
+  }
+  next.is_custom_verified = ["stt", "llm", "tts"].every(
+    (role) => next[`${role}_status`] === "verified",
+  );
+  return { settings: next };
+}
 
 function sendJson(response, status, body) {
   response.writeHead(status, {
@@ -413,28 +510,37 @@ const server = createServer(async (request, response) => {
   if (method === "GET" && pathname === "/api/call-capabilities") {
     sendJson(response, 200, {
       protocol_version: 1,
-      call_lease_mode: "disabled",
+      call_lease_mode:
+        request.headers["x-e2e-call-lease-mode"] === "synthetic" ? "livekit_cloud" : "disabled",
     });
     return;
   }
 
   if (method === "GET" && pathname === "/api/user/settings") {
-    sendJson(response, 200, {
-      is_custom_mode: false,
-      is_custom_verified: false,
-      subscription_tier: "free",
-      theme: "warm",
-      stt_provider: null,
-      llm_provider: null,
-      llm_model: null,
-      tts_provider: null,
-      has_stt_key: false,
-      has_llm_key: false,
-      has_tts_key: false,
-      stt_status: "unconfigured",
-      llm_status: "unconfigured",
-      tts_status: "unconfigured",
-    });
+    sendJson(
+      response,
+      200,
+      settingsFixtures.get(request.headers["x-e2e-settings-fixture"] ?? "default") ??
+        defaultSettings(),
+    );
+    return;
+  }
+
+  if (method === "PUT" && pathname === "/api/user/settings") {
+    const body = await readObject(request, response);
+    if (!body) return;
+    const fixture = request.headers["x-e2e-settings-fixture"] ?? "default";
+    const result = updateSettings(
+      settingsFixtures.get(fixture) ?? defaultSettings(),
+      body,
+      request.headers["x-e2e-provider-validation"],
+    );
+    if (result.status) {
+      sendJson(response, result.status, { detail: result.detail });
+      return;
+    }
+    settingsFixtures.set(fixture, result.settings);
+    sendJson(response, 200, result.settings);
     return;
   }
 
@@ -470,7 +576,49 @@ const server = createServer(async (request, response) => {
     const body = await readJson(request);
     const session = createSession(typeof body.mode === "string" ? body.mode : "scenario");
     sessions.set(session.id, session);
-    sendJson(response, 201, session);
+    sendJson(response, 200, session);
+    return;
+  }
+
+  if (method === "POST" && pathname === "/api/conversation/chat") {
+    const body = await readObject(request, response);
+    if (!body) return;
+    if (!isUuid(body.session_id) || typeof body.message !== "string") {
+      sendJson(response, 422, { detail: "Invalid chat request" });
+      return;
+    }
+    const session = sessions.get(body.session_id);
+    if (!session) {
+      sendJson(response, 404, { detail: "会话不存在" });
+      return;
+    }
+    if (session.status !== "active") {
+      sendJson(response, 400, { detail: "会话已结束，无法发送消息" });
+      return;
+    }
+    const now = Date.now();
+    const reply = "Synthetic Fake API reply.";
+    session.transcripts.push(
+      {
+        id: ++transcriptId,
+        session_id: session.id,
+        role: "user",
+        content: body.message,
+        timestamp_ms: now,
+        audio_url: null,
+        emotion_state: null,
+      },
+      {
+        id: ++transcriptId,
+        session_id: session.id,
+        role: "assistant",
+        content: reply,
+        timestamp_ms: now,
+        audio_url: null,
+        emotion_state: null,
+      },
+    );
+    sendJson(response, 200, { reply, transcript_id: transcriptId, audio_base64: null });
     return;
   }
 
@@ -652,6 +800,100 @@ const server = createServer(async (request, response) => {
   if (method === "GET" && sessionDetailMatch) {
     const session = sessions.get(sessionDetailMatch[1]);
     sendJson(response, session ? 200 : 404, session ?? { detail: "Session not found" });
+    return;
+  }
+
+  const callMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/call\/(claim|heartbeat|release)$/);
+  if (method === "POST" && callMatch) {
+    const [, sessionId, action] = callMatch;
+    const body = await readObject(request, response);
+    if (!body) return;
+    if (
+      !isUuid(sessionId) ||
+      !isUuid(body.device_id) ||
+      (action === "claim"
+        ? "takeover" in body && typeof body.takeover !== "boolean"
+        : !Number.isInteger(body.generation) || body.generation <= 0)
+    ) {
+      sendJson(response, 422, { detail: "Invalid call lease request" });
+      return;
+    }
+    if (request.headers["x-e2e-call-lease-mode"] !== "synthetic") {
+      sendJson(response, 503, {
+        detail: { code: "call_leases_disabled", message: "Call lease service is disabled" },
+      });
+      return;
+    }
+    // 仅显式合成模式：一用户一租约的内存状态，不调用 Cloud、不签发/撤销真实 Token。
+    const session = sessions.get(sessionId);
+    if (!session) {
+      sendJson(response, 404, { detail: "会话不存在" });
+      return;
+    }
+    if (action !== "release" && session.status !== "active") {
+      sendJson(response, 400, { detail: "会话已结束" });
+      return;
+    }
+    const fixture = request.headers["x-e2e-call-fixture"] ?? "default";
+    const lease = callLeaseFixtures.get(fixture);
+    const sameOwner = lease?.session_id === sessionId && lease?.device_id === body.device_id;
+    const error = (status, code) => sendJson(response, status, { detail: { code, message: code } });
+    if (action === "claim") {
+      if (lease?.state === "held" && !sameOwner && !body.takeover) {
+        sendJson(response, 409, {
+          detail: {
+            code: "call_in_use",
+            message: "Call is in use by another session or device",
+            conflict_session_id: lease.session_id,
+            expires_at: lease.expires_at,
+          },
+        });
+        return;
+      }
+      if (
+        lease?.state === "held" &&
+        !sameOwner &&
+        request.headers["x-e2e-call-revoke"] === "unavailable"
+      ) {
+        error(502, "call_provider_unavailable");
+        return;
+      }
+      const generation =
+        lease?.state === "held" && sameOwner ? lease.generation : (lease?.generation ?? 0) + 1;
+      const next = {
+        session_id: sessionId,
+        device_id: body.device_id,
+        generation,
+        state: "held",
+        expires_at: new Date(Date.now() + 90_000).toISOString(),
+      };
+      callLeaseFixtures.set(fixture, next);
+      sendJson(response, 200, next);
+      return;
+    }
+    if (
+      !sameOwner ||
+      lease.generation !== body.generation ||
+      (action === "heartbeat" && lease.state !== "held")
+    ) {
+      error(409, "call_lease_lost");
+      return;
+    }
+    if (action === "heartbeat") {
+      if (Date.parse(lease.expires_at) <= Date.now()) {
+        error(409, "call_lease_expired");
+        return;
+      }
+      lease.expires_at = new Date(Date.now() + 90_000).toISOString();
+      sendJson(response, 200, lease);
+      return;
+    }
+    if (lease.state === "held" && request.headers["x-e2e-call-revoke"] === "unavailable") {
+      error(502, "call_provider_unavailable");
+      return;
+    }
+    callLeaseFixtures.set(fixture, { ...lease, state: "free", expires_at: null });
+    sendJson(response, 200, { released: true, generation: lease.generation });
     return;
   }
 

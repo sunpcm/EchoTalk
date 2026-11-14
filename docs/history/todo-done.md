@@ -646,3 +646,30 @@ formal_lane_unchanged 均 true。focus/Tab/selectOption 已通过，全部首失
       D1首232/2、T1首233/1、WP旧10/10与P1全部键盘首失败保留；Provider高度已修，深色可读性P2及真实方向键/
       OS popup仍未验。TODO无对应active子卡、未改其他卡；本条为本地代码验收收口，文档待Review，未commit/
       push/PR/merge/部署，不开始下一包。完整证据、来源与历史边界见 [本月历史](./2026-11.md)。
+
+## 2026-11-14 G2 Fake API 契约补齐（代码 APPROVED R1，文档待 Review）
+
+以下为开工时原卡，勾选后自 TODO 移入；后附已验收结果，不将原问题描述当作当前状态。
+
+- [x] **G2 Fake API 补齐缺失 operation 并消除 `POST /api/sessions` 状态码偏差**：缺失 5 个
+      （`POST /conversation/chat`、三个 call lease 接口、`PUT /user/settings`）；契约声明 200 而 Fake 返回 201，
+      且 `e2e/session-start.spec.ts` 依赖 201。开工前先核对真实后端实际返回的状态码；契约、后端、Fake 三者
+      不一致时停下列证据等用户裁定，不自行选边。验收：缺失清单为空或逐条说明保留原因；偏差清单只剩有说明的
+      条目；E2E 计数不降。
+
+      结果：用户批准统一200，补齐聊天、三个call lease及设置PUT；真实HTTP成功覆盖26/26、缺失[]，
+      保留两条有理由的具名assessment/grammar session_id UUID偏差，不放宽模型校验。Fake默认租约仍disabled/503，
+      Cloud租约及Provider验证成功仅显式合成fixture；无真实外部验证、撤销或设备验收。
+
+      Harness亲跑分阶段完成15门禁：R0 core14全exit0，Vitest1227/51、Fake125/125（新增17）、类型8/构建21，
+      pytest841/3warnings/80.59%（63.40s、命令67.61s）、lint132warnings/0errors；首次E2E214/20（C107/10、
+      W107/10，retry/skip/flaky0，55.734058s、命令57.04s）全是追加白名单前的旧201断言。R1仅另四spec五处
+      201→200，其余字节及R0三文件hash保全；完整E2E234/0（C117/W117，retry/skip/flaky0，52.301661s、
+      命令53.27s），format7.25s。代码独立APPROVED R1，source稳定；实施首监听EPERM/125cancelled单列保留，
+      实施者未跑浏览器或三树。
+
+      Harness独立HTTP4/4；四个私有直接变异均被原目标真断言捕获（spec704/1647/1893/2174），备份/finally
+      恢复后Fake125 GREEN，正式lane从未变异。首次secretLeak被spec2166一致性拦截，另加持久泄漏才由spec2174
+      直接脱敏断言捕获，不混为同一证据。最近已发布W1 main为c5b18fe/tree1d8e8ea、mainCI43579088158，
+      G2本机125与c5已发布108分列，G2发布验证另以对应PR/main运行核对。详见 [本月历史](./2026-11.md)。
+      本条仅G2范围收口，其他TODO卡未改；文档待Review，不commit/push/PR/merge/部署，不开始下个包。
