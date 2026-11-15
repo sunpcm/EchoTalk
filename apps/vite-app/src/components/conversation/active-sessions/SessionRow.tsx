@@ -50,7 +50,7 @@ export function SessionRow({
               className="text-text-muted font-mono text-xs break-all"
               title={session.id}
             >
-              {session.id}
+              {session.id.slice(0, 8)}
             </span>
           </div>
           <time

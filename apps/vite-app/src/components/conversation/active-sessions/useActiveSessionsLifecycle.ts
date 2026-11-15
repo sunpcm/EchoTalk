@@ -44,9 +44,10 @@ export function useActiveSessionsLifecycle(
   const flowsRef = useRef<LifecycleFlows>(flows);
   flowsRef.current = flows;
 
-  // 既有行为：生命周期事件里的“启动在途”判断取自挂载时的渲染值，订阅期间不更新。
-  // 这里按原样保留，不在重构中改变；列表刷新自身会读取 store 的实时启动状态。
-  const isStartingAtMountRef = useRef<boolean>(isStarting);
+  // 事件发生时读取实时 isStarting（而非挂载快照），使挂载后 false→true、true→false 的启动在途变化
+  // 在 resume/connectivity 事件中即时生效；其余认证/在途/可见性/网络门禁与订阅语义保持不变。
+  const isStartingRef = useRef<boolean>(isStarting);
+  isStartingRef.current = isStarting;
 
   useEffect(() => {
     const runtime = runtimeRef.current;
@@ -80,7 +81,7 @@ export function useActiveSessionsLifecycle(
       }
 
       // 结束在途或启动/恢复在途暂停列表刷新且不排队
-      if (runtime.endInFlight || runtime.resumeInFlight || isStartingAtMountRef.current) {
+      if (runtime.endInFlight || runtime.resumeInFlight || isStartingRef.current) {
         return;
       }
 

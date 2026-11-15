@@ -73,7 +73,7 @@ async function openDiagnostics(page: Page) {
   await retry.click();
   await expect(retry).not.toBeVisible();
   await page.getByRole("button", { name: zhCN.settings.title, exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: zhCN.settings.title });
+  const dialog = page.getByRole("dialog", { name: zhCN.settings.drawerTitle });
   await expect(dialog.getByRole("button", { name: zhCN.settings.save, exact: true })).toBeVisible();
   const region = dialog.getByRole("region", { name: t.title, exact: true });
   const preview = region.getByRole("textbox", { name: t.preview });
