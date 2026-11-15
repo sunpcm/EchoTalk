@@ -123,7 +123,7 @@ describe("API client", () => {
       expect(fetchMock()).toHaveBeenCalledTimes(1);
       const [url, options] = fetchMock().mock.calls[0];
       expect(url).toBe(
-        `${getBaseUrl()}/sessions/weekly-progress?end_date=2026-11-03&timezone=Asia%2FSingapore`,
+        `${getBaseUrl()}/sessions/weekly-progress?end_date=2026-11-03&timezone=Asia%2FSingapore&include_recorded_duration=true`,
       );
       expect(options?.method ?? "GET").toBe("GET");
       expect(options?.cache).toBe("no-store");

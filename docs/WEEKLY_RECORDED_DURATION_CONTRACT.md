@@ -1,6 +1,7 @@
 # 周报“已记录会话时长”合同
 
-> 状态：**WD-DESIGN 历史快照 `APPROVED`@`9d3ab32`；WD-API `FINAL_READY`；WD-UI 尚未实施**。
+> 状态：**WD-DESIGN 历史快照 `APPROVED`@`9d3ab32`；WD-API 历史快照 `APPROVED`@`9179050`；
+> WD-UI `FINAL_READY`，等待主控最终回执与用户 Review**。
 > 用户确认：2026-11-15，选择完整方案 A。
 > 设计基线：`codex/B1-learning-events-20261112@caa409a9f36f8e4b28c221800930c1f3ec94cef2`。
 > 本文是设计卡 WD-DESIGN 的唯一新增合同；后端聚合、OpenAPI/类型和前端显示分别由后续两张卡实施。
@@ -168,7 +169,8 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
 
 ### WD-API：后端聚合与兼容契约
 
-当前状态为 `FINAL_READY`。实现锚点为 `backend/schemas/session.py` 的两个 optional/nullable
+本节为历史快照；原时点状态为 `FINAL_READY`，随后独立 Review `APPROVED` 并随 `9179050` 推送。
+实现锚点为 `backend/schemas/session.py` 的两个 optional/nullable
 字段、`backend/services/session_queries.py` 的显式 opt-in 单次有界聚合、
 `backend/routers/sessions.py` 的本路由 flag/`exclude_none`，以及
 `apps/vite-app/src/lib/api.ts` 的 weekly parser 白名单扩展。主控已原生生成 OpenAPI/types，
@@ -176,7 +178,7 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
 随后 quality、完整 Vitest 与全量 E2E 均复跑通过。正式返修 `1/2`、TDD 中间修正 `1`，
 详细数字、负向变异、AST/保护和编排诊断只集中在
 [PROJECT_STATUS 的 WD-API 小节](./PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)。
-本阶段 `getWeeklyProgress` 仍不发送 flag，WD-UI 尚未实施。
+原 API 收口时点，`getWeeklyProgress` 仍不发送 flag；WD-UI 随后才实施。
 
 本卡已按“真实合成 PostgreSQL RED → opt-in 聚合/schema/生成类型/parser 兼容扩展 → 完整门禁”
 的顺序完成。实施节点仍不把主控实跑写成自身验证；最终格式、Review、正常 commit/当前分支 push
@@ -197,14 +199,28 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
 - opt-in 的每个桶始终给出两个非负数值；parser 保留白名单扩展，未知 key 仍拒绝，扩展缺失/null/
   非法时仅降级未知；WD-API 的 `getWeeklyProgress` 尚不请求该能力。
 
-以上验收目标最终均由主控机器回执覆盖；产品、测试与生成文件已停写，时长父项仍因 WD-UI 未实施
-而保持未勾。本批合成 PG 继续活动供 WD-UI 使用，尚未清理。
+以上验收目标对应原 API 收口时点，最终均由主控机器回执覆盖；当时产品、测试与生成文件已停写，
+时长父项仍因 WD-UI 未实施而保持未勾，本批合成 PG 当时继续活动供 WD-UI 使用。最终状态以上方
+WD-UI 小节与 PROJECT_STATUS 为准。
 
 ### WD-UI：前端显示与真实浏览器
 
-先补有效 RED，再让前端固定请求 `include_recorded_duration=true`，完成周总、选中日、缺失提示和
-旧 API 未知态。主控统一运行现有质量门禁与真实 Chromium + WebKit 用例；不得修改或放宽既有计数、
-认证、刷新、分页或 query/cache 断言。
+当前状态为 `FINAL_READY`。客户端只固定请求 `include_recorded_duration=true`，服务端默认
+`false` 的旧响应/count-only 路径继续兼容；周总、选中日、缺失提示和旧 API 未知态均已实现。
+实现锚点为 `apps/vite-app/src/lib/api.ts`、`apps/vite-app/src/lib/weekly-recorded-duration.ts`、
+`apps/vite-app/src/components/dashboard/WeeklyProgress.tsx` 与本卡 i18n 文案。周总与 selected
+共用“可用 / 暂无可用 / 未知”三态：全部 completed 不可计算显示“暂无可用时长”，无会话或可计算
+会话的合法零时长显示 0；任一桶未知或求和溢出时周总未知，selected 独立；至少一个可信缺失计数
+为 0 时才允许显示“已知 0 … 明细不完整”，零个可信计数不伪 0。
+
+主控已完成后续 RED、修复、完整门禁与独立 Review 前置验证；目标失败在修复后全部通过，最终
+门禁全部 `exit 0`，私有变异均由具体断言杀死，双浏览器与宽窄实际截图通过主控亲审。详细机器
+数字、联合子集口径与保护 SHA，以及浏览器真实 Fake HTTP、后端真实 PostgreSQL 引擎上的自建
+合成库分别实跑且未冒充整链路的边界，只集中在
+[PROJECT_STATUS 的 WD-UI 小节](./PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
+最终格式、commit、push 以主控同卡回执为准，用户 Review 待，本文不自批 `APPROVED`。
+
+以下为原卡验收范围，已由上述实现和主控证据覆盖：
 
 至少覆盖：
 
@@ -223,6 +239,6 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
 不修改 BKT、learning events、通话占用、分析任务、认证、分页或会话次数图。真实 Provider、LiveKit、
 语音质量、设备与生产数据不在验收范围。
 
-时长父项在 WD-API 与 WD-UI 均完成并通过主控门禁前保持未勾；整个周报、三端交付和真实学习质量
-也不因本设计合同完成而勾选。Review、commit 与 push 由主控按同卡回执处理，实施节点不自批
-APPROVED。
+“已记录会话时长”时长父项已按 WD-DESIGN、WD-API、WD-UI 三卡的本范围实施与验收完成核销。
+整个周报的其他指标、CP-05、三端交付、真实外部环境和真实学习质量不因本范围完成而勾选。
+Review、commit 与 push 由主控按同卡回执处理，实施节点不自批 `APPROVED`。

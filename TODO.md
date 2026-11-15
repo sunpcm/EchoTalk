@@ -4,21 +4,25 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析（当前卡片，2026-11-16，FINAL_READY）：**
-> 本卡实现锚点已写入 `backend/schemas/session.py`、`backend/services/session_queries.py`、
-> `backend/routers/sessions.py` 与 `apps/vite-app/src/lib/api.ts`：省略/false 保持旧四字段
-> count-only 路径，仅 true 用一次有界 SELECT 返回七桶 `recorded_duration_ms` 与
-> `duration_unavailable_count`；parser 只接受两个明确扩展键，非法关系同时降级未知，
-> `getWeeklyProgress` 仍不发送 flag。主控完成后端与前端生成文件，最终 13 项机器门禁全部
-> `exit 0`；R1 首轮 quality 的 5 个不同 TS 诊断及 build 重复项已用两个 const 原始值捕获和现有
-> 类型守卫收窄修正，随后 quality、完整 Vitest 与全量 E2E 均复跑为 `exit 0`。正式返修
-> `1/2`，TDD 中间修正 `1`。详细数字、三轮负向变异、AST/保护语义与两类编排诊断只集中在
-> [PROJECT_STATUS 的 WD-API 小节](./docs/PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)，
-> 归档见[已完成事项](./docs/history/todo-done.md#2026-11-16-wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_ready)。
-> WD-DESIGN 已在原时点 `FINAL_READY`，随后独立 Review `APPROVED` 并随 `9d3ab32` 推送，作为
-> 历史快照保留；WD-UI 尚未实施。时长父项、完整周报、三端和真实学习质量均不提前勾选。本批
-> 合成 PG 仍活动，留给 WD-UI 验证，尚未清理；最终格式、Review、正常 commit/push 以主控同卡
-> 回执为准，用户 Review 待，本文件不自批 APPROVED。
+> **WD-UI 周报“已记录会话时长”前端显示与浏览器验收（当前卡片，2026-11-16，FINAL_READY）：**
+> 客户端 `getWeeklyProgress` 现只固定增加 `include_recorded_duration=true`，已有 parser、
+> requestAbort、baseURL 与 controller 不改；服务端仍保持默认 `false` 的旧四字段/count-only
+> 兼容路径。周总与选中日共用“可用 / 暂无可用 / 未知”三态：合法零和无会话显示 `0秒`，有会话但
+> 全部不可计算显示“暂无可用时长”，任一桶未知或周总溢出保持未知；零个可信不可计算计数不再以
+> 初值 0 冒充已知。新组件回归、Chromium/WebKit 真实 Fake HTTP、Fake bool 参数兼容和宽窄
+> 截图已由主控验收。浏览器用例走真实 Fake HTTP，后端使用真实 PostgreSQL 引擎上的自建合成库；
+> 两者分别实跑，不冒充浏览器直连后端合成 PG 的整链路。R1 先精确命中目标边界，修后全过；正式
+> 返修 `1/2`。测试前过程纠正 `1`、TDD oracle 修正 `2`，首轮 quality `exit 2` 为 5 个不同位置的
+> 诊断（3 种错误代码：3 处 TS2769，以及 TS18046、TS7022 各 1 处），两个私有边界失败及最终私有
+> 变异原始记录均保留。全部门禁
+> 最终 `exit 0`，详细数字、联合计数口径、保护 SHA、截图与变异只集中在
+> [PROJECT_STATUS 的 WD-UI 小节](./docs/PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)，
+> 归档见[已完成事项](./docs/history/todo-done.md#2026-11-16-wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
+> WD-API 已独立 `APPROVED` 并随 `9179050` 推送，WD-DESIGN 已独立 `APPROVED` 并随 `9d3ab32`
+> 推送，两者数字只属于各自历史时点。时长三卡父项现按本范围完成核销；完整周报其他指标、CP-05、
+> 三端、真实外部环境和真实学习质量均不连带核销。主控已完成本批自有 PG 的精确身份核验与清理；
+> 最终格式、Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待，本文件不自批
+> `APPROVED`。
 
 > **CP04E 认证退出与活动 Room 组合补验（历史卡片，2026-11-15，FINAL_READY）：**
 > 新增 `apps/vite-app/src/components/session/auth-exit.integration.test.tsx`，只以“活动会话内真实
@@ -234,10 +238,9 @@
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。本勾选只关闭
       本次证据文档子卡；RF-04 总项、iOS 有限重试、required check、真实链路和本轮核对时的起始树
       `4ec1a4d` 的 CI 仍未勾选。
-- [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；“已记录会话时长”的 A 口径已确认并
-      写入[设计合同](./docs/WEEKLY_RECORDED_DURATION_CONTRACT.md)，API/UI 尚未实施；该指标仍只表示
+- [ ] **周报剩余指标**：会话次数、语法 Top3 与“已记录会话时长”均已完成（见 P1）；时长仍只表示
       会话经过时长，不等于有效说话或成功练习。`p_mastery` 环比缺历史数据，需单独设计快照/事件，
-      C-1 也补不出历史。
+      C-1 也补不出历史；发音准确率、焦虑指数、语速与学习重点等其他指标仍待完成。
 
 **被 Key 或外部条件阻断：**
 
@@ -579,26 +582,26 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 ## P1 — 功能完整性
 
-周度学习报告已实现最近七个本地自然日的 completed 会话计数与按日只读历史。用户已确认将现有会话
-经过时长以“已记录会话时长”呈现；API 当前为 `FINAL_READY`，UI 尚未实施，其他指标仍需分别
-定义、实现并验证，不能据此认定完整周报已完成：
+周度学习报告已实现最近七个本地自然日的 completed 会话计数、按日只读历史与“已记录会话时长”
+本范围。其他周报指标仍需分别定义、实现并验证，不能据此认定完整周报已完成：
 
-- [ ] “已记录会话时长”三卡（父项保持未完成）：
+- [x] “已记录会话时长”三卡（本范围已实施并验收，已归档）：
   - `WD-DESIGN`（历史）：原时点为设计合同 `FINAL_READY`；随后主控独立 Review `APPROVED` 并随
     `9d3ab32` 推送。该合同以 `include_recorded_duration=false` 保持旧四字段/count-only 路径，
     opt-in 才计算时长；原时点机器收口、保护字节与 PG 边界见
     [PROJECT_STATUS 的 WD-DESIGN 小节](./docs/PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)；
     该节继续作为历史快照，不再表示当前待 Review。
-  - [x] `WD-API`：`FINAL_READY`。默认四字段/count-only 路径、opt-in 单次有界聚合、生成
-        OpenAPI/types、parser 兼容与测试均已完成；主控最终 13 项机器门禁全部 `exit 0`。正式
-        返修 `1/2`、TDD 中间修正 `1`。详细回执见
+  - [x] `WD-API`（历史）：`FINAL_READY`，随后独立 Review `APPROVED` 并随 `9179050` 推送。
+        默认四字段/count-only 路径、opt-in 单次有界聚合、生成 OpenAPI/types、parser 兼容与
+        测试均已完成；主控最终 13 项机器门禁全部 `exit 0`。正式返修 `1/2`、TDD 中间修正 `1`。
+        详细回执见
         [已完成事项归档](./docs/history/todo-done.md#2026-11-16-wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_ready)。
-        本项完成不勾选时长父项，WD-UI 仍待实施。
-  - [ ] `WD-UI`：先补 RED，再固定请求 `include_recorded_duration=true` 并显示周总、选中日、
-        缺失提示和旧服务返回四字段时的未知态；两个扩展与 completed 数须共同通过完整性和可计算
-        会话数校验，有 completed 但全部不可计算时不显示 0。覆盖安全整数、部分/全部缺失、精确
-        总和、切日身份刷新、零请求增量及 Chromium/WebKit 宽窄布局。
+  - [x] `WD-UI`：`FINAL_READY`。客户端固定 opt-in，周总、选中日、缺失提示及兼容未知态均完成；
+        R1 目标失败修复后回归全过，全部门禁最终 `exit 0`，真实 Chromium/WebKit 宽窄路径与截图
+        通过主控验收。归档见
+        [已完成事项](./docs/history/todo-done.md#2026-11-16-wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)；
         合同见[周报“已记录会话时长”合同](./docs/WEEKLY_RECORDED_DURATION_CONTRACT.md)。
+        本范围完成不勾选完整周报、CP-05、三端或真实学习质量父项。
 - [ ] 计算各技能 `p_mastery` 环比趋势：历史数据、对比窗口与指标口径仍待明确。
 - [ ] 按会话聚合发音准确率趋势。
 - [ ] 基于 RAG/Krashen i+1 生成下周学习重点。

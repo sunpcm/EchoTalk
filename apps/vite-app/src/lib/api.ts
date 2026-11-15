@@ -861,7 +861,11 @@ export async function getWeeklyProgress(
   options?: ApiRequestOptions,
 ): Promise<WeeklyProgressResponse> {
   getZonedWeekWindows(endDate, timezone);
-  const query = new URLSearchParams({ end_date: endDate, timezone });
+  const query = new URLSearchParams({
+    end_date: endDate,
+    timezone,
+    include_recorded_duration: "true",
+  });
   const raw = await request<unknown>(`/sessions/weekly-progress?${query.toString()}`, {
     cache: "no-store",
     signal: options?.signal,

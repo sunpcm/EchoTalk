@@ -170,7 +170,7 @@ describe("weekly recorded duration request ownership", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not send include_recorded_duration or change existing query ownership", async () => {
+  it("sends the fixed opt-in flag through one authenticated GET without changing ownership", async () => {
     const body = legacyResponse();
     vi.mocked(globalThis.fetch).mockResolvedValue({
       ok: true,
@@ -183,9 +183,14 @@ describe("weekly recorded duration request ownership", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     const [url, options] = vi.mocked(globalThis.fetch).mock.calls[0];
     expect(url).toBe(
-      `${getBaseUrl()}/sessions/weekly-progress?end_date=${END_DATE}&timezone=Asia%2FSingapore`,
+      `${getBaseUrl()}/sessions/weekly-progress?end_date=${END_DATE}&timezone=Asia%2FSingapore&include_recorded_duration=true`,
     );
-    expect(String(url)).not.toContain("include_recorded_duration");
+    expect(
+      new URL(String(url), "https://weekly-contract.test").searchParams.get(
+        "include_recorded_duration",
+      ),
+    ).toBe("true");
+    expect(options?.method ?? "GET").toBe("GET");
     expect(options?.cache).toBe("no-store");
     expect(options?.signal).toBeInstanceOf(AbortSignal);
   });

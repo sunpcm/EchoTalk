@@ -276,6 +276,8 @@ function createSession(mode) {
 }
 
 const VALID_STATUSES = new Set(["active", "completed", "cancelled"]);
+const TRUE_QUERY_BOOLEANS = new Set(["1", "on", "t", "true", "y", "yes"]);
+const FALSE_QUERY_BOOLEANS = new Set(["0", "off", "f", "false", "n", "no"]);
 const FAKE_USER_ID = "00000000-0000-0000-0000-000000000001";
 const REQUIRED_CURSOR_KEYS = ["v", "u", "ep", "st", "s", "e", "t", "id"];
 const WEEKLY_GRAMMAR_TAGS = new Set([
@@ -316,6 +318,44 @@ function weeklyFixtures(name) {
       make(104, "2026-11-02T05:00:00Z"),
       make(105, "2026-11-01T04:00:00Z", "active"),
       make(106, "2026-11-01T04:00:00Z", "completed", "00000000-0000-0000-0000-000000000002"),
+    ];
+  }
+  if (name === "duration") {
+    const withEnd = (
+      index,
+      started_at,
+      ended_at,
+      status = "completed",
+      user_id = FAKE_USER_ID,
+    ) => ({
+      ...make(index, started_at, status, user_id),
+      ended_at,
+    });
+    return [
+      withEnd(201, "2026-10-28T01:00:00.000Z", "2026-10-29T11:59:11.992Z"),
+      withEnd(202, "2026-10-29T01:00:00.000Z", "2026-10-29T01:00:00.004Z"),
+      withEnd(203, "2026-10-29T02:00:00.000Z", null),
+      withEnd(204, "2026-10-30T01:00:00.000Z", "2026-10-30T01:00:00.001Z"),
+      withEnd(205, "2026-10-31T01:00:00.000Z", "2026-10-31T01:00:00.001Z"),
+      withEnd(206, "2026-11-01T01:00:00.000Z", "2026-11-01T01:00:00.001Z"),
+      withEnd(207, "2026-11-01T02:00:00.000Z", "2026-11-01T01:59:59.999Z"),
+      withEnd(208, "2026-11-02T01:00:00.000Z", "2026-11-02T01:00:00.000Z"),
+      withEnd(209, "2026-11-03T01:00:00.000Z", "2026-11-03T01:00:00.000Z"),
+      ...Array.from({ length: 54 }, (_, index) =>
+        withEnd(
+          210 + index,
+          new Date(Date.parse("2026-11-03T01:00:00.000Z") + (index + 1) * 60_000).toISOString(),
+          new Date(Date.parse("2026-11-03T01:00:00.000Z") + (index + 1) * 60_000).toISOString(),
+        ),
+      ),
+      withEnd(290, "2026-11-03T03:00:00.000Z", "2026-11-03T04:00:00.000Z", "active"),
+      withEnd(
+        291,
+        "2026-11-03T03:00:00.000Z",
+        "2026-11-03T04:00:00.000Z",
+        "completed",
+        "00000000-0000-0000-0000-000000000002",
+      ),
     ];
   }
   return [];
@@ -743,18 +783,50 @@ const server = createServer(async (request, response) => {
   if (method === "GET" && pathname === "/api/sessions/weekly-progress") {
     const url = new URL(request.url ?? "/", `http://${host}:${port}`);
     try {
+      const rawIncludeRecordedDuration = url.searchParams.get("include_recorded_duration");
+      const normalizedIncludeRecordedDuration = rawIncludeRecordedDuration?.toLowerCase();
+      const includeRecordedDuration =
+        rawIncludeRecordedDuration === null
+          ? false
+          : TRUE_QUERY_BOOLEANS.has(normalizedIncludeRecordedDuration)
+            ? true
+            : FALSE_QUERY_BOOLEANS.has(normalizedIncludeRecordedDuration)
+              ? false
+              : undefined;
+      if (includeRecordedDuration === undefined) {
+        sendJson(response, 422, { detail: "include_recorded_duration must be a boolean" });
+        return;
+      }
       const days = weeklyWindows(
         url.searchParams.get("end_date"),
         url.searchParams.get("timezone"),
-      ).map((day) => ({
-        ...day,
-        completed_sessions: userSessions.filter(
+      ).map((day) => {
+        const completedSessions = userSessions.filter(
           (session) =>
             session.status === "completed" &&
             Date.parse(session.started_at) >= Date.parse(day.start) &&
             Date.parse(session.started_at) < Date.parse(day.end),
-        ).length,
-      }));
+        );
+        const result = { ...day, completed_sessions: completedSessions.length };
+        if (!includeRecordedDuration) return result;
+
+        let recordedDurationMs = 0;
+        let durationUnavailableCount = 0;
+        for (const session of completedSessions) {
+          const startedAt = Date.parse(session.started_at);
+          const endedAt = session.ended_at === null ? null : Date.parse(session.ended_at);
+          if (endedAt === null || !Number.isFinite(endedAt) || endedAt < startedAt) {
+            durationUnavailableCount += 1;
+          } else {
+            recordedDurationMs += endedAt - startedAt;
+          }
+        }
+        return {
+          ...result,
+          recorded_duration_ms: recordedDurationMs,
+          duration_unavailable_count: durationUnavailableCount,
+        };
+      });
       sendJson(response, 200, { days });
     } catch {
       sendJson(response, 422, { detail: "Invalid weekly window" });

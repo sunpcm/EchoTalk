@@ -1,26 +1,27 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析
-> （FINAL_READY；UI 未实施）**：唯一工作树为
+> 最后核对：2026-11-16。当前卡片为 **WD-UI 周报“已记录会话时长”前端显示与浏览器验收
+> （FINAL_READY）**：唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
-> `codex/B1-learning-events-20261112`，冻结 HEAD
-> `9d3ab32da3469d87b29340d35106cfa0cd126128`。用户已确认业务方案 A，并以技术 r1 明确真实兼容边界：默认
-> `include_recorded_duration=false` 继续只返回旧四字段、执行 count-only SQL；仅 `true` 才返回
-> 两个时长字段并读取 `ended_at`。本卡源码、测试、生成文件与四份状态文档已停在 `FINAL_READY`，
-> 正式返修 `1/2`、TDD 中间修正 `1`。主控完成后端与前端生成文件，最终 13 项机器门禁全部
-> `exit 0`；R1 首轮 quality 的 5 个不同 TS 诊断及 build 重复项已用 const 原始值捕获和现有类型
-> 守卫收窄修正，随后 quality、完整 Vitest 与全量 E2E 均复跑为 `exit 0`。WD-DESIGN 已在原时点
-> `FINAL_READY`，随后独立 Review `APPROVED` 并随 `9d3ab32` 推送，作为历史快照保留；WD-UI
-> 尚未实施。
+> `codex/B1-learning-events-20261112`，源码基线 HEAD
+> `917905057ff50c491ed7f69ba74efcd3fd57cdfc`。客户端只固定发送
+> `include_recorded_duration=true`，服务端仍以默认 `false` 保持旧四字段/count-only 兼容；
+> 已有 parser、requestAbort、baseURL、controller、生成类型和迁移不改。周总与选中日使用同一
+> “可用 / 暂无可用 / 未知”语义，全部不可计算不再显示 `0秒`，零个可信不可计算计数也不再冒充
+> 已知 0。正式返修 `1/2`；测试前过程纠正 `1`、TDD oracle 修正 `2`，全部原始失败证据保留。
+> 主控最终 13 项机器门禁全部 `exit 0`，新 17 回归、双浏览器、截图、四组私有变异与 PG 清理完成；
+> 详细数字只集中在下方 WD-UI 小节。WD-API 已独立 Review `APPROVED` 并随 `9179050` 推送，
+> WD-DESIGN 已独立 Review `APPROVED` 并随 `9d3ab32` 推送，二者均作为历史快照保留。
 > 下方 CP04E、CP04I、CP05L、CP02I、CP05K 等小节均为各自时点的历史快照，其中测试数字、基线、
-> 资源状态与 Review 结论不对当前 WD-API 作新证据。
+> 资源状态与 Review 结论不对当前 WD-UI 作新证据。
 > 下方 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、
 > A19 P2 等小节也均为各自时点的历史交付。R2-11 当时的模型分工与路由可用性记录不代表
 > 本卡路由或产品结论。旧 CP05D 所属批次的合成 PG 已 `stop_exit0`/`auto_removed=true`；
 > `cp05k-cp02i-cp05l-20261115` 新批三卡共用 PG 也已在 CP05L 最终收口时按精确 container ID、
 > 双 owner、`127.0.0.1` 与合成身份核验后 `stop_exit0`、`auto_removed=true`。这里的“三卡”
-> 明确指历史批 **CP05K / CP02I / CP05L**；当前 WD-DESIGN / WD-API / WD-UI 并非三卡全部完成。
-> WD-API 本批合成 PG 仍活动，留给 API/UI 验证，尚未清理。
+> 明确指历史批 **CP05K / CP02I / CP05L**。当前时长三卡仅核销“已记录会话时长”本范围，完整周报、
+> CP-05、三端和真实学习质量仍未完成。本批自有 PG 已按精确 ID、双 owner、loopback 与合成身份
+> 核验后清理，名称与 ID 均不存在，其他资源未动。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
@@ -29,28 +30,81 @@
 
 ## 当前功能
 
-| 领域           | 当前实现                                                                                      | 状态与边界                                                                  |
-| -------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离               | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收           |
-| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                             | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                  |
-| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康          | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收               |
-| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束          | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                 |
-| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                               | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                |
-| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态            | 已实现                                                                      |
-| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照                | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI                |
-| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人 12 类业务数据，保留控制行和他人数据             | 已实现；代码/测试 Review APPROVED，用户 Review 待；生产不可恢复性未验收     |
-| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                           | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                    |
-| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast            | 已实现；密钥轮换和 Provider 连通性需按环境验收                              |
-| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                           | 已实现 Web 流程；原生端文件选择未验收                                       |
-| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标 | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                     |
-| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                         | **部分实现**：“已记录会话时长”API 为 FINAL_READY，UI 未实施；其他指标未实现 |
-| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                       | 真机全链路、原生登录与发布未验收                                            |
-| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存          | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验       |
-| 数字人         | 只有待办                                                                                      | **未实现**                                                                  |
+| 领域           | 当前实现                                                                                      | 状态与边界                                                              |
+| -------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离               | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收       |
+| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                             | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明              |
+| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康          | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收           |
+| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束          | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭             |
+| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                               | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收            |
+| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态            | 已实现                                                                  |
+| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照                | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI            |
+| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人 12 类业务数据，保留控制行和他人数据             | 已实现；代码/测试 Review APPROVED，用户 Review 待；生产不可恢复性未验收 |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                           | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                |
+| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast            | 已实现；密钥轮换和 Provider 连通性需按环境验收                          |
+| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                           | 已实现 Web 流程；原生端文件选择未验收                                   |
+| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标 | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                 |
+| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3、已记录会话时长         | **部分实现**：时长三卡本范围已 FINAL_READY；其他周报指标未实现          |
+| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                       | 真机全链路、原生登录与发布未验收                                        |
+| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存          | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验   |
+| 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
 
-### WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析（`FINAL_READY`；UI 未实施）
+### WD-UI 周报“已记录会话时长”前端显示与浏览器验收（`FINAL_READY`）
+
+- **状态与源码基线**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，源码基线 HEAD
+  `917905057ff50c491ed7f69ba74efcd3fd57cdfc`。本卡产品、测试与四份文档停在 `FINAL_READY`；
+  正式返修 `1/2`。测试前过程纠正 `1`、TDD oracle 修正 `2`：提前 Fake WIP 已保存并恢复原字节，
+  产品恢复原字节后执行有效 RED，再 GO；两轮 TDD 修正均只改测试：第一轮纠正 bool 参数、保留
+  既有 `requestAbort.signal` 语义、溢出向量/周总定位与显式时区，第二轮仅修正相对 URL 的测试
+  解析基准。这些 WD-UI 修正与 WD-API 卡独立的 `1999us` floor / Singapore 跨日 oracle 分开。
+  历史失败未抹除。
+- **实现锚点**：`apps/vite-app/src/lib/api.ts` 仅让 weekly 请求固定增加
+  `include_recorded_duration=true`，parser/requestAbort/baseURL 不动；
+  `apps/vite-app/src/lib/weekly-recorded-duration.ts` 提供“可用 / 暂无可用 / 未知”日桶与周总
+  计算，未知计数初值为 `null`，安全整数检查先 `typeof number` 再判断，typed 累计无 `as any`；
+  `WeeklyProgress.tsx` 与 `i18n/zh-CN.ts` 显示周总、选中日、合法 0、暂无可用、未知及已知
+  不完整计数；Fake 新增请求局部 `duration` 合成记录，默认/false 仍返回 count-only 数据，只有
+  opt-in 响应新增两个时长扩展字段。普通 bool 参数与后端一致接受 `1/true` 并拒绝
+  `not-a-boolean`。
+- **兼容边界**：服务端默认仍为 `include_recorded_duration=false`，省略/false 返回旧四字段且
+  count-only SQL 不读取 `ended_at`；旧服务忽略新增参数时，新客户端按缺失字段显示未知。周总只在
+  七桶扩展可信、桶内关系统一且时长总和安全时显示；任一桶未知或求和溢出即整体未知；selected
+  只读取所选桶，不受其他桶错误连带。全部 completed 不可计算显示“暂无可用时长”，无会话和
+  可计算会话的合法零时长显示 `0秒`；至少一个可信计数为 0 时可显示“已知 0 条明细不完整”，
+  零个可信计数时不显示伪造的已知 0。
+- **TDD 与目标回归**：新组件测试最终 17 case；主控有效 RED 为 `15 pass / 2 fail / 0 skip`，
+  两项分别命中全部不可计算仍显示周总 0、七桶全缺失仍显示“已知 0 条不可计算”。产品修复后
+  `17/17` 通过。联合 3 个目标文件为 `231` 项全过，这是完整 Vitest 的联合子集，不是另加 231。
+  最终一次默认运行发现的 React act 告警仅通过两次 `await flush()` 做同步收口，断言、fixture
+  与产品均未改，复验 act 告警为 0；其他旧模块既有告警未改。
+- **最终 13 项门禁**：主控实跑全部 `exit 0`。Vitest `1309 passed / 60 files`；双浏览器 E2E
+  `278 = Chromium 139 + WebKit 139`，每例恰一个 passed result，retry、skip、flaky、
+  unexpected 均为 `0`；backend `1055 passed / 3 warnings / 0 skip / raw coverage
+81.77679679955855%`；Fake API `117`、build `47`、API 类型 `8`、iOS 仅 Node runner `37`；
+  lint `132 warnings / 0 errors / 0 new`，逐 file/message/rule 多重集与基线相同。
+- **私有变异与浏览器审阅**：4 组私有变异各只选中 `1` 个目标 case，并各由 `1` 个具体断言失败
+  杀死；每轮另有 `16` 个未选用例，未选不计覆盖。各变异子进程 `exit 1`，组合 driver `exit 0`；
+  恢复默认源后 17 项全过。首轮 quality `exit 2` 为 5 个不同位置的诊断、3 种错误代码：3 处
+  TS2769，以及 TS18046、TS7022 各 1 处；两个私有边界 fail 原记录保留。4 张实际浏览器截图覆盖
+  宽 1280 与窄 390，主控亲审可读且无新增截断/溢出。浏览器用例走真实 Fake HTTP；后端使用真实
+  PostgreSQL 引擎上的自建合成库。两者分别实跑，未把两者冒充浏览器直连后端合成 PG 的整链路。
+- **保护与数据库**：709 个保护文件 hash 与 2 份已跟踪 Vite 配置的索引/metadata 保持不变；
+  原 21 个 parser 前缀 case 与 116 个 Fake 旧 case 保持完全原字节；192 个 api 旧 case 仅允许
+  weekly URL 的 1 处字面量追加 flag，其余字节保持。controller、生成文件和 18 份迁移均未改。
+  本批自有 PG 按精确 container ID、双 owner、`127.0.0.1` 与合成身份核验后停库，
+  `stop_exit0`、`auto_removed=true`，名称和 ID 均不存在，其他资源未动。
+- **终态与边界**：实施节点未自跑测试、服务、构建、数据库、截图或生成；以上均由主控实跑。
+  最终格式、独立 Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待，本文
+  不自批 `APPROVED`。本卡仅核销“已记录会话时长”三卡范围；完整周报其他指标、CP-05、三端、
+  真实 Provider/IdP/LiveKit、设备与生产仍未验收。
+
+<a id="wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施"></a>
+
+### WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析（历史快照；后续 `APPROVED@9179050`）
 
 - **状态与基线**：唯一工作树为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
@@ -64,7 +118,8 @@
   `backend/routers/sessions.py` 只在本路由接收 `include_recorded_duration` 并设置
   `response_model_exclude_none=True`；`apps/vite-app/src/lib/api.ts` 只扩展 weekly parser 的两个
   明确白名单键，未知键与坏基础字段仍拒绝，关系非法时两个扩展同时降级未知。
-- **请求边界**：`getWeeklyProgress` 仍不发送 `include_recorded_duration`；WD-UI 尚未实施。省略或
+- **请求边界**：原 API 收口时点，`getWeeklyProgress` 仍不发送 `include_recorded_duration`；WD-UI
+  随后才实施。省略或
   false 的响应形状和 SQL `ended_at` 禁区均由原有测试继续约束；true 的七个固定桶显式返回整数
   `0/0` 或实际聚合值，无顶层周总，其他 query、模型、迁移、CI、SDK 与 controller 未改。
 - **最终机器验收**：主控最终 13 项门禁全部 `exit 0`。Vitest 为 `1292` 例、`59` 文件；
@@ -87,10 +142,12 @@
   确认 marker 后，三个变异各自的 pytest 子进程均按预期 `exit 1`，并分别由精确断言失败；最终
   一个组合验证 driver 为 `exit 0`。两类诊断均保留原始记录，不把故意失败的 pytest 写成 `0`，
   也不用后续通过抹除旧证据。
-- **终态与边界**：主控已原生生成 `backend/openapi.json` 与
+- **终态与边界**：本节 HEAD、数字与“WD-UI 未实施”均绑定原 API 收口时点；后续 WD-API 已独立
+  Review `APPROVED` 并随 `9179050` 推送。主控已原生生成 `backend/openapi.json` 与
   `apps/vite-app/src/lib/api.generated.ts`。实施节点没有自跑测试、服务、数据库、构建或生成；
   最终格式、Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待，本文不自批
-  APPROVED。真实外部链路仍未验收；本批合成 PG 继续活动供 WD-UI 验证，不自行清理。
+  APPROVED。真实外部链路仍未验收；原时点本批合成 PG 继续活动供 WD-UI 验证，后续已按最终回执
+  清理。
 
 ### WD-DESIGN 已确认周报时长合同（设计 `FINAL_READY`；API/UI 未实施）
 
@@ -129,7 +186,8 @@
   flaky/unexpected 均为 `0`；backend `1044 passed / 3 warnings / 0 skip / raw coverage
 81.84461985874533%`；build `47`、Fake API `116`、API `8`、iOS 仅 Node `37`；lint 为
   `132 warnings / 0 errors / 0 new`，逐 file/message/rule 多重集与基线一致。717 个保护文件字节
-  未变，18 个旧迁移未变。本批合成 PG 新库创建与迁移成功，按计划保留给 WD-API/WD-UI，尚未清理。
+  未变，18 个旧迁移未变。原时点本批合成 PG 新库创建与迁移成功，按计划保留给 WD-API/WD-UI；后续
+  已按最终回执清理。
   以上均由主控实跑；实施节点没有自跑这些检查，二者不混写。
 - **三卡状态**：本卡设计合同 `FINAL_READY`，正式返修 `0/2`，已停写；WD-API 先合成 PG RED，再实现
   opt-in 聚合/schema/OpenAPI/生成类型/parser；WD-UI 先 RED，再请求 flag、完成显示和真实

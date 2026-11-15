@@ -6,7 +6,39 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
-## 2026-11-16 WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析（FINAL_READY）
+## 2026-11-16 WD-UI 周报“已记录会话时长”前端显示与浏览器验收（FINAL_READY）
+
+- **状态：`FINAL_READY`，正式返修 `1/2`**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，源码基线 HEAD
+  `917905057ff50c491ed7f69ba74efcd3fd57cdfc`。客户端固定发送
+  `include_recorded_duration=true`，服务端默认 `false` 的旧四字段/count-only 路径保持兼容。
+  产品、测试和四份文档已停写；最终 Review、commit 与当前分支 push 以主控同卡回执为准，用户
+  Review 待，本节不自批 `APPROVED`。
+- **实现锚点**：`apps/vite-app/src/lib/api.ts` 仅固定 weekly opt-in；
+  `apps/vite-app/src/lib/weekly-recorded-duration.ts` 与 `WeeklyProgress.tsx` 实现周总、选中日、
+  “可用 / 暂无可用 / 未知”三态、可信计数与安全整数校验；`i18n/zh-CN.ts` 只补本卡文案。
+  Fake 新增请求局部 `duration` 合成记录；默认/false 继续返回 count-only 数据，只有 opt-in 响应
+  新增两个时长扩展字段。普通 bool 参数与后端一样接受 `1/true` 并拒绝 `not-a-boolean`。parser、
+  requestAbort、baseURL、controller、次数图、认证、分页、生成类型与迁移均不改。
+- **R1 与测试时序**：主控有效 RED 精确命中全部不可计算仍显示周总 0、七桶全缺失仍显示“已知
+  0”两个目标边界；产品修复后全部通过。测试前过程纠正 `1`、TDD oracle 修正 `2`，提前 Fake WIP
+  与原产品字节恢复、有效 RED 证据均保留。最终 React act 告警通过测试内既有 `await flush()` 收口，
+  断言和 fixture 不变。
+- **最终验收**：主控实跑门禁全部 `exit 0`，私有变异各由选中 case 的具体断言杀死，未选用例
+  不计覆盖；恢复默认源后目标回归全过。完整数字、联合子集口径、保护 SHA、Fake/浏览器真实性
+  边界、截图和 PG 清理只集中在
+  [PROJECT_STATUS 的 WD-UI 小节](../PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
+- **收口边界**：宽屏与窄屏实际浏览器截图已由主控亲审，可读且无新增截断/溢出。浏览器用例走
+  真实 Fake HTTP，后端使用真实 PostgreSQL 引擎上的自建合成库；两者分别实跑，不冒充浏览器直连
+  后端合成 PG 的整链路。本批自有 PG 已按精确身份核验后清理，其他资源未动。本卡
+  只核销“已记录会话时长”三卡范围；完整周报、CP-05、三端、真实外部环境和真实学习质量不连带
+  完成。合同见
+  [周报“已记录会话时长”合同](../WEEKLY_RECORDED_DURATION_CONTRACT.md)。
+
+<a id="2026-11-16-wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_ready"></a>
+
+## 2026-11-16 WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析（历史快照；后续 `APPROVED@9179050`）
 
 - **状态：`FINAL_READY`，正式返修 `1/2`，TDD 中间修正 `1`**：唯一工作树为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
@@ -20,7 +52,7 @@
   只在 weekly parser 中接受两个明确扩展键，非法关系同时降级未知。
 - **兼容与请求边界**：省略/false 仍返回顶层及日桶旧形状，SQL 不读取 `ended_at`；true 的七个
   固定桶显式返回 `0/0` 或整数聚合。单条合法时长先 floor 到毫秒再求和，缺失/负结束只增加不可计算
-  计数。`getWeeklyProgress` 仍不发送 `include_recorded_duration`，WD-UI 尚未实施。
+  计数。原 API 收口时点，`getWeeklyProgress` 仍不发送 `include_recorded_duration`，WD-UI 尚未实施。
 - **R1 与最终验收**：首轮 quality 的 5 个不同 TS `unknown` 收窄诊断为 `exit 2`，build 重复同一组
   问题；R1 以两个 const 原始值捕获和现有类型守卫修正后，quality、完整 Vitest 与全量 E2E 均
   重新执行并 `exit 0`。主控最终 13 项门禁全部 `exit 0`，OpenAPI/types 已原生生成，新目标
@@ -28,9 +60,11 @@
   AST、编排诊断记录只集中在
   [PROJECT_STATUS 的 WD-API 小节](../PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)，
   不在此重复或改写原始证据。
-- **终态边界**：实施节点没有自跑测试、服务、数据库、构建或生成。最终格式、Review、正常
+- **终态边界**：本节 HEAD 与内部“WD-UI 未实施”等状态绑定原 API 收口时点；后续该卡已独立
+  Review `APPROVED` 并随 `9179050` 推送。实施节点没有自跑测试、服务、数据库、构建或生成。最终格式、Review、正常
   commit/当前分支 push 以主控同卡回执为准，用户 Review 待，本文件不自批 APPROVED；真实外部
-  链路未验收。本批合成 PG 仍活动供 WD-UI 验证，尚未清理。时长父项仍不勾，WD-UI 未实施。
+  链路未验收。原时点本批合成 PG 仍活动供 WD-UI 验证，当时尚未清理；时长父项与 WD-UI 状态均绑定
+  原 API 收口时点，后续已完成并见本文件顶部。
 
 ## 2026-11-15 WD-DESIGN 周报“已记录会话时长”设计合同（历史快照；后续 APPROVED@9d3ab32）
 
@@ -62,8 +96,10 @@
   完成本卡三测试树、13 项门禁和合成 PG 新建/迁移核验；详细机器数字、保护文件/旧迁移状态与
   PG 保留状态只集中在
   [PROJECT_STATUS](../PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
-  WD-API 与 WD-UI 仍未实施，时长父项、完整周报、三端和真实学习质量均不提前勾选。
-- **后续三卡**：WD-API 随后已完成并进入 `FINAL_READY`，当前状态见上方本文件新条目；WD-UI 仍未实施。
+  原设计收口时点，WD-API 与 WD-UI 尚未实施；时长父项、完整周报、三端和真实学习质量当时均不提前
+  勾选。后续两卡均已实施，当前条目见本文件顶部。
+- **后续三卡**：WD-API 随后完成并进入 `FINAL_READY`，之后独立 Review `APPROVED` 并随
+  `9179050` 推送；WD-UI 随后也达到 `FINAL_READY`，当前条目见本文件顶部。
   WD-DESIGN 的后续独立 Review 已 `APPROVED`，并随 `9d3ab32` 推送；上方旧条目中的等待状态只描述
   原时点，当前以本说明和 PROJECT_STATUS 为准。
   合同全文见[周报“已记录会话时长”合同](../WEEKLY_RECORDED_DURATION_CONTRACT.md)。

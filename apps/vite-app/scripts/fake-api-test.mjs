@@ -101,6 +101,57 @@ describe("七天聚合 Fake API 真实独立子进程契约", { timeout: 30_000 
     );
   });
 
+  it("时长扩展在 true/1 时启用，默认/false 保持四字段并校验布尔、过滤与未知态", async () => {
+    const query = { end_date: "2026-11-03", timezone: "Asia/Singapore" };
+    for (const include_recorded_duration of [undefined, "false"]) {
+      const res = await get(
+        { ...query, ...(include_recorded_duration ? { include_recorded_duration } : {}) },
+        "duration",
+      );
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      body.days.forEach((day) => assert.equal(Object.keys(day).length, 4));
+    }
+
+    const optedInBodies = [];
+    for (const include_recorded_duration of ["true", "1"]) {
+      const optedIn = await get({ ...query, include_recorded_duration }, "duration");
+      assert.equal(optedIn.status, 200);
+      optedInBodies.push(await optedIn.json());
+    }
+    assert.deepEqual(optedInBodies[1], optedInBodies[0]);
+    const body = optedInBodies[0];
+    assert.deepEqual(
+      body.days.map((day) => day.completed_sessions),
+      [1, 2, 1, 1, 2, 1, 55],
+    );
+    assert.deepEqual(
+      body.days.map((day) => day.recorded_duration_ms),
+      [125_951_992, 4, 1, 1, 1, 0, 0],
+    );
+    assert.deepEqual(
+      body.days.map((day) => day.duration_unavailable_count),
+      [0, 1, 0, 0, 1, 0, 0],
+    );
+    body.days.forEach((day) => {
+      assert.deepEqual(Object.keys(day), [
+        "date",
+        "start",
+        "end",
+        "completed_sessions",
+        "recorded_duration_ms",
+        "duration_unavailable_count",
+      ]);
+      assert.ok(Number.isSafeInteger(day.recorded_duration_ms));
+      assert.ok(Number.isSafeInteger(day.duration_unavailable_count));
+      assert.ok(day.duration_unavailable_count <= day.completed_sessions);
+    });
+
+    const invalid = await get({ ...query, include_recorded_duration: "not-a-boolean" }, "duration");
+    assert.equal(invalid.status, 422);
+    await invalid.json();
+  });
+
   for (const [date, start, end, hours] of [
     ["2026-03-08", "2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z", 23],
     ["2026-11-01", "2026-11-01T04:00:00.000Z", "2026-11-02T05:00:00.000Z", 25],
