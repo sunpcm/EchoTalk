@@ -4,7 +4,15 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **CP04E 认证退出与活动 Room 组合补验（当前卡片，2026-11-15，FINAL_READY）：**
+> **WD-DESIGN 已确认周报“已记录会话时长”合同（当前卡片，2026-11-15，FINAL_READY）：**
+> 业务方案 A 与技术兼容 r1 已写入四份文档；设计阶段正式返修 `0/2`。实施节点未自跑测试、
+> 服务或 PG，主控已独立完成本卡三测试树、13 项门禁和合成 PG 新建/迁移核验，完整机器数字只在
+> [PROJECT_STATUS 的 WD-DESIGN 小节](./docs/PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
+> WD-API 与 WD-UI 尚未实施，时长父项、完整周报、三端和真实学习质量均不提前勾选。合成 PG
+> 作为后两卡共用资源保留，尚未清理。Review/commit/push 见主控同卡回执，用户 Review 待，
+> 本文不自批 APPROVED。
+
+> **CP04E 认证退出与活动 Room 组合补验（历史卡片，2026-11-15，FINAL_READY）：**
 > 新增 `apps/vite-app/src/components/session/auth-exit.integration.test.tsx`，只以“活动会话内真实
 > `beginLogout()`”和“当前认证请求经真实 `api.ts` 收到 401”两条参数化场景，补验真实
 > `AuthGate → App → VoiceInterface → RoomSession/RoomContextSync`、认证状态机、用户 store、
@@ -218,8 +226,10 @@
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。本勾选只关闭
       本次证据文档子卡；RF-04 总项、iOS 有限重试、required check、真实链路和本轮核对时的起始树
       `4ec1a4d` 的 CI 仍未勾选。
-- [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长
-      ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。
+- [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；“已记录会话时长”的 A 口径已确认并
+      写入[设计合同](./docs/WEEKLY_RECORDED_DURATION_CONTRACT.md)，API/UI 尚未实施；该指标仍只表示
+      会话经过时长，不等于有效说话或成功练习。`p_mastery` 环比缺历史数据，需单独设计快照/事件，
+      C-1 也补不出历史。
 
 **被 Key 或外部条件阻断：**
 
@@ -561,10 +571,25 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 ## P1 — 功能完整性
 
-周度学习报告已实现最近七个本地自然日的 completed 会话计数与按日只读历史；其余指标
-仍需分别定义、实现并验证，不能据此认定完整周报已完成：
+周度学习报告已实现最近七个本地自然日的 completed 会话计数与按日只读历史。用户已确认将现有会话
+经过时长以“已记录会话时长”呈现；API/UI 尚未实施，其他指标仍需分别定义、实现并验证，不能据此
+认定完整周报已完成：
 
-- [ ] 统计最近7天练习时长：先明确有效练习时长口径与可靠数据来源，当前未实现。
+- [ ] “已记录会话时长”三卡（父项保持未完成）：
+  - `WD-DESIGN`：设计合同 `FINAL_READY`，以
+    `include_recorded_duration=false` 保持旧四字段/count-only 路径，opt-in 才计算时长；待主控独立
+    Review。API 继续接受既有任意合法 `end_date` 并向前七日，UI 默认使用本地今天作为 `end_date`。
+    主控已完成机器收口，详细数字、保护字节与 PG 边界见
+    [PROJECT_STATUS 的 WD-DESIGN 小节](./docs/PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)；
+    本卡正式返修 `0/2`，Review/commit/push 见主控同卡回执。
+  - [ ] `WD-API`：先补合成 PG RED；默认路径保留既有四字段与禁止读取 `ended_at` 的 count-only
+        断言，opt-in 实现七桶单次有界聚合、schema、OpenAPI、生成类型和 parser 白名单扩展。覆盖
+        多账号、状态、缺失/负值、逐条毫秒截取、跨日/DST、窗口边界及旧计数语义。
+  - [ ] `WD-UI`：先补 RED，再固定请求 `include_recorded_duration=true` 并显示周总、选中日、
+        缺失提示和旧服务返回四字段时的未知态；两个扩展与 completed 数须共同通过完整性和可计算
+        会话数校验，有 completed 但全部不可计算时不显示 0。覆盖安全整数、部分/全部缺失、精确
+        总和、切日身份刷新、零请求增量及 Chromium/WebKit 宽窄布局。
+        合同见[周报“已记录会话时长”合同](./docs/WEEKLY_RECORDED_DURATION_CONTRACT.md)。
 - [ ] 计算各技能 `p_mastery` 环比趋势：历史数据、对比窗口与指标口径仍待明确。
 - [ ] 按会话聚合发音准确率趋势。
 - [ ] 基于 RAG/Krashen i+1 生成下周学习重点。

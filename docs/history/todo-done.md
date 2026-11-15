@@ -6,6 +6,43 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 WD-DESIGN 周报“已记录会话时长”设计合同（设计 FINAL_READY；API/UI 未实施）
+
+- **状态：设计合同 `FINAL_READY`，正式返修 `0/2`，已停写**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `caa409a9f36f8e4b28c221800930c1f3ec94cef2`，开工 clean。用户已确认业务方案 A，不再等待时长
+  业务口径裁定。
+- **确认口径**：API 继续接受既有任意合法 `end_date`，返回截至该日并包含该日的最近七个本地自然日；
+  历史日期请求可处理，不宣称任意合法 `end_date` 都含今天。UI 默认以本地今天作为 `end_date`，默认
+  视图因此含今天。现有 completed 会话按 `started_at` 归日，沿用 IANA 时区和 UTC 半开窗口。时长取
+  `ended_at - started_at`，单条先截去不足 1 毫秒再求和；跨日整段归开始日，等待、静音与暂停均
+  包含。UI 只称“已记录会话时长”，不称有效说话或成功练习。
+- **兼容性 r1**：接口新增 `include_recorded_duration: bool = false`。省略/false 保持顶层恰 `days`、
+  每桶恰四字段、count-only SQL 且默认路径继续禁止读取 `ended_at`；路由
+  `response_model_exclude_none` 避免默认响应出现扩展 null。仅 true 才返回
+  `recorded_duration_ms` 与 `duration_unavailable_count` 并读取 `ended_at`。
+- **客户端跨版本**：WD-API 扩展 `parseWeeklyProgressResponse` 和测试，允许并保留两个明确扩展键，
+  四基础键严格校验、其他未知键继续拒绝；扩展缺失/null/非法只降级未知，不伪 0，尚不请求 flag。
+  WD-UI 才固定传 true；旧服务忽略未知 query 返回四字段时，新客户端降级未知。
+- **缺失与完整性语义**：ended 缺失或为负的 completed 会话另计不可计算，不伪 0。令
+  `computable_count = completed - unavailable`；两个扩展都可信且 `unavailable <= completed` 才可显示
+  时长。有 completed 但 `computable_count = 0` 时显示“暂无可用时长”，不显示 0；
+  `computable_count > 0` 且时长为 0 才显示合法 0；`computable_count = 0` 与时长为正同时出现时按关系
+  不一致处理。parser 可独立保留合法扩展，但任一桶缺扩展信息或关系不完整时周总未知；不新增顶层
+  字段。
+- **实施与验收边界**：本卡只新增设计合同并更新 `TODO.md`、`docs/PROJECT_STATUS.md` 与本文件；
+  产品源码、测试、OpenAPI、生成类型、依赖和迁移未改。实施节点未自跑测试、服务或 PG；主控已独立
+  完成本卡三测试树、13 项门禁和合成 PG 新建/迁移核验；详细机器数字、保护文件/旧迁移状态与
+  PG 保留状态只集中在
+  [PROJECT_STATUS](../PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
+  WD-API 与 WD-UI 仍未实施，时长父项、完整周报、三端和真实学习质量均不提前勾选。
+- **后续三卡**：WD-API 先补合成 PG RED，再实现 opt-in 单次有界七桶聚合、schema、OpenAPI、生成
+  类型及 parser 兼容；WD-UI 先补 RED，再固定请求 flag，完成旧 API/缺失状态、精确总和、安全整数、
+  刷新隔离和真实双浏览器显示。Review/commit/push 由主控同卡回执处理，用户 Review 待，本归档不写
+  APPROVED。
+  合同全文见[周报“已记录会话时长”合同](../WEEKLY_RECORDED_DURATION_CONTRACT.md)。
+
 ## 2026-11-15 CP04E 认证退出与活动 Room 组合补验（FINAL_READY）
 
 - **状态：`FINAL_READY`（主控最终验收完成，CP-04 父项不勾）**：唯一实施工作树为

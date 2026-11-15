@@ -1,23 +1,18 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **CP04E 认证退出与活动 Room 组合补验
-> （FINAL_READY）**：唯一工作树为
+> 最后核对：2026-11-15。当前卡片为 **WD-DESIGN 已确认周报时长合同（设计
+> FINAL_READY；API/UI 未实施）**：唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，冻结 HEAD
-> `a75223aa38419c07b3786465ea3fade9c930469f`。允许写集只含一个新测试
-> `apps/vite-app/src/components/session/auth-exit.integration.test.tsx` 与四份状态/验证文档。
-> 测试只参数化 logout 与当前请求 401 两条活动会话退出场景，保留真实
-> `AuthGate → App → VoiceInterface → RoomSession/RoomContextSync`、`auth.ts`、相关 store、
-> `api.ts`、`roomAudio` 与默认 Web 平台适配；离线 OIDC、LiveKit Room/Track、严格合成
-> fetch/Response 和必要 OS 边界只作测试隔离，SDK mock 不替产品停止 owned tracks。
-> 主控 R0 门禁虽全部通过，独立 Review 仍以两处夹具缺陷判 `CHANGES REQUESTED`；R1 又因
-> quality/build/typecheck `exit 2` 与同一 React 元素 rerender bail out 被拒绝。R2 修正后主控
-> 独立核验 target `2/2`、target-final `2/2`，两项核心负对照均命中明确断言，fresh-tree 重渲染
-> 与请求拒绝账本探针也通过。最终 13 门禁同源字节收口为全 `exit 0`，正式实施返修 `2/2`。
-> R0 全绿与两夹具反例、R1 quality/typecheck 失败历史均保留；这些是测试夹具问题，没有认定产品
-> 回归。CP04I 的换号/迟到响应三场景为历史快照，未重做；Review/commit/push 见主控同卡回执，用户 Review 待。
-> CP02I 通话占用本地组合补验、CP05K 会话界面动态桌面与键盘覆盖以及 CP05L Dashboard 生命周期
-> 实际组合缺口也均为历史快照，详细数字只在其各自小节有效。
+> `caa409a9f36f8e4b28c221800930c1f3ec94cef2`。唯一仓内写集为新增
+> [`WEEKLY_RECORDED_DURATION_CONTRACT.md`](./WEEKLY_RECORDED_DURATION_CONTRACT.md)，并更新
+> [`TODO.md`](../TODO.md)、本文件、[`docs/history/todo-done.md`](./history/todo-done.md)。
+> 用户已确认业务方案 A，并以技术 r1 明确真实兼容边界：默认
+> `include_recorded_duration=false` 继续只返回旧四字段、执行 count-only SQL；仅 `true` 才返回
+> 两个时长字段并读取 `ended_at`。实施节点只做设计与状态文档；主控已独立完成本卡三测试树、
+> 13 项门禁和合成 PG 新建/迁移核验，完整数字只集中在本文件 WD-DESIGN 小节。
+> 下方 CP04E、CP04I、CP05L、CP02I、CP05K 等小节均为各自时点的历史快照，其中测试数字、基线、
+> 资源状态与 Review 结论不对本设计卡作新证据。
 > 下方 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、
 > A19 P2 等小节也均为各自时点的历史交付。R2-11 当时的模型分工与路由可用性记录不代表
 > 本卡路由或产品结论。旧 CP05D 所属批次的合成 PG 已 `stop_exit0`/`auto_removed=true`；
@@ -32,28 +27,76 @@
 
 ## 当前功能
 
-| 领域           | 当前实现                                                                                      | 状态与边界                                                              |
-| -------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离               | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收       |
-| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                             | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明              |
-| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康          | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收           |
-| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束          | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭             |
-| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                               | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收            |
-| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态            | 已实现                                                                  |
-| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照                | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI            |
-| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人 12 类业务数据，保留控制行和他人数据             | 已实现；代码/测试 Review APPROVED，用户 Review 待；生产不可恢复性未验收 |
-| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                           | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                |
-| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast            | 已实现；密钥轮换和 Provider 连通性需按环境验收                          |
-| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                           | 已实现 Web 流程；原生端文件选择未验收                                   |
-| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标 | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                 |
-| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                         | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现          |
-| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                       | 真机全链路、原生登录与发布未验收                                        |
-| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存          | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验   |
-| 数字人         | 只有待办                                                                                      | **未实现**                                                              |
+| 领域           | 当前实现                                                                                      | 状态与边界                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离               | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收               |
+| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                             | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                      |
+| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康          | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收                   |
+| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束          | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                     |
+| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                               | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                    |
+| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态            | 已实现                                                                          |
+| 本人数据导出   | `GET /api/user/data-export` 输出固定 v1 JSON，显式白名单并读取单一一致只读快照                | 已实现；代码/测试 Review APPROVED，用户 Review 待、无导出 UI                    |
+| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人 12 类业务数据，保留控制行和他人数据             | 已实现；代码/测试 Review APPROVED，用户 Review 待；生产不可恢复性未验收         |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                           | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                        |
+| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast            | 已实现；密钥轮换和 Provider 连通性需按环境验收                                  |
+| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                           | 已实现 Web 流程；原生端文件选择未验收                                           |
+| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标 | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                         |
+| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                         | **部分实现**：“已记录会话时长”设计已确认，API/UI 未实施；掌握度等其他指标未实现 |
+| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                       | 真机全链路、原生登录与发布未验收                                                |
+| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存          | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验           |
+| 数字人         | 只有待办                                                                                      | **未实现**                                                                      |
 
 ## 当前验证基线
 
-### CP04E 认证退出与活动 Room 组合补验（`FINAL_READY`）
+### WD-DESIGN 已确认周报时长合同（设计 `FINAL_READY`；API/UI 未实施）
+
+- **基线与写集**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `caa409a9f36f8e4b28c221800930c1f3ec94cef2`，开工 clean。仓内只允许新增
+  [`docs/WEEKLY_RECORDED_DURATION_CONTRACT.md`](./WEEKLY_RECORDED_DURATION_CONTRACT.md)，并更新
+  [`TODO.md`](../TODO.md)、本文件与 [`docs/history/todo-done.md`](./history/todo-done.md)；产品源码、
+  测试、OpenAPI、生成类型、配置、依赖与迁移均不改。
+- **已确认产品口径**：API 继续接受既有任意合法 `end_date`，返回截至该日并包含该日的最近七个本地
+  自然日；历史日期请求可正常处理，不宣称任意合法 `end_date` 都含今天。UI 默认以用户本地今天作为
+  `end_date`，因此默认周视图含今天。沿用现有 IANA 时区与 UTC 半开窗口，按 `started_at` 归日；只算
+  当前认证用户的 completed 会话。跨日会话整段归开始日；active/cancelled 不计。
+  `ended_at >= started_at` 时，每条先在 UTC 截去不足 1 毫秒再求和；等待、静音、暂停均包含，分析
+  任务失败不因本指标推断会话失败。UI 只称“已记录会话时长”。
+- **显式 opt-in 与技术 r1**：`GET /api/sessions/weekly-progress` 新增
+  `include_recorded_duration: bool = false`。省略/false 保持顶层恰 `days`、每桶恰四字段、count-only
+  一次 SQL 且不读取 `ended_at`；路由 `response_model_exclude_none` 防止默认响应被两个 null 扩展。
+  `true` 才给七桶增加 optional/nullable 非负整数 `recorded_duration_ms` 与
+  `duration_unavailable_count`，不新增顶层周总。
+- **兼容矩阵**：WD-API 同时扩展 `parseWeeklyProgressResponse` 和其测试，允许/保留两个明确扩展键，
+  四个基础键仍严格校验、其他未知键仍拒绝；扩展缺失/null/非法只降级未知，不伪 0，但 WD-API 尚不
+  请求 flag。parser 可独立保留合法扩展，但 WD-UI 必须同时取得可信的两个扩展，满足
+  `unavailable <= completed` 与 `computable_count = completed - unavailable` 的关系后才可显示时长。
+  `computable_count = 0` 且时长为正属于关系不一致，降为未知；有 completed 但全部不可计算时显示
+  “暂无可用时长”，`computable_count > 0` 且时长为 0 才显示合法 0 秒。WD-UI 才固定请求 `true`；
+  旧服务忽略参数返回四字段时显示未知。周总仅七个桶信息与关系都完整且严格相加仍为安全整数时显示，
+  任一桶缺失即未知；selected-day 只取所选桶。
+- **查询与交互**：opt-in 后端仍一次有界聚合，只读取
+  `sessions.user_id/status/started_at/ended_at`，不加载实体/正文、不 join、不额外发七次日查询；
+  默认既有 SQL 测试继续禁止 `ended_at`，另用 opt-in PG 用例证明读取它。选择、刷新、认证 revision、
+  生命周期、query/cache 和历史分页沿用当前 controller；旧响应及已知缺失计数的显示语义不变。
+- **主控机器核验**：本卡三测试树与 13 项门禁全部 `exit 0`。Vitest `1270 passed / 58 files /
+0 skip`；E2E 共 `272` 例，Chromium `136`、WebKit `136`，每例恰一个 passed result，retry/skip/
+  flaky/unexpected 均为 `0`；backend `1044 passed / 3 warnings / 0 skip / raw coverage
+81.84461985874533%`；build `47`、Fake API `116`、API `8`、iOS 仅 Node `37`；lint 为
+  `132 warnings / 0 errors / 0 new`，逐 file/message/rule 多重集与基线一致。717 个保护文件字节
+  未变，18 个旧迁移未变。本批合成 PG 新库创建与迁移成功，按计划保留给 WD-API/WD-UI，尚未清理。
+  以上均由主控实跑；实施节点没有自跑这些检查，二者不混写。
+- **三卡状态**：本卡设计合同 `FINAL_READY`，正式返修 `0/2`，已停写；WD-API 先合成 PG RED，再实现
+  opt-in 聚合/schema/OpenAPI/生成类型/parser；WD-UI 先 RED，再请求 flag、完成显示和真实
+  Chromium/WebKit 用例。`ended_at` 缺失或早于 start 的 completed 会话另计不可计算；只有不可计算
+  记录显示“暂无可用时长”，无会话与可计算会话中的合法零时长显示 0；时长为正但可计算会话数为 0
+  时按关系不一致显示未知。时长父项、整个周报、三端交付和真实学习质量均不提前勾选。
+  Review/commit/push 见主控同卡回执，用户 Review 待，当前不自批 APPROVED。
+
+以下 CP04E 等小节是各自时点的历史快照，数字、HEAD、资源状态和结论均不并入本设计卡。
+
+### CP04E 认证退出与活动 Room 组合补验（2026-11-15 历史快照；`FINAL_READY`）
 
 - **基线与写集**：唯一工作树为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，
   分支 `codex/B1-learning-events-20261112`，冻结 HEAD
