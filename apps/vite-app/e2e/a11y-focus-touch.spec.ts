@@ -14,10 +14,21 @@ async function openDashboard(page: Page) {
   await page.route("**/api/sessions/active*", (route) =>
     route.fulfill({ json: { items: [ACTIVE_SESSION], next_cursor: null } }),
   );
+  // 在导航前注册每周概览的真实成功响应等待：该区块是键盘遍历第 6 个及之后的唯一
+  // 可聚焦控件来源，且其 GET 的合法响应窗口（产品默认 10s）可能长于按钮可见等待的
+  // 默认 5s。先等响应到达，再等 UI 就绪，避免把缺前提窗口转移到 UI 断言上导致超时。
+  const weeklyResponse = page.waitForResponse(
+    (resp) =>
+      resp.request().method() === "GET" &&
+      new URL(resp.url()).pathname === "/api/sessions/weekly-progress" &&
+      resp.status() === 200,
+  );
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
   await expect(page.getByRole("button", { name: /进入练习/ }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "恢复练习" })).toBeVisible();
+  await weeklyResponse;
+  await expect(page.getByRole("button", { name: /已完成会话 \d+ 次/ }).first()).toBeVisible();
 }
 
 /** 读取当前焦点元素的名称，以及它是否有非透明的 outline 或 ring。 */
