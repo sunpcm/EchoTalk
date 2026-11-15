@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth";
 import { createLifecycleAdapter, type WebLifecycleEvent } from "@/platform";
 import { useConversationStore } from "@/store/conversation";
+import { isStartingConversationSession } from "@/store/conversationState";
 import type { ActiveSessionList } from "./useActiveSessionList";
 import type { SessionEndFlow } from "./useSessionEndFlow";
 import type { SessionResumeFlow } from "./useSessionResumeFlow";
@@ -34,7 +35,6 @@ export interface ActiveSessionsLifecycle {
 export function useActiveSessionsLifecycle(
   runtimeRef: RefObject<ActiveSessionsRuntime>,
   flows: LifecycleFlows,
-  isStarting: boolean,
 ): ActiveSessionsLifecycle {
   const [snapshot, setSnapshot] = useState<AuthSnapshot>(() => getAuthSnapshot());
   const activePrincipalRef = useRef<AuthPrincipal | null>(snapshot.principal);
@@ -43,10 +43,6 @@ export function useActiveSessionsLifecycle(
   // 订阅只建立一次；回调通过 ref 调用各流程最新的函数（它们只读写 ref 与 setState）。
   const flowsRef = useRef<LifecycleFlows>(flows);
   flowsRef.current = flows;
-
-  // 既有行为：生命周期事件里的“启动在途”判断取自挂载时的渲染值，订阅期间不更新。
-  // 这里按原样保留，不在重构中改变；列表刷新自身会读取 store 的实时启动状态。
-  const isStartingAtMountRef = useRef<boolean>(isStarting);
 
   useEffect(() => {
     const runtime = runtimeRef.current;
@@ -79,8 +75,12 @@ export function useActiveSessionsLifecycle(
         resume.releaseInFlight();
       }
 
-      // 结束在途或启动/恢复在途暂停列表刷新且不排队
-      if (runtime.endInFlight || runtime.resumeInFlight || isStartingAtMountRef.current) {
+      // 事件到达时从同一 conversation store 读取实时启动状态；不请求、不排队。
+      if (
+        runtime.endInFlight ||
+        runtime.resumeInFlight ||
+        isStartingConversationSession(useConversationStore.getState())
+      ) {
         return;
       }
 

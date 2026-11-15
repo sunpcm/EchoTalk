@@ -1,12 +1,13 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前文档卡 DEC-A（R2 与 SGEC 推荐 A）正式设计返修 1/2 为
-> `FINAL_READY`。主控 12 项与 format 合计 13 项全部 `exit 0`；独立 Review、提交发布以主控回执为准，
-> 三张实施卡仍未完成；此前
-> RDOC（路线图历史快照口径修正）与产品卡 A18P2（启动/恢复生命周期减重与实例隔离）均为
-> `FINAL_READY`：
-> 产品已移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入
-> `_setLifecycleOptionsForTesting`，start/resume 复用实例内公共 `runStartupLifecycle`，新增跨实例隔离回归并迁移两旧测试文件到局部 platform mock；13 项门禁组合全 `exit 0`，完整 Vitest `1216 passed / 50 files / 0 skip`，完整双浏览器 E2E `248 = Chromium 124 + WebKit 124`，backend `941 passed / 3 warnings / 0 skip`，三项有效私有行为变异均被对应断言杀死，详细数字与 TDD/R1 历史见下方 A18P2 小节。A19 P2、A82C、A84C、CF20、RF04E 与 WG20 均绑定各自时点的历史快照；其测试数字、失败记录和 Review/提交状态不能转作 A18P2 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立 WPH 的数字同样绑定各自当时快照。最终文档 format、独立 Review、提交和当前任务分支推送见主控同卡回执；用户 Review 待。
+> 最后核对：2026-11-15。当前卡片为 **R2-LIVE 活动会话生命周期实时门禁（FINAL_READY，本地实现）**：
+> 生命周期事件现从同一 conversation store 实时读取当前启动状态，本轮最小实现与主控新鲜 13 门禁已
+> 完成，详细数字与边界见下方 R2-LIVE 小节。独立技术 Review、最终文档 format、提交和推送以主控同卡
+> 回执为准；用户 Review 待。R2-UI 与 SGEC-OFF 仍未实施，合成 PG 继续由本批独占并留待后两卡，尚未清理。
+> 此前 DEC-A 设计回写、RDOC、A18P2、A19 P2、A82C、A84C、CF20、RF04E、WG20、R2-12/13/14、A6 与 B1
+> 均绑定各自历史快照；其“最近产品”“当前数字”“当前停点”只描述当时状态，不能转作 R2-LIVE 当前结果。
+> 本轮 GO 只授权本地实现，生产、真实 Provider/IdP/LiveKit、设备与部署从未获 GO 或完成验收。
+> requested model 为 `workbuddy/deepseek-v4.1-flash`；工具请求和真实读写成功，实际后端身份未独立认证。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
@@ -35,8 +36,40 @@
 
 ## 当前验证基线
 
+### R2-LIVE 活动会话生命周期实时门禁（FINAL_READY）
+
+- 唯一 W 为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，本卡基线 HEAD
+  `f3fced9b10955a1285498b1315254917b3ff7048`。本轮仅触及生命周期 hook、`ActiveSessions` 调用点、
+  新增黑盒测试及四份状态/合同文档；data/auth/store/platform 与旧测试未改。
+- 主控已取得 TDD 证据：默认入口新 3 用例为 `2 failed / 1 passed / exit 1`，两个正向均缺服务端
+  DOM 行；私有只替换事件门禁为实时 predicate 后为 `3 passed / exit 0`；再恢复默认入口仍为
+  `2 failed / 1 passed / exit 1`。该过程两生产文件、687 个保护源文件与新增测试字节保持不变。
+- GO 后最小实现仅在生命周期事件发生时从同一 conversation store 调用 `getState()`，并复用
+  `isStartingConversationSession`；没有新增重新订阅、render-ref 或第二份会话状态。新增测试的
+  `startSession()` 同步调用已放入 `act`，不 await 尚未释放的启动 Promise。修正后新 3 测试为
+  `3 passed / exit 0` 且无 `act` 警告；冻结 RED 的全部 26 个 `expect` 经 AST 核验保持。
+- 两项有效私有变异均未改跟踪源：挂载快照与 render 快照各使两个正向 DOM 断言失败、反向用例通过，
+  两次均为 `2 failed / 1 passed / exit 1`。这证明目标行为由事件时实时 store/predicate 提供。
+- 主控本轮新鲜 13 门禁全部 `exit 0`。Vitest 为 `1219 passed / 51 files / 0 skip`；旧
+  `50 files / 1216 tests` 身份全部保持。完整 E2E 为
+  `248 = Chromium 124 + WebKit 124`，每例恰有一个 passed result、`retry 0`，且
+  `skip / flaky / unexpected` 均为 `0`。
+- backend 为 `941 passed / 3 warnings / 0 skip`，raw coverage 为 `81.55505107832009%`；
+  build-script `47`、Fake API `116`、API 类型 runner `8` 均通过，iOS 仅 Node `37 / exit 0`。
+- lint 为 `132 warning / 0 error / 0 new`；file/message/rule 多重集与冻结基线完全一致，
+  687 个保护文件保持不变。三代码/测试文件已冻结，本轮文档收口未再改动。
+- 本地实现与门禁已收口，但独立技术 Review、最终文档 format、正常 Husky、提交/推送仍以主控同卡
+  回执为准；不能自行写成 APPROVED。用户 Review 待。生产、真实 Provider/IdP/LiveKit、设备、
+  部署和真实链路均未授权或验收。
+- R2-UI 与 SGEC-OFF 仍未实施，不能提前勾选；本批独占合成 PG 留待后两卡使用且尚未清理。正式返修
+  仍为 `0/2`。
+
 ### DEC-A R2 与 SGEC 设计口径回写（FINAL_READY）
 
+- 本小节是 2026-11-15 的历史快照，`FINAL_READY` 绑定 DEC-A 设计回写时点；以下“当前快照”
+  “当前等待点”和全部数字均只描述当时状态，不表示 R2-LIVE 实施结果。R2-LIVE 当前完成情况以
+  上方小节为准。
 - 用户已确认 R2 与 SGEC 均采用推荐 A；本卡只把决定写回权威文档并更新索引、TODO 与历史，不改
   产品代码、测试、API、数据库、迁移、依赖、CI 或服务。唯一实施 worktree 为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，基线
@@ -52,25 +85,26 @@
 - 本实施节点只改设计/状态文档，未运行测试、服务、PG 或真实外部依赖，新代码门禁为零；主控在独立
   控制面完成前端 `7` 项、后端 `5` 项及附加脚本的机器执行，全部 `exit 0`，其中 iOS 侧 Node 脚本
   `37` 项 `exit 0`。主控 12 项与 format 合计 13 项全部 `exit 0`；独立 Review、提交发布以主控回执为准。
-- 当前快照 Vitest 为 `1216 passed / 50 files / 0 skip`；完整 E2E 为
+- DEC-A 当时快照 Vitest 为 `1216 passed / 50 files / 0 skip`；完整 E2E 为
   `248 = Chromium 124 + WebKit 124`，每例恰有一个 passed result、`retry 0`，
   `skip / flaky / unexpected` 均为 `0`。
 - backend 为 `941 passed / 3 warnings / 0 skip`，raw coverage 为 `81.55505107832009%`；
   build-script `47`、Fake API `116`、API 类型 runner `8` 均通过。
 - lint 为 `132 warning / 0 error / 0 new`；主控机器复核 file/message/rule 多重集与上一冻结基线完全
   一致，687 个保护源文件未变。
-- R2-LIVE、R2-UI 与 SGEC-OFF 三张实施卡仍未实施，对应行为 RED、实现、完整代码门禁和针对性变异
-  均未完成；设计卡通过不代表目标行为已完成。
-- 独立 Review、当前任务分支提交与推送以同卡主控回执为准；用户 Review 待。
+- DEC-A 写入时 R2-LIVE、R2-UI 与 SGEC-OFF 三张实施卡均未实施；该未实施状态是 DEC-A 历史停点。
+  R2-LIVE 的后续 FINAL_READY 见上方当前小节，当时并不代表其产品行为已经完成。
+- DEC-A 独立 Review、当时任务分支提交与推送以该卡主控回执为准；用户 Review 待。
   本卡不开 PR、不合并、不部署，真实 Provider/IdP/LiveKit、设备与生产仍未验。
 
 ### RDOC 路线图历史快照口径修正（FINAL_READY）
 
-- 本卡只修正路线图中的历史时点标签与当前验证索引：R2-14 的 `941 / 81.57% / 246` 等数字继续绑定
-  其历史快照，B1/WPH 的失败和证据不改；§3.4 与 B1 实施顺序的当前实现/验证统一指向本节最新的
-  A18P2 小节。
-- 旧“停在此卡、不启动下一卡”明确为历史暂停边界；后续已按用户授权继续多卡工作，当前下一卡和
-  未完成项以 [TODO.md](../TODO.md) 为准。路线图架构、业务政策、范围与阶段退出条件均未改变。
+- 本小节是 2026-11-15 的历史快照，`FINAL_READY` 绑定 RDOC 当时完成时点。R2-14 的
+  `941 / 81.57% / 246` 等数字继续绑定各自历史快照，
+  B1/WPH 的失败和证据不改；RDOC 当时把 §3.4 与 B1 实施顺序的实现/验证索引指向当时的 A18P2，
+  这不表示当前 R2-LIVE 结果。
+- 旧“停在此卡、不启动下一卡”明确为历史暂停边界；RDOC 之后的下一卡和未完成项以其当时
+  [TODO.md](../TODO.md) 为准。路线图架构、业务政策、范围与阶段退出条件均未改变。
 - 主控完整机器核验的 13 项门禁全部 `exit 0`；Vitest 为 `1216 passed / 50 files / 0 skip`。完整
   双浏览器 E2E 为 `248 = Chromium 124 + WebKit 124`，每项恰有一个 passed result，
   `retry / skip / flaky / unexpected` 均为 `0`。
@@ -85,12 +119,15 @@
   容器名分别 inspect 均为 `1 / [] / no such object`。独立 `docker ps` 的精确 ID 列表为空且命令
   `exit 0`，新的只读确认命令 `exit 0`，`pg-cleanup.json` 已实际落盘，auto-remove 已确认，其它
   资源未动。该 `exit 1` 属私有观察器问题，不是产品回归，仓内源码未为此修改。
-- 本卡为纯文档修改，实施节点不跑测试、服务或 PG，不读取 runtime 或凭据。技术 Review、最终
-  format、正常提交发布以同卡回执为准，用户 Review 待。归档见
+- RDOC 当次为纯文档修改，实施节点不跑测试、服务或 PG，不读取 runtime 或凭据。其技术 Review、
+  最终 format、正常提交发布以该卡回执为准，用户 Review 待。归档见
   [todo-done.md](./history/todo-done.md#2026-11-15-rdoc-路线图历史快照口径修正)。
 
 ### A18P2 启动/恢复生命周期减重与实例隔离（FINAL_READY）
 
+- 本小节是 2026-11-15 的历史快照，`FINAL_READY` 绑定 A18P2 当时完成时点。以下任务分支、
+  “最近产品”、详细数字和边界均为该时点状态，不表示 R2-LIVE 当前结果；R2-LIVE 的当前数字
+  以上方小节为准。
 - 只读基线：唯一实施 worktree 为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
   `codex/B1-learning-events-20261112`，基线 `da185dc095dd85fb3292c35c4e6cc7b9e3297c7c`，
@@ -134,9 +171,11 @@
   旧立即 capabilities 调用断言 fail 1。各命令 `exit 1`，未选 119 项不计覆盖率，跟踪生产文件 hash 未改。
   旧 `610` 条既有 `expect` 语句 AST 保持（conversation `591` / navigation `19`）；`125` 个完整旧 callback
   （conversation `120` / navigation `5`）除 setter 标识符映射与空白注释外 token 一致；`682` 个保护文件未改。
-- 交付边界：A18P2 只进入当前任务分支的最终提交与推送；不开 PR、不合并、不部署。最终文档 format、独立
-  Review、提交和推送以主控同卡回执为准，用户 Review 待。真实设备、真实 LiveKit/Provider/IdP、远端新 CI、
-  部署和生产链路均未验收。旧「不 push/deploy」为 A18 当时时点表述。
+- 交付边界（A18P2 时点）：A18P2 只进入 A18P2 当时任务分支的最终提交与推送；不开 PR、不合并、
+  不部署。
+  其最终文档 format、独立 Review、提交和推送以该卡主控回执为准，用户 Review 待。真实设备、
+  真实 LiveKit/Provider/IdP、远端新 CI、部署和生产链路均未验收。旧「不 push/deploy」为 A18
+  当时时点表述。
 
 ### A19 P2 Room 快照与引用所有权（FINAL_READY）
 

@@ -1,6 +1,6 @@
 # R2 活动会话生命周期与显示合同
 
-> 状态：**DEC-A 设计已确认，实施待开始**。
+> 状态：**DEC-A 设计已确认；R2-LIVE 本地实施 FINAL_READY，R2-UI 尚未实施**。
 > 确认日期：2026-11-15；确认范围：R2 推荐 A 与 SGEC 推荐 A。
 > 设计基线：`codex/B1-learning-events-20261112@0aae655928cf046482627830aee9df6cb7fc1fc1`。
 > 本文件只写已确认合同，不改代码、测试、API、数据库、依赖或服务。
@@ -20,7 +20,9 @@
 第 1 项单独形成 **R2-LIVE** 实施卡，第 2、3 项单独形成 **R2-UI** 实施卡。两卡各自 Review，
 顺序为先 R2-LIVE、后 R2-UI。
 
-## 2. 设计基线下的实现事实
+## 2. 设计基线下的实现事实（历史基线）
+
+以下事实绑定 `0aae6559` 设计基线；R2-LIVE 的最终实施状态以 §5.1 的 FINAL_READY 时点为准。
 
 - `useActiveSessionsLifecycle` 用 `isStartingAtMountRef` 保存挂载时值，订阅期间不更新。
 - 列表请求由 data 层实时读取同一 conversation store 的当前启动状态，并在结束/恢复/启动门禁
@@ -124,6 +126,17 @@ R2-LIVE 不改变：
 预期触及 `useActiveSessionsLifecycle.ts` 及 `ActiveSessions.test.tsx` 或同职责行为测试；实际写集以
 该卡任务说明为准。先写有效 RED，再写最小修复。
 
+当前实施时点为 **FINAL_READY（2026-11-15，本地实现）**。有效 TDD 链
+`2 failed / 1 passed → 3 passed → 2 failed / 1 passed`、修正后的新测试 `3 passed / exit 0`
+且无 `act` 警告，以及两项有效私有变异均由主控新鲜执行。完整数字、保护文件与边界集中于
+[PROJECT_STATUS 的 R2-LIVE 小节](./PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
+本文件不重复。最小实现只在生命周期事件发生时读取同一 conversation store，并复用
+`isStartingConversationSession`；未改 data/auth/store/platform 或新增订阅。
+
+本轮 GO 只指本地实现与门禁；生产、真实 Provider/IdP/LiveKit、设备与部署从未获授权。独立技术
+Review、最终文档 format、提交和推送以主控同卡回执为准；用户 Review 待。本状态不能自行写成
+APPROVED 或已获用户批准。
+
 两个生命周期事件各自至少验证：
 
 1. 挂载时启动在途，随后空闲；事件到达后发生一次真实可观察的 HTTP GET，页面出现对应服务端行。
@@ -146,8 +159,9 @@ R2-LIVE 不改变：
 - 稳定 `data-testid` 仍可精确定位原记录；
 - 确认、取消、失败、重试、busy、互锁和目标归属断言不削减。
 
-两卡均先取得有效 RED，再最小实现，并由主控执行当前完整三测试树和门禁；针对性变异必须证明
-旧挂载快照、确认面板 UUID 泄漏或目标归属回归会被杀死。未执行的门禁不得写成通过。
+R2-LIVE 已按“先有效 RED、再最小实现、主控执行完整三测试树与门禁、私有变异”完成本地合同。
+R2-UI 尚未实施，仍须先取得有效 RED；其针对性变异必须证明确认面板 UUID 泄漏或目标归属回归会被
+杀死。未执行的门禁不得写成通过。
 
 ## 6. 非目标
 

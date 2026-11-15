@@ -6,6 +6,22 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 R2-LIVE 活动会话生命周期实时门禁
+
+- [x] **R2-LIVE 活动会话生命周期实时门禁（FINAL_READY，本地实现）**：生命周期事件现从同一
+      conversation store 实时读取启动状态并复用 `isStartingConversationSession`，移除了挂载快照
+      门禁与 hook 多余参数；未改 data/auth/store/platform 或旧测试。有效 TDD 链
+      `2 failed / 1 passed → 3 passed → 2 failed / 1 passed` 保留；`act` 安排修正后新 3 测试
+      `3 passed / exit 0` 且无警告，冻结 RED 的全部 26 个 `expect` 经 AST 核验保持。挂载快照与
+      render 快照两项私有变异均使两正向 DOM 失败、反向通过并 `exit 1`，未改跟踪源。
+      主控新鲜 13 门禁全部 `exit 0`；完整数字、保护文件与边界集中在
+      [PROJECT_STATUS 的 R2-LIVE 小节](../PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
+      本归档不重复抄录。
+      本轮 GO 只授权本地实现；生产、真实 Provider/IdP/LiveKit、设备与部署从未验收。独立技术
+      Review、最终文档 format、正常 Husky、提交和推送以主控同卡回执为准，用户 Review 待，不能
+      自行写成 APPROVED。R2-UI 与 SGEC-OFF 仍未实施；本批独占合成 PG 留待后两卡且尚未清理。
+      正式返修为 `0/2`。
+
 ## 2026-11-15 DEC-A R2 与 SGEC 设计口径回写
 
 - [x] **DEC-A 设计确认回写与正式返修 1/2（FINAL_READY）**：按用户已确认的 R2 与 SGEC 推荐 A，新增
@@ -20,19 +36,20 @@
       本归档不重复抄录。
       本卡为纯文档修改，没有改代码、测试、API、数据库、迁移、依赖或 CI；实施节点不跑测试、服务、
       PG 或真实外部依赖，只允许对精确六文档执行现有 Prettier。最终 13 组合（含 format）、独立
-      Review、当前任务分支提交发布与用户 Review 状态以主控同卡回执为准；R2-LIVE、R2-UI 和
-      SGEC-OFF 三张实施卡仍未完成。
+      Review、DEC-A 当时任务分支提交发布与用户 Review 状态以该卡主控同卡回执为准。DEC-A 写入时
+      R2-LIVE、R2-UI 和 SGEC-OFF 三张实施卡均未完成；R2-LIVE 后续已另行完成，R2-UI 和
+      SGEC-OFF 仍未完成。
 
 ## 2026-11-15 RDOC 路线图历史快照口径修正
 
-- [x] **RDOC 路线图历史快照口径修正（FINAL_READY）**：只修正
-      [架构演进规划](../ARCHITECTURE_ROADMAP.md) §3.4 与 B1 实施顺序中的三处时点标签、当前验证
-      索引和旧暂停边界。R2-14 的 `941 / 81.57% / 246` 等历史数字，B1/WPH 的失败与证据，
-      A18P2 细节，路线图架构、业务政策、范围及阶段退出条件均保持原样。当前实现/验证指向
+- [x] **RDOC 路线图历史快照口径修正（FINAL_READY）**：RDOC 当时只修正
+      [架构演进规划](../ARCHITECTURE_ROADMAP.md) §3.4 与 B1 实施顺序中的三处时点标签、当时的
+      验证索引和旧暂停边界。R2-14 的 `941 / 81.57% / 246` 等历史数字，B1/WPH 的失败与证据，
+      A18P2 细节，路线图架构、业务政策、范围及阶段退出条件均保持原样。RDOC 当时实现/验证指向
       [PROJECT_STATUS 的当前验证基线](../PROJECT_STATUS.md#当前验证基线)；旧“停在此卡、不启动
-      下一卡”注明为历史暂停，后续下一卡以用户最新授权与 [TODO.md](../../TODO.md) 为准。
+      下一卡”注明为历史暂停，RDOC 之后下一卡以其后用户授权与 [TODO.md](../../TODO.md) 为准。
       本卡为纯文档修改，实施节点未跑测试、服务或 PG，未读取 runtime 或凭据。完整机器门禁数字、
-      技术 Review、最终 format、当前任务分支提交发布与用户 Review 状态见
+      技术 Review、最终 format、RDOC 当时任务分支提交发布与用户 Review 状态见
       [PROJECT_STATUS 的 RDOC 小节](../PROJECT_STATUS.md#rdoc-路线图历史快照口径修正final_ready)。
       本归档不复制细数字。
 
@@ -46,11 +63,11 @@
       `conversationLifecycleIsolation.test.ts` 覆盖 start/start、start/resume、resume/start、
       resume/resume 与 cancel/late 跨实例隔离，两旧测试文件迁移到局部 platform mock。最终 13 项门禁
       组合均 `exit 0`，Vitest `1216 passed / 50 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。
-      详细当前数字、TDD/R1 历史与证据边界见
+      A18P2 当时详细数字、TDD/R1 历史与证据边界见
       [PROJECT_STATUS 的 A18P2 小节](../PROJECT_STATUS.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)和
       [CP-05 原生启动与显式恢复](../../docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)。
-      最终文档 format、独立 Review、当前任务分支提交和推送以主控同卡回执为准，用户 Review 待；
-      不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
+      A18P2 当时最终文档 format、独立 Review、当时任务分支提交和推送以该卡主控同卡回执为准，
+      用户 Review 待；不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
 
 ## 2026-11-15 A19 P2 Room 快照与引用所有权
 

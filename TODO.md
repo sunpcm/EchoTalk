@@ -4,25 +4,37 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **A18P2 最近产品卡（2026-11-15，FINAL_READY 并归档）：** 启动/恢复生命周期减重与实例隔离已完成；
+> **R2-LIVE 活动会话生命周期实时门禁（2026-11-15，FINAL_READY 并归档）：** 生命周期事件现从同一
+> conversation store 实时读取当前启动状态，复用 `isStartingConversationSession`；本轮 GO 仅指本地实现，
+> 本地实现与主控新鲜门禁已完成。完整数字、变异和边界集中在
+> [PROJECT_STATUS 的 R2-LIVE 小节](./docs/PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
+> 归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-live-活动会话生命周期实时门禁)。
+> 独立技术 Review、最终文档 format、提交和推送以主控同卡回执为准；用户 Review 待。生产、真实
+> Provider/IdP/LiveKit、设备与部署从未获本轮 GO 授权。R2-UI 与 SGEC-OFF 仍未实施；合成 PG 继续由
+> 本批独占，留待后两卡使用且尚未清理。
+
+> **A18P2 历史快照（2026-11-15，当时 FINAL_READY 并归档）：** 启动/恢复生命周期减重与实例隔离已完成；
 > 移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入 setter，start/resume
 > 复用实例内公共 `runStartupLifecycle`，新增跨实例隔离回归；R1 恢复 Web 同步 setup + 仅 native 等待
 > ready、并修新 fixture 类型后，13 项门禁组合均 `exit 0`，Vitest `1216 passed / 50 files / 0 skip`，
-> 三项有效私有行为变异均被对应断言杀死。详细当前数字、TDD/R1 历史与边界集中在 PROJECT_STATUS，归档见
+> 三项有效私有行为变异均被对应断言杀死。这里的“最近产品”与 A18P2 当时详细数字只绑定 A18P2
+> 当时快照，不表示 R2-LIVE 当前结果；当次数字、TDD/R1 历史与边界集中在 PROJECT_STATUS，归档见
 > 已完成事项。A19 P2、A82C、A84C、CF20、RF04E 与 WG20 的数字、失败和 Review 状态继续绑定各自时点；
 > A82 旧完整失败因果仍未证明。
 > 详见
 > [PROJECT_STATUS 的 A18P2 小节](./docs/PROJECT_STATUS.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)与
 > [已完成事项归档](./docs/history/todo-done.md#2026-11-15-a18p2-启动恢复生命周期减重与实例隔离)。
-> 最终文档 format、独立 Review、当前任务分支提交和推送以主控同卡回执为准；用户 Review 待。
+> A18P2 当时最终文档 format、独立 Review、当时任务分支提交和推送以该卡主控同卡回执为准；
+> 用户 Review 待。
 > 本卡不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
 
-> **RDOC 路线图历史快照口径修正（2026-11-15，FINAL_READY 并归档）：** 仅修正
-> `ARCHITECTURE_ROADMAP.md` §3.4 与 B1 实施顺序中的历史时点、当前验证索引和旧暂停边界；
+> **RDOC 路线图历史快照口径修正（2026-11-15，当时 FINAL_READY 并归档）：** RDOC 当时仅修正
+> `ARCHITECTURE_ROADMAP.md` §3.4 与 B1 实施顺序中的历史时点、当时的验证索引和旧暂停边界；
 > R2-14 的 `941 / 81.57% / 246` 等数字、B1/WPH 失败与证据、路线图架构和产品范围均保持原样。
-> 当前实现/验证统一指向 [PROJECT_STATUS 的当前验证基线](./docs/PROJECT_STATUS.md#当前验证基线)，
-> 下一卡以用户最新授权和本文件当前未完成事项为准。完整机器门禁数字、技术 Review、最终 format、
-> 当前任务分支提交发布与用户 Review 状态见
+> RDOC 当时把实现/验证索引统一指向
+> [PROJECT_STATUS 的当前验证基线](./docs/PROJECT_STATUS.md#当前验证基线)；RDOC 之后的下一卡以用户
+> 最新授权和本文件当前未完成事项为准。RDOC 当时完整机器门禁数字、技术 Review、最终 format、
+> 当时任务分支提交发布与用户 Review 状态见
 > [PROJECT_STATUS 的 RDOC 小节](./docs/PROJECT_STATUS.md#rdoc-路线图历史快照口径修正final_ready)；
 > 本文不复制细数字。归档见
 > [已完成事项](./docs/history/todo-done.md#2026-11-15-rdoc-路线图历史快照口径修正)。
@@ -32,11 +44,6 @@
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，
 证据见该报告 §3.1～§3.4；以下为剩余项，括号内编号对应报告中的发现。
 
-- [ ] **R2-LIVE 活动会话生命周期实时门禁**（已确认 A，待实现）：先写行为 RED，证明挂载时启动在途、
-      随后空闲时，`resume` 与 `connectivity` 都能触发一次真实只读列表查询并呈现服务端当前行；反向
-      空闲→在途必须在事件时拒绝且不排队，启动/结束/恢复退出在途后也不自动补发，下一次独立资格事件
-      才可查询。保留认证 principal/revision、hidden/offline、晚到请求、分页、tombstone、卸载/
-      StrictMode 与写槽位归属。合同见 [R2_FOLLOWUP_CONTRACT](./docs/R2_FOLLOWUP_CONTRACT.md)。
 - [ ] **R2-UI 设置标题与活动记录去 UUID**（已确认 A，待实现）：共享设置入口与 dialog 名称改为
       “设置”；活动行及展开的结束/恢复确认面板用现有模式 + 开始时间明确目标，用户可见正文、`title`
       与最终计算的可访问名称均不出现完整 UUID。完整 ID 只保留内部 key、稳定 `data-testid` 和 API/目标归属；

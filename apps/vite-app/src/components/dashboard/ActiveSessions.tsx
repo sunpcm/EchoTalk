@@ -37,11 +37,11 @@ export function ActiveSessions() {
   const list = useActiveSessionList(runtimeRef);
   const end = useSessionEndFlow(runtimeRef, list, isStarting);
   const resume = useSessionResumeFlow(runtimeRef, list, isStarting);
-  const { snapshot, activeRevision } = useActiveSessionsLifecycle(
-    runtimeRef,
-    { list, end, resume },
-    isStarting,
-  );
+  const { snapshot, activeRevision } = useActiveSessionsLifecycle(runtimeRef, {
+    list,
+    end,
+    resume,
+  });
 
   // 未认证状态（loading/anonymous/misconfigured）不渲染活动记录
   if (snapshot.state !== "authenticated" || !snapshot.principal) {
