@@ -275,19 +275,25 @@ async def get_daily_progress(
     )
 
 
-@router.get("/sessions/weekly-progress", response_model=WeeklyProgressResponse)
+@router.get(
+    "/sessions/weekly-progress",
+    response_model=WeeklyProgressResponse,
+    response_model_exclude_none=True,
+)
 async def get_weekly_progress(
     end_date: str = Query(..., pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"),
     timezone: str = Query(..., min_length=1, max_length=128),
+    include_recorded_duration: bool = Query(False),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """返回截至 end_date 的七个本地自然日已完成会话数，含零桶。"""
+    """返回七个本地自然日已完成会话数，并可按显式请求聚合时长。"""
     return await query_weekly_progress(
         db,
         user_id=current_user.id,
         end_date=end_date,
         timezone_name=timezone,
+        include_recorded_duration=include_recorded_duration,
     )
 
 

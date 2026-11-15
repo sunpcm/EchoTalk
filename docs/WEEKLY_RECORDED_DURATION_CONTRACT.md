@@ -1,6 +1,6 @@
 # 周报“已记录会话时长”合同
 
-> 状态：**设计合同 FINAL_READY；WD-API 与 WD-UI 尚未实施**。
+> 状态：**WD-DESIGN 历史快照 `APPROVED`@`9d3ab32`；WD-API `FINAL_READY`；WD-UI 尚未实施**。
 > 用户确认：2026-11-15，选择完整方案 A。
 > 设计基线：`codex/B1-learning-events-20261112@caa409a9f36f8e4b28c221800930c1f3ec94cef2`。
 > 本文是设计卡 WD-DESIGN 的唯一新增合同；后端聚合、OpenAPI/类型和前端显示分别由后续两张卡实施。
@@ -160,16 +160,27 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
 
 ### WD-DESIGN：本设计卡
 
-- 状态：设计合同 `FINAL_READY`，待主控独立 Review；不是 API/UI 实施完成。
+- 状态：原时点为设计合同 `FINAL_READY`、待主控独立 Review；随后独立 Review `APPROVED` 并随
+  `9d3ab32` 推送。本节作为历史快照保留，不是 API/UI 实施完成。
 - 交付：本文及 `TODO.md`、`docs/PROJECT_STATUS.md`、`docs/history/todo-done.md` 的状态说明。
 - 验收：产品口径、兼容策略、查询边界、前端未知/缺失语义和三卡测试范围无冲突；实施节点不运行
   测试、服务或数据库检查。
 
 ### WD-API：后端聚合与兼容契约
 
-先得到真实合成 PostgreSQL 上的有效 RED，再实现 opt-in 聚合、schema、OpenAPI、前端生成类型以及
-`parseWeeklyProgressResponse` 的兼容扩展。主控统一运行全部 backend/格式/schema/类型门禁，并保留
-实施方未自跑的边界。
+当前状态为 `FINAL_READY`。实现锚点为 `backend/schemas/session.py` 的两个 optional/nullable
+字段、`backend/services/session_queries.py` 的显式 opt-in 单次有界聚合、
+`backend/routers/sessions.py` 的本路由 flag/`exclude_none`，以及
+`apps/vite-app/src/lib/api.ts` 的 weekly parser 白名单扩展。主控已原生生成 OpenAPI/types，
+最终 13 项机器门禁全部 `exit 0`；R1 首轮 TS `unknown` 收窄问题通过 const 原始值捕获修正，
+随后 quality、完整 Vitest 与全量 E2E 均复跑通过。正式返修 `1/2`、TDD 中间修正 `1`，
+详细数字、负向变异、AST/保护和编排诊断只集中在
+[PROJECT_STATUS 的 WD-API 小节](./PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)。
+本阶段 `getWeeklyProgress` 仍不发送 flag，WD-UI 尚未实施。
+
+本卡已按“真实合成 PostgreSQL RED → opt-in 聚合/schema/生成类型/parser 兼容扩展 → 完整门禁”
+的顺序完成。实施节点仍不把主控实跑写成自身验证；最终格式、Review、正常 commit/当前分支 push
+以主控同卡回执为准，用户 Review 待。
 
 至少覆盖：
 
@@ -185,6 +196,9 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
   额外七次查询，并以新增 PG 断言证明实际读取 `ended_at`；
 - opt-in 的每个桶始终给出两个非负数值；parser 保留白名单扩展，未知 key 仍拒绝，扩展缺失/null/
   非法时仅降级未知；WD-API 的 `getWeeklyProgress` 尚不请求该能力。
+
+以上验收目标最终均由主控机器回执覆盖；产品、测试与生成文件已停写，时长父项仍因 WD-UI 未实施
+而保持未勾。本批合成 PG 继续活动供 WD-UI 使用，尚未清理。
 
 ### WD-UI：前端显示与真实浏览器
 

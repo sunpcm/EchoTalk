@@ -2173,7 +2173,7 @@
         "type": "object"
       },
       "WeeklyProgressDay": {
-        "description": "一个本地自然日对应的 UTC 半开窗口及已完成会话数。",
+        "description": "一个本地自然日对应的 UTC 半开窗口及可选的已记录会话时长。",
         "properties": {
           "completed_sessions": {
             "minimum": 0.0,
@@ -2185,10 +2185,34 @@
             "title": "Date",
             "type": "string"
           },
+          "duration_unavailable_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Unavailable Count"
+          },
           "end": {
             "format": "date-time",
             "title": "End",
             "type": "string"
+          },
+          "recorded_duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded Duration Ms"
           },
           "start": {
             "format": "date-time",
@@ -3182,7 +3206,7 @@
     },
     "/api/sessions/weekly-progress": {
       "get": {
-        "description": "返回截至 end_date 的七个本地自然日已完成会话数，含零桶。",
+        "description": "返回七个本地自然日已完成会话数，并可按显式请求聚合时长。",
         "operationId": "get_weekly_progress_api_sessions_weekly_progress_get",
         "parameters": [
           {
@@ -3204,6 +3228,16 @@
               "minLength": 1,
               "title": "Timezone",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_recorded_duration",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Recorded Duration",
+              "type": "boolean"
             }
           },
           {

@@ -6,9 +6,35 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
-## 2026-11-15 WD-DESIGN 周报“已记录会话时长”设计合同（设计 FINAL_READY；API/UI 未实施）
+## 2026-11-16 WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析（FINAL_READY）
 
-- **状态：设计合同 `FINAL_READY`，正式返修 `0/2`，已停写**：唯一工作树为
+- **状态：`FINAL_READY`，正式返修 `1/2`，TDD 中间修正 `1`**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `9d3ab32da3469d87b29340d35106cfa0cd126128`。本轮从主控提供的真实 RED 继续；PG 目标文件为
+  `35 pass / 10 fail`，新 frontend 文件为 `7 pass / 15 fail`，失败均命中尚未实现的目标行为。
+  中间修正只纠正两个测试 oracle，分别绑定逐条 floor 后的 `2ms` 与 Singapore 跨午夜开始日。
+- **实现锚点**：`backend/schemas/session.py` 为日桶增加两个 optional/nullable 非负整数字段；
+  `backend/services/session_queries.py` 仅在显式 opt-in 时增加一次有界三聚合 SQL；
+  `backend/routers/sessions.py` 仅本路由接收 flag 并排除默认 null；`apps/vite-app/src/lib/api.ts`
+  只在 weekly parser 中接受两个明确扩展键，非法关系同时降级未知。
+- **兼容与请求边界**：省略/false 仍返回顶层及日桶旧形状，SQL 不读取 `ended_at`；true 的七个
+  固定桶显式返回 `0/0` 或整数聚合。单条合法时长先 floor 到毫秒再求和，缺失/负结束只增加不可计算
+  计数。`getWeeklyProgress` 仍不发送 `include_recorded_duration`，WD-UI 尚未实施。
+- **R1 与最终验收**：首轮 quality 的 5 个不同 TS `unknown` 收窄诊断为 `exit 2`，build 重复同一组
+  问题；R1 以两个 const 原始值捕获和现有类型守卫修正后，quality、完整 Vitest 与全量 E2E 均
+  重新执行并 `exit 0`。主控最终 13 项门禁全部 `exit 0`，OpenAPI/types 已原生生成，新目标
+  PG/前端/独立混合 PG 验证为 GREEN；三个私有加载变异均被原具体断言杀死。完整数字和保护、
+  AST、编排诊断记录只集中在
+  [PROJECT_STATUS 的 WD-API 小节](../PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)，
+  不在此重复或改写原始证据。
+- **终态边界**：实施节点没有自跑测试、服务、数据库、构建或生成。最终格式、Review、正常
+  commit/当前分支 push 以主控同卡回执为准，用户 Review 待，本文件不自批 APPROVED；真实外部
+  链路未验收。本批合成 PG 仍活动供 WD-UI 验证，尚未清理。时长父项仍不勾，WD-UI 未实施。
+
+## 2026-11-15 WD-DESIGN 周报“已记录会话时长”设计合同（历史快照；后续 APPROVED@9d3ab32）
+
+- **状态：原时点设计合同 `FINAL_READY`，正式返修 `0/2`，已停写**：唯一工作树为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
   `codex/B1-learning-events-20261112`，冻结 HEAD
   `caa409a9f36f8e4b28c221800930c1f3ec94cef2`，开工 clean。用户已确认业务方案 A，不再等待时长
@@ -37,10 +63,9 @@
   PG 保留状态只集中在
   [PROJECT_STATUS](../PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
   WD-API 与 WD-UI 仍未实施，时长父项、完整周报、三端和真实学习质量均不提前勾选。
-- **后续三卡**：WD-API 先补合成 PG RED，再实现 opt-in 单次有界七桶聚合、schema、OpenAPI、生成
-  类型及 parser 兼容；WD-UI 先补 RED，再固定请求 flag，完成旧 API/缺失状态、精确总和、安全整数、
-  刷新隔离和真实双浏览器显示。Review/commit/push 由主控同卡回执处理，用户 Review 待，本归档不写
-  APPROVED。
+- **后续三卡**：WD-API 随后已完成并进入 `FINAL_READY`，当前状态见上方本文件新条目；WD-UI 仍未实施。
+  WD-DESIGN 的后续独立 Review 已 `APPROVED`，并随 `9d3ab32` 推送；上方旧条目中的等待状态只描述
+  原时点，当前以本说明和 PROJECT_STATUS 为准。
   合同全文见[周报“已记录会话时长”合同](../WEEKLY_RECORDED_DURATION_CONTRACT.md)。
 
 ## 2026-11-15 CP04E 认证退出与活动 Room 组合补验（FINAL_READY）

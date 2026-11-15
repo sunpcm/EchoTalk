@@ -311,7 +311,7 @@ export interface paths {
     };
     /**
      * Get Weekly Progress
-     * @description 返回截至 end_date 的七个本地自然日已完成会话数，含零桶。
+     * @description 返回七个本地自然日已完成会话数，并可按显式请求聚合时长。
      */
     get: operations["get_weekly_progress_api_sessions_weekly_progress_get"];
     put?: never;
@@ -1487,7 +1487,7 @@ export interface components {
     };
     /**
      * WeeklyProgressDay
-     * @description 一个本地自然日对应的 UTC 半开窗口及已完成会话数。
+     * @description 一个本地自然日对应的 UTC 半开窗口及可选的已记录会话时长。
      */
     WeeklyProgressDay: {
       /** Completed Sessions */
@@ -1497,11 +1497,15 @@ export interface components {
        * Format: date
        */
       date: string;
+      /** Duration Unavailable Count */
+      duration_unavailable_count?: number | null;
       /**
        * End
        * Format: date-time
        */
       end: string;
+      /** Recorded Duration Ms */
+      recorded_duration_ms?: number | null;
       /**
        * Start
        * Format: date-time
@@ -2012,6 +2016,7 @@ export interface operations {
       query: {
         end_date: string;
         timezone: string;
+        include_recorded_duration?: boolean;
       };
       header?: {
         authorization?: string | null;

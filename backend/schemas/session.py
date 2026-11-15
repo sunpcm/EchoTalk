@@ -78,12 +78,14 @@ class DailyProgressResponse(BaseModel):
 
 
 class WeeklyProgressDay(BaseModel):
-    """一个本地自然日对应的 UTC 半开窗口及已完成会话数。"""
+    """一个本地自然日对应的 UTC 半开窗口及可选的已记录会话时长。"""
 
     date: CalendarDate
     start: UtcDatetime
     end: UtcDatetime
     completed_sessions: int = Field(ge=0)
+    recorded_duration_ms: int | None = Field(default=None, ge=0)
+    duration_unavailable_count: int | None = Field(default=None, ge=0)
 
 
 class WeeklyProgressResponse(BaseModel):
