@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15；G3 PR172已合并main1f06b03，最终mainCI首轮成功；H1仅设计、未实施。
-> 已发布G3 CI与H1本机验证分列于“当前验证基线”；设计不改变产品或替代用户实施确认。
+> 最后核对：2026-11-15；H1方案A已实现，源码独立APPROVED R0，发布验证待对应回执。
+> 已发布H1设计main650b3c7与本机H1实施候选分列；本机基础14/15，完整E2E未全绿。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
@@ -12,6 +12,7 @@
 | 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                   | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                                    |
 | 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                 | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                           |
 | 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束              | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                          |
+| 启动编排（H1） | 原runStartup抽为延迟ports的factory；同步门禁、动态依赖与cleanup所有权保留，resume未合并           | 两份旧测试零改、新15条同层测试及四项有效变异已验；源码APPROVED，发布CI/Guard待对应回执               |
 | 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                                   | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                                         |
 | 契约同源（G3） | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试 | 已合并PR172、最终mainCI首轮成功；重试与wire语义保留                                                  |
 | 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                | 已实现                                                                                               |
@@ -26,25 +27,24 @@
 
 ## 当前验证基线
 
-已发布G3基线：[PR172](https://github.com/sunpcm/EchoTalk/pull/172)合并至
-[1f06b03](https://github.com/sunpcm/EchoTalk/commit/1f06b03f8ad2abf8184a6491184f76165c226fd4)，tree `85982b79fd531819ecf0d3536f4719e91bbf06a9`；
-[mainCI43670316486](https://github.com/sunpcm/EchoTalk/actions/runs/43670316486)首轮5/5 success。
-PR CI43669809532与Guard43669809539首轮六检查success，source/CImerge/main等树，由Harness回读日志及共享回执确认。
-下表Linux列为Harness回读已发布CI；H1/macOS列为Harness在H1 lane亲跑，均非设计实施方执行。
+已验证发布基线：[PR173](https://github.com/sunpcm/EchoTalk/pull/173)合并至
+[650b3c7](https://github.com/sunpcm/EchoTalk/commit/650b3c7d60eee081a32e7ff9170a7fc7d6a11d06)，tree `141e4ec2d5e8be13d9daaca4631bf21dbdc0784b`；
+[mainCI43673387467](https://github.com/sunpcm/EchoTalk/actions/runs/43673387467) attempt1五作业success，source/CImerge/main等树。
+下表Linux列为Harness回读已发布设计CI；候选列为Harness亲跑macOS，均非实施方运行三树。
 
-| 测试树 / 门禁      | 已发布G3 main1f06b03 CI（Linux）              | H1设计本机基线（Harness/macOS）                        |
-| ------------------ | --------------------------------------------- | ------------------------------------------------------ |
-| Vitest             | 1234 passed / 52文件                          | 1234 passed / 52文件                                   |
-| Playwright E2E     | 234，C117/W117，实际retry/skip/flaky0（4.0m） | 234，C117/W117，实际retry/skip/flaky0（55.247788s）    |
-| Fake API契约       | 125 passed                                    | 125 passed                                             |
-| API类型生成器      | 10 passed                                     | 10 passed                                              |
-| 构建脚本           | 21 passed                                     | 21 passed                                              |
-| 完整backend pytest | 895 passed / 3 warnings / 79.71%（43.13s）    | 895 passed / 3 warnings / 79.71%（63.39s，命令68.16s） |
+| 测试树 / 门禁      | 已发布设计650b3c7 CI（Linux）                 | H1实施本机候选（Harness/macOS）                                                   |
+| ------------------ | --------------------------------------------- | --------------------------------------------------------------------------------- |
+| Vitest             | 1234 passed / 52文件                          | 1249 passed / 53文件                                                              |
+| Playwright E2E     | 234，C117/W117，实际retry/skip/flaky0（3.7m） | 首233/1（C117/W116+1）；唯一完整重放233/1（C116+1/W117）；两次retry/skip/flaky均0 |
+| Fake API契约       | 125 passed                                    | 125 passed                                                                        |
+| API类型生成器      | 10 passed                                     | 10 passed                                                                         |
+| 构建脚本           | 21 passed                                     | 21 passed                                                                         |
+| 完整backend pytest | 895 passed / 3 warnings / 79.71%（63.30s）    | 895 passed / 3 warnings / 79.71%（67.10s，命令71.66s）                            |
 
-H1本机14门禁exit0、源码前后稳定；E2E JSON duration55247.788ms、命令56.58s，59%覆盖率门禁通过。
-H1仅交[抽取设计](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)，源码及所有测试零改；“两旧测试零改可达”是有条件设计判断。
-实施方仅查五MD格式/范围；Harness停写后最终format尚待执行，不预填H1 PR/CI或未来变异通过。
-旧设计CI及G3过程保留在[历史记录](./history/2026-11-15-g3-contract-implementation.md)，H1分工见[本轮记录](./history/2026-11-15-h1-startup-design.md)。
+H1源码候选基础14/15；失败项为E2E，首次66.80375s、唯一完整重放55.640223s，不合算为234通过。
+两次均theme-storage:24期望warm实收cool、根因未明，历史同位失败仅作对照；源码前后稳定，pytest覆盖率59%门禁通过。
+PR173的设计PR CI首次233passed/1flaky、retry1仍保留；本机lint132warnings/0errors。H1实施Linux CI/Guard及发布须另核对应回执。
+源码/接线/四变异、实施自测与Harness分工及首失败详见[实施记录](./history/2026-11-15-h1-startup-implementation.md)。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -58,7 +58,7 @@ H1仅交[抽取设计](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)，源码及�
   避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
-- H1仅设计，待用户确认后另拆实施；真实Provider/LiveKit/IdP、设备、整栈及部署仍未验。
+- H1已实现、源码APPROVED不等于全部门禁通过；本机E2E未全绿，主题根因未知、未修。真实Provider/LiveKit/IdP、设备、整栈及部署仍未验。
 - G2 Fake 默认租约仍disabled/503；成功Cloud租约和Provider验证仅显式合成fixture，不代表真实撤销/验证。
   保留两条UUID偏差：assessment `$.session_id` 绑定 `analysis-success-*`，grammar `$[0].session_id` 绑定
   `grammar-only-*` 等具名合成场景及关联ID断言，避免扩大冻结fixture范围；UUID/schema校验未放宽。
@@ -79,15 +79,15 @@ H1仅交[抽取设计](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)，源码及�
 
 ## 历史与决策
 
-| 内容                                | 位置                                                                                                                                            |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| H1启动编排抽取设计（未实施）        | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[本轮记录](./history/2026-11-15-h1-startup-design.md) |
-| G3同源契约本机验收补齐与历史草稿    | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                          |
-| G2 主题对比度 CI 收尾与当前验收     | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md)                                                      |
-| 2026 年 11 月各轮实施记录与当时基线 | [history/2026-11.md](./history/2026-11.md)                                                                                                      |
-| 2026 年 10 月各轮实施记录           | [history/2026-10.md](./history/2026-10.md)                                                                                                      |
-| 已合并与明确未采纳的方案            | [history/decisions.md](./history/decisions.md)                                                                                                  |
-| 已完成的待办事项                    | [history/todo-done.md](./history/todo-done.md)                                                                                                  |
-| 评审手册的单轮回执                  | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                            |
+| 内容                                     | 位置                                                                                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1设计与实施（源码APPROVED、待发布验证） | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](./history/2026-11-15-h1-startup-implementation.md) |
+| G3同源契约本机验收补齐与历史草稿         | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                                  |
+| G2 主题对比度 CI 收尾与当前验收          | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md)                                                              |
+| 2026 年 11 月各轮实施记录与当时基线      | [history/2026-11.md](./history/2026-11.md)                                                                                                              |
+| 2026 年 10 月各轮实施记录                | [history/2026-10.md](./history/2026-10.md)                                                                                                              |
+| 已合并与明确未采纳的方案                 | [history/decisions.md](./history/decisions.md)                                                                                                          |
+| 已完成的待办事项                         | [history/todo-done.md](./history/todo-done.md)                                                                                                          |
+| 评审手册的单轮回执                       | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                                    |
 
 历史文件只追加、不改写；其中的计数和结论只属于当时的提交。
