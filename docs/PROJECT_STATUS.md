@@ -1,14 +1,15 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **CP05D 设置抽屉动态可见性（FINAL_READY）**：
-> 聚焦输入在 resize 或根字号变化后通过中间滚动区保持完整可见，同时保留焦点、草稿和既有焦点
-> 语义。质量、Vitest、backend、相关 runner、全量 E2E 与新增场景 20 次重复均已通过；两份测试
-> 完整行为 AST 与有效 RED 一致，E2E 与四份文档已完成 Node22 纯格式化。独立 Review、正常
-> commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待；本状态不自行写 APPROVED。
-> 下方的 R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、A19 P2 等小节均为
-> 各自时点的历史交付，其机器数字不能转作 CP05D 结果。R2-11 当时的模型分工与路由可用性记录保留在
-> 历史口径中，不代表本卡路由或产品结论。本批自有合成 PG 已按精确资源身份停止并确认自动移除，
-> 其他资源未动。
+> 最后核对：2026-11-15。当前卡片为 **CP05K 会话界面动态桌面与键盘覆盖
+> （FINAL_READY）**：本卡完成 5 个 E2E 覆盖补证，无需产品修复、未制造 RED，正式产品返修
+> `0/2`。完整 12 项行为门禁及 iOS 仅 Node `37` 项均 `exit 0`；新增场景 200 次重复全部 passed，
+> 两项私有产品响应负对照有效命中目标断言，恢复原响应后的正向 200 次重复再次通过。
+> 下方的 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、A19 P2
+> 等小节均为各自时点的历史交付，其机器数字不能转作 CP05K 结果。CP05D 与 R2-11 是此前卡片的
+> 历史交付，R2-11 当时的模型分工与路由可用性记录也不代表本卡路由或产品结论。旧 CP05D
+> 所属批次的合成 PG 已 `stop_exit0`/`auto_removed=true`；当前
+> `cp05k-cp02i-cp05l-20261115` 新批独立创建的三卡共用 PG 仍在运行，按三卡批次末尾统一精确
+> 清理，旧清理回执不得转作当前回执。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
@@ -38,9 +39,42 @@
 
 ## 当前验证基线
 
+### CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY）
+
+- 唯一实施工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `816e6adf740a476fb450580efb2681e2b6791775`。本卡只新增一份 5 场景 E2E、一份验证说明并
+  更新根 `TODO.md`；真实产品组件、既有布局测试、夹具、配置、后端、依赖与迁移未改。新 E2E
+  SHA-256 保持 `f46318553488ee3f0f2ed5f935398db6c0383b68b409ad9cad7fbc578e8a2d51`。
+- 覆盖差集：既有固定 390/1280 静态用例没有证明同一页面跨断点、200% 根字号、会话控件键盘
+  激活、缩放保持当前可见控件焦点和推荐展开状态，也没有在动态操作期间重新核验零 API 写。
+- 新增 5 个场景：1280→1023/1024→390/1280 往返；根字号 `200%` 后宽/窄缩放；键盘到达并激活
+  推荐开关和第一条推荐；缩放保持仍可见推荐按钮焦点及展开状态；动态交互零 `/api/` 写请求。
+- 本卡性质是覆盖补证，不是产品缺陷修复；没有制造 RED，未发现需要产品变更的新回归，正式产品
+  返修 `0/2`。全部 12 项行为门禁均 `exit 0`：Vitest `1262 passed / 55 files`；E2E
+  `272 = Chromium 136 + WebKit 136`，全部 single passed，`retry / skip / flaky` 均为 `0`；
+  backend `1044 passed / 3 warnings / 0 skip`，raw coverage `81.85846835618335%`；build `47`、
+  Fake API `116`、API 类型 `8`、iOS 仅 Node `37` 通过；quality `0`。
+- 新增 5 场景的 200 次重复补验为 `5 × Chromium/WebKit × 各 20 = 200 passed`。机器确认 10 组、
+  每组 20 次，每个执行均只有一个 passed result；retry、skip、flaky、unexpected 均为 `0`，
+  命令 `exit 0`。
+- 两项私有产品响应负对照均有效命中：移除 layout class 后几何
+  `toBeLessThanOrEqual` 目标断言失败 `1`；禁用 toggle 后 `aria-expanded` 目标断言失败 `1`。
+  两项各 `exit 1`；变异未改动物理源码。正向 200 次重复是在恢复原响应后再次执行并全部通过。
+  初次私有配置的 `cwd` 前置错误已保留为非产品执行错误，不纳入产品结果或负对照计数。
+- 数据库资源必须按批次区分：旧 CP05D 所属批次的合成 PG 已完成 `stop_exit0`/`auto_removed=true`；
+  当前 `cp05k-cp02i-cp05l-20261115` 新建的三卡共用合成 PG 仍在运行，待 CP05K、CP02I、CP05L
+  全部收口时统一精确停止并核验移除。旧批清理回执不代表当前批已清理。
+- CP05D 与 R2-11 小节均为此前卡片的明确历史交付，不并入本卡数字或结论。原生 desktop 关闭
+  会话、真实 Media/设备、Provider、IdP、真实数据与生产仍未验收，也不由 LiveKit 模块桩覆盖。
+- 本卡已停在 `FINAL_READY`；最终 format、独立 Review、commit 与 push 以主控同卡回执为准，
+  用户 Review 待，本状态不自行写 APPROVED。覆盖边界与验收口径见
+  [CP-05 会话界面动态桌面与键盘验证](./verification/cross-platform/CP-05-SESSION-DESKTOP-DYNAMICS.md)。
+
 ### CP05D 设置抽屉动态可见性
 
-- 本节是 2026-11-15 CP05D 的 `FINAL_READY` 快照。唯一实施 W 为
+- 本节是 2026-11-15 CP05D 的历史交付 `FINAL_READY` 快照，与 CP05K 分开计数。唯一实施 W 为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
   `codex/B1-learning-events-20261112`，正式基线 HEAD
   `1df095fb89af7488b7618c73397345b6a11584f9`。只改 `SettingsDrawer.tsx`、
@@ -73,12 +107,13 @@
   passed result，skip/flaky/unexpected/retry 均为 `0`，`workers=1`，命令 `exit 0`。
 - 两份测试完整行为 AST 与有效 RED 一致。最终收尾以 Node22 Prettier 纯格式化新 E2E 与四份仓内
   文档并保留结果，不再追 raw SHA，也不计产品返修；两份产品与 unit 测试文件未改动，断言未改。
-- 所有数据库验证已完成；本批自有合成 PG 已回执 `stop_exit0`、`auto_removed=true`，精确 container
-  ID、双 owner、loopback 与合成身份均核验，其他资源未动。四份仓内文档与
-  `implementation/report.md` 已完成 `FINAL_READY` 收口；独立 Review、正常 commit/当前分支 push
-  以主控同卡最终回执为准，用户 Review 待，本状态不自行写 APPROVED。真实 OS 键盘、非零
-  safe-area、设备、Media/Provider、IdP、真实数据和生产未验；CP-05 手机动态视口/键盘/safe-area
-  父项保持 `[ ]`。
+- **旧 CP05D 所属批次**的所有数据库验证已完成，该旧批自有合成 PG 已回执 `stop_exit0`、
+  `auto_removed=true`，精确 container ID、双 owner、loopback 与合成身份均核验，其他资源未动。
+  该清理只属于旧批；当前 `cp05k-cp02i-cp05l-20261115` 新批三卡独占 PG 仍运行，待三卡末尾
+  统一清理。四份仓内文档与 `implementation/report.md` 已完成 CP05D 的 `FINAL_READY` 收口；
+  独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，本状态不自行
+  写 APPROVED。真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP、真实数据和生产未验；
+  CP-05 手机动态视口/键盘/safe-area 父项保持 `[ ]`。
 - 范围、RCA、实现与验收口径见
   [CP-05 设置抽屉动态可见性](./verification/cross-platform/CP-05-SETTINGS-FOCUS-VIEWPORT.md)。
 

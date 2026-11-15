@@ -4,7 +4,9 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **CP05D 设置抽屉动态可见性（当前卡，2026-11-15，FINAL_READY）：** 设置抽屉已打开且输入
+> **CP05K 会话界面动态桌面与键盘覆盖（已归档，2026-11-15，FINAL_READY）：** 5 个新增 E2E 覆盖补证已完成，正式产品返修 `0/2`。完整门禁、重复与负对照回执见 [PROJECT_STATUS 的 CP05K 小节](./docs/PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)，归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-cp05k-会话界面动态桌面与键盘覆盖final_ready)。CP-05 桌面缩放/键盘父项保持 `[ ]`。当前 `cp05k-cp02i-cp05l-20261115` 新批合成 PG 仍由三卡共同运行，旧 CP05D 批次已清理。
+
+> **CP05D 设置抽屉动态可见性（历史交付，2026-11-15，FINAL_READY）：** 设置抽屉已打开且输入
 > 聚焦后，普通 resize、根字号 200% 后 resize、聚焦后仅改字号三种场景以当前活动元素归属、
 > 单帧合并和 `nearest` 滚动保持可见。有效 RED、实现与最终门禁事实已写回
 > [PROJECT_STATUS 的 CP05D 小节](./docs/PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)，
@@ -14,9 +16,10 @@
 > 六组各 `20` 次，每次执行恰有一个 passed result，skip/flaky/unexpected/retry 均为 `0`、命令 `exit 0`。两份测试完整
 > 行为 AST 与有效 RED 一致，E2E 与四份文档已完成 Node22 纯格式化；正式产品返修 `0/2`。
 > 独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待；本文件不写
-> APPROVED。所有数据库验证及本批自有合成 PG `stop_exit0`/`auto_removed=true` 核验均已完成，
-> 其他资源未动。真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP 与生产未验，CP-05
-> 父项继续保留 `[ ]`。
+> APPROVED。所有数据库验证及 **旧 CP05D 所属批次**的自有合成 PG
+> `stop_exit0`/`auto_removed=true` 核验均已完成，其他资源未动。该旧清理不代表当前
+> CP05K/CP02I/CP05L 批次。真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP 与生产
+> 未验，CP-05 父项继续保留 `[ ]`。
 
 > **R2-11 会话中界面本地子卡（历史时点，2026-11-15，当时 FINAL_READY，已归档）：** 本地模块桩子卡
 > （LiveKit 主题背景、场景/墙钟页头、移动字幕优先、thinking 独立文案、单实例回答推荐）已完成并
@@ -26,7 +29,8 @@
 > [R2-11 验证说明](./docs/verification/cross-platform/R2-11-SESSION-LAYOUT.md)。
 > 独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待；
 > 本文件不写 APPROVED。父项 R2-11 保持 `[ ]`：真实 LiveKit 人工媒体验收未做，不得勾选整项。
-> 该历史时点，本批独占合成 PG 仍由 R2-11/CP05 等共用运行；当前已按 CP05D 回执停止并确认自动移除。
+> 该历史时点，本批独占合成 PG 仍由 R2-11/CP05 等共用运行；该 **旧 CP05D 所属批次**已按回执
+> 停止并确认自动移除，不涉及当前 `cp05k-cp02i-cp05l-20261115` 新批资源。
 
 > **R2-10 硬编码文案收口（历史时点，2026-11-15，当时 FINAL_READY，已归档）：** 父项原有 14 处中文文案与
 > `goalReached` 英文迁移、设置标题和活动记录去 UUID 已由既有完成回执承接；本卡补齐 10 个真实技能
@@ -36,7 +40,8 @@
 > 父项验收、原文案迁移和 R2-UI 既有回执见
 > [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-10-硬编码文案收口final_ready)。
 > 独立 Review、正常 commit/当前分支 push 见主控同卡回执，用户 Review 待；产品与测试已冻结。
-> 该历史时点，本批独占合成 PG 仍由 R2-10/R2-11/CP05 共用运行；当前已按 CP05D 回执停止并确认自动移除。
+> 该历史时点，本批独占合成 PG 仍由 R2-10/R2-11/CP05 共用运行；该 **旧 CP05D 所属批次**已按
+> 回执停止并确认自动移除，不涉及当前 `cp05k-cp02i-cp05l-20261115` 新批资源。
 
 > **SGEC-OFF 严格离线校验与合成评测（历史交付，2026-11-15，FINAL_READY，已归档）：** 纯模块
 > `services/sgec_offline.py`、CLI runner `scripts/evaluate_sgec_offline.py`、固定合成
@@ -46,8 +51,9 @@
 > [PROJECT_STATUS 的 SGEC-OFF 小节](./docs/PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)。
 > 独立技术 Review、最终文档 format、正常 Husky commit/当前分支 API 发布以主控同卡回执为准；
 > 用户 Review 待，本文件不写 APPROVED。SGEC 总项仍 `[ ]`（真实 Provider、人工 gold 与教学质量未验）；
-> SGEC-OFF 所属历史批次的独占合成 PG 已在完成后清理；本轮 R2-10/R2-11/CP05 共用的独占 PG
-> 在该历史叙述时点仍运行；当前已按 CP05D 回执停止并确认自动移除。
+> SGEC-OFF 所属历史批次的独占合成 PG 已在完成后清理；R2-10/R2-11/CP05 共用的 **旧 CP05D
+> 所属批次**也已停止并确认自动移除；两段旧回执都不涉及当前
+> `cp05k-cp02i-cp05l-20261115` 新批资源。
 
 > **R2-UI 设置标题与活动记录去 UUID（历史交付，2026-11-15，FINAL_READY，已归档）：** 用户已确认的方案 A
 > 已实施完成：共享设置入口与 dialog 名为“设置”，活动行及结束/恢复确认面板复用既有模式与开始时间，
@@ -575,6 +581,7 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - [ ] 完善手机动态视口、键盘避让、safe area 与触控目标；验收：窄屏/横屏/大字号无关键按钮遮挡，设置面板按可用空间适配。
       CP05D 本地子卡已归档：[归档记录](./docs/history/todo-done.md#2026-11-15-cp05d-设置抽屉动态可见性)。
 - [ ] 完善桌面窗口缩放、宽屏布局、键盘导航和关闭会话行为；验收：缩小窗口可用，快捷键不抢输入焦点，关闭窗口不遗留采音。
+      CP05K 本地子卡已归档：[归档记录](./docs/history/todo-done.md#2026-11-15-cp05k-会话界面动态桌面与键盘覆盖final_ready)。父项不勾选；原生 desktop 关闭会话与真实媒体不在本轮模块桩证明范围。
 - [ ] 真机验收 DocTalk 文件导入；验收：`.txt/.md` 可选、取消不丢草稿，读取失败、空文件、编码问题和超限有提示；仅在 Web 文件接口不满足时增加原生插件。
 
 ### CP-06：自动化与真实链路回归

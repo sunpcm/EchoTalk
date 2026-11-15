@@ -6,6 +6,31 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY）
+
+- **状态：`FINAL_READY`（本地子卡完成归档）**：新增 5 个浏览器 E2E 场景，补齐固定
+  390/1280 静态矩阵未覆盖的跨断点、200% 根字号、键盘激活、缩放后焦点/展开状态保持和动态交互
+  零 API 写。本卡是覆盖补证，无需产品修复，未制造 RED，正式产品返修 `0/2`；产品、旧测试和
+  夹具未改，新 E2E SHA-256 保持
+  `f46318553488ee3f0f2ed5f935398db6c0383b68b409ad9cad7fbc578e8a2d51`。
+- **最终机器验收**：12 行为门禁及 iOS 仅 Node `37` 项均 `exit 0`。Vitest
+  `1262 passed / 55 files`；E2E `272 = Chromium 136 + WebKit 136`，single passed，
+  `retry / skip / flaky` 均为 `0`；backend `1044 passed / 3 warnings / 0 skip`，raw coverage
+  `81.85846835618335%`；build `47`、Fake API `116`、API 类型 `8`；quality `0`。
+- **重复补验**：`200 passed = 5 × Chromium/WebKit × 各 20`；10 组每组 20 次，每次执行恰有
+  一个 passed result，retry/skip/flaky/unexpected 均为 `0`、`exit 0`。
+- **负对照与恢复**：移除 layout class 后几何 `toBeLessThanOrEqual` 目标断言失败 `1`；禁用
+  toggle 后 `aria-expanded` 目标断言失败 `1`。两项各 `exit 1`，变异未修改物理源码；恢复原响应
+  后的正向 200 次重复再次全部通过。初次私有配置 `cwd` 前置错误保留为非产品执行错误，不计
+  产品失败。
+- **数据库批次**：旧 CP05D 所属批次已完成 `stop_exit0`/`auto_removed=true`。当前
+  `cp05k-cp02i-cp05l-20261115` 新批三卡共用 PG 仍在运行，待三卡末尾统一精确清理；旧批回执
+  不代表当前批已清理。
+- **边界**：CP05D、R2-11 均为历史交付；原生 desktop 关闭会话、真实 Media/设备、Provider、
+  IdP、真实数据与生产未验。最终 format、独立 Review、commit 与 push 以主控同卡回执为准，
+  用户 Review 待，本归档不写 APPROVED。完整事实见
+  [PROJECT_STATUS 的 CP05K 小节](../PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)。
+
 ## 2026-11-15 CP05D 设置抽屉动态可见性
 
 - **状态：`FINAL_READY`（本地子卡完成归档）**：设置抽屉已打开且输入聚焦后，普通 resize、
@@ -26,11 +51,13 @@
   杀死目标断言，恢复后冻结目标测试为 `7 passed / 0 failed`；未选用例不计覆盖。其余精确机器计数
   集中在 PROJECT_STATUS。
 - **收口边界**：两份测试完整行为 AST 与有效 RED 一致；Node22 Prettier 仅纯格式化新 E2E 与四份
-  仓内文档，产品与 unit 测试未改动，既有断言未改。所有数据库验证已完成；本批自有合成 PG 已
-  `stop_exit0`、`auto_removed=true`，精确 container ID、双 owner、loopback 与合成身份均核验，
-  其他资源未动。独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，
-  本归档不写 APPROVED。真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP、真实数据与
-  生产未验；CP-05 手机动态视口/键盘/safe-area 父项继续保留 `[ ]`。
+  仓内文档，产品与 unit 测试未改动，既有断言未改。**旧 CP05D 所属批次**的数据库验证已完成，
+  该旧批自有合成 PG 已 `stop_exit0`、`auto_removed=true`，精确 container ID、双 owner、
+  loopback 与合成身份均核验，其他资源未动；该历史回执不涉及当前
+  `cp05k-cp02i-cp05l-20261115` 新批。独立 Review、正常 commit/当前分支 push 以主控同卡最终
+  回执为准，用户 Review 待，本归档不写 APPROVED。真实 OS 键盘、非零 safe-area、设备、
+  Media/Provider、IdP、真实数据与生产未验；CP-05 手机动态视口/键盘/safe-area 父项继续保留
+  `[ ]`。
 - 完整机器数字集中在
   [PROJECT_STATUS 的 CP05D 小节](../PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)，验证口径见
   [CP-05 设置抽屉动态可见性](../verification/cross-platform/CP-05-SETTINGS-FOCUS-VIEWPORT.md)。
@@ -82,8 +109,8 @@
       顺序/归一化 AST 与保护文件字节核对通过。完整机器数字集中在
       [PROJECT_STATUS 的 R2-10 小节](../PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)。
       独立 Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待；本归档不写
-      APPROVED。该历史时点，本批独占合成 PG 仍供 R2-10/R2-11/CP05 使用；当前已按 CP05D 回执
-      停止并确认自动移除。
+      APPROVED。该历史时点，本批独占合成 PG 仍供 R2-10/R2-11/CP05 使用；**旧 CP05D 所属
+      批次**后已停止并确认自动移除，不涉及当前 `cp05k-cp02i-cp05l-20261115` 新批资源。
 
 ## 2026-11-15 SGEC-OFF 严格离线校验与合成评测
 
