@@ -115,3 +115,37 @@ RF-04 的 CI 执行部分就此核销：远端 Linux CI 已在 main76d9d6ba 五 
 required check 与门禁；剩余边界仅为分支保护 required check 配置与 GitHub 管理权限（本轮只读核验为
 403/INVALID_ARGUMENT，不证明设置不存在，不归档）。真实 IdP/Provider/LiveKit、设备与部署属 CP-06
 三端真实链路独立卡，不并入 RF-04。
+
+## §7 当前主线质量门禁与证据留存（2026-11-16）
+
+§1–§6 历史冻结记录保留。自 main `76d9d6ba` 起，PR177–186 已按门禁逐包合并，最终主线为 CPB
+main `53d2a409`（tree `cec480de`，与 source `e0a6250`/CI merge 全等）。各包 PR CI/Guard/mainCI 均首轮
+全 success（无重跑），Linux 回读与 macOS 亲跑分列于
+[当前状态页](../../PROJECT_STATUS.md) 与各包 history，不在此重复堆积。
+
+- 前端现存门禁（`test-frontend`，ubuntu）：Format、Lint、Typecheck、Vitest、build-script、Fake API、
+  OpenAPI→TypeScript `check:api-types`、类型生成器 runner、Build、Chromium+WebKit Playwright；CPB main
+  Linux 回读 Vitest 1260/55、Fake 125、types 10、build 21、E2E 258 C129/W129（实际 retry/skip/flaky 0）。
+- 后端（`test-backend`，ubuntu，专用 PostgreSQL 15.19 空库迁移）：tracked OpenAPI schema `--check`、
+  Provider 元数据 `--check`、Agent/分析契约 `--check`、Ruff format/check、Alembic 至 head、
+  pytest（CPB main 962 passed/3 warnings/80.63%）。
+- macOS 探针 / iOS 无签名编译、聚合 `CI` 保持首轮 success。
+
+### §7.1 CI 首失败证据留存（EV）
+
+EV 已把 E2E 证据保存补上（`apps/vite-app/playwright.config.ts` 的 `use.trace` 改 `retain-on-failure`、
+新增 `use.screenshot: only-on-failure`；`.github/workflows/ci.yml` E2E reporter 改 `list,json`，其后 always
+上传 JSON 报告与 test-results，7 天 retention）。这只补证据保存，不修复也不宣称修复 session-flow GC 根因。
+EV PR187 已 squash 至 main `bf4becd`（source `4c364cea` / CI merge `546090c6` / main 三者 tree `c2e7ddfa` 完全一致），
+PR CI 43737757005 首六 success、Guard 43737757038 success，最终 mainCI 43738720996 首五 success。PR 与 main 两份
+实际归档均已 MCP 实际下载核 SHA/CRC/原生 JSON/PNG（非只看日志元数据，不贴临时下载 URL）：PR artifact 14171327756
+（SHA256 `60ae87e6…`，14725526 字节，143 文件/142 PNG/trace0）、main artifact 14171881434（SHA256
+`45573d73a…`，14705831 字节，143 文件/142 PNG/trace0 main 全绿）；两者原生 `playwright-report/results.json`
+均 expected 258 / C129 / W129 / retry0 / skip0 / flaky0，142 PNG（含 ACT 320px 200% 双浏览器截图），证明证据保留链路可用。
+
+### §7.2 required-check 未核边界
+
+RF-04 的 required check 配置（分支保护）仍未核：GitHub MCP managed App 对 branches/main/protection 返回 403、
+rules/labels endpoint 不在白名单返回 INVALID_ARGUMENT。这不证明设置不存在，也不因此归档 RF-04；
+需用户在仓库侧配置或授权核验，不通过外部查询绕 403。真实 IdP/LiveKit、设备与部署属 CP-06 三端真实链路独立卡，
+不并入 RF-04。

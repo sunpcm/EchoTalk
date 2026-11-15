@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16；READ2 PR182/main `3d246c3`、ST PR180/main `f915157`、A11Y PR181/main `cf104bb`、ST2 PR183/main `7780c718`、ACT PR184/main `bb1ed292`、DASH PR185/main `543e266`、CPB PR186/main `53d2a409` 均已发布。CPB mainCI 43737179366 刚开跑 pending（不预判绿）。EV（CI 首失败取证）源码 APPROVED，本机 17 门禁全 success，PR/CI 待建。
+> 最后核对：2026-11-16。PR177–187（LGR/TS/READ/ST/A11Y/READ2/ST2/ACT/DASH/CPB/EV）已按门禁逐包合并，最终已发布 main 为 EV main `bf4becd`（source `4c364cea` / CI merge `546090c6` / main 三者 tree `c2e7ddfa` 完全一致；PR CI 43737757005 首六 success、Guard 43737757038 success，最终 mainCI 43738720996 首五 success）。DOC 为纯 MD 收口，其提交/CI 仅在 PR 正文另给回执，不在本页堆叠，避免自身 SHA 循环。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)。
 
 ## 当前功能
@@ -25,21 +25,25 @@
 
 ## 当前验证基线
 
-EV（CI 首失败取证）源码 APPROVED，本机 17 门禁全 success、未发布；下表为 EV 本机（亲跑，未发布）分列。
-CPB PR186 首六 success 已合 main `53d2a409`（tree `cec480de` 与 source `e0a6250`/CI merge 全等；Linux PR Vitest 1260/55、
-Fake 125、types 10、build 21、E2E 258 C129/W129 retry/skip/flaky0 4.1m、pytest 962/3warnings/80.63%/63.67s；
-mainCI 43737179366 刚开跑 pending，不预判绿）。相对 CPB source 仅 EV 两配置差异，410 个 17 门禁 source manifest 同字节。
+最终代码冻结点为 EV main `bf4becd`（PR187，tree `c2e7ddfa`，与 source `4c364cea` / CI merge `546090c6` 完全一致）；
+PR CI 43737757005 首六 success、Guard 43737757038 success、最终 mainCI 43738720996 首五 success。PR 与 main 两份实际归档均
+MCP 实际下载核 SHA/CRC/原生 JSON/PNG（非只看日志元数据，不贴临时下载 URL）：PR artifact 14171327756（`60ae87e6…`，14725526 B，
+143 文件/142 PNG/trace0）、main artifact 14171881434（`45573d73a…`，14705831 B，143 文件/142 PNG/trace0）；
+两者均 143 文件 = 原生 results.json 1 + PNG 142、trace 0（两次真实 CI 全绿），原生 results.json 均 expected 258 / C129 / W129 / retry/skip/flaky0。PR CI 日志 E2E 5.7m、pytest
+962/3w/80.63%/61.36s；main CI 日志 E2E 5.4m、pytest 962/3w/80.63%/60.64s。下表 macOS 为父 Harness 亲跑（EV 源码）、
+Linux 为 CI 日志回读（CPB main `53d2a409`），分列；EV 最终 mainCI 43738720996 的 Linux 回读已列于上。相对 CPB source 仅
+EV 两配置差异，410 个 17 门禁 source manifest 同字节。
 
-| 测试树 / 门禁      | EV 本机 Harness（未发布）         |
-| ------------------ | --------------------------------- |
-| Vitest             | 1260 passed / 55 文件             |
-| Playwright E2E     | 258，C129/W129，retry/skip/flaky0 |
-| Fake API契约       | 125 passed                        |
-| API类型生成器      | 10 passed                         |
-| 构建脚本           | 21 passed                         |
-| 完整backend pytest | 962 / 3 warnings / 80.63%         |
+| 测试树 / 门禁       | macOS 父 Harness 亲跑（EV 源码） | Linux CI 日志回读（CPB main 53d2a409）  |
+| ------------------- | -------------------------------- | --------------------------------------- |
+| Vitest              | 1260 passed / 55 文件            | 1260 passed / 55 文件                   |
+| Playwright E2E      | 258，C129/W129，retry0           | 258，C129/W129，retry/skip/flaky0，4.7m |
+| Fake API 契约       | 125 passed                       | 125 passed                              |
+| API 类型生成器      | 10 passed                        | 10 passed                               |
+| 构建脚本            | 21 passed                        | 21 passed                               |
+| 完整 backend pytest | 962 / 3 warnings / 80.63%        | 962 / 3 warnings / 80.63% / 50.50s      |
 
-EV 默认 trace/screenshot 策略受控对照（未覆盖策略、retries0）：负 2（trace2/PNG2/JSON）正 2（trace0/失败 PNG0），
+EV 默认 trace/screenshot 策略本机受控对照（未覆盖策略、retries0，负 2 trace2/PNG2/JSON 正 2 trace0/失败 PNG0，从未上传真实归档），
 705 源文件逐字节恢复；历史 GC60 自然未复现、根因未知，不宣称修复。已发布 ACT/DASH/ST2 计数见各自 history。
 命令见 [Agent 评审手册 §2](./agent-review-loop.md)。这些结果不替代真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS
 设备或生产部署验收。
@@ -70,26 +74,26 @@ EV 默认 trace/screenshot 策略受控对照（未覆盖策略、retries0）：
 
 ## 历史与决策
 
-| 内容                                                            | 位置                                                                                                                                                                                                |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CI 首失败取证（EV，源码 APPROVED，本机 17 门禁全 success）      | [验收记录](./history/2026-11-16-e2e-first-failure-evidence.md)                                                                                                                                      |
-| Compose 启动门禁方案 B（CPB，源码 APPROVED，17 门禁全 success） | [验收记录](./history/2026-11-15-compose-startup-gates.md)                                                                                                                                           |
-| Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）  | [验收记录](./history/2026-11-15-dashboard-extraction.md)                                                                                                                                            |
-| 遗留产品润色（ACT，三处产品修复 + R2-10 剩余 UI，本机 17 门禁） | [验收记录](./history/2026-11-15-legacy-product-polish.md)                                                                                                                                           |
-| Token 失败自动清理测试前提（ST2，已发布 PR183/main 7780c718）   | [验收记录](./history/2026-11-15-session-token-error-test-barrier.md)                                                                                                                                |
-| 主题按钮大字号重排（READ2，已发布 PR182/main 3d246c3）          | [验收记录](./history/2026-11-15-theme-swatch-reflow.md)                                                                                                                                             |
-| 键盘焦点遍历可靠性（A11Y，已发布 PR181/main cf104bb）           | [验收记录](./history/2026-11-15-dashboard-focus-test-reliability.md)                                                                                                                                |
-| 启动视图测试前提（ST，已发布 PR180/main f915157）               | [验收记录](./history/2026-11-15-session-start-test-barrier.md)                                                                                                                                      |
-| 设置可读性（READ，已发布 PR179/main c9f3131a）                  | [验收记录](./history/2026-11-15-settings-readability.md)                                                                                                                                            |
-| theme-storage 冷启动/水合/零写（TS，已发布 PR178）              | [验收记录](./history/2026-11-15-theme-storage-reliability.md)                                                                                                                                       |
-| I1评估提供方设计与实施（源码APPROVED R0，已发布main76d9d6ba）   | [ASSESSMENT_PROVIDER_DESIGN.md](./ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](./history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](./history/2026-11-15-i1-provider-implementation.md) |
-| 遗留台账对账（LGR，纯文档）                                     | [对账记录](./history/2026-11-15-legacy-reconciliation.md)                                                                                                                                           |
-| H1设计与实施（已发布，保留首失败）                              | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](./history/2026-11-15-h1-startup-implementation.md)                                             |
-| G3同源契约本机验收补齐与历史草稿                                | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                                                                              |
-| 2026 年 11 月各轮实施记录与当时基线                             | [history/2026-11.md](./history/2026-11.md)                                                                                                                                                          |
-| 2026 年 10 月各轮实施记录                                       | [history/2026-10.md](./history/2026-10.md)                                                                                                                                                          |
-| 已合并与明确未采纳的方案                                        | [history/decisions.md](./history/decisions.md)                                                                                                                                                      |
-| 已完成的待办事项                                                | [history/todo-done.md](./history/todo-done.md)                                                                                                                                                      |
-| 评审手册的单轮回执                                              | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                                                                                |
+| 内容                                                                         | 位置                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI 首失败取证（EV，源码 APPROVED；已发布 main bf4becd，mainCI 首五 success） | [验收记录](./history/2026-11-16-e2e-first-failure-evidence.md)                                                                                                                                      |
+| Compose 启动门禁方案 B（CPB，已发布 PR186/main 53d2a409）                    | [验收记录](./history/2026-11-15-compose-startup-gates.md)                                                                                                                                           |
+| Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）               | [验收记录](./history/2026-11-15-dashboard-extraction.md)                                                                                                                                            |
+| 遗留产品润色（ACT，三处产品修复 + R2-10 剩余 UI，本机 17 门禁）              | [验收记录](./history/2026-11-15-legacy-product-polish.md)                                                                                                                                           |
+| Token 失败自动清理测试前提（ST2，已发布 PR183/main 7780c718）                | [验收记录](./history/2026-11-15-session-token-error-test-barrier.md)                                                                                                                                |
+| 主题按钮大字号重排（READ2，已发布 PR182/main 3d246c3）                       | [验收记录](./history/2026-11-15-theme-swatch-reflow.md)                                                                                                                                             |
+| 键盘焦点遍历可靠性（A11Y，已发布 PR181/main cf104bb）                        | [验收记录](./history/2026-11-15-dashboard-focus-test-reliability.md)                                                                                                                                |
+| 启动视图测试前提（ST，已发布 PR180/main f915157）                            | [验收记录](./history/2026-11-15-session-start-test-barrier.md)                                                                                                                                      |
+| 设置可读性（READ，已发布 PR179/main c9f3131a）                               | [验收记录](./history/2026-11-15-settings-readability.md)                                                                                                                                            |
+| theme-storage 冷启动/水合/零写（TS，已发布 PR178）                           | [验收记录](./history/2026-11-15-theme-storage-reliability.md)                                                                                                                                       |
+| I1评估提供方设计与实施（源码APPROVED R0，已发布main76d9d6ba）                | [ASSESSMENT_PROVIDER_DESIGN.md](./ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](./history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](./history/2026-11-15-i1-provider-implementation.md) |
+| 遗留台账对账（LGR，纯文档）                                                  | [对账记录](./history/2026-11-15-legacy-reconciliation.md)                                                                                                                                           |
+| H1设计与实施（已发布，保留首失败）                                           | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](./history/2026-11-15-h1-startup-implementation.md)                                             |
+| G3同源契约本机验收补齐与历史草稿                                             | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                                                                              |
+| 2026 年 11 月各轮实施记录与当时基线                                          | [history/2026-11.md](./history/2026-11.md)                                                                                                                                                          |
+| 2026 年 10 月各轮实施记录                                                    | [history/2026-10.md](./history/2026-10.md)                                                                                                                                                          |
+| 已合并与明确未采纳的方案                                                     | [history/decisions.md](./history/decisions.md)                                                                                                                                                      |
+| 已完成的待办事项                                                             | [history/todo-done.md](./history/todo-done.md)                                                                                                                                                      |
+| 评审手册的单轮回执                                                           | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                                                                                |
 
 历史文件只追加、不改写；其中的计数和结论只属于当时的提交。
