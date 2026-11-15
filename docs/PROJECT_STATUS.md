@@ -1,17 +1,18 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **CP05L Dashboard 生命周期实际组合缺口
+> 最后核对：2026-11-15。当前卡片为 **CP04I 真实入口换号与迟到响应组合
 > （FINAL_READY）**：唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，冻结 HEAD
-> `9a7ec847e36b3187f03076eb280f6b0bc78c7a4e`。已新增真实 `Dashboard`、四类真实消费者、
-> 默认生命周期工厂与实际 `api.ts` 的 3 场景组合测试及验证说明；只合成认证、Capacitor App
-> 外部状态与严格 fake `fetch`/`Response`，不改产品源码、mock 工厂/组件或扩大业务范围。
-> R0 target 与恢复默认源后的 target-final 均为 `3/3 exit 0`，R1 后最终 13 项门禁全部
-> `exit 0`；正式实施返修 `1/2`。详细机器数字见下方 CP05L 小节，Mock/API 基址与外部链路边界见
-> [CP-05 Dashboard 生命周期实际组合验证](./verification/cross-platform/CP-05-LIFECYCLE-COMBINATION.md)。
+> `dacf7b3337b3e4640b040ad6ce048c8ee7f9a92e`。已新增真实根入口 `AuthGate`、`App`、
+> 四类消费者、`SettingsDrawer`、store 与 `api.ts` 的 3 场景组合测试；认证边界使用真实
+> `oidc-client-ts` 的离线 `UserManager`/`User` 与合成用户、metadata、Storage，不连接真实 SSO。
+> 目标、全树、13 门禁及两个私有负对照已由主控最终验收，正式实施返修 `1/2`。详细机器数字与
+> R0/R1 历史集中在下述 CP04I 小节；Review/commit/push 以主控最终同卡回执为准，用户 Review 待，
+> 本状态不写 APPROVED。
 > CP02I 通话占用本地组合补验（FINAL_READY）与 CP05K 会话界面动态桌面与键盘覆盖
-> （FINAL_READY）为紧邻的历史快照，详细数字只在其各自小节有效，不转作 CP05L 结果。
+> （FINAL_READY）以及 CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）为历史快照，
+> 详细数字只在其各自小节有效，不转作 CP04I 结果。
 > 下方 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、
 > A19 P2 等小节也均为各自时点的历史交付。R2-11 当时的模型分工与路由可用性记录不代表
 > 本卡路由或产品结论。旧 CP05D 所属批次的合成 PG 已 `stop_exit0`/`auto_removed=true`；
@@ -46,6 +47,52 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### CP04I 真实入口换号与迟到响应组合（FINAL_READY）
+
+- 唯一工作树为 `b1-continuation-20261115`、分支
+  `codex/B1-learning-events-20261112`、基线
+  `dacf7b3337b3e4640b040ad6ce048c8ee7f9a92e`。新增
+  `apps/vite-app/src/App.identity-integration.test.tsx`，保留真实 `auth.ts`、根 `AuthGate`、
+  `App`、四类 Dashboard 消费者、`SettingsDrawer`、相关 store 与 `api.ts`。认证边界使用真实
+  `oidc-client-ts` 的离线 `UserManager`/`User`，注入合成用户、metadata 与 Storage；严格按合成
+  Bearer token 分流的 `fetch`/`Response` 及 dialog、online/visibility、媒体接口为测试边界。
+  未连接真实 SSO。产品、旧测试、helper、配置、依赖与迁移均未改。
+- 场景 1：A 已显示活动会话、今日进度/历史、七日概览与语法错误且设置抽屉有草稿；生命周期刷新
+  制造 A 在途读取后切换 B。B 完整返回后放行 A 成功 canary，断言 A 迟到 active/daily ID、
+  抽屉、草稿、settings store 与 weekly 非默认选日计数均不覆盖 B。场景 2：A 在途时切 B，在 B
+  仍 loading 时放行 A 全部失败与 finally，断言 B loading、无旧错误、settings store 与最终 UI
+  不受污染。场景 3：同 principal 新 token/revision 更新不重挂载 App，设置草稿、焦点、
+  按钮/输入 DOM 身份及 conversation store marker 保留，settings 不额外重取。
+- 所有业务请求只允许合成身份上的 GET；未知路由/认证分流和非 GET 失败关闭。测试结束释放全部
+  受控 promise、卸载 UI、移除 OIDC listener 并还原全局边界，终态断言零未知请求、零业务写、
+  零 `getUserMedia()`。不同 principal 切换期间允许实际接线产生合法 B 重复读取，不冻结新的
+  “恰一波”请求政策。
+- **R0 历史（保留）**：主控实跑 target `1 passed / 2 failed`，全量 Vitest
+  `1266 passed / 2 failed / 0 skip`。两例失败均为夹具无条件排除 `article_usage` 与
+  `preposition`，把 B 正确显示 `preposition` 误判为旧 A 数据。quality/build/typecheck
+  `exit 2` 均由 3 个 OIDC 事件 call-through spy 未返回原方法退订函数导致；unit `exit 1`、
+  format `exit 1`，后者唯一命中新增测试。上述是夹具/类型/格式问题，不是产品 RED。
+- **R1 修正**：负向夹具只排除当前 actor 对应的语法行，保留 B 正向断言；OIDC 事件 spy 原样
+  透传并保留退订清理；补充 A late active/daily ID、切换前真实 settings store 仍为 `b-model`
+  以及 weekly 非默认选日 B 计数保留。默认选日与 history 契约不变。唯一新测试文件最后以
+  Node `22.13.1` 下现有 Prettier 精确格式化。
+- **最终机器验收**：目标 `green 3/3`，默认配置 target-final 再次 `3/3 exit 0`；最终 13 门禁
+  全部 `exit 0`。Vitest `1268 passed / 57 files / 0 skip`；旧 1265 个测试身份逐条保留，714 个
+  保护文件字节不变。双浏览器 E2E `272 = Chromium 136 + WebKit 136`，每例恰有一个 passed
+  result，retry/skip/flaky/unexpected 均为 `0`。backend
+  `1044 passed / 3 warnings / 0 skip`，raw coverage `81.84461985874533%`；build `47`、Fake
+  API `116`、API 类型 `8`、iOS 仅 Node `37`；lint
+  `132 warnings / 0 errors / 0 new`，file + message + rule 多重集一致。
+- **私有负对照**：取消换号 key 后命中旧抽屉残留；取消旧 settings finally fence 后命中 B
+  loading 被清为 false。两项均命中具体断言且各只有 `1 failed`，同轮各另有 `2` 个未选用例，
+  未选不计为覆盖；默认源恢复后 target-final 全绿。
+- **PG 收口**：`CP04I-stop-pg` 为 `exit 0`；完成精确 container ID、双 owner、loopback 与库
+  身份核验后 stop `0`、`auto_removed=true`，名称与 ID 均不存在，其他资源未动。该资源属于本次
+  local-followups 新批，不能引用或改写旧批清理事实。
+- 正式实施返修 `1/2`。CP-04 父项仍不勾；真实 SSO/IdP、Keychain、三端设备、媒体、Provider、
+  LiveKit、外部依赖与生产仍未验收。Review/commit/push 以主控最终同卡回执为准，用户 Review
+  待，本节不写 APPROVED。
 
 ### CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）
 

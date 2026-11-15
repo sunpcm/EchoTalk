@@ -597,6 +597,7 @@ CP02I 本地组合补验（真实 controller + api.ts + stdio 桥 + ASGI + 真�
 - [ ] 原生长期凭据使用 Keychain，补齐续期、撤销及 401 恢复；验收：并发请求只触发一次续期，失败后受控退出，不盲目重放创建/结束等写请求，不在 Web Storage 保存原生长期凭据。
 - [ ] 配置各客户端的 IdP 回调白名单与 API audience；验收：三端同一账号映射同一本地用户；核实 IdP 是否使用 pairwise subject，禁止靠 email 自动合并账号。
 - [ ] 登录失效/退出时停止音频并清理用户相关内存及本地恢复提示；验收：切换账号不显示上一账号的会话、设置或报告。
+      CP04I 本地组合子卡已完成并归档为 `FINAL_READY`，覆盖真实入口换号、旧请求迟到隔离和同 principal 续期保活；目标、13 门禁与两个私有负对照均完成，本次合成 PG 已精确清理。R0/R1 历史、最终数字与 PG 清理细节统一见 [PROJECT_STATUS](./docs/PROJECT_STATUS.md#cp04i-真实入口换号与迟到响应组合final_ready)。本地子卡完成不勾选 CP-04 父项；真实 SSO/IdP、Keychain、设备、媒体、Provider、LiveKit、外部依赖与生产仍未验收。Review/commit/push 以主控最终同卡回执为准，用户 Review 待。
 
 ### CP-05：生命周期与响应式体验
 

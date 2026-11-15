@@ -6,6 +6,26 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 CP04I 真实入口换号与迟到响应组合（FINAL_READY）
+
+- **状态：`FINAL_READY`（本地子卡完成，CP-04 父项不勾）**：唯一实施工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，基线
+  `dacf7b3337b3e4640b040ad6ce048c8ee7f9a92e`。新增
+  `apps/vite-app/src/App.identity-integration.test.tsx`；产品、旧测试、helper、配置、依赖和
+  迁移未改。
+- **真实接线与覆盖**：保留真实 `auth.ts`、根 `AuthGate`、`App`、四类 Dashboard 消费者、
+  `SettingsDrawer`、store 与 `api.ts`；认证边界使用真实 `oidc-client-ts` 的离线
+  `UserManager`/`User`，注入合成用户、metadata、Storage，不连接真实 SSO。覆盖换号后的旧树
+  清理、迟到成功/失败隔离，以及同 principal token/revision 续期保活。
+- **最终验收与历史**：主控最终 target、13 门禁和两个私有负对照均通过，本次合成 PG 已精确
+  清理；R0 的夹具/类型/格式失败历史未抹除，正式实施返修 `1/2`。精确机器数字、逐项断言、
+  R0/R1 修正和 PG 清理细节统一见
+  [PROJECT_STATUS](../PROJECT_STATUS.md#cp04i-真实入口换号与迟到响应组合final_ready)，
+  本节不重复大段计数。
+- **边界**：真实 SSO/IdP、Keychain、设备、媒体、Provider、LiveKit、外部依赖与生产未验。
+  Review/commit/push 以主控最终同卡回执为准，用户 Review 待，本文不写 APPROVED。
+
 ## 2026-11-15 CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）
 
 - **状态：`FINAL_READY`（本地子卡完成归档）**：唯一实施工作树为
