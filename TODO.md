@@ -4,7 +4,49 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **WD-UI 周报“已记录会话时长”前端显示与浏览器验收（当前卡片，2026-11-16，FINAL_READY）：**
+> **TDOC 剩余待办与项目状态核对（当前文档卡，2026-11-16，FINAL_READY）：** 唯一工作树为
+> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，本次核对业务基线（原开工 HEAD）
+> `3134a0ccb47d5c75e570117d2eb534cd265f712e`，开工 clean。本卡只核对并写回 `TODO.md` 与
+> `docs/PROJECT_STATUS.md`，不实施候选功能，不修改产品、测试、迁移、依赖或其他文档。实施节点
+> 不执行 Git 写操作；最终主控独立 Review 后的正常 commit/push 以主控同卡回执为准，本卡不会
+> 新开 PR。实施节点只写两份文档，未运行测试、服务、数据库、CI 或依赖安装；主控按
+> `AGENTS.md` 负责完整三树，只有自有 PG 用于门禁。主控最终 13 项门禁全部 `exit 0`，完整
+> Vitest、双浏览器 E2E、backend、构建、Fake API、API 类型和 lint 结果及自有 PG 清理证据集中写入
+> [PROJECT_STATUS 的 TDOC 小节](./docs/PROJECT_STATUS.md#tdoc-剩余待办与项目状态核对final_ready)。
+> WD-DESIGN `9d3ab32`、WD-API `9179050`、WD-UI `3134a0c` 已由主控分别独立 Review `APPROVED`
+> 并推送当前分支；用户 Review 仍待。`9179050` 只保留为 WD-UI 原源码父提交，本次核对业务基线
+> 是 `3134a0c`。
+>
+> 本次核对得到 58 条未勾选的原始复选框记录：R2 为 2；候选产品 6 加 P1 的 7，合计 13；
+> 历史维护待验为 9；RF 为 8；CP 及后续候选为 26。58 是原始复选框记录数，包含父项、重复的
+> 外部验收要求和远期候选，不能解释为 58 张独立开发卡，也不是精确工期。本卡不改变任何复选框
+> 状态，不新增复选框，也不为重复条目另造新卡。
+>
+> 本卡只证实本次核对业务基线 `3134a0c` 的两个远端 CI 查询结果：GitHub 对
+> `/commits/3134a0ccb47d5c75e570117d2eb534cd265f712e/check-runs` 与
+> `/actions/runs?head_sha=3134a0ccb47d5c75e570117d2eb534cd265f712e&per_page=100` 均返回
+> `total_count=0`。该证据绑定原业务基线 `3134a0c`，不随本次文档后续提交改写；本卡不据此推断
+> 其他远端状态。RF-04、CP-06 与已实现的 iOS 预下载有限重试继续保留未验证；后续触发 CI、修改
+> workflow 或分支保护规则均未获本卡授权，也不以历史 `main` 运行覆盖该业务基线。下一张建议改为
+> 已确认时长的浏览器→真实本地 API→合成 PG 整链路补验，先查既有覆盖与隔离启动条件，只补实际
+> 断点；本卡不实施，不能提前承诺可启动，也不重复单元或既有 Fake HTTP 用例。
+>
+> 只读源码可见 `backend/main.py` 的 lifespan 调用 `settings.validate_runtime()`，
+> `backend/config.py` 提供显式 `DEV_AUTH_TOKEN` 入口，且 `validate_runtime()` 还校验 active key
+> 与 keyring 等完整安全配置。准确边界是：存在显式 dev 鉴权入口，仍须满足完整安全配置校验；
+> 本卡未启动产品 API 或整链路，运行条件待下一卡实证。其他可先做的内容是 `p_mastery` 环比、
+> 其他周报指标、场景 `goals[]`/Task Completion 的产品/数据设计草案，以及正式 i18n 迁移的范围、
+> 语言、fallback 与依赖取舍草案；草案不等于批准业务口径，不安装库，也不进入实施。
+>
+> 仍需用户确认的业务口径包括指标历史快照/对比窗口/有效口径、goals 完成判据、音频采集的保留与
+> 授权删除策略、macOS 方案。真实 Provider/IdP/LiveKit、设备媒体、Keychain、签名、部署与生产
+> 属外部依赖组，RF-12 前置未齐；bot required-check/label 与 worktree 清理仍保留用户决定，
+> 本卡均不执行。全部候选仍只是建议：本卡不启动后续候选、不触发 CI、不修改 workflow 或保护
+> 规则、不开 PR，也不合并；最终格式、独立 Review、正常 commit/当前分支 push 以主控同卡回执为
+> 准，用户 Review 待。本卡停在 `FINAL_READY` 并停写，不创建实施报告。
+
+> **WD-UI 周报“已记录会话时长”前端显示与浏览器验收（历史快照，原时点 2026-11-16，FINAL_READY）：**
 > 客户端 `getWeeklyProgress` 现只固定增加 `include_recorded_duration=true`，已有 parser、
 > requestAbort、baseURL 与 controller 不改；服务端仍保持默认 `false` 的旧四字段/count-only
 > 兼容路径。周总与选中日共用“可用 / 暂无可用 / 未知”三态：合法零和无会话显示 `0秒`，有会话但
@@ -22,7 +64,8 @@
 > 推送，两者数字只属于各自历史时点。时长三卡父项现按本范围完成核销；完整周报其他指标、CP-05、
 > 三端、真实外部环境和真实学习质量均不连带核销。主控已完成本批自有 PG 的精确身份核验与清理；
 > 最终格式、Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待，本文件不自批
-> `APPROVED`。
+> `APPROVED`。上述原时点门禁、失败和保护事实保留；后续主控独立 Review 为 `APPROVED`，正常提交
+> 并推送为 `3134a0c`，用户 Review 仍待。
 
 > **CP04E 认证退出与活动 Room 组合补验（历史卡片，2026-11-15，FINAL_READY）：**
 > 新增 `apps/vite-app/src/components/session/auth-exit.integration.test.tsx`，只以“活动会话内真实

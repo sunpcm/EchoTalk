@@ -1,10 +1,40 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **WD-UI 周报“已记录会话时长”前端显示与浏览器验收
-> （FINAL_READY）**：唯一工作树为
+> 最后核对：2026-11-16。当前卡片为 **TDOC 剩余待办与项目状态核对（`FINAL_READY`）**：
+> 唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
-> `codex/B1-learning-events-20261112`，源码基线 HEAD
-> `917905057ff50c491ed7f69ba74efcd3fd57cdfc`。客户端只固定发送
+> `codex/B1-learning-events-20261112`，本次核对业务基线（原开工 HEAD）
+> `3134a0ccb47d5c75e570117d2eb534cd265f712e`，开工 clean。本卡只核对并写回 `TODO.md`
+> 与本文件；产品、测试、迁移、依赖及其他文档只读。实施节点不执行 Git 写操作；最终主控独立
+> Review 后的正常 commit/push 以主控同卡回执为准，本卡不会新开 PR。实施节点未运行测试或服务；
+> 主控按 `AGENTS.md` 负责完整三树，只有自有 PG 用于门禁。主控最终 13 项门禁全部 `exit 0`；
+> 完整机器数字、旧复选框保持、保护文件核对与自有 PG 精确清理证据集中记录在下方
+> [TDOC 小节](#tdoc-剩余待办与项目状态核对final_ready)，其他历史小节数字保持原时点口径。
+> WD-DESIGN `9d3ab32`、WD-API `9179050`、WD-UI `3134a0c` 已由主控分别独立 Review
+> `APPROVED` 并推送当前分支，用户 Review 仍待。`9179050` 只是 WD-UI 原源码父提交，不是
+> 本次核对业务基线，也不替代 `3134a0c` 的独立证据。
+>
+> 本次核对确认 58 条未勾选的原始复选框记录：R2 为 2；候选产品 6 加 P1 的 7，合计 13；
+> 历史维护待验为 9；RF 为 8；CP 及后续候选为 26。58 是原始记录数，包含父项、重复外部验收和
+> 远期候选，不能称 58 张独立开发卡或精确工期；本卡未改复选框、未新增复选框，也未拆分重复卡。
+> 本卡只证实本次核对业务基线 `3134a0c` 的两个远端 CI 查询结果：GitHub 的
+> `/commits/3134a0ccb47d5c75e570117d2eb534cd265f712e/check-runs` 与
+> `/actions/runs?head_sha=3134a0ccb47d5c75e570117d2eb534cd265f712e&per_page=100`，两者均为
+> `total_count=0`。该证据绑定原业务基线 `3134a0c`，不随本次文档后续提交改写，也不据此推断
+> 其他远端状态；因此该业务基线远端 CI 缺证，RF-04、CP-06 与已实现的 iOS 预下载有限重试继续
+> 保留未验证。后续触发 CI、修改 workflow 或分支保护规则均未获本卡授权，也不以历史 `main`
+> 运行覆盖该业务基线。
+>
+> 下一张建议是已确认时长的浏览器→真实本地 API→合成 PG 整链路补验，先核既有覆盖与隔离启动条件，
+> 只补实际断点；本卡不实施。其他可先写指标及 goals/Task Completion 的产品/数据设计草案、正式
+> i18n 迁移的取舍草案，均不代表已确认业务口径或获准实施。只读源码显示
+> `backend/main.py` 的 lifespan 调用 `settings.validate_runtime()`，`backend/config.py` 提供
+> 显式 `DEV_AUTH_TOKEN` 入口，且 `validate_runtime()` 还校验 active key 与 keyring 等完整安全
+> 配置。准确边界是：存在显式 dev 鉴权入口，仍须满足完整安全配置校验；本卡未启动产品 API 或
+> 整链路，运行条件待下一卡实证。详细最终验收数字只在本文件 TDOC 小节集中记录；下方 WD-UI
+> 及三卡小节均保留各自时点的历史和数字。
+>
+> WD-UI 原当前卡现作为历史快照保留。客户端只固定发送
 > `include_recorded_duration=true`，服务端仍以默认 `false` 保持旧四字段/count-only 兼容；
 > 已有 parser、requestAbort、baseURL、controller、生成类型和迁移不改。周总与选中日使用同一
 > “可用 / 暂无可用 / 未知”语义，全部不可计算不再显示 `0秒`，零个可信不可计算计数也不再冒充
@@ -51,11 +81,50 @@
 
 ## 当前验证基线
 
-### WD-UI 周报“已记录会话时长”前端显示与浏览器验收（`FINAL_READY`）
+### TDOC 剩余待办与项目状态核对（`FINAL_READY`）
+
+- **范围与基线**：只更新 [`TODO.md`](../TODO.md) 与本文件，基线为
+  `3134a0ccb47d5c75e570117d2eb534cd265f712e`。未勾选原始复选框记录为 58：R2 `2`；候选产品
+  `6` 加 P1 `7` 合计 `13`；历史维护待验 `9`；RF `8`；CP 及后续候选 `26`。这些数字描述记录
+  分布，包含父项、重复外部验收和远期候选，不是独立开发卡数或工期。主控最终核验所有旧复选框
+  状态完整保持，原始未勾选记录仍为 58；本卡未勾选、取消勾选、新增复选框或为重复条目另造卡。
+- **当前 CI 证据**：本卡只证实 commit check-runs 与 actions-runs 两个接口对本次核对业务基线
+  `3134a0c` 均返回 `total_count=0`，不据此推断其他远端状态。该结果绑定原业务基线，不随本次
+  文档后续提交改写；RF-04、CP-06 与已实现的 iOS 预下载有限重试继续缺证并保留未验证。后续
+  触发 CI、修改 workflow 或分支保护规则未获本卡授权；不把 `9179050`、历史 `main` 结果或其他
+  历史门禁当作该业务基线的 CI。
+- **三卡状态**：WD-DESIGN `9d3ab32`、WD-API `9179050`、WD-UI `3134a0c` 均已由主控分别独立
+  Review `APPROVED` 并推送当前分支；用户 Review 仍待。`9179050` 只保留为 WD-UI 原源码父，
+  当前工作基线是 `3134a0c`。WD-UI 顶端原“当前卡”说明已标为历史快照，其失败、数字和 PG 清理
+  事实均原样保留，不追溯修改旧历史结论。
+- **下一步建议**：优先做已确认时长的浏览器→真实本地 API→合成 PG 整链路补验，先查既有覆盖与
+  隔离启动条件，只补实际断点；本卡不实施。只读源码中 lifespan 调用
+  `settings.validate_runtime()`，config 提供显式 `DEV_AUTH_TOKEN` 入口，`validate_runtime()`
+  还校验 active key 与 keyring 等完整安全配置；因此只可写“存在显式 dev 鉴权入口，仍须满足完整
+  安全配置校验”，本卡未启动产品 API 或整链路，运行条件待下一卡实证。指标、goals/Task Completion
+  和正式 i18n 可先写设计草案，实施另等用户确认。指标历史快照、窗口和有效口径，goals 完成
+  判据，音频采集保留/删除授权及 macOS 方案仍需业务确认；Provider/IdP/LiveKit、设备媒体、
+  Keychain、签名、部署和生产仍属外部依赖边界。
+- **最终 13 项门禁**：全部 `exit 0`。Vitest 为 `1309 passed / 60 files / 0 skip`；E2E 为
+  `278 = Chromium 139 + WebKit 139`，每例恰有一个 passed result，retry、flaky、skip、
+  unexpected 均为 `0`；backend 为 `1055 passed / 3 warnings / 0 skip`，raw coverage 为
+  `81.77679679955855%`；Fake API 为 `117`、build 为 `47`、API 类型为 `8`，iOS 仅 Node runner
+  为 `37`；lint 为 `132 warnings / 0 errors / 0 new`，诊断按 file/message/rule 的多重集与基线
+  一致。
+- **保护与资源**：`721` 个保护文件字节不变；`2` 个已跟踪 Vite 环境配置仅核验索引/metadata，
+  未读取正文。本卡自有 PG 在精确 container ID、双 owner、loopback 与合成库身份核验后为
+  `stop_exit0`、`auto_removed=true`，名称和 ID 均不存在，其他资源未动。本卡没有产品变更，也未
+  新增镜像单元测试；完整三树由主控执行。
+- **终态**：实施节点只写本文件与 [`TODO.md`](../TODO.md)，未执行测试、服务、数据库、CI、Git 写
+  或依赖安装。最终格式、独立 Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review
+  待。所有候选仍只是建议，本卡不启动后续候选、不触发 CI、不修改 workflow 或保护规则、不开 PR、
+  不合并，也不创建实施报告；本卡停在 `FINAL_READY`。
+
+### WD-UI 周报“已记录会话时长”前端显示与浏览器验收（历史快照，原时点 `FINAL_READY`）
 
 - **状态与源码基线**：唯一工作树为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
-  `codex/B1-learning-events-20261112`，源码基线 HEAD
+  `codex/B1-learning-events-20261112`，原时点源码父 HEAD
   `917905057ff50c491ed7f69ba74efcd3fd57cdfc`。本卡产品、测试与四份文档停在 `FINAL_READY`；
   正式返修 `1/2`。测试前过程纠正 `1`、TDD oracle 修正 `2`：提前 Fake WIP 已保存并恢复原字节，
   产品恢复原字节后执行有效 RED，再 GO；两轮 TDD 修正均只改测试：第一轮纠正 bool 参数、保留
