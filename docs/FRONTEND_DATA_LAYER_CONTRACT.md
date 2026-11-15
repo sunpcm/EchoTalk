@@ -323,16 +323,21 @@ WP 是 weekly 成功后释放自身槽位、再启动单日 history 的依赖链
 | Merge policy | WP 历史链式加载、DP 并行 all-or-nothing、AS 的 tombstone 均作为策略测试，不要求实现细节相同                                                                                                                                                             |
 | Retry/error  | 显式 retry 重新过全部 gate；失败只产生 `http`/`parse`/`network` 本地安全分类；不出现 API body/message；各阶段错误不互相覆盖；门禁关闭不制造新错误；各阶段旧错误清除/保留按 profile（WG/WP 清空、DP/AS 清 loadMoreError 保留首屏 error）                 |
 | Time         | 本地午夜/时区变化立即清旧 context；offline 跨午夜不发网络；恢复后按新 context 请求；可选分钟检查仅在 context 变化时 refresh                                                                                                                             |
-| AS profile   | 启动/结束/恢复互锁列表与更多页；结束成功后的 tombstone 阻止旧页复活；挂起不释放写操作槽位；事件里的启动判断按已保留的待裁定行为单独标注                                                                                                                 |
+| AS profile   | 启动/结束/恢复互锁列表与更多页；结束成功后的 tombstone 阻止旧页复活；挂起不释放写操作槽位；生命周期回调在事件发生时读取同一 store 的当前启动态，在途不请求不排队，退出在途不自动补发                                                                    |
 
 ## 9. 未决问题（独立，不在 A4a 内裁定）
 
-- **AS 生命周期事件里的"启动在途"取挂载时快照**：`useActiveSessionsLifecycle` 用 `isStartingAtMountRef`
+- **AS 生命周期事件里的“启动在途”取挂载时快照（A4a 历史解释，已被后续决策取代）**：
+  `useActiveSessionsLifecycle` 用 `isStartingAtMountRef`
   （[useActiveSessionsLifecycle.ts](https://github.com/sunpcm/EchoTalk/blob/a7841b7486b14af01e535e5e3f4e0472c621d198/apps/vite-app/src/components/conversation/active-sessions/useActiveSessionsLifecycle.ts#L47-L49)），
   订阅期间不更新；列表刷新本身实时读 store（[List](https://github.com/sunpcm/EchoTalk/blob/a7841b7486b14af01e535e5e3f4e0472c621d198/apps/vite-app/src/components/conversation/active-sessions/useActiveSessionList.ts#L69)）。
-  影响限于 resume/connectivity 事件是否触发刷新。该问题已列入 [TODO.md](../TODO.md)
-  「2026-11-10 云端评审后续（R2）」的"待用户裁定：活动会话订阅里的启动在途取值"项；本稿不修，
-  也不把它规范成永久正确行为，留给后续业务问题单独裁定。
+  这段只保留 A4a 写入时的源码快照，不把挂载时取值解释成永久正确行为。
+- **2026-11-15 后续决策 A 已确认**：`resume` 与 `connectivity` 在事件发生时读取同一 conversation
+  store 的真实当前启动态；启动/恢复/结束在途不请求、不排队，退出在途不自动补发，下一次独立
+  合格事件才可只读刷新。`Dashboard` 提供的共享设置标题、活动行和结束/恢复确认面板的 UUID 展示
+  也按同一 A 决策收敛为“设置”及“现有模式 + 开始时间”；完整 UUID 只保留内部用途。精确目标行为与两卡边界见
+  [R2_FOLLOWUP_CONTRACT.md](./R2_FOLLOWUP_CONTRACT.md)。本轮设计回写时两卡均未实施；后续实施状态以
+  [TODO.md](../TODO.md) 和 [PROJECT_STATUS.md](./PROJECT_STATUS.md) 为准。
 - 差异点 1/2/3（挂起可见数据、abort 传输、分页统一）按 §5/§7 的方案 A 保留现状，不再请求
   A4a 确认；未来是否统一属于后续独立范围。
 

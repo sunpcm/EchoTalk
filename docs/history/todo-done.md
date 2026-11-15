@@ -6,6 +6,23 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 DEC-A R2 与 SGEC 设计口径回写
+
+- [x] **DEC-A 设计确认回写与正式返修 1/2（FINAL_READY）**：按用户已确认的 R2 与 SGEC 推荐 A，新增
+      [R2 活动会话生命周期与显示合同](../R2_FOLLOWUP_CONTRACT.md)与
+      [SGEC 严格离线校验与合成评测合同](../SGEC_OFFLINE_CONTRACT.md)，并回写
+      [前端 Data 层合同](../FRONTEND_DATA_LAYER_CONTRACT.md) §8/§9、[TODO.md](../../TODO.md)、
+      [PROJECT_STATUS.md](../PROJECT_STATUS.md) 和本归档。R2 拆为 R2-LIVE 与 R2-UI 两张未勾实施卡；
+      活动行和结束/恢复确认面板均不得向用户显示完整 UUID。SGEC 总项仍未勾，只确认严格离线设计，
+      未产生真实质量或准确率结论。正式返修 1/2 已修正空 `errors`、标准 JSON fixture、旧挂载快照
+      持续抑制事实、共享设置标题来源及最终可访问名称边界。主控 12 项与附加脚本的已回传证据和细
+      数字集中记录在 [PROJECT_STATUS 的 DEC-A 小节](../PROJECT_STATUS.md#dec-a-r2-与-sgec-设计口径回写final_ready)，
+      本归档不重复抄录。
+      本卡为纯文档修改，没有改代码、测试、API、数据库、迁移、依赖或 CI；实施节点不跑测试、服务、
+      PG 或真实外部依赖，只允许对精确六文档执行现有 Prettier。最终 13 组合（含 format）、独立
+      Review、当前任务分支提交发布与用户 Review 状态以主控同卡回执为准；R2-LIVE、R2-UI 和
+      SGEC-OFF 三张实施卡仍未完成。
+
 ## 2026-11-15 RDOC 路线图历史快照口径修正
 
 - [x] **RDOC 路线图历史快照口径修正（FINAL_READY）**：只修正

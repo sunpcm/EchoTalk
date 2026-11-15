@@ -1,7 +1,10 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。本轮文档卡 RDOC（路线图历史快照口径修正）处于 `FINAL_READY`；最近产品卡
-> A18P2（启动/恢复生命周期减重与实例隔离）处于 `FINAL_READY`：
+> 最后核对：2026-11-15。当前文档卡 DEC-A（R2 与 SGEC 推荐 A）正式设计返修 1/2 为
+> `FINAL_READY`。主控 12 项与 format 合计 13 项全部 `exit 0`；独立 Review、提交发布以主控回执为准，
+> 三张实施卡仍未完成；此前
+> RDOC（路线图历史快照口径修正）与产品卡 A18P2（启动/恢复生命周期减重与实例隔离）均为
+> `FINAL_READY`：
 > 产品已移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入
 > `_setLifecycleOptionsForTesting`，start/resume 复用实例内公共 `runStartupLifecycle`，新增跨实例隔离回归并迁移两旧测试文件到局部 platform mock；13 项门禁组合全 `exit 0`，完整 Vitest `1216 passed / 50 files / 0 skip`，完整双浏览器 E2E `248 = Chromium 124 + WebKit 124`，backend `941 passed / 3 warnings / 0 skip`，三项有效私有行为变异均被对应断言杀死，详细数字与 TDD/R1 历史见下方 A18P2 小节。A19 P2、A82C、A84C、CF20、RF04E 与 WG20 均绑定各自时点的历史快照；其测试数字、失败记录和 Review/提交状态不能转作 A18P2 的当前结果。R2-13、R2-12、R2-14 以及 A6、B1、独立 WPH 的数字同样绑定各自当时快照。最终文档 format、独立 Review、提交和当前任务分支推送见主控同卡回执；用户 Review 待。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
@@ -31,6 +34,35 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### DEC-A R2 与 SGEC 设计口径回写（FINAL_READY）
+
+- 用户已确认 R2 与 SGEC 均采用推荐 A；本卡只把决定写回权威文档并更新索引、TODO 与历史，不改
+  产品代码、测试、API、数据库、迁移、依赖、CI 或服务。唯一实施 worktree 为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，基线
+  `codex/B1-learning-events-20261112@0aae655928cf046482627830aee9df6cb7fc1fc1`，开工 clean。
+- R2-LIVE 规定生命周期事件发生时读取同一 conversation store 的实时启动状态；启动/恢复/结束
+  在途不请求、不排队，退出在途不自动补发。R2-UI 规定设置名称为“设置”，活动行及结束/恢复
+  确认面板用现有模式与开始时间标识记录，完整 UUID 只留内部 key、稳定定位及 API/目标归属。
+  精确合同见 [R2_FOLLOWUP_CONTRACT.md](./R2_FOLLOWUP_CONTRACT.md)。
+- SGEC-OFF 只定义现有五个核心字段的全批次严格离线校验、调用方合法技能集和固定合成材料；
+  不新增 DB/API 字段，不接默认分析、BKT、learning events、Provider 或自动重试。合法标签不由
+  校验模块硬编码，`other` 只可在调用方集合明确包含时使用；结构通过不称准确率。精确合同见
+  [SGEC_OFFLINE_CONTRACT.md](./SGEC_OFFLINE_CONTRACT.md)。
+- 本实施节点只改设计/状态文档，未运行测试、服务、PG 或真实外部依赖，新代码门禁为零；主控在独立
+  控制面完成前端 `7` 项、后端 `5` 项及附加脚本的机器执行，全部 `exit 0`，其中 iOS 侧 Node 脚本
+  `37` 项 `exit 0`。主控 12 项与 format 合计 13 项全部 `exit 0`；独立 Review、提交发布以主控回执为准。
+- 当前快照 Vitest 为 `1216 passed / 50 files / 0 skip`；完整 E2E 为
+  `248 = Chromium 124 + WebKit 124`，每例恰有一个 passed result、`retry 0`，
+  `skip / flaky / unexpected` 均为 `0`。
+- backend 为 `941 passed / 3 warnings / 0 skip`，raw coverage 为 `81.55505107832009%`；
+  build-script `47`、Fake API `116`、API 类型 runner `8` 均通过。
+- lint 为 `132 warning / 0 error / 0 new`；主控机器复核 file/message/rule 多重集与上一冻结基线完全
+  一致，687 个保护源文件未变。
+- R2-LIVE、R2-UI 与 SGEC-OFF 三张实施卡仍未实施，对应行为 RED、实现、完整代码门禁和针对性变异
+  均未完成；设计卡通过不代表目标行为已完成。
+- 独立 Review、当前任务分支提交与推送以同卡主控回执为准；用户 Review 待。
+  本卡不开 PR、不合并、不部署，真实 Provider/IdP/LiveKit、设备与生产仍未验。
 
 ### RDOC 路线图历史快照口径修正（FINAL_READY）
 

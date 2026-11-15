@@ -32,22 +32,27 @@
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，
 证据见该报告 §3.1～§3.4；以下为剩余项，括号内编号对应报告中的发现。
 
-- [ ] **待用户裁定：活动会话订阅里的"启动在途"取值，以及两处界面文案**（来源：
-      [云端评审](./docs/reviews/2026-11-cloud-review.md) §3.4）：
-      (1) `apps/vite-app/src/components/dashboard/activeSessions/useActiveSessionsLifecycle.ts` 中，
-      生命周期事件判断"是否正在启动会话"用的是挂载时的 `isStarting`，订阅期间不更新（拆分前即如此，R2-07
-      按原样保留）；列表刷新本身读取 store 实时值，因此影响限于 resume/connectivity 事件是否触发刷新。
-      (2) 设置抽屉标题"自定义模型设置"是否改为"设置"；(3) 活动会话行是否不再展示完整 UUID。
-      验收：先决定是否修复/修改；修复(1)须先写出能复现的回归用例（挂载后启动态变化再触发 resume 事件），
-      (2)(3)须同步更新相关 Vitest 与 E2E 断言；三测试树通过。
+- [ ] **R2-LIVE 活动会话生命周期实时门禁**（已确认 A，待实现）：先写行为 RED，证明挂载时启动在途、
+      随后空闲时，`resume` 与 `connectivity` 都能触发一次真实只读列表查询并呈现服务端当前行；反向
+      空闲→在途必须在事件时拒绝且不排队，启动/结束/恢复退出在途后也不自动补发，下一次独立资格事件
+      才可查询。保留认证 principal/revision、hidden/offline、晚到请求、分页、tombstone、卸载/
+      StrictMode 与写槽位归属。合同见 [R2_FOLLOWUP_CONTRACT](./docs/R2_FOLLOWUP_CONTRACT.md)。
+- [ ] **R2-UI 设置标题与活动记录去 UUID**（已确认 A，待实现）：共享设置入口与 dialog 名称改为
+      “设置”；活动行及展开的结束/恢复确认面板用现有模式 + 开始时间明确目标，用户可见正文、`title`
+      与最终计算的可访问名称均不出现完整 UUID。完整 ID 只保留内部 key、稳定 `data-testid` 和 API/目标归属；
+      不新增复制或请求，确认/取消/失败/重试/busy/互锁行为不变。同步 `ActiveSessions`、`ConfirmPanel`、
+      `SessionRow`、`zh-CN` 及既有 Vitest/E2E 断言。合同见
+      [R2_FOLLOWUP_CONTRACT](./docs/R2_FOLLOWUP_CONTRACT.md)。
 - [ ] **R2-09 平台接缝：认证会话、安全存储、麦克风权限**（2026-11-10 已删除 `utils/env.ts`；三个平台接口与能力标志待 CP-03/CP-04 设备证据后与原生实现同轮完成）（P-1，P1）：在 `src/platform/` 增加三个接口及
       Web 实现，`lib/auth.ts` 改为经接口装配；把 `RoomSession.tsx:50` 与 `store/conversation.ts:69` 的
       平台名判断改为读取适配器能力；删除 `src/utils/env.ts`。验收：`auth.test.ts`、`VoiceInterface.test.tsx`
       零改动通过；`src/` 中 `platform/` 之外不再出现 `=== "ios"` 这类平台名比较；不新增依赖。
       原生实现不在本项范围。
-- [ ] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；剩余：设置抽屉标题改为"设置"、活动会话行不展示完整 UUID，待用户确认）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与 `goalReached` 英文
-      迁入 `src/i18n/`；设置抽屉标题改为"设置"；活动会话行不再展示完整 UUID；推荐卡片与语法提示的技能标签
-      复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、非测试文件中无中文字符串字面量。
+- [ ] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；设置标题与活动记录 UUID
+      两项已确认 A，由 R2-UI 实施）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与
+      `goalReached` 英文迁入 `src/i18n/`；设置抽屉标题改为“设置”；活动行及确认面板不展示完整
+      UUID；推荐卡片与语法提示的技能标签复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、
+      非测试文件中无中文字符串字面量。
 - [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：覆盖 LiveKit 容器背景为主题色、增加
       场景名与计时页头、手机上字幕优先、`thinking` 使用独立文案。验收：模块桩布局 E2E 覆盖 390 与 1280；
       真实 LiveKit 下的人工验收单列，未做不得勾选整项。
@@ -106,8 +111,11 @@
 
 **被 Key 或外部条件阻断：**
 
-- [ ] 语法 LLM SGEC（方案 C-2）：可先在 Mock 下做结构化输出、`skill_tag` 校验与离线评测集；
-      真实 Provider 验收需 LLM Key，BKT 接线等 C-1。
+- [ ] 语法 LLM SGEC（方案 C-2；推荐 A/严格离线边界已确认，SGEC-OFF 待实施）：先做现有核心字段的
+      全批次严格结构校验、调用方合法 `skill_tag` 集合和固定合成 fixtures；解释/建议只作离线材料，
+      不新增 DB/API 字段，不接默认分析、BKT、learning events、Provider 或自动重试。结构通过不称
+      准确率；SGEC 总项与真实质量仍未验。合同见
+      [SGEC_OFFLINE_CONTRACT](./docs/SGEC_OFFLINE_CONTRACT.md)。
 - [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：先由用户裁定产品口径。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
