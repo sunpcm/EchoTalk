@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarVisualizer,
   useConnectionState,
@@ -15,6 +15,7 @@ import { arePrincipalsEqual, getAuthRevision, getAuthSnapshot } from "@/lib/auth
 import type { AuthPrincipal } from "@/lib/auth";
 import { logDiagnostic } from "@/lib/diagnostics";
 import { useConversationStore } from "@/store/conversation";
+import type { SessionPresentation } from "@/store/conversationSlice";
 import { parseAgentErrorMessage } from "./agentErrorMessage";
 import { ConnectingView } from "./ConversationStatusViews";
 import { stopRoomLocalTracks } from "./roomAudio";
@@ -40,7 +41,9 @@ export function ActiveConversation({
   const room = useRoomContext();
   const { setActive, endSession, setAgentError } = useConversationStore();
   const endError = useConversationStore((state) => state.error);
+  const sessionPresentation = useConversationStore((state) => state.sessionPresentation);
   const isMountedRef = useRef(true);
+  const [recommendationsOpen, setRecommendationsOpen] = useState(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -110,44 +113,133 @@ export function ActiveConversation({
     return <ConnectingView />;
   }
 
+  const currentPresentation =
+    sessionPresentation?.sessionId === sessionId && sessionPresentation.sessionGen === sessionGen
+      ? sessionPresentation
+      : null;
+
   return (
-    <div className="flex w-full flex-1 flex-col gap-6 p-4 lg:flex-row">
-      <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
-        <div className="border-border-default bg-surface rounded-[20px] border p-4 shadow-[0_6px_22px_-14px_var(--card-shadow)]">
-          <div className="mb-4 h-24 w-full">
-            {voiceAssistant.audioTrack && (
-              <BarVisualizer
-                state={voiceAssistant.state}
-                trackRef={voiceAssistant.audioTrack}
-                barCount={7}
-                className="h-full w-full"
-              />
-            )}
-          </div>
-
-          <AgentStatusText state={voiceAssistant.state} />
-
-          <div className="mt-3">
-            <VoiceAssistantControlBar controls={{ leave: false }} />
-          </div>
-
-          <button
-            onClick={handleEnd}
-            className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast mt-3 w-full rounded-[14px] px-6 py-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+    <div className="session-layout w-full min-w-0 flex-1 p-4">
+      <section className="session-layout__status border-border-default bg-surface min-w-0 rounded-[20px] border p-4 shadow-[0_6px_22px_-14px_var(--card-shadow)]">
+        <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+          <p
+            data-testid="session-scenario"
+            className="text-text-default min-w-0 text-sm font-semibold [overflow-wrap:anywhere]"
           >
-            {tConv.endButton}
-          </button>
-          {endError ? <p className="text-danger mt-2 text-sm">{endError}</p> : null}
+            {resolveScenarioLabel(currentPresentation)}
+          </p>
+          <SessionTimer startedAt={currentPresentation?.startedAt ?? null} />
         </div>
 
-        <AnswerRecommendations />
+        {voiceAssistant.audioTrack ? (
+          <div className="mb-4 h-24 w-full">
+            <BarVisualizer
+              state={voiceAssistant.state}
+              trackRef={voiceAssistant.audioTrack}
+              barCount={7}
+              className="h-full w-full"
+            />
+          </div>
+        ) : null}
+
+        <AgentStatusText state={voiceAssistant.state} />
+
+        <div className="mt-3 min-w-0">
+          <VoiceAssistantControlBar controls={{ leave: false }} />
+        </div>
+
+        <button
+          onClick={handleEnd}
+          className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast mt-3 w-full rounded-[14px] px-6 py-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+        >
+          {tConv.endButton}
+        </button>
+        {endError ? <p className="text-danger mt-2 text-sm">{endError}</p> : null}
+      </section>
+
+      <div className="session-layout__subtitles min-w-0">
+        <ChatSubtitles />
       </div>
 
-      <div className="min-h-[50vh] flex-1 lg:min-h-0">
-        <ChatSubtitles />
+      <div className="session-layout__recommendations min-w-0">
+        <button
+          type="button"
+          data-testid="answer-recs-toggle"
+          aria-expanded={recommendationsOpen}
+          aria-controls="answer-recommendations-panel"
+          onClick={() => setRecommendationsOpen((open) => !open)}
+          className="border-border-default bg-surface text-text-default hover:bg-surface-alt flex min-h-[44px] w-full items-center justify-between gap-3 rounded-[14px] border px-4 py-2 text-left text-sm font-semibold transition-colors lg:hidden"
+        >
+          <span>{zhCN.answerRecommendations.title}</span>
+          <span aria-hidden="true" className="text-text-muted text-lg leading-none">
+            {recommendationsOpen ? "−" : "+"}
+          </span>
+        </button>
+        <div
+          id="answer-recommendations-panel"
+          className={`mt-2 min-w-0 lg:mt-0 ${recommendationsOpen ? "block" : "hidden lg:block"}`}
+        >
+          <AnswerRecommendations />
+        </div>
       </div>
     </div>
   );
+}
+
+function resolveScenarioLabel(presentation: SessionPresentation | null): string {
+  const scenarioName = presentation?.scenarioName?.trim();
+  if (scenarioName) return scenarioName;
+
+  const mode = presentation?.mode;
+  const modeLabels: Readonly<Record<string, string>> = zhCN.activeSessions.modes;
+  if (mode && Object.prototype.hasOwnProperty.call(modeLabels, mode)) {
+    return modeLabels[mode] ?? zhCN.activeSessions.unknownMode;
+  }
+  return zhCN.activeSessions.unknownMode;
+}
+
+function SessionTimer({ startedAt }: { startedAt: string | null }) {
+  const elapsed = useSessionElapsed(startedAt);
+  return (
+    <time
+      data-testid="session-timer"
+      dateTime={startedAt ?? undefined}
+      className="text-text-muted shrink-0 text-sm font-medium tabular-nums"
+    >
+      {elapsed}
+    </time>
+  );
+}
+
+function useSessionElapsed(startedAt: string | null): string {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt]);
+
+  return formatElapsed(startedAt, now);
+}
+
+function formatElapsed(startedAt: string | null, now: number): string {
+  if (!startedAt) return tConv.elapsedUnavailable;
+
+  const startedAtMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedAtMs) || now < startedAtMs) {
+    return tConv.elapsedUnavailable;
+  }
+
+  const totalSeconds = Math.floor((now - startedAtMs) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+  }
+  return [minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
 function AgentStatusText({ state }: { state: string }) {
@@ -156,7 +248,7 @@ function AgentStatusText({ state }: { state: string }) {
       case "listening":
         return tConv.listening;
       case "thinking":
-        return tConv.connecting;
+        return tConv.thinking;
       case "speaking":
         return tConv.speaking;
       default:

@@ -1,13 +1,15 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **R2-10 硬编码文案收口（FINAL_READY，本地实现）**：
-> 父项原有文案迁移、设置标题与活动 UUID 验收完整承接；本卡补齐 10 个真实技能中文标签与平台 URL
-> 配置错误入 i18n。R2 夹具修正后的最终 13 项门禁全部 `exit 0`，完整机器数字集中在本节。
+> 最后核对：2026-11-15。当前卡片为 **R2-11 会话中界面本地子卡（FINAL_READY）**：
+> LiveKit 主题背景、场景/墙钟页头、移动字幕优先、thinking 独立文案与单实例回答推荐的本地模块桩
+> 子卡已完成；13 项门禁最终机器验收全部 `exit 0`，完整机器数字集中在本节。R2-10 硬编码文案收口及
 > SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、A19 P2 等均为各自时点的历史交付，其数字不能
-> 转作本卡结果。SGEC-OFF 等历史批次的独占合成 PG 已清理；R2-10/R2-11/CP05 共用的本批独占 PG
-> 仍在运行，待三卡末尾统一清理。
+> 转作本卡结果。R2-11/CP05 共用的本批独占合成 PG 仍在运行，待本批末尾统一清理。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
-> requested route 为 `workbuddy/deepseek-v4.1-flash`；真实调用成功仅证明路由可用，实际后端身份未独立认证。
+> 本卡模型分工：TDD/测试与产品实施由 `workbuddy/deepseek-v4-pro/high` 及
+> `workbuddy/deepseek-v4.1-flash` 前序节点产出并保留，路由切换属吞吐优化，不代表旧路由不可用；
+> R1 返修与文档收口由接续节点 `zcode/GLM-5.3-Flash/low` 完成。真实调用成功仅证明对应路由可用，
+> 各路由底层模型身份未独立认证。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
@@ -35,6 +37,43 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### R2-11 会话中界面本地子卡（FINAL_READY）
+
+- 本小节是 2026-11-15 R2-11 本地模块桩子卡的 `FINAL_READY` 快照；正式返修 `1/2`。主控机器最终
+  验收的 13 项门禁全部 `exit 0`；独立技术 Review、正常 commit/当前分支 push 以主控同卡最终回执
+  为准，用户 Review 待。父项 R2-11 保持未勾：真实 LiveKit 人工媒体验收未做，不得勾选整项。
+- 唯一实施 W 为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，基线 HEAD `7d38f91dbc6fd5c00e5f3a89061cc8e9b6a503c5`。
+  本卡只改写集内 9 个代码/测试文件与仓内四文档：store 新增内存只读 `sessionPresentation`
+  （归属 `(sessionId, sessionGen)`，所有代际/失败/reset 清空）、`ActiveConversation` 页头场景/
+  墙钟、thinking 独立文案、单实例回答推荐展开与 LiveKit 默认主题映射，另有 2 份单测与 3 个
+  E2E 模块桩文件。未改连接判别联合、认证、API、后端或依赖。
+- 有效 RED：主控实跑本卡单测 `22 failed / 4 passed / 26 total / 0 pending / exit 1`，22 项均来自
+  缺失展示功能或目标顺序；browser RED 1 例失败（旧 Listening 挂载后页头缺失）。
+- R0 主控实跑全量 Vitest `1254 passed / 1 failed`：唯一功能失败为新 logout 用例裸 slice 上期待
+  auth 监听自动清元信息（真实清理链为 AuthGate → clearUserSessionData → goHome →
+  resetWithShellCoordination）；quality `2` 为新测试两处非法 `AuthState` 字面量；format `1` 为三份
+  新 TDD 文件；E2E `252 passed / 4 failed` 为四个新布局用例在 body 250ms 主题过渡未结束时过早
+  取背景色。以上原始失败记录全部保留，不并入产品回归。
+- R1 精确 GO 后修正：logout 用例接真实 `AuthGate` + 物理 store + 真实 `clearUserSessionData`；
+  两处字面量改合法 `"anonymous"`；E2E 背景比较改 `expect.poll` 等待过渡结束的真实最终色（精确
+  相等保留）；并移除 start 完成处本卡误加的外壳补丁，仅附加 `sessionPresentation`。
+- R1 修正后主控机器验收：quality `0`；Vitest `1255 passed / 54 files / 0 skip`；format `0`；
+  25 个完整 callback 按 AST 与 RED 相同（仅合法 `anonymous` 统一）；四新增布局 E2E 在
+  Chromium/WebKit 的 390/1280 全 `4` 通过，覆盖精确主题背景、单实例推荐、字幕顺序、左右栏几何、
+  无横向溢出与零 API 写。
+- 最终全量 E2E 为 `256 = Chromium 128 + WebKit 128`，每个 test 恰有一个 passed result，
+  `retry / skip / flaky / unexpected` 均为 `0`。最终 13 项门禁全部 `exit 0`。
+- lint 最终机器核对为 `132 warning / 0 error / 0 new`，逐诊断（file+message+rule）与 132 基线完全
+  一致。backend 此前 5 门禁全 0：`1044 passed / 3 warnings / 0 skip`，raw coverage
+  `81.84461985874533%`；build `47`、Fake API `116`、API 类型 runner `8`、iOS 侧仅 Node `37` 均通过。
+- 三项私有 load 变异均有效 killed：归属越界、resume 串旧场景、timer 不清理，各命令 `exit 1`、
+  精确目标断言 `fail 1`、driver `0`，默认 26 项复核 `0` 失败；每命令 `12` 个未选用例不构成覆盖
+  证明。全量 Vitest 默认 `1255` 零 skip 佐证无全局放宽。
+- 实施端除主控 GO 下的 Node22 prettier 精确格式化（R1 时代码 9 路径、文档收口 4 文档）外，未
+  运行 Vitest、E2E、lint、build 或服务；数字均来自主控机器回执。截图存于主控证据目录；截图
+  CLI 前置不支持不是产品失败。
 
 ### R2-10 硬编码文案收口（FINAL_READY）
 

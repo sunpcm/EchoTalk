@@ -89,6 +89,15 @@ function isValidOrigin(origin: unknown): origin is { principal: AuthPrincipal; r
   return true;
 }
 
+/** 本次活动会话的只读展示元信息；仅驻留内存，不引入 API/DB/持久化契约。 */
+export interface SessionPresentation {
+  readonly sessionId: string;
+  readonly sessionGen: number;
+  readonly startedAt: string | null;
+  readonly mode: string | null;
+  readonly scenarioName: string | null;
+}
+
 /** 会话切片状态与动作；其他切片的状态归属由组合层协调。 */
 export interface ConversationSlice {
   /** 内部判别联合真值；扁平连接字段是它的兼容投影 */
@@ -99,6 +108,8 @@ export interface ConversationSlice {
   connectionState: ConnectionState;
   /** 会话 ID */
   sessionId: string | null;
+  /** 当前会话页头所需的本次内存快照 */
+  sessionPresentation: SessionPresentation | null;
   /** LiveKit 房间令牌 */
   token: string | null;
   /** LiveKit WebSocket 地址 */
@@ -166,6 +177,25 @@ function reduceStoreSession(
   event: ConversationSessionEvent,
 ): SessionStatePatch {
   return projectSessionState(reduceConversationSession(state, event));
+}
+
+function clearsSessionPresentation(event: ConversationSessionEvent): boolean {
+  switch (event.type) {
+    case "begin_checking":
+    case "begin_connecting":
+    case "fail_dispatch":
+    case "fail_connection":
+    case "begin_end":
+    case "finish_end":
+    case "fail_end":
+    case "agent_error":
+    case "reset":
+      return true;
+    case "session_created":
+    case "credentials_ready":
+    case "activate":
+      return false;
+  }
 }
 
 const hasOwn = (value: object, key: PropertyKey): boolean =>
@@ -262,6 +292,7 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
   ): void => {
     set((state) => ({
       ...reduceStoreSession(state._sessionState, event),
+      ...(clearsSessionPresentation(event) ? { sessionPresentation: null } : {}),
       ...extra(state),
     }));
   };
@@ -551,6 +582,12 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
     // 1. 防止重复调用（如双击或 StrictMode 双渲染），在途能力查询和启动去重
     if (!canStartConversationSession(get()._sessionState)) return;
 
+    // 在任何 await 前冻结本次选择；后续 Dashboard 选择变化不得串入本会话。
+    const selectedScenario = get().selectedScenario;
+    const scenarioNameSnapshot =
+      mode === "scenario" && selectedScenario
+        ? selectedScenario.scenario_name.trim() || null
+        : null;
     clearReadinessWatch();
 
     // 2. 必须具备有效认证快照，否则不发起开始
@@ -725,13 +762,28 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
       }
 
       createdSessionId = null;
+      const sessionMode = typeof session.mode === "string" ? session.mode : null;
+      const sessionStartedAt = typeof session.started_at === "string" ? session.started_at : null;
+      const scenarioName =
+        sessionMode === "scenario" && mode === "scenario" ? scenarioNameSnapshot : null;
       tracker.cleanup();
-      setSession({
-        type: "credentials_ready",
-        sessionId: session.id,
-        token,
-        wsUrl: ws_url,
-      });
+      setSession(
+        {
+          type: "credentials_ready",
+          sessionId: session.id,
+          token,
+          wsUrl: ws_url,
+        },
+        () => ({
+          sessionPresentation: {
+            sessionId: session.id,
+            sessionGen: targetGen,
+            startedAt: sessionStartedAt,
+            mode: sessionMode,
+            scenarioName,
+          },
+        }),
+      );
     } catch (err) {
       if (!checkOrRelease()) return;
       await endOrphanedSession();
@@ -751,6 +803,7 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
     _sessionState: createIdleConversationSessionState(),
     connectionState: "idle",
     sessionId: null,
+    sessionPresentation: null,
     token: null,
     wsUrl: null,
     error: null,
@@ -1017,6 +1070,9 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
 
       // Step 5: 有效 Token 完成后与外壳补丁一次提交全部凭据与连接状态
       tracker.cleanup();
+      const resumedStartedAt =
+        typeof sessionDetail.started_at === "string" ? sessionDetail.started_at : null;
+      const resumedMode = typeof sessionDetail.mode === "string" ? sessionDetail.mode : null;
       setSession(
         {
           type: "credentials_ready",
@@ -1027,6 +1083,13 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
         () => ({
           ...coordinator.credentialsReadyPatch(),
           error: null,
+          sessionPresentation: {
+            sessionId,
+            sessionGen: targetGen,
+            startedAt: resumedStartedAt,
+            mode: resumedMode,
+            scenarioName: null,
+          },
         }),
       );
       return true;
@@ -1138,6 +1201,7 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
         return {
           ...reduceStoreSession(state._sessionState, { type: "agent_error" }),
           sessionGen: state.sessionGen + 1,
+          sessionPresentation: null,
           agentError: error,
         };
       });

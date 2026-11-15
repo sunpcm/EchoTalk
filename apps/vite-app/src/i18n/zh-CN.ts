@@ -65,6 +65,8 @@ export const zhCN = {
     endButton: "结束对话",
     retryButton: "再来一次",
     connecting: "正在连接...",
+    thinking: "正在思考...",
+    elapsedUnavailable: "计时不可用",
     roomUnavailable: "无法获取有效的 WebSocket 服务器地址，请检查 VITE_API_BASE_URL 配置。",
     startFailed: "暂时无法开始练习，请稍后重试。",
     listening: "正在聆听...",

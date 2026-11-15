@@ -6,6 +6,27 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 R2-11 会话中界面本地子卡（FINAL_READY）
+
+- [x] **R2-11 会话中界面本地子卡（FINAL_READY，本地实现）**：LiveKit 容器背景映射主题
+      token、场景名与墙钟计时页头、移动字幕优先、`thinking` 独立文案、单实例回答推荐展开与
+      `sessionPresentation` 内存展示对象（归属 `(sessionId, sessionGen)`，代际/失败/reset 清空）。
+      两份单测与 3 个 E2E 模块桩文件随卡交付；页头墙钟只是 `started_at` 到当前时间的经过时间，
+      不是有效说话/练习/周报/计费时长。
+- [x] **TDD 与历史失败保留**：有效 RED 为 unit `22 failed / 4 passed / 26 total` 与 browser 1 例
+      （旧 Listening 挂载后页头缺失）。R0 全量 Vitest `1254/1`、quality `2`（新测试非法
+      `AuthState`）、format `1`、E2E `252/4`（过早取 body 250ms 过渡中的主题色）均保留，不并入
+      产品回归。R1 修正 logout 用例接真实 `AuthGate` 清理链、字面量改合法 `anonymous`、背景比较
+      改 `expect.poll` 等待最终色，并移除 start 完成处误加的外壳补丁。
+- [x] **最终机器验收**：13 项门禁全部 `exit 0`，含 Vitest `1255 passed / 54 files / 0 skip`、
+      E2E `256 = Chromium 128 + WebKit 128`（single passed / retry 0 / 0 skip / flaky / unexpected）、
+      lint `132 warning / 0 error / 0 new` 与三项有效私有 load 变异均 killed。完整机器数字集中在
+      [PROJECT_STATUS 的 R2-11 小节](../PROJECT_STATUS.md#r2-11-会话中界面本地子卡final_ready)，
+      边界与口径见
+      [R2-11 验证说明](../verification/cross-platform/R2-11-SESSION-LAYOUT.md)。独立 Review 与
+      正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，不写 APPROVED。父项
+      R2-11 保持未勾：真实 LiveKit 人工媒体验收未做，SDK 模块桩不等于真实媒体。
+
 ## 2026-11-15 R2-10 硬编码文案收口（FINAL_READY）
 
 - [x] **R2-10 硬编码文案收口（FINAL_READY，本地实现）**：父项原验收完整保留：store/lib/组件中

@@ -4,6 +4,16 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
+> **R2-11 会话中界面本地子卡（2026-11-15，FINAL_READY，已归档）：** 本地模块桩子卡
+> （LiveKit 主题背景、场景/墙钟页头、移动字幕优先、thinking 独立文案、单实例回答推荐）已完成并
+> 归档；13 项门禁最终机器验收全部 `exit 0`，完整机器数字集中在
+> [PROJECT_STATUS 的 R2-11 小节](./docs/PROJECT_STATUS.md)，归档见
+> [已完成事项](./docs/history/todo-done.md)，实现边界见
+> [R2-11 验证说明](./docs/verification/cross-platform/R2-11-SESSION-LAYOUT.md)。
+> 独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待；
+> 本文件不写 APPROVED。父项 R2-11 保持 `[ ]`：真实 LiveKit 人工媒体验收未做，不得勾选整项。
+> 本批独占合成 PG 仍由 R2-11/CP05 等共用运行，待本批末尾统一清理。
+
 > **R2-10 硬编码文案收口（2026-11-15，FINAL_READY，已归档）：** 父项原有 14 处中文文案与
 > `goalReached` 英文迁移、设置标题和活动记录去 UUID 已由既有完成回执承接；本卡补齐 10 个真实技能
 > 中文标签复用与 `platform/url.ts` 20 条配置错误原文入 i18n，保持 21 处抛点和全部 URL 安全行为。
@@ -84,9 +94,11 @@
       13 门禁。详见
       [PROJECT_STATUS](./docs/PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)与
       [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-10-硬编码文案收口final_ready)。
-- [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：覆盖 LiveKit 容器背景为主题色、增加
-      场景名与计时页头、手机上字幕优先、`thinking` 使用独立文案。验收：模块桩布局 E2E 覆盖 390 与 1280；
-      真实 LiveKit 下的人工验收单列，未做不得勾选整项。
+- [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：本地模块桩子卡（LiveKit 容器
+      背景主题色、场景名与墙钟计时页头、手机字幕优先、`thinking` 独立文案、单实例回答推荐）已
+      完成并归档，见
+      [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-11-会话中界面本地子卡final_ready)。剩余验收：
+      真实 LiveKit 下的人工媒体验收单列，未做不得勾选整项。
 - [x] **R2-12 macOS 构建产物与同步脚本**（纯脚本实施/本地验收完成；用户 Review 待）：
       `build.mjs --platform macos` 产出 `dist/macos/<mode>` 与 manifest；`sync-macos.mjs` 在调用
       外部工具前校验来源产物和 mode；新增 Turbo 任务将 `ANALYZE` 纳入缓存输入。正式客户端、壳与
