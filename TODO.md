@@ -4,7 +4,13 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **CP05K 会话界面动态桌面与键盘覆盖（已归档，2026-11-15，FINAL_READY）：** 5 个新增 E2E 覆盖补证已完成，正式产品返修 `0/2`。完整门禁、重复与负对照回执见 [PROJECT_STATUS 的 CP05K 小节](./docs/PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)，归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-cp05k-会话界面动态桌面与键盘覆盖final_ready)。CP-05 桌面缩放/键盘父项保持 `[ ]`。当前 `cp05k-cp02i-cp05l-20261115` 新批合成 PG 仍由三卡共同运行，旧 CP05D 批次已清理。
+> **CP02I 通话占用本地组合补验（当前本地已验收归档，2026-11-15，FINAL_READY）：** 真实
+> controller + `api.ts` + stdio 桥 + ASGI + 真实合成 PG 的 6 场景组合补验已通过主控最终
+> 验收（13 门禁 exit0、真实 PG 6/6、707 保护文件未变），正式实施返修 `2/2`（产品未改）。
+> 完整数字见 [PROJECT_STATUS 的 CP02I 小节](./docs/PROJECT_STATUS.md#cp02i-通话占用本地组合补验final_ready)；
+> 独立组合为显式入口，默认 src lint/typecheck 不覆盖，默认 CI 不运行六例。CP-02 父项保持 `[ ]`。
+
+> **CP05K 会话界面动态桌面与键盘覆盖（历史卡片，2026-11-15，FINAL_READY）：** 5 个新增 E2E 覆盖补证已完成，正式产品返修 `0/2`。完整门禁、重复与负对照回执见 [PROJECT_STATUS 的 CP05K 小节](./docs/PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)，归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-cp05k-会话界面动态桌面与键盘覆盖final_ready)。CP-05 桌面缩放/键盘父项保持 `[ ]`。当前 `cp05k-cp02i-cp05l-20261115` 新批合成 PG 仍由三卡共同运行，旧 CP05D 批次已清理。
 
 > **CP05D 设置抽屉动态可见性（历史交付，2026-11-15，FINAL_READY）：** 设置抽屉已打开且输入
 > 聚焦后，普通 resize、根字号 200% 后 resize、聚焦后仅改字号三种场景以当前活动元素归属、
@@ -560,6 +566,7 @@ CP-00 自动化准备已于 2026-10-21 独立评审通过；已补录 iPhone 17 
 - [ ] 完成真实网络离线、Token失效与原生系统中断验收；验收：API 502、离线、Token 失效不再只写 console 或长期显示假在线。
 
 Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`）：专用 PostgreSQL、模拟媒体、失败回滚与迁移往返通过。恢复/接管 UI、真实 Cloud 撤销及三端旧 SDK 重连尚未验收，`CALL_LEASE_MODE` 默认保持 `disabled`。
+CP02I 本地组合补验（真实 controller + api.ts + stdio 桥 + ASGI + 真实 PG，6 场景）已于 2026-11-15 主控最终验收通过并归档（FINAL_READY），见 [CP-02 本地组合补验](./docs/verification/cross-platform/CP-02-LOCAL-COMBINATION.md)与 [PROJECT_STATUS](./docs/PROJECT_STATUS.md)；Cloud 撤销仅显式模拟且桥进程硬拦非本地 PG 出站，真实 OS/SSO/Cloud/设备未验，父 CP02 验收项保持未勾。
 
 ### CP-03：macOS 最小验证与方案定案
 

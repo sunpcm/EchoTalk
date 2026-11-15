@@ -20,6 +20,7 @@
     "lint": "eslint src --report-unused-disable-directives",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "cross-env NODE_OPTIONS=--no-experimental-webstorage vitest run",
+    "test:call-lease-local": "vitest run --config integration/call-lease/vitest.config.ts",
     "test:api-types": "node --test scripts/api-types-test.mjs",
     "test:build": "node --test scripts/build-isolation-test.mjs scripts/macos-build-test.mjs",
     "test:fake-api": "node --test scripts/fake-api-test.mjs",

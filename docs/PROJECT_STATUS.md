@@ -1,15 +1,19 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **CP05K 会话界面动态桌面与键盘覆盖
-> （FINAL_READY）**：本卡完成 5 个 E2E 覆盖补证，无需产品修复、未制造 RED，正式产品返修
-> `0/2`。完整 12 项行为门禁及 iOS 仅 Node `37` 项均 `exit 0`；新增场景 200 次重复全部 passed，
-> 两项私有产品响应负对照有效命中目标断言，恢复原响应后的正向 200 次重复再次通过。
-> 下方的 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、A19 P2
-> 等小节均为各自时点的历史交付，其机器数字不能转作 CP05K 结果。CP05D 与 R2-11 是此前卡片的
-> 历史交付，R2-11 当时的模型分工与路由可用性记录也不代表本卡路由或产品结论。旧 CP05D
-> 所属批次的合成 PG 已 `stop_exit0`/`auto_removed=true`；当前
-> `cp05k-cp02i-cp05l-20261115` 新批独立创建的三卡共用 PG 仍在运行，按三卡批次末尾统一精确
-> 清理，旧清理回执不得转作当前回执。
+> 最后核对：2026-11-15。当前卡片为 **CP02I 通话占用本地组合补验（FINAL_READY）**：本卡
+> 补齐真实 controller + 实际 `api.ts` 封装 + stdio fetch 薄桥 + 真实 ASGI + 真实合成 PG
+> 的 6 场景组合覆盖，主控最终验收全过（13 门禁 exit0、额外 types 0、显式 backend 配置
+> Ruff 0、真实 PG 组合 6/6 retry/skip 0、707 保护文件未变），负对照 2 变异各 fail1 后
+> 恢复全绿，正式实施返修 `2/2`（产品源码未改）。独立组合是显式入口，默认 src 的
+> lint/typecheck 不覆盖它；本卡主控已额外跑 integration 类型检查，默认 CI 不运行六例。
+> 完整数字见下方 CP02I 小节。CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY，2026-11-15）
+> 为紧邻的历史卡片：5 个 E2E 覆盖补证、12 项行为门禁 exit0，详细数字在其专属小节，
+> 不转作本卡结果。下方的 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、
+> RDOC、A18P2、A19 P2 等小节均为各自时点的历史交付，其机器数字不能转作当前卡结果。
+> R2-11 当时的模型分工与路由可用性记录也不代表本卡路由或产品结论。旧 CP05D 所属批次的
+> 合成 PG 已 `stop_exit0`/`auto_removed=true`；当前 `cp05k-cp02i-cp05l-20261115` 新批
+> 独立创建的三卡共用 PG 仍在运行（为 CP05L 保留），按三卡批次末尾统一精确清理，旧清理
+> 回执不得转作当前回执。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
@@ -38,6 +42,40 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### CP02I 通话占用本地组合补验（FINAL_READY）
+
+- 唯一实施工作树 `b1-continuation-20261115`、分支 `codex/B1-learning-events-20261112`、基线
+  `c69583808843c571081353378314f5bac5685e42`。新增 stdio 桥 + 6 场景 spec + 专用 vitest
+  config，`package.json` 仅加 `test:call-lease-local`，默认 Vitest exclude
+  `integration/**`；不新增依赖/CI/迁移，不改协议与默认行为。
+- 组合链路为真实 controller + 实际 `api.ts` 封装 + stdio fetch 薄桥 + 真实 ASGI 路由 +
+  真实合成 PG；Cloud 撤销仅经 `LiveKitAPI.room` 显式模拟。桥在导入 backend 前完成 strict
+  URL/合成标志校验与进程级出站硬拦截（仅放行 `127.0.0.1:55433` PG），HTTP 身份取请求
+  Bearer 合成 UUID 且限 owned 用户，仅接受本地相对 `/api/` 路径，内部失败发
+  `bridge_error` 不伪造服务端响应。
+- 晚到响应用确定性 hold/release 门：请求先真实 commit 再 hold，测试经 PG 确认后
+  invalidate / authRevision 变化，分两个 case，无 sleep。独立 Review 7 项全部关闭后进入
+  R1/R2 返修与最终格式收口，最终主控验收全过，状态 `FINAL_READY`。
+- **最终机器验收数字**：13 门禁 exit0；Vitest `1262 passed / 55 files`、E2E
+  `272 = Chromium 136 + WebKit 136`（single passed、retry/skip/flaky 0）、backend
+  `1044 passed / 3 warnings / 0 skip`、raw coverage `81.85846835618335%`、lint
+  `132 warnings / 0 errors / 0 new`（逐诊断相同）；build `47`、Fake API `116`、API 类型
+  `8`、iOS 仅 Node `37`。本卡额外验证：extra types `0`、显式 backend 配置 Ruff 最终
+  `0`、真实 PG 组合最终 `6/6`（retry 0 / skip 0）；707 保护文件未变。
+- **负对照与恢复**：2 个私有加载期变异各精确 `fail 1`、未选 `5`，恢复后 PG 组合 6/6
+  全绿（不写 mutant 零 skip）；安全源提取探针覆盖 3 合法 + 13 非法 URL、4 外来 ASGI
+  路径、6 出站拒绝，零真实网络 PG；清理故障 3 模式经源提取注入从 R1 红修到 final 绿
+  （源提取验证，非真实 PG 故障注入）；PG fixture 用户残留独立计数 0。
+- **返修历史（保留）**：R0 静态失败；R1 integration 类型检查暴露 3 个真实新增 TS 错误
+  （resolve 窄化、`err.code` 窄化）；R2 关闭 bridge finally 吞清理异常（清理失败现发静态
+  fatal 非 0）；最终 I001 真实失败经机械格式收口闭合（仅 import 排序，bridge 最终 hash
+  `03d3b6e9cba116db8cad5015791b39f05e92391d0209ed0a03a14aeb797d943e`）。正式实施返修
+  `2/2`（产品源码未改，未重置）。私有前置路径/ambient 配置错误不计产品失败。
+- **边界**：stdio 桥为 fetch 传输替换，ASGI 无真实 HTTP socket；Cloud 仅 `LiveKitAPI.room`
+  显式模拟；真实 OS/SSO/Cloud/设备未验。当前 `cp05k-cp02i-cp05l-20261115` 三卡共用合成
+  PG 仍在运行，为 CP05L 保留，未停库。最终全仓 format、独立 Review、正常 Husky 与当前
+  分支发布以主控同卡回执为准，用户 Review 待，本状态不自行写 APPROVED。
 
 ### CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY）
 

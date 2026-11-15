@@ -6,6 +6,29 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 CP02I 通话占用本地组合补验（FINAL_READY）
+
+- **状态：`FINAL_READY`（主控最终验收全过）**：
+  新增 stdio 传输桥、
+  6 场景组合 spec 与专用 vitest config，补齐真实 controller + 实际 `api.ts` 封装 +
+  stdio fetch 薄桥 + 真实 ASGI + 真实合成 PG 的覆盖差集；Cloud 撤销仅经
+  `LiveKitAPI.room` 显式模拟。
+- **安全闭环**：桥在导入 backend 前完成 strict DATABASE_URL/`ECHOTALK_CALL_LEASE_LOCAL_PG=1`
+  校验（精确 `127.0.0.1:55433`、`echotalk_b1_test` 用户/库、非空密码、无 query/fragment、
+  `postgresql+asyncpg://` 接纳并归一）与进程级出站硬拦截（仅放行该 PG 连接）；HTTP 身份取
+  请求 Bearer 合成 UUID 且限 owned 用户；仅接受本地相对 `/api/` 路径；内部失败发
+  `bridge_error`，不伪造服务端响应、不回显敏感错误。
+- **确定性晚到门**：请求先真实 commit，桥再 hold 响应；测试经 PG 确认后按 invalidate 与
+  authRevision 两个独立 case 放行迟到成功，均不覆盖、不自动回写，全程无 sleep。
+- **边界**：主 checkout 与其他 lane 只读；唯一写集为
+  `apps/vite-app/integration/call-lease/`（3 文件）、`apps/vite-app/package.json`、
+  `apps/vite-app/vitest.config.ts`、`docs/verification/cross-platform/CP-02-LOCAL-COMBINATION.md`、
+  `TODO.md`、`docs/PROJECT_STATUS.md` 与本文件。本卡未自跑测试/服务/构建；最终数字与
+  返修历史集中在
+  [PROJECT_STATUS 的 CP02I 小节](../PROJECT_STATUS.md#cp02i-通话占用本地组合补验final_ready)，
+  正式实施返修 `2/2`（产品源码未改）。完整事实见
+  [CP-02 本地组合补验](../verification/cross-platform/CP-02-LOCAL-COMBINATION.md)。
+
 ## 2026-11-15 CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY）
 
 - **状态：`FINAL_READY`（本地子卡完成归档）**：新增 5 个浏览器 E2E 场景，补齐固定
