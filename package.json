@@ -20,7 +20,9 @@
     "test": "turbo test",
     "clean": "rimraf **/node_modules",
     "clean:cache": "rimraf .turbo **/dist **/.vite **/.webpack_cache **/node_modules.vite",
-    "clean:all": "pnpm run clean:cache && pnpm run clean"
+    "clean:all": "pnpm run clean:cache && pnpm run clean",
+    "generate:agent-analysis-contract": "backend/.venv/bin/python -I -B backend/export_agent_analysis_contract.py",
+    "check:agent-analysis-contract": "backend/.venv/bin/python -I -B backend/export_agent_analysis_contract.py --check"
   },
   "keywords": [],
   "author": "",

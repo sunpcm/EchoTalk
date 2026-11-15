@@ -21,7 +21,9 @@
     "test:api-types": "node --test scripts/api-types-test.mjs",
     "test:build": "node --test scripts/build-isolation-test.mjs",
     "test:fake-api": "node --test scripts/fake-api-test.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "generate:agent-analysis-types": "node scripts/generate-api-types.mjs --schema src/lib/agent-analysis.contract.generated.json --output src/lib/agentAnalysis.generated.ts --banner-source apps/vite-app/src/lib/agent-analysis.contract.generated.json --regenerate-command \"pnpm --filter vite-app generate:agent-analysis-types\"",
+    "check:agent-analysis-types": "node scripts/generate-api-types.mjs --schema src/lib/agent-analysis.contract.generated.json --output src/lib/agentAnalysis.generated.ts --banner-source apps/vite-app/src/lib/agent-analysis.contract.generated.json --regenerate-command \"pnpm --filter vite-app generate:agent-analysis-types\" --check"
   },
   "keywords": [],
   "author": "",

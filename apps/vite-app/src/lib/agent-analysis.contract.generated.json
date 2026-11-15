@@ -1,0 +1,160 @@
+{
+  "components": {
+    "schemas": {
+      "AgentErrorProduced": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/KnownAgentErrorCode"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "const": "agent_error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": ["type", "code", "message"],
+        "title": "AgentErrorProduced",
+        "type": "object"
+      },
+      "AgentErrorReceived": {
+        "additionalProperties": true,
+        "description": "Shape only; ECMAScript trim/nonblank and own-field checks remain in TS.",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "const": "agent_error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": ["type", "code", "message"],
+        "title": "AgentErrorReceived",
+        "type": "object"
+      },
+      "AnalysisPublicErrorCode": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "DiagnosticAgentErrorCode": {
+        "enum": [
+          "ERR_CUSTOM_KEY_INVALID",
+          "ERR_SESSION_NOT_FOUND",
+          "ERR_CUSTOM_RUNTIME_AUTH",
+          "ERR_CUSTOM_RUNTIME",
+          "ERR_SYSTEM_RUNTIME"
+        ],
+        "type": "string"
+      },
+      "KnownAgentErrorCode": {
+        "enum": [
+          "ERR_CUSTOM_KEY_INVALID",
+          "ERR_UNSUPPORTED_STT_PROVIDER",
+          "ERR_UNSUPPORTED_LLM_PROVIDER",
+          "ERR_UNSUPPORTED_TTS_PROVIDER",
+          "ERR_SYSTEM_CONFIG",
+          "ERR_SESSION_NOT_FOUND",
+          "ERR_CUSTOM_RUNTIME_AUTH",
+          "ERR_CUSTOM_RUNTIME",
+          "ERR_SYSTEM_RUNTIME"
+        ],
+        "title": "KnownAgentErrorCode",
+        "type": "string"
+      },
+      "KnownAnalysisErrorCode": {
+        "enum": [
+          "analysis_unsupported",
+          "no_user_transcript",
+          "session_missing",
+          "worker_timeout",
+          "analysis_failed"
+        ],
+        "title": "KnownAnalysisErrorCode",
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "title": "EchoTalk non-HTTP Agent and analysis contracts",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {},
+  "x-echotalk-contract": {
+    "agent_safe_messages": {
+      "ERR_CUSTOM_KEY_INVALID": "自定义模式下 API Key 无效或未配置，请在设置页面检查密钥。",
+      "ERR_CUSTOM_RUNTIME": "自定义 API 服务请求失败，请检查服务配置与网络连接。",
+      "ERR_CUSTOM_RUNTIME_AUTH": "您的自定义 API Key 认证失败（HTTP 401/403），请检查密钥是否有效。",
+      "ERR_SESSION_NOT_FOUND": "无法找到您的会话配置，请重新登录后再试。",
+      "ERR_SYSTEM_CONFIG": "系统配置错误，请稍后重试。",
+      "ERR_SYSTEM_RUNTIME": "语音管线启动失败，请稍后重试。",
+      "ERR_UNSUPPORTED_LLM_PROVIDER": "不支持的 LLM 提供商配置，请在设置页面选择有效的提供商。",
+      "ERR_UNSUPPORTED_STT_PROVIDER": "不支持的 STT 提供商配置，请在设置页面选择有效的提供商。",
+      "ERR_UNSUPPORTED_TTS_PROVIDER": "不支持的 TTS 提供商配置，请在设置页面选择有效的提供商。"
+    },
+    "analysis_codes": {
+      "ANALYSIS_FAILED": {
+        "code": "analysis_failed",
+        "current_producer": true,
+        "manual_retryable": true
+      },
+      "ANALYSIS_UNSUPPORTED": {
+        "code": "analysis_unsupported",
+        "current_producer": false,
+        "manual_retryable": false
+      },
+      "NO_USER_TRANSCRIPT": {
+        "code": "no_user_transcript",
+        "current_producer": true,
+        "manual_retryable": false
+      },
+      "SESSION_MISSING": {
+        "code": "session_missing",
+        "current_producer": true,
+        "manual_retryable": false
+      },
+      "WORKER_TIMEOUT": {
+        "code": "worker_timeout",
+        "current_producer": true,
+        "manual_retryable": true
+      }
+    },
+    "analysis_non_retryable_codes": [
+      "analysis_unsupported",
+      "no_user_transcript",
+      "session_missing"
+    ],
+    "analysis_unknown_log_code": "unknown_error",
+    "diagnostic_agent_codes": [
+      "ERR_CUSTOM_KEY_INVALID",
+      "ERR_SESSION_NOT_FOUND",
+      "ERR_CUSTOM_RUNTIME_AUTH",
+      "ERR_CUSTOM_RUNTIME",
+      "ERR_SYSTEM_RUNTIME"
+    ],
+    "diagnostic_unknown_agent_code": "unknown",
+    "receiver_string_policy": "ecmascript-trim-nonempty-preserve",
+    "reliable": true,
+    "schema_version": 1,
+    "topic": "agent_error"
+  }
+}

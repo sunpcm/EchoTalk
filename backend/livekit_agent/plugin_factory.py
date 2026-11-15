@@ -6,6 +6,7 @@ from typing import Any
 from livekit.plugins import cartesia, deepgram, silero
 from livekit.plugins import openai as lk_openai
 
+from agent_analysis_contract import KnownAgentErrorCode
 from livekit_agent.log_redaction import register_secret
 from provider_catalog import (
     LLM_PROVIDER_CATALOG,
@@ -58,18 +59,18 @@ def _validate_api_key(api_key: Any, provider_label: str) -> str:
     """
     if not isinstance(api_key, str):
         raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
+            KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
             f"{provider_label} 的 API Key 必须为字符串类型。",
         )
     key = api_key.strip()
     if not key:
         raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
+            KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
             f"{provider_label} 的 API Key 为空。",
         )
     if any(c in key for c in ("\n", "\r", "\x00")):
         raise PluginInitError(
-            "ERR_CUSTOM_KEY_INVALID",
+            KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
             f"{provider_label} 的 API Key 格式不安全（包含无效字符）。",
         )
     register_secret(key)
@@ -103,7 +104,7 @@ class PluginFactory:
         """
         if provider not in SUPPORTED_STT_PROVIDERS:
             raise PluginInitError(
-                "ERR_UNSUPPORTED_STT_PROVIDER",
+                KnownAgentErrorCode.UNSUPPORTED_STT_PROVIDER.value,
                 f"不支持的 STT provider: '{provider}'。"
                 f"支持: {sorted(SUPPORTED_STT_PROVIDERS)}",
             )
@@ -131,14 +132,14 @@ class PluginFactory:
         """
         if provider not in SUPPORTED_LLM_PROVIDERS:
             raise PluginInitError(
-                "ERR_UNSUPPORTED_LLM_PROVIDER",
+                KnownAgentErrorCode.UNSUPPORTED_LLM_PROVIDER.value,
                 f"不支持的 LLM provider: '{provider}'。"
                 f"支持: {sorted(SUPPORTED_LLM_PROVIDERS)}",
             )
         cleaned_key = _validate_api_key(api_key, f"LLM provider '{provider}'")
         if not model or not isinstance(model, str) or not model.strip():
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "LLM 模型名称为空。",
             )
         base_url = LLM_PROVIDER_BASE_URL[provider]
@@ -163,7 +164,7 @@ class PluginFactory:
         """
         if provider not in SUPPORTED_TTS_PROVIDERS:
             raise PluginInitError(
-                "ERR_UNSUPPORTED_TTS_PROVIDER",
+                KnownAgentErrorCode.UNSUPPORTED_TTS_PROVIDER.value,
                 f"不支持的 TTS provider: '{provider}'。"
                 f"支持: {sorted(SUPPORTED_TTS_PROVIDERS)}",
             )
@@ -195,7 +196,7 @@ class PluginFactory:
         llm_key_field = _SYSTEM_LLM_KEY_FIELD.get(provider_name)
         if not llm_key_field:
             raise PluginInitError(
-                "ERR_SYSTEM_CONFIG",
+                KnownAgentErrorCode.SYSTEM_CONFIG.value,
                 f"系统 LLM provider '{provider_name}' 未在 "
                 f"_SYSTEM_LLM_KEY_FIELD 中注册。",
             )

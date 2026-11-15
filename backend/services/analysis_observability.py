@@ -19,21 +19,18 @@ import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+from agent_analysis_contract import (
+    ANALYSIS_UNKNOWN_LOG_CODE,
+    KNOWN_ANALYSIS_ERROR_CODES,
+)
+
 logger = logging.getLogger(__name__)
 
 # Stable, non-sensitive error codes that can flow through the analysis job
 # pipeline. Any other code is collapsed to ``unknown_error`` so an injectable
 # provider string is never replayed verbatim into logs.
-SAFE_ERROR_CODES = frozenset(
-    {
-        "analysis_unsupported",
-        "no_user_transcript",
-        "session_missing",
-        "worker_timeout",
-        "analysis_failed",
-    }
-)
-UNKNOWN_ERROR_CODE = "unknown_error"
+SAFE_ERROR_CODES = KNOWN_ANALYSIS_ERROR_CODES
+UNKNOWN_ERROR_CODE = ANALYSIS_UNKNOWN_LOG_CODE
 
 _event_buffer: ContextVar["_EventBuffer | None"] = ContextVar(
     "analysis_event_buffer", default=None

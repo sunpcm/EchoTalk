@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agent_analysis_contract import AnalysisPublicErrorCode
 from config import settings
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
@@ -35,7 +36,9 @@ except ImportError:
 class AnalysisServiceError(RuntimeError):
     """Expected analysis failure safe to expose through a stable code."""
 
-    def __init__(self, code: str, message: str, *, retryable: bool = False):
+    def __init__(
+        self, code: AnalysisPublicErrorCode, message: str, *, retryable: bool = False
+    ):
         super().__init__(message)
         self.code = code
         self.retryable = retryable

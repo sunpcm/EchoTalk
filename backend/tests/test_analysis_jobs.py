@@ -33,6 +33,56 @@ from services.analysis_jobs import (
 from services.analysis_service import AnalysisServiceError
 
 
+def test_open_typed_errors_and_generic_exception_keep_separate_public_codes():
+    from services.analysis_jobs import AnalysisExecutionError, _safe_error
+
+    for error_type in (AnalysisExecutionError, AnalysisServiceError):
+        error = error_type("future_code", "safe message", retryable=False)
+        assert error.code == "future_code"
+        assert _safe_error(error) == ("future_code", "safe message")
+        assert error.retryable is False
+    code, message = _safe_error(RuntimeError("SECRET-CANARY"))
+    assert code == "analysis_failed"
+    assert message == "Unexpected analysis failure (RuntimeError)"
+    assert "SECRET-CANARY" not in message
+
+
+def test_claim_keeps_old_error_and_manual_retry_clears_without_resetting_attempts():
+    job = _job(AnalysisJobStatus.pending)
+    job.attempt_count = 2
+    job.last_error_code = "future_code"
+    job.last_error = "previous message"
+    transition_job(job, AnalysisJobStatus.running)
+    assert job.attempt_count == 3
+    assert (job.last_error_code, job.last_error) == ("future_code", "previous message")
+    transition_job(job, AnalysisJobStatus.failed)
+    assert can_retry_job(job)
+    retry_job(job)
+    assert job.attempt_count == 3
+    assert job.last_error_code is None and job.last_error is None
+    transition_job(job, AnalysisJobStatus.running)
+    assert job.attempt_count == 4
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "analysis_unsupported",
+        "no_user_transcript",
+        "session_missing",
+        "worker_timeout",
+        "analysis_failed",
+        "future_code",
+    ],
+)
+def test_manual_retry_policy_does_not_close_open_codes(code):
+    job = _job(AnalysisJobStatus.failed)
+    job.last_error_code = code
+    assert can_retry_job(job) is (
+        code not in {"analysis_unsupported", "no_user_transcript", "session_missing"}
+    )
+
+
 def _job(status: AnalysisJobStatus) -> AnalysisJob:
     return AnalysisJob(
         id=uuid.uuid4(),
@@ -221,6 +271,9 @@ async def test_failures_are_bounded_and_end_in_failed(postgres_job):
             assert job.last_error == "Unexpected analysis failure (RuntimeError)"
             assert "forced" not in job.last_error
             if job.next_retry_at is not None:
+                assert job.next_retry_at == now + timedelta(
+                    seconds=(5, 30)[attempt - 1]
+                )
                 now = job.next_retry_at
 
 
@@ -260,6 +313,42 @@ async def test_stale_job_is_recovered_after_worker_restart(postgres_job):
         assert job is not None
         assert job.status == AnalysisJobStatus.pending
         assert job.last_error_code == "worker_timeout"
+        assert job.next_retry_at == now
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("retryable", [True, False])
+async def test_unknown_typed_code_persists_without_changing_retry_policy(
+    postgres_job, retryable
+):
+    session_factory, _user_id, _session_id, job_id = postgres_job
+    now = utc_now()
+    async with session_factory() as db, db.begin():
+        assert await claim_next_job(db, now=now) == job_id
+    async with session_factory() as db, db.begin():
+        job = await record_job_failure(
+            job_id,
+            AnalysisServiceError("future_code", "safe failure", retryable=retryable),
+            db,
+            now=now,
+        )
+        assert job.last_error_code == "future_code"
+        assert job.last_error == "safe failure"
+        assert job.status == (
+            AnalysisJobStatus.pending if retryable else AnalysisJobStatus.failed
+        )
+        assert job.next_retry_at == (now + timedelta(seconds=5) if retryable else None)
+    async with session_factory() as db, db.begin():
+        job = await db.get(AnalysisJob, job_id)
+        assert job.last_error_code == "future_code"
+        if retryable:
+            assert await claim_next_job(db, now=now + timedelta(seconds=5)) == job_id
+            assert job.last_error_code == "future_code"
+        else:
+            assert can_retry_job(job)
+            retry_job(job, now=now)
+            assert job.last_error_code is None and job.last_error is None
+            assert job.attempt_count == 1
 
 
 @pytest.mark.asyncio

@@ -111,6 +111,7 @@ def test_error_delivery_module_purity_and_logger():
                 imported_Targets.add(node.module)
 
     assert imported_Targets == {
+        "agent_analysis_contract",
         "json",
         "logging",
         "typing",

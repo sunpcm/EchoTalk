@@ -13,31 +13,16 @@ from typing import Any
 
 from livekit.agents import APIStatusError
 
-# 协议支持的全部既有错误码白名单
-KNOWN_ERROR_CODES: set[str] = {
-    "ERR_CUSTOM_KEY_INVALID",
-    "ERR_UNSUPPORTED_STT_PROVIDER",
-    "ERR_UNSUPPORTED_LLM_PROVIDER",
-    "ERR_UNSUPPORTED_TTS_PROVIDER",
-    "ERR_SYSTEM_CONFIG",
-    "ERR_SESSION_NOT_FOUND",
-    "ERR_CUSTOM_RUNTIME_AUTH",
-    "ERR_CUSTOM_RUNTIME",
-    "ERR_SYSTEM_RUNTIME",
-}
-
-# 静态安全本地化指引消息（严禁使用插值拼接动态异常正文）
-SAFE_ERROR_MESSAGES: dict[str, str] = {
-    "ERR_CUSTOM_KEY_INVALID": "自定义模式下 API Key 无效或未配置，请在设置页面检查密钥。",
-    "ERR_UNSUPPORTED_STT_PROVIDER": "不支持的 STT 提供商配置，请在设置页面选择有效的提供商。",
-    "ERR_UNSUPPORTED_LLM_PROVIDER": "不支持的 LLM 提供商配置，请在设置页面选择有效的提供商。",
-    "ERR_UNSUPPORTED_TTS_PROVIDER": "不支持的 TTS 提供商配置，请在设置页面选择有效的提供商。",
-    "ERR_SYSTEM_CONFIG": "系统配置错误，请稍后重试。",
-    "ERR_SESSION_NOT_FOUND": "无法找到您的会话配置，请重新登录后再试。",
-    "ERR_CUSTOM_RUNTIME_AUTH": "您的自定义 API Key 认证失败（HTTP 401/403），请检查密钥是否有效。",
-    "ERR_CUSTOM_RUNTIME": "自定义 API 服务请求失败，请检查服务配置与网络连接。",
-    "ERR_SYSTEM_RUNTIME": "语音管线启动失败，请稍后重试。",
-}
+from agent_analysis_contract import (
+    KNOWN_ERROR_CODES as KNOWN_ERROR_CODES,
+)
+from agent_analysis_contract import (
+    SAFE_ERROR_MESSAGES as SAFE_ERROR_MESSAGES,
+)
+from agent_analysis_contract import (
+    KnownAgentErrorCode,
+    map_agent_error,
+)
 
 # 允许记录的安全错误类型白名单（小写）
 SAFE_ERROR_TYPES: set[str] = {
@@ -61,7 +46,7 @@ class AgentErrorMapper:
         code: Any,
         message: Any = None,
         *,
-        fallback_code: str = "ERR_SYSTEM_RUNTIME",
+        fallback_code: str = KnownAgentErrorCode.SYSTEM_RUNTIME.value,
     ) -> tuple[str, str]:
         """
         将任意 code 和 message 映射为安全白名单中的 (code, message) 元组。
@@ -69,17 +54,7 @@ class AgentErrorMapper:
         若 code 不在已知白名单中，降级为 fallback_code。
         message 始终强制使用白名单静态本地化指引，绝不回显外部传入的 raw 片段。
         """
-        target_fallback = (
-            fallback_code
-            if fallback_code in KNOWN_ERROR_CODES
-            else "ERR_SYSTEM_RUNTIME"
-        )
-        if isinstance(code, str) and code in KNOWN_ERROR_CODES:
-            safe_code = code
-        else:
-            safe_code = target_fallback
-
-        return safe_code, SAFE_ERROR_MESSAGES[safe_code]
+        return map_agent_error(code, fallback_code=fallback_code)
 
     @classmethod
     def classify_runtime_error(
@@ -121,14 +96,16 @@ class AgentErrorMapper:
 
         if is_auth:
             return cls.map_error(
-                "ERR_CUSTOM_RUNTIME_AUTH", fallback_code="ERR_CUSTOM_RUNTIME_AUTH"
+                KnownAgentErrorCode.CUSTOM_RUNTIME_AUTH.value,
+                fallback_code=KnownAgentErrorCode.CUSTOM_RUNTIME_AUTH.value,
             )
 
         # 检查可恢复性
         recoverable = getattr(inner_error, "recoverable", True)
         if recoverable is False:
             return cls.map_error(
-                "ERR_CUSTOM_RUNTIME", fallback_code="ERR_CUSTOM_RUNTIME"
+                KnownAgentErrorCode.CUSTOM_RUNTIME.value,
+                fallback_code=KnownAgentErrorCode.CUSTOM_RUNTIME.value,
             )
 
         return None

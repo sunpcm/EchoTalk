@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from agent_analysis_contract import AnalysisPublicErrorCode
 from schemas.time import UtcDatetime
 
 
@@ -98,7 +99,7 @@ class AnalysisStatusResponse(BaseModel):
     session_id: UUID
     status: str
     attempt_count: int
-    error_code: str | None = None
+    error_code: AnalysisPublicErrorCode | None = None
     retryable: bool
     started_at: UtcDatetime | None = None
     finished_at: UtcDatetime | None = None
