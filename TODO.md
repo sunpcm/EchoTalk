@@ -41,8 +41,10 @@
       `--platform macos` 产出 `dist/macos/<mode>` 与 manifest；新增 `sync-macos.mjs` 的校验逻辑与 `node:test`。
       验收：`test:build` 新增 macOS 用例通过；拿到 web/ios 产物或 mode 不符时在调用外部工具前失败。
       不创建 `src-tauri/`。
-- [ ] **R2-13 组件目录按页面边界归位**（P-3，P2；排在 R2-07 之后）：抽出 `Dashboard`，按 §2.4 P-3 的目标结构
-      `git mv`。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
+- [ ] **R2-13 其余组件目录按页面边界归位**（P-3，P2；`Dashboard` 抽取已单独完成并归档）：按 §2.4 P-3 的目标结构
+      `git mv` 归位 dashboard 之外的组件目录。用户已裁定本轮仅做既有 `Dashboard` 函数体跨文件搬运例外，
+      其余目录随以后分层迁移顺带归位，不扩大 rename。验收：`git diff --stat -M` 全部为 rename 或纯 import
+      路径修改；三测试树计数不变。
 - [ ] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2；用户已确认采用方案 B、实施待做）：API 公开
       `/api/health` + 专用一次性迁移成功作为启动依赖，`echotalk-web` 改为 `condition: service_healthy`，
       保留用户级 ready 认证（`backend/routers/health.py:25–29` 的 ready 端点 `Depends(get_current_user)`，

@@ -951,3 +951,18 @@ retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。�
 - [x] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；剩余：设置抽屉标题改为"设置"、活动会话行不展示完整 UUID，已确认、实施待做）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与 `goalReached` 英文
       迁入 `src/i18n/`；设置抽屉标题改为"设置"；活动会话行不再展示完整 UUID；推荐卡片与语法提示的技能标签
       复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、非测试文件中无中文字符串字面量。
+
+## 2026-11-15 Dashboard 抽取（DASH，归档）
+
+以下 `[x]` 卡由根 TODO R2-13 移入归档：`Dashboard` 抽取子项已按用户裁定（仅函数体跨文件搬运例外）完成并独立 APPROVED；
+原 R2-13 其余目录归位仍保留为未完成项（随以后分层迁移，不扩大 rename）。本归档只落本次 Dashboard 抽取与源码 APPROVED
+验收，真实 IdP/LiveKit、设备、整栈与部署仍未验，其余目录归位卡保持未勾。
+
+- [x] **R2-13 抽出 `Dashboard`（仅函数体跨文件搬运例外）**：把 `App.tsx` 内联模块级 `Dashboard`（约 140 行）原样移到
+      新增 `apps/vite-app/src/components/dashboard/Dashboard.tsx` 并 `export`，`App.tsx` 以 `import { Dashboard }` 接回；
+      props/函数名/函数体/JSX/hooks 副作用与依赖数组/文案引用原样保全，`App` 自身函数体逐字节不变。其余组件目录随以后
+      分层迁移顺带归位，不扩大 rename。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
+
+结果（父 Harness，源码独立 APPROVED）见 [Dashboard 抽取记录](./2026-11-15-dashboard-extraction.md)：
+三树计数相对 ACT 基线零变化（Vitest1260/55、E2E258 C129/W129 retry/skip/flaky0、pytest957/3warnings/80.63%），
+17 门禁全 success。ACT PR184 已发布（source `5e478b8`）、CI 运行中未合 main；DASH 不预填 PR/主线 SHA。
