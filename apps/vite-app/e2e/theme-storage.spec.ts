@@ -184,7 +184,7 @@ test.describe("CP-05 / A31 主题 Storage 容错与持久化恢复 E2E", () => {
 
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 1. 在写故障下切换到 dark
@@ -295,7 +295,7 @@ test.describe("CP-05 / A31 主题 Storage 容错与持久化恢复 E2E", () => {
     // 打开设置抽屉验证没有错误提示且冷色单选框为选中状态
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     const coolBtn = dialog.getByRole("radio", { name: /冷色/ });

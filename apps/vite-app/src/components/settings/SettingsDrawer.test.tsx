@@ -217,7 +217,7 @@ describe("SettingsDrawer Component", () => {
   it("renders the accessible native modal, locks scroll, and restores it on unmount", () => {
     const { unmount } = render(<SettingsDrawer open={true} onClose={vi.fn()} />);
 
-    const dialog = screen.getByRole("dialog", { name: t.title });
+    const dialog = screen.getByRole("dialog", { name: t.drawerTitle });
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(dialog).toHaveAttribute("aria-labelledby", "settings-drawer-title");
     expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalledTimes(1);

@@ -59,7 +59,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     >
       <div className="border-border-default bg-bg sticky top-0 z-20 flex shrink-0 items-center justify-between border-b px-6 py-3">
         <h2 id="settings-drawer-title" className="text-text-default text-lg font-semibold">
-          {t.title}
+          {t.drawerTitle}
         </h2>
         <button
           ref={closeButtonRef}

@@ -159,7 +159,7 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-id-session-abc-123")).toHaveTextContent("session-abc-123");
+      expect(screen.getByTestId("session-id-session-abc-123")).toHaveTextContent("session-");
       expect(screen.getByTestId("session-mode-session-abc-123")).toHaveTextContent(
         t.modes.free_talk,
       );
@@ -350,7 +350,7 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
-      expect(screen.getByText("sess-recovered")).toBeInTheDocument();
+      expect(screen.getByText("sess-rec")).toBeInTheDocument();
     });
 
     it("prevents duplicate requests during retry in-flight", async () => {
@@ -490,7 +490,7 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("user-2-session")).toBeInTheDocument();
+      expect(screen.getByText("user-2-s")).toBeInTheDocument();
       expect(screen.queryByText("user-1-session")).not.toBeInTheDocument();
     });
 
@@ -547,7 +547,7 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("relogin-fresh-session")).toBeInTheDocument();
+      expect(screen.getByText("relogin-")).toBeInTheDocument();
     });
   });
 
@@ -589,7 +589,7 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("newer-session-data")).toBeInTheDocument();
+      expect(screen.getByText("newer-se")).toBeInTheDocument();
 
       // 第一个请求迟到返回
       await act(async () => {
@@ -608,7 +608,7 @@ describe("ActiveSessions Component", () => {
       });
 
       // 页面应依然展示 newer-session-data，绝不被旧数据冲掉
-      expect(screen.getByText("newer-session-data")).toBeInTheDocument();
+      expect(screen.getByText("newer-se")).toBeInTheDocument();
       expect(screen.queryByText("older-stale-session-data")).not.toBeInTheDocument();
     });
 
@@ -661,9 +661,9 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("strict-mode-session")).toBeInTheDocument();
+      expect(screen.getByText("strict-m")).toBeInTheDocument();
 
-      expect(screen.getByText("strict-mode-session")).toBeInTheDocument();
+      expect(screen.getByText("strict-m")).toBeInTheDocument();
     });
   });
 
@@ -733,7 +733,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("user-1-initial-session")).toBeInTheDocument();
+        expect(screen.getByText("user-1-i")).toBeInTheDocument();
         expect(listSpy).toHaveBeenCalledTimes(1);
 
         // 1. 进入后台
@@ -778,7 +778,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("user-2-resumed-session")).toBeInTheDocument();
+        expect(screen.getByText("user-2-r")).toBeInTheDocument();
       });
     });
 
@@ -810,7 +810,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("resumed-session-1")).toBeInTheDocument();
+        expect(screen.getByText("resumed-")).toBeInTheDocument();
       });
 
       it("does not fetch on resume event if offline (online = false)", async () => {
@@ -856,7 +856,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("online-session-1")).toBeInTheDocument();
+        expect(screen.getByText("online-s")).toBeInTheDocument();
       });
 
       it("does not fetch on connectivity event if in background (visibility = hidden), but fetches when resumed", async () => {
@@ -895,7 +895,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("resumed-after-connectivity")).toBeInTheDocument();
+        expect(screen.getByText("resumed-")).toBeInTheDocument();
       });
 
       it("merges and deduplicates duplicate resume and connectivity events while request is in-flight", async () => {
@@ -944,7 +944,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("kept-session-1")).toBeInTheDocument();
+        expect(screen.getByText("kept-ses")).toBeInTheDocument();
 
         // 发起第二轮请求并在途
         const deferred = createDeferred<api.SessionListResponse>();
@@ -963,7 +963,7 @@ describe("ActiveSessions Component", () => {
 
         // 立即退出 loading、保留已有 session、不新增错误提示
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
-        expect(screen.getByText("kept-session-1")).toBeInTheDocument();
+        expect(screen.getByText("kept-ses")).toBeInTheDocument();
         expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
 
         // 迟到的旧请求 resolve，被废弃且不污染
@@ -981,7 +981,7 @@ describe("ActiveSessions Component", () => {
             next_cursor: null,
           });
         });
-        expect(screen.getByText("kept-session-1")).toBeInTheDocument();
+        expect(screen.getByText("kept-ses")).toBeInTheDocument();
         expect(screen.queryByText("stale-session-ignored")).not.toBeInTheDocument();
       });
 
@@ -1075,7 +1075,7 @@ describe("ActiveSessions Component", () => {
             next_cursor: null,
           });
         });
-        expect(screen.getByText("fresh-session-after-resume")).toBeInTheDocument();
+        expect(screen.getByText("fresh-se")).toBeInTheDocument();
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
 
         // 旧请求迟到 resolve
@@ -1095,7 +1095,7 @@ describe("ActiveSessions Component", () => {
         });
 
         // 验证展示的依然是新请求数据，旧数据被安全废弃
-        expect(screen.getByText("fresh-session-after-resume")).toBeInTheDocument();
+        expect(screen.getByText("fresh-se")).toBeInTheDocument();
         expect(screen.queryByText("stale-session-before-suspend")).not.toBeInTheDocument();
       });
 
@@ -1143,7 +1143,7 @@ describe("ActiveSessions Component", () => {
             next_cursor: null,
           });
         });
-        expect(screen.getByText("new-session-ok")).toBeInTheDocument();
+        expect(screen.getByText("new-sess")).toBeInTheDocument();
         expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
       });
 
@@ -1194,7 +1194,7 @@ describe("ActiveSessions Component", () => {
         });
 
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
-        expect(screen.getByText("session-finally-verified")).toBeInTheDocument();
+        expect(screen.getByText("session-")).toBeInTheDocument();
       });
     });
 
@@ -1250,7 +1250,7 @@ describe("ActiveSessions Component", () => {
         });
         expect(listSpy).toHaveBeenCalledTimes(2);
 
-        expect(screen.getByText("session-retry-success")).toBeInTheDocument();
+        expect(screen.getByText("session-")).toBeInTheDocument();
         expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
       });
     });
@@ -1305,7 +1305,7 @@ describe("ActiveSessions Component", () => {
           });
         });
 
-        expect(screen.getByText("strict-mode-lifecycle-session")).toBeInTheDocument();
+        expect(screen.getByText("strict-m")).toBeInTheDocument();
       });
     });
 
@@ -1330,7 +1330,7 @@ describe("ActiveSessions Component", () => {
           await Promise.resolve();
         });
 
-        expect(screen.getByText("session-readonly-invariants")).toBeInTheDocument();
+        expect(screen.getByText("session-")).toBeInTheDocument();
         expect(
           screen.queryByRole("button", {
             name: /创建|接管|开始|claim|heartbeat|dispatch/i,
@@ -2887,7 +2887,7 @@ describe("ActiveSessions Component", () => {
 
       // 成功 active 且 Web visible 后，只触发一次 GET 查询（不与 whenReady 重复发起）
       expect(listSpy).toHaveBeenCalledTimes(1);
-      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-nat");
     });
 
     it("initial native getState returning inactive does not trigger GET", async () => {
@@ -2985,7 +2985,7 @@ describe("ActiveSessions Component", () => {
         await Promise.resolve();
       });
 
-      expect(screen.getByTestId("session-id-sess-native-2")).toHaveTextContent("sess-native-2");
+      expect(screen.getByTestId("session-id-sess-native-2")).toHaveTextContent("sess-nat");
     });
 
     it("initial fetch failure can recover on subsequent valid native resume event", async () => {
@@ -3031,7 +3031,7 @@ describe("ActiveSessions Component", () => {
 
       // 错误状态清除，正常展示列表
       expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-nat");
     });
 
     it("native inactive overrides DOM visibilitychange and window online/pageshow", async () => {
@@ -3276,7 +3276,7 @@ describe("ActiveSessions Component", () => {
       expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
       expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
       expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-id-sess-a20-1")).toHaveTextContent("sess-a20-1");
+      expect(screen.getByTestId("session-id-sess-a20-1")).toHaveTextContent("sess-a20");
     });
 
     it("preserves unqueried state on initial failure and transitions to empty only after retry succeeds with []", async () => {

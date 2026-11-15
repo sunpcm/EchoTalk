@@ -23,7 +23,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     await expect(settingsBtn).toBeVisible();
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     const drawerAnimation = await dialog.evaluate((el) => {
@@ -91,7 +91,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     const drawerAnimationName = await dialog.evaluate(
@@ -151,11 +151,11 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     // 打开抽屉
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 在 no-preference 下验证 drawer animationName 为 slideInRight
-    let animName = await dialog.evaluate((el) => window.getComputedStyle(el).animationName);
+    const animName = await dialog.evaluate((el) => window.getComputedStyle(el).animationName);
     expect(animName).toBe("slideInRight");
 
     // 保持抽屉打开状态，实时切换为 reduce
@@ -218,7 +218,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 检查 loading spinner 元素
@@ -265,7 +265,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     // 2. 打开抽屉
     const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 3. 在打开状态再次切换偏好并切换外观主题
