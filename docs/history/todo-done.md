@@ -798,3 +798,48 @@ lint132warnings/0errors，pytest957/3warnings/80.63%（80.83s，命令85.74s）�
 真实Provider/LiveKit/IdP、音频来源/权限/保留、设备、整栈与部署仍未验；实现PR/mainCI未发布，不预填编号/终点SHA或APPROVED结论。
 已发布的是设计[PR175](https://github.com/sunpcm/EchoTalk/pull/175)与main312a8f8设计CI，不把设计CI冒成本次实施验证。
 实施方仅五MD收口，停Review，不commit/push。
+
+## 2026-11-15 I1 实施发布回执（追加）
+
+I1 实施 [PR176](https://github.com/sunpcm/EchoTalk/pull/176) 已发布 main
+[76d9d6ba](https://github.com/sunpcm/EchoTalk/commit/76d9d6ba8c3ad72cf2c0671344ff48b617faea0f)
+（source `7f272cdb8845822010ae6658c8e1fc3a3913ec22` / CImerge
+`5e5c1f8466649248428ded72db979f73eb2172c7`）。PR/Guard CI 首轮六 success
+（[43686352704](https://github.com/sunpcm/EchoTalk/actions/runs/43686352704) /
+[43686352698](https://github.com/sunpcm/EchoTalk/actions/runs/43686352698)），
+[mainCI 43686992533](https://github.com/sunpcm/EchoTalk/actions/runs/43686992533) 首轮五 success。
+Linux：Vitest 1249/53、Fake 125 / types 10 / build 21、E2E 234（C117/W117，retry/skip/flaky0，4.5m）、
+pytest 957/3warnings/80.63%（73.52s）。以上为发布后回执，附加在本节之后，不改写上文
+「发布验证待回执」的冻结历史措辞。
+
+## 2026-11-15 Native Room 回归夹具归档（LGR R2 追加）
+
+Native Room 回归夹具卡由「当前继承待核」转为归档（原文勾选 `[x]`，不删旧文）。A82 b/r0 只改现有异步等待用例，
+先保存当前 DOM 实例再等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；A83 b/r0 正式本地
+receipt 已核销 A82 Review APPROVED。R2 复核补当前继承/运行证据：parent 亲查当前 main76d9d6ba 两目标用例
+（保存 DOM 实例、等待该实例 callback 登记）与旧 A82 AST 条款完全一致（wait1/owner1），同步停轨 act 内原断言保全；
+fresh 当前 VoiceInterface 86 通过、全 Vitest 1249/53 通过（`native-current-inheritance.json`）。此证据不依赖
+`d8c9ff9` 祖先关系；非祖先事实（merge-base exit1、共同祖先 `c704925`）与更正仍保留。不追认历史完整因果，
+真实 Room/设备其他卡仍独立未勾。
+
+## 2026-11-15 已完成卡移入归档（LGR R2a 机械补件）
+
+以下两张已完成卡由根 TODO 移入归档，`[x]` 勾选与原正文逐字保留；根 TODO 不再保留这两张完成卡。
+
+- [x] **iOS CI 预下载有限重试**：`5c28e1b` 的 `test-ios-build` 因 GitHub 资产单次 504 且
+      `--retry 0` 失败；已改为 curl 原生有限重试（3 次、`--retry-max-time 240`），校验不变。
+      `ios-ci.mjs` 保留 `--retry 3`/`--retry-delay 5`/`--retry-max-time 240`（4xx 与校验失败仍 fail closed），
+      `ios-ci-test.mjs` 断言 `--retry=3`、`--retry-max-time=240`；mainCI 43686992533 的
+      `test-ios-build` 132729437984 首轮 success，验收满足，归档。
+
+- [x] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再
+      等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；A83 b/r0 的
+      正式本地 receipt 已核销 A82 Review APPROVED、正常 hook 单提交、旧本地 main 精确
+      fast-forward（`d8c9ff9`）与完整 15 项门禁。该次失败已观察到的直接事实仅为 callback
+      map 未就绪，显式等待已新增；触发失败的完整因果尚未独立证明，有限次通过不构成因果或
+      概率证明。R2 复核补当前继承/运行证据后归档：parent 亲查当前 main76d9d6ba 两目标用例
+      （保存 DOM 实例、等待该实例 callback 登记）与旧 A82 AST 条款完全一致（wait1/owner1），
+      同步停轨 act 内原断言保全；fresh 当前 VoiceInterface 86 通过、全 Vitest 1249/53 通过
+      （`native-current-inheritance.json`）。此证据不依赖 `d8c9ff9` 祖先关系；非祖先事实与
+      更正仍保留（merge-base exit1、共同祖先 `c704925`），不追认历史完整因果，真实 Room/设备
+      其他卡仍独立未勾。见 [CP-06 Native Room 回归夹具就绪](../verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。

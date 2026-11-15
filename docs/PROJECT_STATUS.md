@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15；I1设计PR175已发布main312a8f8，最终设计mainCI回执；I1实施源码APPROVED R0、本机验收完成。
-> 已发布设计main与本机I1实施候选分列；本机候选15门禁全绿与5项有效变异不代替实现PR已发布或mainCI结论。
+> 最后核对：2026-11-15；I1设计PR175已发布main312a8f8，实施PR176已发布main76d9d6ba（source7f272cd/CImerge5e5c1f8）；I1实施源码APPROVED R0。
+> 已发布设计main、本机I1实施候选与已发布实施main76d9d6ba分列；首轮CI/Guard与mainCI回执已记录，不预填后续整包/发布结论。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
@@ -27,24 +27,27 @@
 
 ## 当前验证基线
 
-已验证发布基线：[PR175](https://github.com/sunpcm/EchoTalk/pull/175)合并至
-[312a8f8](https://github.com/sunpcm/EchoTalk/commit/312a8f802b73f5fcb1e285a52c9dce2b1b497bad)，tree `7e420c6fabac870f5b157ce483eb91ec07ed05d5`；
-[mainCI43681402200](https://github.com/sunpcm/EchoTalk/actions/runs/43681402200)为设计PR合并回执，source/CImerge/main等tree。
-下表左列为Harness回读已发布设计main312a8f8，右列为Harness亲跑本机I1实施候选（macOS），均非实施方执行。
+已验证发布基线：设计[PR175](https://github.com/sunpcm/EchoTalk/pull/175)合并至
+[312a8f8](https://github.com/sunpcm/EchoTalk/commit/312a8f802b73f5fcb1e285a52c9dce2b1b497bad)；实施[PR176](https://github.com/sunpcm/EchoTalk/pull/176)
+source `7f272cdb8845822010ae6658c8e1fc3a3913ec22` / CImerge `5e5c1f8466649248428ded72db979f73eb2172c7` / main
+[76d9d6ba](https://github.com/sunpcm/EchoTalk/commit/76d9d6ba8c3ad72cf2c0671344ff48b617faea0f)、tree `019b24392f3c16ce5bfa34dff38b412935bfa938`。
+实施 PR 与 Guard CI 首轮六 success（[PR CI 43686352704](https://github.com/sunpcm/EchoTalk/actions/runs/43686352704)、
+[Guard 43686352698](https://github.com/sunpcm/EchoTalk/actions/runs/43686352698)），[mainCI43686992533](https://github.com/sunpcm/EchoTalk/actions/runs/43686992533)首轮五 success。
+下表左列为已发布实施 main76d9d6ba（Linux CI），右列为本轮 LGR fresh（Harness/macOS，17 门禁全 success），二者同计数、不同耗时，均非实施方执行。
 
-| 测试树 / 门禁      | 已发布I1设计main312a8f8 CI（Linux）           | I1实施本机候选（Harness/macOS）                        |
-| ------------------ | --------------------------------------------- | ------------------------------------------------------ |
-| Vitest             | 1249 passed / 53文件                          | 1249 passed / 53文件                                   |
-| Playwright E2E     | 234，C117/W117，实际retry/skip/flaky0（4.9m） | 234，C117/W117，实际retry/skip/flaky0（61.89s）        |
-| Fake API契约       | 125 passed                                    | 125 passed                                             |
-| API类型生成器      | 10 passed                                     | 10 passed                                              |
-| 构建脚本           | 21 passed                                     | 21 passed                                              |
-| 完整backend pytest | 895 passed / 3 warnings / 79.71%（64.76s）    | 957 passed / 3 warnings / 80.63%（80.83s，命令85.74s） |
+| 测试树 / 门禁      | 已发布实施 main76d9d6ba CI（Linux）        | 本轮 LGR fresh（Harness/macOS）                    |
+| ------------------ | ------------------------------------------ | -------------------------------------------------- |
+| Vitest             | 1249 passed / 53文件                       | 1249 passed / 53文件（13.29s）                     |
+| Playwright E2E     | 234，C117/W117，retry/skip/flaky0（4.5m）  | 234，C117/W117，retry/skip/flaky0（54.74s）        |
+| Fake API契约       | 125 passed                                 | 125 passed（6.67s）                                |
+| API类型生成器      | 10 passed                                  | 10 passed（5.07s）                                 |
+| 构建脚本           | 21 passed                                  | 21 passed（13.59s）                                |
+| 完整backend pytest | 957 passed / 3 warnings / 80.63%（73.52s） | 957 passed / 3 warnings / 80.63%（70.48s，74.89s） |
 
-本机候选新增62项测试（30项provider直接契约+3项同步管线+29项PG接线），15门禁全绿、5项有效变异目标RED/恢复62GREEN/逐字节恢复（变异结束、文档收口前：695文件均与冻结R0一致；当前最终docs已变、总696文件，四代码/测试始终原字节），
-源码前后字节稳定；最后五MD格式/Markdown/范围由Harness停写后独立验。实现PR/mainCI尚未发布，不预填实现PR/发布编号、终点SHA或整包/发布结论（源码APPROVED R0已实有）。
-本机候选覆盖率80.63%（957/3warnings），已发布设计main79.71%（895/3warnings），两者分列；不能把本机值抄到main。
-I1实施源码APPROVED R0，接口/coverage/5项变异见[评估提供方设计](./ASSESSMENT_PROVIDER_DESIGN.md) §9；来源与首失败见[实施记录](./history/2026-11-15-i1-provider-implementation.md)。
+本轮 LGR fresh macOS 17 项现存门禁全 success（上表六项 + lint/typecheck/build/check-api-types/openapi/providers/
+backend-format/backend-lint/format/agent-contract/agent-types），source 前后字节不变。I1 实施候选当时 15 门禁
+pytest 80.83s，本轮 LGR 17 门禁 pytest 70.48s，不把 I1 80.83s 冒成本轮 70.48s；不预填本 LGR 未来 PR/main。
+I1 源码 APPROVED R0 已实有，接口/coverage/5项变异与来源/首失败见[实施记录](./history/2026-11-15-i1-provider-implementation.md)。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -80,16 +83,17 @@ I1实施源码APPROVED R0，接口/coverage/5项变异见[评估提供方设计]
 
 ## 历史与决策
 
-| 内容                                                  | 位置                                                                                                                                                                                                |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| I1评估提供方设计与实施（源码APPROVED R0，发布待回执） | [ASSESSMENT_PROVIDER_DESIGN.md](./ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](./history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](./history/2026-11-15-i1-provider-implementation.md) |
-| H1设计与实施（已发布，保留首失败）                    | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](./history/2026-11-15-h1-startup-implementation.md)                                             |
-| G3同源契约本机验收补齐与历史草稿                      | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                                                                              |
-| G2 主题对比度 CI 收尾与当前验收                       | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md)                                                                                                          |
-| 2026 年 11 月各轮实施记录与当时基线                   | [history/2026-11.md](./history/2026-11.md)                                                                                                                                                          |
-| 2026 年 10 月各轮实施记录                             | [history/2026-10.md](./history/2026-10.md)                                                                                                                                                          |
-| 已合并与明确未采纳的方案                              | [history/decisions.md](./history/decisions.md)                                                                                                                                                      |
-| 已完成的待办事项                                      | [history/todo-done.md](./history/todo-done.md)                                                                                                                                                      |
-| 评审手册的单轮回执                                    | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                                                                                |
+| 内容                                                          | 位置                                                                                                                                                                                                |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I1评估提供方设计与实施（源码APPROVED R0，已发布main76d9d6ba） | [ASSESSMENT_PROVIDER_DESIGN.md](./ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](./history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](./history/2026-11-15-i1-provider-implementation.md) |
+| 遗留台账对账（LGR，纯文档）                                   | [对账记录](./history/2026-11-15-legacy-reconciliation.md)                                                                                                                                           |
+| H1设计与实施（已发布，保留首失败）                            | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](./history/2026-11-15-h1-startup-implementation.md)                                             |
+| G3同源契约本机验收补齐与历史草稿                              | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                                                                              |
+| G2 主题对比度 CI 收尾与当前验收                               | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md)                                                                                                          |
+| 2026 年 11 月各轮实施记录与当时基线                           | [history/2026-11.md](./history/2026-11.md)                                                                                                                                                          |
+| 2026 年 10 月各轮实施记录                                     | [history/2026-10.md](./history/2026-10.md)                                                                                                                                                          |
+| 已合并与明确未采纳的方案                                      | [history/decisions.md](./history/decisions.md)                                                                                                                                                      |
+| 已完成的待办事项                                              | [history/todo-done.md](./history/todo-done.md)                                                                                                                                                      |
+| 评审手册的单轮回执                                            | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                                                                                |
 
 历史文件只追加、不改写；其中的计数和结论只属于当时的提交。
