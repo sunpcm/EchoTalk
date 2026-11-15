@@ -902,3 +902,15 @@ types10/build21、pytest957/3warnings/80.63%（71.82s / 命令 79.07s）、完�
 0retry/skip/flaky）、继承 ST 后再次完整 258（C129/W129、retry/skip/flaky0、Playwright 51.243352s/命令 52.29s）、首用例压力 60（C/W 各30、
 retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。详见
 [键盘焦点遍历可靠性记录](./2026-11-15-dashboard-focus-test-reliability.md)。
+
+## 2026-11-15 主题按钮大字号重排（READ2，归档）
+
+以下原「当前优先问题」的 (READ2) 维护卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本次布局与几何断言实现与本机验收，不追认真实设备/OS 缩放已验，也不预填发布回执。
+
+- [x] **(READ2) 主题 radio 内容/色点在按钮内重排**：本机 READ 前后观察发现，主题选择 radio 内容与色点在 200% 根字号下于按钮内重排/溢出（390/1280、正常/200 字号；本轮 READ 不修仅记录待办，随后 READ2 实施并收口）。
+      验收：保留 44px、原颜色/角色/事件与业务，只修按钮内内容与色点重排；原生/OS 下拉边界归入未验/非范围，不在本卡新增设备门禁。
+
+结果（本机 Harness，未发布）见 [主题按钮大字号重排记录](./2026-11-15-theme-swatch-reflow.md)：17 门禁分阶段全 success、
+完整 E2E258 两轮 C129/W129 retry/skip/flaky0、私有恢复原 flex-1 令六项几何断言目标 RED 后恢复 24 GREEN；formal/private
+字节恢复。READ2 PR/CI 待建，不填编号或发布终点 SHA。
