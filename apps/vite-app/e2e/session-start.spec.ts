@@ -133,10 +133,22 @@ test("a failed token request ends the just-created session and shows a generic m
   const tracker = trackSessionRequests(page);
 
   try {
+    // 先等待真实自动结束成功响应：产品在渲染 generic 文案前须先串行完成前置门禁
+    // 与 token(502) 后的自动 POST /api/sessions/:id/end（该 end 位于 generic UI error 之前），
+    // 避免 5s UI 断言与合法 10s 前置 HTTP 耗时形成结构性竞态。
+    const sessionEnded = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        /^\/api\/sessions\/[0-9a-f-]{36}\/end$/.test(new URL(res.url()).pathname) &&
+        res.status() === 200,
+    );
+
     await page
       .getByRole("button", { name: /进入练习/ })
       .first()
       .click();
+
+    await sessionEnded;
 
     await expect(page.getByText("暂时无法开始练习，请稍后重试。")).toBeVisible();
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();

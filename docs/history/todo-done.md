@@ -914,3 +914,19 @@ retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。�
 结果（本机 Harness，未发布）见 [主题按钮大字号重排记录](./2026-11-15-theme-swatch-reflow.md)：17 门禁分阶段全 success、
 完整 E2E258 两轮 C129/W129 retry/skip/flaky0、私有恢复原 flex-1 令六项几何断言目标 RED 后恢复 24 GREEN；formal/private
 字节恢复。READ2 PR/CI 待建，不填编号或发布终点 SHA。
+
+## 2026-11-15 Token 失败自动清理测试前提（ST2，归档）
+
+以下 `[x]` 卡源于 ST 第三 case 前提审计（非根 TODO 既有 `[ ]` 卡，根 TODO 无旧卡可移）；只改
+`apps/vite-app/e2e/session-start.spec.ts` 第三 case `a failed token request ends the just-created session and shows a generic message`。
+本归档只落本次受控反例补丁与父 Harness 验收，历史 CI 根因仍未知，不追认历史完整因果，不预填 PR/发布终点 SHA。
+
+- [x] **(ST2) token 失败自动清理后 generic 文案 5s 断言与合法 10s 前置 HTTP 存在结构性竞态**：产品在 emit generic 文案前须
+      先串行完成 call-capabilities→health-ready→createSession→token(502)→自动 endSession（各默认 10s），自动 end 位于
+      generic UI error 之前；测试 click 后立即以默认 5s 断言该文案形成缺口。
+      验收：仅第三 case click 前注册真实自动 `POST /api/sessions/<id>/end` 200 响应屏障并 `await`，再保留全部原断言；
+      不加 timeout/retry/sleep、不放宽旧断言、不改产品/Fake/其他 case。
+
+结果（父 Harness，受控，未发布）见 [Token 失败自动清理测试前提记录](./2026-11-15-session-token-error-test-barrier.md)：
+受控 6s 下旧 C/W 4 目标 RED、新 R0 同 4 GREEN、702 个源文件逐字节恢复；17 门禁全 success、额外单文件 `tsc --strict` 真实 exit0；
+历史 CI 根因未知，不预填 PR/发布终点 SHA。
