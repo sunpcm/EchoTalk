@@ -11,7 +11,7 @@
 每个工作包单独一轮、单独分支与 PR，实施与评审分离。通用验收：三测试树通过且计数不降
 （当前基线见 [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)），`pnpm format:check` 通过，报告附实际命令与结果，
 亲跑结果与回读 CI 的结果分开写。
-建议顺序：F1 最先；F2–F4、H2 可并行；G 在 F 之后；G3已完成实现与发布CI收尾；H1方案A已实现、源码APPROVED R0并归档，发布验证另以对应CI/Guard回执核对；I1方案A已实现、源码APPROVED R0并归档，发布验证另以对应CI/Guard回执核对。
+建议顺序：F1 最先；F2–F4、H2 可并行；G 在 F 之后；G3已完成实现与发布CI收尾；H1方案A已实现并发布main0f7a5e5（PR174）；I1方案A已实现并发布main76d9d6ba（PR176）。
 
 通用规矩（适用于本节全部工作包）：给共享层（data 控制器、store 切片、`lib/api`）新增能力时，必须同轮补该层的
 契约测试；写明"测试零改动"的，测试一行不动，做不到就停下说明原因；不新增依赖、不改锁文件、不改数据库结构、
@@ -29,20 +29,21 @@
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，
 证据见该报告 §3.1～§3.4；以下为剩余项，括号内编号对应报告中的发现。
 
-- [ ] **待用户裁定：活动会话订阅里的"启动在途"取值，以及两处界面文案**（来源：
+- [ ] **待用户裁定→已确认（2026-11-15）：活动会话订阅里的"启动在途"取值，以及两处界面文案**（来源：
       [云端评审](./docs/reviews/2026-11-cloud-review.md) §3.4）：
       (1) `apps/vite-app/src/components/conversation/active-sessions/useActiveSessionsLifecycle.ts` 中，
       生命周期事件判断"是否正在启动会话"用的是挂载时的 `isStarting`，订阅期间不更新（拆分前即如此，R2-07
       按原样保留）；列表刷新本身读取 store 实时值，因此影响限于 resume/connectivity 事件是否触发刷新。
       (2) 设置抽屉标题"自定义模型设置"是否改为"设置"；(3) 活动会话行是否不再展示完整 UUID。
-      验收：先决定是否修复/修改；修复(1)须先写出能复现的回归用例（挂载后启动态变化再触发 resume 事件），
-      (2)(3)须同步更新相关 Vitest 与 E2E 断言；三测试树通过。
+      用户已确认三处全部按推荐实施：(1) 改为实时 `isStarting`（订阅期更新），(2) 标题改为"设置"，
+      (3) UUID 仅展示行内前 8 位。实施待做、不先勾。验收：修复(1)须先写出能复现的回归用例
+      （挂载后启动态变化再触发 resume 事件），(2)(3)须同步更新相关 Vitest 与 E2E 断言；三测试树通过。
 - [ ] **R2-09 平台接缝：认证会话、安全存储、麦克风权限**（2026-11-10 已删除 `utils/env.ts`；三个平台接口与能力标志待 CP-03/CP-04 设备证据后与原生实现同轮完成）（P-1，P1）：在 `src/platform/` 增加三个接口及
       Web 实现，`lib/auth.ts` 改为经接口装配；把 `RoomSession.tsx:50` 与 `store/conversation.ts:69` 的
       平台名判断改为读取适配器能力；删除 `src/utils/env.ts`。验收：`auth.test.ts`、`VoiceInterface.test.tsx`
       零改动通过；`src/` 中 `platform/` 之外不再出现 `=== "ios"` 这类平台名比较；不新增依赖。
       原生实现不在本项范围。
-- [ ] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；剩余：设置抽屉标题改为"设置"、活动会话行不展示完整 UUID，待用户确认）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与 `goalReached` 英文
+- [ ] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；剩余：设置抽屉标题改为"设置"、活动会话行不展示完整 UUID，已确认、实施待做）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与 `goalReached` 英文
       迁入 `src/i18n/`；设置抽屉标题改为"设置"；活动会话行不再展示完整 UUID；推荐卡片与语法提示的技能标签
       复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、非测试文件中无中文字符串字面量。
 - [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：覆盖 LiveKit 容器背景为主题色、增加
@@ -54,9 +55,11 @@
       不创建 `src-tauri/`。
 - [ ] **R2-13 组件目录按页面边界归位**（P-3，P2；排在 R2-07 之后）：抽出 `Dashboard`，按 §2.4 P-3 的目标结构
       `git mv`。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
-- [ ] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2）：API 增加基于 `/api/health/ready` 的
-      healthcheck，`echotalk-web` 改为 `condition: service_healthy`，增加一次性迁移服务。验收：云端可做
-      `docker compose config` 校验；整栈启动验证需要 `.env` 与外部依赖，另列为未验证。
+- [ ] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2；用户已确认采用方案 B、实施待做）：API 公开
+      `/api/health` + 专用一次性迁移成功作为启动依赖，`echotalk-web` 改为 `condition: service_healthy`，
+      保留用户级 ready 认证（`backend/routers/health.py:25–29` 的 ready 端点 `Depends(get_current_user)`，
+      故不能用匿名 `/api/health/ready` 做匿名 healthcheck）。验收：云端可做 `docker compose config` 校验；
+      整栈启动验证需要 `.env` 与外部依赖，另列为未验证；不实际迁移/整栈/部署。
 
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
@@ -90,16 +93,16 @@
 - [ ] **WebKit `weekly-grammar.spec.ts:57` 偶发失败**：无重试单独跑 5 次失败 1 次，
       CI `retries: 2` 掩盖。推测加载期认证快照变化触发 `WeeklyGrammar` 重新请求，
       耗掉测试唯一一次注入的 503，未验证。验收：先复现并确认根因，修复后 WebKit 无重试
-      重复运行（≥20 次）全过，不靠放宽断言或增加重试。
-- [ ] **iOS CI 预下载有限重试**：`5c28e1b` 的 `test-ios-build` 因 GitHub 资产单次 504 且
-      `--retry 0` 失败；已改为 curl 原生有限重试（3 次、`--retry-max-time 240`），校验不变。
-      验收：分支 CI 的 `test-ios-build` 通过后勾选。
+      重复运行（≥20 次）全过，不靠放宽断言或增加重试。本轮 Harness 基线 76d9d6ba 原版
+      无重试 80/80（C40/W40，retries0，55.1s），只满足定向重验，不替代历史因果；
+      历史 5/1 与根因未知保留，未满足原完整验收，继续开放。
 - [ ] **防止 bot 推送导致误合并**（2026-11-09 已加 `.github/workflows/pr-guard.yml`：删除 ≥1000 且 >5× 新增时失败，
       `allow-mass-deletion` label 放行；剩余：用户在仓库创建该 label 并把 `mass-deletion-guard` 设为 required check）：#118 合并前 google-labs-jules[bot] 在更新分支后推送
       删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
       限制 bot 推送他人 PR 分支，或加大规模删除的 CI 告警；合并前人工核对 head SHA 与 diff 规模。
-- [ ] **本地 worktree 清理**：`.review/worktrees/` 下 17 个 worktree（含无新提交的
-      `restore-backend`/`restore-delivery`/`restore-ui`）待用户决定是否清理，清理前核对各分支是否已合并。
+- [ ] **本地 worktree 清理**：本仓 57 个注册 worktree（其中 `.review/worktrees` 48 个，
+      `restore-backend`/`restore-delivery`/`restore-ui` 等无新提交项）待用户决定是否清理，清理前核对各分支
+      是否已合并；本轮只做注册/路径存在性只读核对，未删改任何其他 lane。
 
 ## 2026-11-04 补充轮：WebKit 首导航与 Worker 停机
 
@@ -220,8 +223,10 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
       `c06_transcript_events` 后 529 passed、82.49%；见
       [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
       上述 A64 旧运行不包含 A67 新增的两层门禁；2026-11-03 主控已确认 PR #117 及其
-      main 运行全绿。B r1 runner 修复已通过本地四项检查；PR #119 仍为验证 draft，
-      其远端新结果、原生 iOS CI 与本批组合验收待收口，RF-04 整项继续保持未勾选。
+      main 运行全绿。B r1 runner 修复已通过本地四项检查；I1 实施 PR176 已发布 main76d9d6ba，
+      mainCI 43686992533 首轮五 jobs 全绿（frontend/backend/macos-probe/ios-build/聚合 CI），
+      RF-04 的 CI 执行部分就此核销。required check 配置仍未核（GitHub 只读 403/INVALID_ARGUMENT），
+      故 RF-04 整项保持未勾选；真实 Provider/设备/链路不属 RF-04 原验收，是 CP-06 独立卡。
 
 ### Phase 1：分析可靠性
 
@@ -406,6 +411,19 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 本节事项已全部完成，见[已完成事项归档](./docs/history/todo-done.md)。
 
+## 当前优先问题（已确认，实施另包）
+
+- [ ] **(TS) theme-storage 冷启动输入/水合时序**：历史 H1 两次 233/1 warm/cool、原自然 100/100、
+      受控 GET cool 水合后原 warm 断言 4/4 失败、GET warm 同条件 4/4 通过，历史完整因果未证。
+      验收：确定冷启动本地 fallback 与远端水合各阶段、保留原 3 用例断言与真实 UI/HTTP；原文件双浏览器
+      repeat50 共 300 零重试、三树全跑；不加 sleep/重试、不放宽断言。实施另包。
+- [ ] **(READ) 设置可读性**：深色 200% Provider disabled 组 opacity0.5、功能输入边框低对比、
+      手机 200% 说明文字/开关重叠。验收：三主题/390 和 1280/正常和 200% 字号/启用禁用前后计算样式与截图；
+      保留 44px/焦点/AA 旧断言；功能输入边界按 3:1 核验；禁用可读性是产品增强，纯装饰卡不自动套 WCAG 硬门禁。
+      见 [W3C non-text-contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html) 与
+      [W3C contrast-minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)。实施另包，
+      不写成产品已修或真实设备已验。
+
 ## P1 — 功能完整性
 
 周度学习报告已实现最近七个本地自然日的 completed 会话计数与按日只读历史；其余指标
@@ -480,16 +498,10 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 
 ### CP-06：自动化与真实链路回归
 
-- [ ] 取得当前增量树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 旧 8 项门禁及其具名计数保留在 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；PR #117 及对应 main 运行此前已绿，本批 PR #119 frontend 与组合门禁仍待收口，真实链路未验。
-- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。macOS 探针 CI 已随 PR #117 合并；B r1 已修复 Node runner 误收集并通过主控本地四项检查，PR #119 为验证 draft，原生 iOS 仍待真实 CI。
+- [ ] 取得当前增量树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 旧 8 项门禁及其具名计数保留在 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；PR #117 及对应 main 运行此前已绿，I1 实施已发布 main76d9d6ba、mainCI 43686992533 五 jobs 全绿（Linux 双浏览器 E2E 234 C117/W117），CI 部分已收口；完整真实链路回归仍待验收，整项保持未勾选。
+- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。macOS 探针 CI 已随 PR #117 合并；B r1 已修复 Node runner 误收集并通过主控本地四项检查；I1 实施已发布 main76d9d6ba，mainCI 43686992533 的 `test-macos-probe` 与 `test-ios-build` 均首轮 success（无签名 arm64 Simulator 编译已绿），iOS/macOS CI 部分已收口；所选 macOS 方案（CP-03）、真机与签名/发布仍待，整项保持未勾选。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 已 Review APPROVED、以单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 精确 fast-forward 本地 main，并完成 main 完整门禁；lane 独立消费探针与 3 项有效变异未在 main 重复。A77 已把 Room 物理 adapter/Room 与认证业务监听归属分离；r1 产品 Vitest 为 940 passed/25 failed/965 total，r2 已修复 native pending 占位 hidden 被误判为真实 inactive，并把 Web 订阅后快照与 native pending 分开：Web 立即失败，native 等 `whenReady` 后重读 snapshot/能力并按原 10 秒 deadline 对账；旧 timer 不得清空新句柄，刷新后当前 native 业务监听仍可停轨。r2 独立 9 项时序与 A76 compat 5 项在 formatter 前通过，随后 format/lint/typecheck 通过，完整 Vitest 为 958 passed/9 failed/967 total，失败均由 stale timer fixture 残留 fake 全局时钟导致后续 A76 异步等待超时；r3 已清理该 fixture，并通过 967 Vitest/33 files、18 build-script、61 Fake API、8 type generator、148 双浏览器 E2E、576 backend/80.09% coverage、schema 与 Ruff。auth revision、原 deadline、ready snapshot 三个产品变异产生 11/6/4 项失败并精确还原；第四项 timer-handle 变异未被原 967 测试杀死，但实际 timer 队列确认卸载后残留本 Room timer，因此 r4 已补真实队列与卸载清理回归，产品逻辑不变。r1 只执行官方返修 native 预检，baseline3 是历史 r0 实测，当前 r4 仍待主 Agent 停写后完整代跑、复验第四项变异必被杀死并由独立 Review 判定，见 [A76 冻结实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md) 与 [A77 本地实施记录](./docs/verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)；三端真实异常联动仍待外部验收，本计划不要求新增遥测上报，整项保持未勾选。
-- [ ] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再
-      等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；A83 b/r0 的
-      正式 receipt 已核销 A82 Review APPROVED、正常 hook 单提交、main 精确 fast-forward
-      与完整 15 项门禁。该次失败已观察到的直接事实仅为 callback map 未就绪，显式等待已新增；
-      触发失败的完整因果尚未独立证明，有限次通过不构成因果或概率证明，见
-      [CP-06 Native Room 回归夹具就绪](./docs/verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
 
 ### CP-07：发布候选与交付
 

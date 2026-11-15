@@ -2,8 +2,8 @@
 
 契约来源：`TODO.md` RF-04 CI 真实性与 CP-06 完整质量门禁。
 
-> §1–§4 保留 A30 本地接线与当时远端尚未运行的冻结历史。当前门禁拓扑、A64 远端
-> 基础证据及 A67 新增门禁的未验边界见 §5。
+> §1–§4 保留 A30 本地接线与当时远端尚未运行的冻结历史。A64 远端基础证据及 A67
+> 新增门禁的未验边界见 §5；已发布实施 main76d9d6ba 的远端 CI 收口见 §6。
 
 ## §1 CI 门禁对齐与命令映射
 
@@ -84,3 +84,34 @@ frontend10/schema/Ruff/backend 复验，已由主 Agent 独立核实；这次 A7
   完整 backend 与聚合 job 在 GitHub 当前树上均未执行。
 - 真实 IdP/Provider/LiveKit、设备与部署也未验。故 RF-04 继续未勾选，剩余门禁是当前远端树
   的完整 CI 运行与真实链路验收。
+
+## §6 已发布实施 main76d9d6ba 的远端 CI 收口（2026-11-15）
+
+I1 实施 [PR176](https://github.com/sunpcm/EchoTalk/pull/176) 已发布 main
+[76d9d6ba](https://github.com/sunpcm/EchoTalk/commit/76d9d6ba8c3ad72cf2c0671344ff48b617faea0f)
+（source `7f272cdb8845822010ae6658c8e1fc3a3913ec22` / CImerge
+`5e5c1f8466649248428ded72db979f73eb2172c7`）。[mainCI 43686992533](https://github.com/sunpcm/EchoTalk/actions/runs/43686992533)
+首轮五 jobs 全 success，覆盖现存前端门禁（按现存命令列出，含 G3 两层字节漂移）、backend、macOS 探针、iOS 无签名编译与聚合 `CI`：
+
+- 前端（`test-frontend`，ubuntu）：Format、Lint、Typecheck、Vitest 1249 passed/53 files、
+  build-script 21、Fake API 125、API 类型生成器 10、两层类型漂移检查、Build、
+  Chromium+WebKit E2E 234（C117/W117，实际 retry/skip/flaky 0，4.5m）。
+- 后端（`test-backend`，ubuntu，专用 PostgreSQL 15.19 空库迁移）：keyfree 运行时守卫、
+  tracked OpenAPI schema `--check`、Provider 元数据 `--check`、Agent/分析契约 `--check`、
+  Ruff format/check、Alembic 至 head、pytest 957 passed/3 warnings/80.63%（73.52s）。
+- macOS 探针（`test-macos-probe`，macos-15）：固定 Node 22.13.1/arm64、Rust 1.93.1，
+  无签名 arm64 app。
+- iOS 无签名编译（`test-ios-build`，macos-15）：生产 Web build + 显式 sync +
+  真实 arm64 Simulator 编译与静态产物校验。
+- 聚合 `CI`：`needs` 上述四 job，逐项 `success` 才通过。
+
+G3 同源契约的两层漂移门禁（backend tracked schema `--check` 与 frontend schema→TypeScript
+字节漂移 + 生成器测试）已随本轮在 Linux CI 执行并通过；§5 所述「10 项前端门禁、schema 两层门禁、
+完整 backend 与聚合 job 在 GitHub 当前树上均未执行」在本 main76d9d6ba 起不再成立，§1–§5 历史冻结记录保留。
+
+前端现存门禁不以固定「10 项」计数（G3 新增的两层字节漂移已入列），本节按现存命令逐项列出。
+
+RF-04 的 CI 执行部分就此核销：远端 Linux CI 已在 main76d9d6ba 五 jobs 全绿。RF-04 原契约仅含 CI
+required check 与门禁；剩余边界仅为分支保护 required check 配置与 GitHub 管理权限（本轮只读核验为
+403/INVALID_ARGUMENT，不证明设置不存在，不归档）。真实 IdP/Provider/LiveKit、设备与部署属 CP-06
+三端真实链路独立卡，不并入 RF-04。

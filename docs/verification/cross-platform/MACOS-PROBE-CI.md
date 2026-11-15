@@ -1,5 +1,8 @@
 # macOS M1 探针 CI 门禁
 
+> 历史正文保留 2026-11-03 本地组合结果与当时「远端 CI 未运行」的冻结状态；
+> 当前永久远端 CI 回执见文末「当前永久 CI 回执」节。
+
 本轮仅为 `tools/macos-m1-native-probe` 接入离线回归和真实无签名构建，仍是独立 M1 探针，不进入正式 macOS 客户端或 M2。认证、媒体、公开配置与设备验收边界见 [探针 README](../../../tools/macos-m1-native-probe/README.md) 和 [离线媒体验证](./MACOS-M1-OFFLINE-MEDIA.md)。
 
 最终结果同步：2026-11-03。主控最终组合 21 项检查全部通过，含组合 Node 240、
@@ -95,3 +98,12 @@ summary 绑定。原生输入审计使 B 线真实 Rust 57 和 unsigned arm64 `.
 独立 Review 与提交状态以本轮主控最终报告为准。文档同步时尚未合入 main，未 push/部署，
 远端 CI 未运行；真实 Provider/LiveKit/IdP、TCC/设备/媒体等外部边界未验。
 本次仅同步最终结果，功能代码不变，最终文档格式和字节由主控复核；未融合 next2 候选。
+
+## 当前永久 CI 回执（main76d9d6ba）
+
+I1 实施 [PR176](https://github.com/sunpcm/EchoTalk/pull/176) 已发布 main
+[76d9d6ba](https://github.com/sunpcm/EchoTalk/commit/76d9d6ba8c3ad72cf2c0671344ff48b617faea0f)。
+mainCI [43686992533](https://github.com/sunpcm/EchoTalk/actions/runs/43686992533) 的
+`test-macos-probe` job 132729437994 首轮 success，聚合 `CI` 五 jobs 全绿。macOS 探针
+（macos-15 arm64，Node 22.13.1 / Rust 1.93.1）无签名 arm64 构建已通过远端 CI；
+原生 App 仍未运行，真实 Provider/LiveKit/IdP、TCC/设备/媒体等外部边界仍未验。
