@@ -775,3 +775,26 @@ Harness亲跑macOS：Vitest1249/53、Fake125、types10/build21、lint132warnings
 Harness在I1本轮冻结代码亲跑14源码门禁success、source前后稳定：Vitest1249/53、Fake125、types10/build21，pytest895/3warnings/79.71%（75.46s，命令80.30s）；E2E234、C117/W117、实际retry/skip/flaky0、80.394227s。实施方仅文档校验，最终五MD格式/Markdown/范围另由Harness验，不预报设计Review或新CI成功。
 
 已发布H1 PR174/main0f7a的mainCI43677877043首轮五success，Linux main覆盖率79.68%/52.49s，与PR/本机79.71%分开；0.03个百分点差异未知。H1历史两次233/1不能被本轮234抹去。来源、首结果、未实施范围见[本轮记录](./2026-11-15-i1-assessment-provider-design.md)。停Review，不commit/push，不实施I1/B2。
+
+## 2026-11-15 I1评估提供方方案A实施（源码APPROVED R0，发布验证待回执）
+
+以下原I1后续卡勾选归档实施交付，不表示实现PR已发布或mainCI已通过；根TODO不再保留I1实施待办，B2/阶段C/真实发音等边界保持不变。
+
+- [x] **I1 后续：用户确认评估提供方设计后另拆实施与验收**：用户已确认方案A并授权实施，
+      新增`assessment_providers.py`（两个窄async Protocol、标准库frozen DTO、两个文本demo及原计算辅助）与
+      `analysis_service.py`的原动态选择、独立幂等/持久映射/flush及调用级coverage；NULL元数据、独立幂等/flush、
+      异常/取消与Job/BKT原行为保持。真实音频来源/权限/保留须另批，不因Protocol可替换而自动获得接入能力。
+      补新能力直接契约、真实service/Job/PG接线和5项有效变异，15门禁全绿与源码APPROVED R0以实际实施回执验收；不落B2/DB/HTTP。
+
+源码独立APPROVED R0、代码返修0/2；Harness亲跑macOS候选15门禁全绿：Vitest1249/53、Fake125、types10/build21、
+lint132warnings/0errors，pytest957/3warnings/80.63%（80.83s，命令85.74s），E2E234、C117/W117、
+实际retry/skip/flaky0、61.89s。5项有效变异均目标RED、恢复62GREEN、逐字节恢复（变异结束、文档收口前：695文件均与冻结R0一致；当前最终docs已变、总696文件，四代码/测试始终原字节），逐项源码:行与目标断言行见
+[实施记录](./2026-11-15-i1-provider-implementation.md)；其中synthetic过滤变异只证目标测试定位，不表示本轮改了BKT，
+`update_knowledge`与旧逐行synthetic过滤保持原字节。
+
+实施方纯provider入口27→30、一条PytestCacheWarning，首次`ruff check` exit1为I001导入顺序；都不是产品断言失败。实施范围、
+15门禁与首失败见[实施记录](./2026-11-15-i1-provider-implementation.md)。
+
+真实Provider/LiveKit/IdP、音频来源/权限/保留、设备、整栈与部署仍未验；实现PR/mainCI未发布，不预填编号/终点SHA或APPROVED结论。
+已发布的是设计[PR175](https://github.com/sunpcm/EchoTalk/pull/175)与main312a8f8设计CI，不把设计CI冒成本次实施验证。
+实施方仅五MD收口，停Review，不commit/push。
