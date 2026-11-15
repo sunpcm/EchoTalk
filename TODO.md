@@ -4,6 +4,16 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
+> **SGEC-OFF 严格离线校验与合成评测（2026-11-15，FINAL_READY，已归档）：** 纯模块
+> `services/sgec_offline.py`、CLI runner `scripts/evaluate_sgec_offline.py`、固定合成
+> `tests/fixtures/sgec_offline_cases.json` 与结构化单测 `tests/test_sgec_offline.py` 已完成；只做现有
+> 五核心字段全批次严格结构校验、调用方合法集合与受控合成元数据，不接默认分析/API/DB/BKT/events/Provider。
+> 详细数字、5 有效变异、纯模块冷进程边界、runner 真实 CLI 与边界集中在
+> [PROJECT_STATUS 的 SGEC-OFF 小节](./docs/PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)。
+> 独立技术 Review、最终文档 format、正常 Husky commit/当前分支 API 发布以主控同卡回执为准；
+> 用户 Review 待，本文件不写 APPROVED。SGEC 总项仍 `[ ]`（真实 Provider、人工 gold 与教学质量未验）；
+> 本批独占合成 PG 已在完成后清理。
+
 > **R2-UI 设置标题与活动记录去 UUID（2026-11-15，FINAL_READY，已归档）：** 用户已确认的方案 A
 > 已实施完成：共享设置入口与 dialog 名为“设置”，活动行及结束/恢复确认面板复用既有模式与开始时间，
 > 用户可见正文、`title` 和最终计算可访问名称均不暴露完整 UUID；完整 ID 只保留内部 key、稳定定位、
@@ -18,7 +28,8 @@
 > 归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-live-活动会话生命周期实时门禁)。
 > 独立技术 Review、最终文档 format、提交和推送以主控同卡回执为准；用户 Review 待。生产、真实
 > Provider/IdP/LiveKit、设备与部署从未获本轮 GO 授权。R2-LIVE 完成时 R2-UI 与 SGEC-OFF 仍未实施；
-> R2-UI 后续已另行完成并达到 FINAL_READY，SGEC-OFF 仍未实施。合成 PG 继续由本批独占，留待 SGEC 后清理。
+> R2-UI 后续已另行完成并达到 FINAL_READY，SGEC-OFF 当时也未实施（原时点），两者后续均已分别完成。
+> 本批独占合成 PG 当时尚未清理，现已于 SGEC-OFF 完成后清理。
 
 > **A18P2 历史快照（2026-11-15，当时 FINAL_READY 并归档）：** 启动/恢复生命周期减重与实例隔离已完成；
 > 移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入 setter，start/resume
@@ -119,10 +130,13 @@
 
 **被 Key 或外部条件阻断：**
 
-- [ ] 语法 LLM SGEC（方案 C-2；推荐 A/严格离线边界已确认，SGEC-OFF 待实施）：先做现有核心字段的
-      全批次严格结构校验、调用方合法 `skill_tag` 集合和固定合成 fixtures；解释/建议只作离线材料，
-      不新增 DB/API 字段，不接默认分析、BKT、learning events、Provider 或自动重试。结构通过不称
-      准确率；SGEC 总项与真实质量仍未验。合同见
+- [ ] 语法 LLM SGEC（方案 C-2；推荐 A/严格离线边界已确认；SGEC-OFF 子卡 FINAL_READY 已归档）：SGEC-OFF
+      子卡已实现纯离线全批次严格结构校验、调用方合法 `skill_tag` 集合、固定合成 fixtures 与本地 CLI
+      runner 并完成主控验收；详细数字、5 变异与边界见
+      [PROJECT_STATUS 的 SGEC-OFF 小节](./docs/PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)。
+      解释/建议只作离线材料，不新增 DB/API 字段，不接默认分析、BKT、learning
+      events、Provider 或自动重试。结构通过不称准确率；SGEC 总项（真实 Provider、人工 gold 与教学
+      质量）仍未验，保持未勾。合同见
       [SGEC_OFFLINE_CONTRACT](./docs/SGEC_OFFLINE_CONTRACT.md)。
 - [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：先由用户裁定产品口径。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。

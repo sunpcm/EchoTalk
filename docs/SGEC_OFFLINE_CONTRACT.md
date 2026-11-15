@@ -1,6 +1,6 @@
 # SGEC 严格离线校验与合成评测合同
 
-> 状态：**DEC-A 设计已确认；SGEC-OFF 离线准备待实施**。
+> 状态：**DEC-A 设计已确认；SGEC-OFF 离线实现 FINAL_READY**。
 > 确认日期：2026-11-15；确认范围：SGEC 推荐 A。
 > 设计基线：`codex/B1-learning-events-20261112@0aae655928cf046482627830aee9df6cb7fc1fc1`。
 > 本文件只定义纯离线边界，不改默认分析、数据库/API、BKT、learning events 或依赖。
@@ -52,6 +52,8 @@ SGEC-OFF 只实现两个离线能力：
 `skill_tag` 的合法集合完全由调用方传入，可由真实技能清单构造。校验模块不得导入 ORM、
 application config、数据库或环境变量，也不得硬编码周报六类。`other` 只有在调用方集合明确包含时
 才合法，绝不作为未知标签的默认回退。空集合会拒绝所有标签，不自行补默认集合。
+调用方集合必须是可重复读取的 `collections.abc.Collection[str]`（如 `list`/`tuple`/`set`/`frozenset`）；
+裸 `str`、`bytes`/`bytearray` 或一次性 `iterator`/`generator` 一律按非法集合固定拒绝，且迭代前拒绝不消费输入。
 
 输入不得包含 `id`、`session_id`、`source`、`provider`、`model_version`、`is_synthetic`、
 `created_at`、解释、建议或任何未声明扩展字段。出现任一 extra/unknown 字段即整份批次拒绝，
@@ -115,6 +117,10 @@ run_offline(fixture_path) -> exit code + accepted/rejected summary
 结构接受/拒绝只能称作“校验结果”，不能称为准确率。没有人工审定质量 golden 与真实模型结果时，
 不发布纠错或多段教学反馈质量结论。
 
+每个 case 以 `payload` 携带任意 JSON 值并原样传给校验函数（可表达原始非对象、缺 `errors`、`errors`
+非数组或顶层 extra 等真实 shape），`expect_accept` 必须为真布尔；解释/建议只存在于 case 外层材料，
+不传入 validator 或 accepted 项。
+
 ## 6. SGEC-OFF 实施卡
 
 该卡预期新增一个无副作用纯模块、固定 JSON fixtures、结构化 fixtures 测试及一个离线 runner。
@@ -128,6 +134,12 @@ run_offline(fixture_path) -> exit code + accepted/rejected summary
 4. 至少做针对性变异：未知标签回退 `other`、coerce 数字字符串、接受 bool、extra 元数据透传、
    单条坏值时部分接受；每项必须被对应断言杀死。
 5. 验证模块导入不触达 ORM/config/DB/env/network，输出不落 DB。
+
+CLI 在 backend 目录以 `.venv/bin/python -m scripts.evaluate_sgec_offline [fixture_path]` 运行（缺省用本卡
+固定合成 fixtures；使用实际已存在的 `.venv`，不要求设置 DB/Provider 变量，不安装或 `uv sync`）：exit `0`
+表示所有 case 结构接受/拒绝与 `expect_accept` 一致；exit `1` 表示存在期望不匹配；exit `2` 表示坏
+fixture（坏 JSON/非标准 JSON token、坏 UTF-8、非 bool `expect_accept`、非法 `allowed_skill_tags` 或坏
+shape），固定安全诊断且不回显原文/raw trace。
 
 ## 7. 验收边界
 

@@ -6,6 +6,20 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 SGEC-OFF 严格离线校验与合成评测
+
+- [x] **SGEC-OFF 严格离线校验与合成评测（FINAL_READY，本地实现）**：新增纯模块
+      `services/sgec_offline.py`、CLI runner `scripts/evaluate_sgec_offline.py`、固定合成
+      `tests/fixtures/sgec_offline_cases.json` 与结构化单测 `tests/test_sgec_offline.py`。纯模块只做
+      五核心字段全批次严格结构校验、调用方合法 `skill_tag` 集合与受控合成元数据，`run_offline` 的
+      fixture 读取归位到 scripts runner，纯模块导入/调用/序列化零副作用。完整数字、5 有效变异、
+      纯模块冷进程边界、runner 真实 CLI 与边界见
+      [PROJECT_STATUS 的 SGEC-OFF 小节](../PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)，
+      本归档不重复抄录。SGEC 总项、真实 Provider、人工 gold、BKT/learning events 接线与生产未验，
+      不称准确率。精确合同见 [SGEC_OFFLINE_CONTRACT.md](../SGEC_OFFLINE_CONTRACT.md)。独立技术
+      Review、最终文档 format、正常 Husky commit/当前分支 API 发布以主控同卡回执为准，用户 Review
+      待，不写 APPROVED。
+
 ## 2026-11-15 R2-UI 设置标题与活动记录去 UUID
 
 - [x] **R2-UI 设置标题与活动记录去 UUID（FINAL_READY，本地实现）**：设置入口/dialog 使用“设置”，
@@ -16,7 +30,8 @@
       和最终门禁的完整事实见
       [PROJECT_STATUS 的 R2-UI 小节](../PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
       独立技术 Review、最终 format、commit/push 以主控同卡回执为准，用户 Review 待，不写 APPROVED。
-      生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收；SGEC-OFF 待实施，合成 PG 待 SGEC 后清理。
+      生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收；SGEC-OFF 当时待实施（原时点），
+      本批独占合成 PG 当时待 SGEC 后清理，现已完成清理。
 
 ## 2026-11-15 R2-LIVE 活动会话生命周期实时门禁
 
@@ -31,8 +46,8 @@
       本归档不重复抄录。
       本轮 GO 只授权本地实现；生产、真实 Provider/IdP/LiveKit、设备与部署从未验收。独立技术
       Review、最终文档 format、正常 Husky、提交和推送以主控同卡回执为准，用户 Review 待，不能
-      自行写成 APPROVED。R2-UI 与 SGEC-OFF 仍未实施；本批独占合成 PG 留待后两卡且尚未清理。
-      正式返修为 `0/2`。
+      自行写成 APPROVED。R2-UI 与 SGEC-OFF 当时仍未实施（原时点）；本批独占合成 PG 当时留待后两卡
+      且尚未清理，现已完成清理。正式返修为 `0/2`。
 
 ## 2026-11-15 DEC-A R2 与 SGEC 设计口径回写
 
@@ -50,7 +65,7 @@
       PG 或真实外部依赖，只允许对精确六文档执行现有 Prettier。最终 13 组合（含 format）、独立
       Review、DEC-A 当时任务分支提交发布与用户 Review 状态以该卡主控同卡回执为准。DEC-A 写入时
       R2-LIVE、R2-UI 和 SGEC-OFF 三张实施卡均未完成；R2-LIVE 后续已另行完成，R2-UI 和
-      SGEC-OFF 仍未完成。
+      SGEC-OFF 当时也均未完成（原时点），后续均已分别完成。
 
 ## 2026-11-15 RDOC 路线图历史快照口径修正
 

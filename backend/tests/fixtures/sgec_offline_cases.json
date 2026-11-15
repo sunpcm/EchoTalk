@@ -1,0 +1,471 @@
+{
+  "cases": [
+    {
+      "name": "valid_confidence_variants",
+      "allowed_skill_tags": ["article_usage", "verb_tense", "preposition"],
+      "expect_accept": true,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": 0.82
+          },
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": null
+          },
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          },
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": 0
+          },
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty_errors",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": true,
+      "payload": {
+        "errors": []
+      }
+    },
+    {
+      "name": "empty_fields_allowed",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": true,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "",
+            "corrected": "",
+            "error_type": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "custom_tag_allowed",
+      "allowed_skill_tags": ["my_tag", "another_tag"],
+      "expect_accept": true,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "my_tag",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "other_explicitly_allowed",
+      "allowed_skill_tags": ["article_usage", "other"],
+      "expect_accept": true,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "other",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "valid_with_outer_explanation_suggestion",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": true,
+      "explanation": "Material-only explanation for offline review.",
+      "suggestion": "Material-only practice suggestion for offline review.",
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_skill_tag",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "unknown_tag",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "other_not_allowed",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "other",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "custom_tag_not_allowed",
+      "allowed_skill_tags": ["my_tag"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_original",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_skill_tag",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_corrected",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": null,
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_original",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": null,
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong_type_skill_tag",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": 12,
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong_type_original",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": true,
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong_type_corrected",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": [],
+            "error_type": "article"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong_type_error_type",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": 12
+          }
+        ]
+      }
+    },
+    {
+      "name": "confidence_bool",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "confidence_numeric_string",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": "0.82"
+          }
+        ]
+      }
+    },
+    {
+      "name": "confidence_out_of_range_high",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": 1.5
+          }
+        ]
+      }
+    },
+    {
+      "name": "confidence_out_of_range_low",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": -0.1
+          }
+        ]
+      }
+    },
+    {
+      "name": "forged_source",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "source": "real"
+          }
+        ]
+      }
+    },
+    {
+      "name": "forged_provider",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "provider": "some-provider"
+          }
+        ]
+      }
+    },
+    {
+      "name": "forged_model_version",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "model_version": "v9"
+          }
+        ]
+      }
+    },
+    {
+      "name": "forged_is_synthetic",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "is_synthetic": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "top_level_not_object",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": []
+    },
+    {
+      "name": "top_level_null",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": null
+    },
+    {
+      "name": "top_level_missing_errors",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {}
+    },
+    {
+      "name": "top_level_errors_not_array",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": "bad"
+      }
+    },
+    {
+      "name": "top_level_extra_field",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [],
+        "extra": 1
+      }
+    },
+    {
+      "name": "multi_record_atomic",
+      "allowed_skill_tags": ["article_usage"],
+      "expect_accept": false,
+      "payload": {
+        "errors": [
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article",
+            "confidence": 0.9
+          },
+          {
+            "skill_tag": "not_allowed",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          },
+          {
+            "skill_tag": "article_usage",
+            "original": "I saw a elephant.",
+            "corrected": "I saw an elephant.",
+            "error_type": "article"
+          }
+        ]
+      }
+    }
+  ]
+}

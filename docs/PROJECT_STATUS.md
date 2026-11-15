@@ -1,16 +1,14 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **R2-UI 设置标题与活动记录去 UUID（FINAL_READY，本地实现）**：
-> 四个生产文件已完成显示/props 最小实现，完整测试树、质量门禁、目标变异和实际截图复核均已由主控
-> 完成。最终 Vitest 为 `1225 passed / 52 files / 0 skip`，完整 E2E 为
-> `252 = Chromium 126 + WebKit 126`；13 项门禁组合全部 `exit 0`。R2-UI 的独立技术 Review、
-> 最终 format、commit/push 以主控同卡回执为准，用户 Review 待，当前不写 APPROVED。
-> R2-LIVE 的 `1219 / 248` 是上一卡快照，DEC-A、RDOC、A18P2、A19 P2 等数字也各自绑定历史时点，
-> 均不能转作 R2-UI 当前结果。SGEC-OFF 仍未实施；合成 PG 继续由本批独占并留待 SGEC 后清理。
+> 最后核对：2026-11-15。当前卡片为 **SGEC-OFF 严格离线校验与合成评测（FINAL_READY，本地实现）**：
+> 纯模块、CLI runner、固定合成 fixtures 与结构化单测已完成并通过主控完整验收，精确数字见下方
+> SGEC-OFF 小节。
+> R2-UI 的 `1225 / 252`、R2-LIVE 的 `1219 / 248` 及 DEC-A、RDOC、A18P2、A19 P2 等数字均绑定各自
+> 历史时点，不能转作本卡结果。SGEC-OFF 已 FINAL_READY；本批独占合成 PG 已在完成后清理。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
-> requested model 为 `workbuddy/deepseek-v4.1-flash`；工具请求和真实读写成功，实际后端身份未独立认证。
+> requested model 为 `workbuddy/deepseek-v4-pro/high`；工具请求和真实读写成功，实际后端身份未独立认证。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
-> 本文只回答“现在实现了什么、验证到哪一步、有哪些已知限制”。未完成工作只在根目录
+> 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
 
@@ -36,6 +34,47 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### SGEC-OFF 严格离线校验与合成评测（FINAL_READY）
+
+- 本小节是 2026-11-15 的 SGEC-OFF 本地实现 FINAL_READY 快照；SGEC 总项、真实 Provider、人工
+  gold、BKT/learning events 接线与生产行为仍未勾，不称准确率或教学质量。
+- 唯一 W 为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，本卡基线 HEAD
+  `67f60b09bbab4dde61179a7c957612cf72a646e5`，开工 clean。本卡仅新增纯模块
+  `services/sgec_offline.py`、CLI runner `scripts/evaluate_sgec_offline.py`、固定合成
+  `tests/fixtures/sgec_offline_cases.json`、结构化单测 `tests/test_sgec_offline.py`，并回写四份
+  文档；不改默认分析、API、ORM/迁移、BKT、learning events 或 Provider，依赖不变。
+- 纯模块只做现有五核心字段的全批次严格结构校验、调用方合法 `skill_tag` 集合、受控合成元数据与
+  每次白名单序列化；`run_offline` 的文件读取已归位到 scripts runner，纯模块导入/调用/序列化零
+  ENV/clock/ORM/config/DB/network/file 写入副作用。任一坏值整批零接受，`{"errors": []}` 合法，
+  裸字符串不拆成字符集，`other` 仅显式列入才合法，未知字段不回显原 key 或正文。调用方集合须为
+  可重复读取 `Collection[str]`，裸 `str`/`bytes`/`bytearray`/一次性 iterator/generator 迭代前拒绝。
+- 最终主控 13 项门禁全部 `exit 0`：Vitest `1225 passed / 52 files / 0 skip`；完整 E2E
+  `252 = Chromium 126 + WebKit 126`，每项恰有一个 passed result，`retry / skip / flaky / unexpected`
+  均为 `0`。backend `1044 passed / 3 warnings / 0 skip`，原 941 测试身份完整保留且只新增 SGEC 103，
+  raw coverage `81.85846835618335%`；build-script `47`、Fake API `116`、API 类型 runner `8`、iOS 仅
+  Node `37` 均通过。lint `132 warning / 0 error / 0 new`，file/message/rule 多重集与父基线一致。
+- SGEC 103 目标 GREEN；五有效私有变异均被精确断言杀死、零 import/fixture 错误：unknown→other
+  `1 selected / 1 fail`、coerce string `6/1`、accept bool `6/2`、metadata 透传 `9/4`、partial
+  acceptance `1/1`，每命令 `exit 1` 预期、driver `0`；control `17/17 passed`，变异后原始 target 103
+  再全 passed。未选项不计 skip 或覆盖。
+- 纯模块冷 import/validate/to_dict 零 ENV/clock/ORM/config/DB/network/写与调用期读，stdout/stderr
+  为 0；解释器导入仅同模块源/缓存试读 2。初次 private probe 错判同模块 pyc 读取 `exit 1` 已保留并
+  修正，非产品失败；ENV 自检私有副本被 `BoundaryViolation/env_read` 正确拒绝 `exit 1` 预期。
+- 固定标准 JSON 31 批次：结构接受 6、拒绝 25、matched 31 / mismatched 0；四 core 错类型、四 metadata
+  伪造、原始顶层 shapes、空值边界、自定义 tag/other 正负、外层解释建议均已核。unknown raw + caller
+  含 other 由直接 unit 与有效变异覆盖，不谎称固定 JSON 含该专例。CLI 默认 exit 0 输出 31/6/25/31/0；
+  坏 expect、坏 tags、非标准 JSON 各 exit 2 固定诊断无 trace/原文；合法材料不匹配 exit 1。合成 PG 已
+  stop 0 且精确 ID/双 owner/loopback/身份/auto-remove 全部确认；实际 PG 移除且子进程无 DB/Provider
+  变量后 CLI 仍默认 exit 0。
+- 原 TDD 16 函数/2 helper/39 assert/55 参数 case 保持；R1 既有 38 个顶层函数（含 2 helper）完整 AST
+  保持，覆盖原 94 个参数化用例；692 保护不变。
+  初始真正 TDD RED 3、首轮 68 pass 不足、R1 `23 fail / 71 pass`、R2 `3 fail / 100 pass` 历史保留；该
+  逻辑问题属新离线工具合同缺口，不是原默认业务回归。
+- 本地实现、门禁与边界已收口；独立技术 Review、最终文档 format、正常 Husky commit/当前分支 API 发布
+  以主控同卡回执为准，用户 Review 待，本状态不自行写成 APPROVED。正式返修 `2/2`。精确合同见
+  [SGEC_OFFLINE_CONTRACT.md](./SGEC_OFFLINE_CONTRACT.md)。
 
 ### R2-UI 设置标题与活动记录去 UUID（FINAL_READY）
 
@@ -89,8 +128,8 @@
   其中设置图处于滑入中，不把初轮部分画面称为完整布局通过。
 - 本地实现、门禁与截图已收口；独立技术 Review、最终文档 format、commit/push 以主控同卡回执为准，
   用户 Review 待，本状态不自行写成 APPROVED。正式返修计数为 `2/2`，没有第三轮正式返修额度；本轮仅
-  做文档最终收口。生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收。合成 PG 仍由本批
-  独占，待 SGEC 完成后清理。
+  做文档最终收口。生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收。本批独占合成 PG
+  当时尚未清理，现已于 SGEC-OFF 完成后清理。
 
 ### R2-LIVE 活动会话生命周期实时门禁（FINAL_READY）
 
@@ -119,7 +158,8 @@
   回执为准；不能自行写成 APPROVED。用户 Review 待。生产、真实 Provider/IdP/LiveKit、设备、
   部署和真实链路均未授权或验收。
 - R2-LIVE 完成时 R2-UI 与 SGEC-OFF 仍未实施，不能提前勾选；R2-UI 后续已另行完成并达到 FINAL_READY，
-  SGEC-OFF 仍未实施。本批独占合成 PG 留待后一卡使用且尚未清理。R2-LIVE 当时正式返修为 `0/2`。
+  SGEC-OFF 当时也未实施（原时点），两者后续均已分别完成。本批独占合成 PG 当时尚未清理，现已于
+  SGEC-OFF 完成后清理。R2-LIVE 当时正式返修为 `0/2`。
 
 ### DEC-A R2 与 SGEC 设计口径回写（FINAL_READY）
 
