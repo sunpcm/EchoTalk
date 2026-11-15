@@ -1,50 +1,50 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15；G3本机三树验证数据已补齐（完整backend pytest895passed），待最终独立Review。
-> 已发布设计CI与未发布G3候选分别列于“当前验证基线”；本机分阶段结果不替代发布CI或最终评审。
+> 最后核对：2026-11-15；G3 PR172已合并main1f06b03，最终mainCI首轮成功；H1仅设计、未实施。
+> 已发布G3 CI与H1本机验证分列于“当前验证基线”；设计不改变产品或替代用户实施确认。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
 > 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
 ## 当前功能
 
-| 领域               | 当前实现                                                                                          | 状态与边界                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 认证与用户边界     | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                   | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                                    |
-| 实时对话           | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                 | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                           |
-| 会话生命周期       | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束              | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                          |
-| 会话分析           | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                                   | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                                         |
-| 契约同源（G3候选） | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试 | 本机验证数据已补齐，待最终Review；尚未发布，重试与wire语义保留                                       |
-| 结果可信度         | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                | 已实现                                                                                               |
-| 自适应课程         | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                               | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                             |
-| BYOK               | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                       |
-| DocTalk            | 文档输入、Prompt 构建、文档会话入口                                                               | 已实现 Web 流程；原生端文件选择未验收                                                                |
-| 前端体验           | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标                          | Provider 高度修复已通过本机双浏览器验证；大字号深色 Provider 文字可读性仍有 P2，边框与读屏实测未完成 |
-| 周度学习           | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                             | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现                                       |
-| iOS                | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                           | 真机全链路、原生登录与发布未验收                                                                     |
-| macOS              | 仅 `tools/macos-m1-native-probe` 探测工程                                                         | **未实现**正式客户端，等待 CP-03 设备证据                                                            |
-| 数字人             | 只有待办                                                                                          | **未实现**                                                                                           |
+| 领域           | 当前实现                                                                                          | 状态与边界                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                   | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                                    |
+| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                 | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                           |
+| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束              | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                          |
+| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                                   | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                                         |
+| 契约同源（G3） | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试 | 已合并PR172、最终mainCI首轮成功；重试与wire语义保留                                                  |
+| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                | 已实现                                                                                               |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                               | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                             |
+| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                       |
+| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                               | 已实现 Web 流程；原生端文件选择未验收                                                                |
+| 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标                          | Provider 高度修复已通过本机双浏览器验证；大字号深色 Provider 文字可读性仍有 P2，边框与读屏实测未完成 |
+| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                             | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现                                       |
+| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                           | 真机全链路、原生登录与发布未验收                                                                     |
+| macOS          | 仅 `tools/macos-m1-native-probe` 探测工程                                                         | **未实现**正式客户端，等待 CP-03 设备证据                                                            |
+| 数字人         | 只有待办                                                                                          | **未实现**                                                                                           |
 
 ## 当前验证基线
 
-已发布设计基线：[PR171](https://github.com/sunpcm/EchoTalk/pull/171)已合并至
-[0e70680](https://github.com/sunpcm/EchoTalk/commit/0e706801316ea0c529a5eb1098f5cf808a1a9d67)，
-[mainCI43621702202](https://github.com/sunpcm/EchoTalk/actions/runs/43621702202) success。
-该列来自Harness回读Linux CI日志；候选列来自Harness/macOS分阶段亲跑，均非实施方执行。
+已发布G3基线：[PR172](https://github.com/sunpcm/EchoTalk/pull/172)合并至
+[1f06b03](https://github.com/sunpcm/EchoTalk/commit/1f06b03f8ad2abf8184a6491184f76165c226fd4)，tree `85982b79fd531819ecf0d3536f4719e91bbf06a9`；
+[mainCI43670316486](https://github.com/sunpcm/EchoTalk/actions/runs/43670316486)首轮5/5 success。
+PR CI43669809532与Guard43669809539首轮六检查success，source/CImerge/main等树，由Harness回读日志及共享回执确认。
+下表Linux列为Harness回读已发布CI；H1/macOS列为Harness在H1 lane亲跑，均非设计实施方执行。
 
-| 测试树 / 门禁      | 已发布设计基线0e70680 CI（Linux）          | 未发布G3候选（Harness/macOS）                              |
-| ------------------ | ------------------------------------------ | ---------------------------------------------------------- |
-| Vitest             | 1227 passed / 51文件                       | **1234 passed / 52文件**                                   |
-| Playwright E2E     | 234，C117/W117，retry/skip/flaky0（4.1m）  | 234，C117/W117，retry/skip/flaky0（52.0237s）              |
-| Fake API契约       | 125 passed                                 | 125 passed                                                 |
-| API类型生成器      | 8 passed                                   | **10 passed**                                              |
-| 构建脚本           | 21 passed                                  | 21 passed                                                  |
-| 完整backend pytest | 841 passed / 3 warnings / 80.59%（60.65s） | **895 passed / 3 warnings / 79.71%（47.14s，命令53.90s）** |
-| 新增纯后端契约子集 | 不适用                                     | 42/42（8.17s），仅两份非DB模块，不是完整树                 |
+| 测试树 / 门禁      | 已发布G3 main1f06b03 CI（Linux）              | H1设计本机基线（Harness/macOS）                        |
+| ------------------ | --------------------------------------------- | ------------------------------------------------------ |
+| Vitest             | 1234 passed / 52文件                          | 1234 passed / 52文件                                   |
+| Playwright E2E     | 234，C117/W117，实际retry/skip/flaky0（4.0m） | 234，C117/W117，实际retry/skip/flaky0（55.247788s）    |
+| Fake API契约       | 125 passed                                    | 125 passed                                             |
+| API类型生成器      | 10 passed                                     | 10 passed                                              |
+| 构建脚本           | 21 passed                                     | 21 passed                                              |
+| 完整backend pytest | 895 passed / 3 warnings / 79.71%（43.13s）    | 895 passed / 3 warnings / 79.71%（63.39s，命令68.16s） |
 
-候选E2E为R0亲跑，命令53.30s；R1生产及全部E2E字节保全。新JSON/TS漂移检查均exit0，lint132warnings/0errors。
-R1两条P1及P2已关闭，8项有效私有变异目标RED/恢复GREEN；完整pytest现已补齐，source前后稳定。
-覆盖率较旧设计CI下降0.88个百分点，59%门禁通过；原因未知，不据此推断根因。
-实现PR/CI未发布，无实现终点SHA；后续发布验证以对应运行核对。细节见[G3最终本机补齐记录](./history/2026-11-15-g3-contract-implementation.md)。
+H1本机14门禁exit0、源码前后稳定；E2E JSON duration55247.788ms、命令56.58s，59%覆盖率门禁通过。
+H1仅交[抽取设计](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)，源码及所有测试零改；“两旧测试零改可达”是有条件设计判断。
+实施方仅查五MD格式/范围；Harness停写后最终format尚待执行，不预填H1 PR/CI或未来变异通过。
+旧设计CI及G3过程保留在[历史记录](./history/2026-11-15-g3-contract-implementation.md)，H1分工见[本轮记录](./history/2026-11-15-h1-startup-design.md)。
 
 这些结果都不能代替真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
 命令见 [Agent 评审手册 §2 与 §20](./agent-review-loop.md)。A1–A6、B1、F1–F4、G1、H2、I2 的逐卡收口与历史快照
@@ -58,7 +58,7 @@ R1两条P1及P2已关闭，8项有效私有变异目标RED/恢复GREEN；完整p
   避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
-- G3本机三树数据已补齐，待最终独立Review、实现PR及最终mainCI；真实Provider/LiveKit/IdP、设备、整栈及部署仍未验。
+- H1仅设计，待用户确认后另拆实施；真实Provider/LiveKit/IdP、设备、整栈及部署仍未验。
 - G2 Fake 默认租约仍disabled/503；成功Cloud租约和Provider验证仅显式合成fixture，不代表真实撤销/验证。
   保留两条UUID偏差：assessment `$.session_id` 绑定 `analysis-success-*`，grammar `$[0].session_id` 绑定
   `grammar-only-*` 等具名合成场景及关联ID断言，避免扩大冻结fixture范围；UUID/schema校验未放宽。
@@ -79,14 +79,15 @@ R1两条P1及P2已关闭，8项有效私有变异目标RED/恢复GREEN；完整p
 
 ## 历史与决策
 
-| 内容                                | 位置                                                                                                   |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| G3同源契约本机验收补齐与历史草稿    | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md) |
-| G2 主题对比度 CI 收尾与当前验收     | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md)             |
-| 2026 年 11 月各轮实施记录与当时基线 | [history/2026-11.md](./history/2026-11.md)                                                             |
-| 2026 年 10 月各轮实施记录           | [history/2026-10.md](./history/2026-10.md)                                                             |
-| 已合并与明确未采纳的方案            | [history/decisions.md](./history/decisions.md)                                                         |
-| 已完成的待办事项                    | [history/todo-done.md](./history/todo-done.md)                                                         |
-| 评审手册的单轮回执                  | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                   |
+| 内容                                | 位置                                                                                                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1启动编排抽取设计（未实施）        | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[本轮记录](./history/2026-11-15-h1-startup-design.md) |
+| G3同源契约本机验收补齐与历史草稿    | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                          |
+| G2 主题对比度 CI 收尾与当前验收     | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md)                                                      |
+| 2026 年 11 月各轮实施记录与当时基线 | [history/2026-11.md](./history/2026-11.md)                                                                                                      |
+| 2026 年 10 月各轮实施记录           | [history/2026-10.md](./history/2026-10.md)                                                                                                      |
+| 已合并与明确未采纳的方案            | [history/decisions.md](./history/decisions.md)                                                                                                  |
+| 已完成的待办事项                    | [history/todo-done.md](./history/todo-done.md)                                                                                                  |
+| 评审手册的单轮回执                  | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                            |
 
 历史文件只追加、不改写；其中的计数和结论只属于当时的提交。
