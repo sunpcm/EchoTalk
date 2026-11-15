@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15；theme-storage（TS）已发布 PR178 至 main `94037c0`（PR/Guard 首6 success、mainCI 首5 success）；READ 源码 APPROVED R2、PR/CI 待建。
-> 已发布 TS/CI234 与本机 READ 候选 258 分列；不预填 READ PR/CI 或发布终点 SHA。
+> 最后核对：2026-11-15；theme-storage（TS）已发布 PR178 至 main `94037c0`；设置可读性（READ）已发布 PR179 至 main `c9f3131a`（PR CI43711155517 / Guard43711155525 首6 success、mainCI43712362262 首5 success）；启动视图测试前提（ST）测试文件 blob 冻结 `cfac9c33`、本机受控 APPROVED R0、PR/CI 待建。
+> READ 已发布 main `c9f3131a`（树 `46732fb`）；ST 为独立偶发前提审计：DASH lane 保持只读、其拆分相对基线测试零改，ST 在独立 lane 修改同路径 E2E first case。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)。
 
 ## 当前功能
@@ -18,7 +18,7 @@
 | 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                               | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                  |
 | BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                | 已实现；密钥轮换和 Provider 连通性需按环境验收                                            |
 | DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                               | 已实现 Web 流程；原生端文件选择未验收                                                     |
-| 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标                          | 设置功能输入边界/禁用文字可读性已本机验收（未发布）；装饰卡/全产品 AA、真实设备读屏未验   |
+| 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标                          | 设置功能输入边界/禁用文字可读性已发布（PR179）；装饰卡/全产品 AA、真实设备读屏未验        |
 | 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                             | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现                            |
 | iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                           | 真机全链路、原生登录与发布未验收                                                          |
 | macOS          | 仅 `tools/macos-m1-native-probe` 探测工程                                                         | **未实现**正式客户端，等待 CP-03 设备证据                                                 |
@@ -26,24 +26,32 @@
 
 ## 当前验证基线
 
-theme-storage（TS）已发布 [PR178](https://github.com/sunpcm/EchoTalk/pull/178) 至 main `94037c0`；[PR CI43704920189](https://github.com/sunpcm/EchoTalk/actions/runs/43704920189) /
-[Guard43704920061](https://github.com/sunpcm/EchoTalk/actions/runs/43704920061) 首轮六 success（E2E 4.4m、pytest 46.52s），[mainCI43706220054](https://github.com/sunpcm/EchoTalk/actions/runs/43706220054)
-首轮五 success（E2E 3.8m、pytest 60.31s，实际 checkout `94037` 由 Harness 回读（非实施者））。
-下表左列为已发布 TS main `94037c0`（Linux CI，E2E234），右列为本机 READ 候选（继承 TS 后完整 258，未发布）。
+theme-storage（TS）已发布 [PR178](https://github.com/sunpcm/EchoTalk/pull/178) 至 main `94037c0`。设置可读性（READ）已发布
+[PR179](https://github.com/sunpcm/EchoTalk/pull/179) 至 main `c9f3131a`；[PR CI43711155517](https://github.com/sunpcm/EchoTalk/actions/runs/43711155517) /
+[Guard43711155525](https://github.com/sunpcm/EchoTalk/actions/runs/43711155525) 首轮六 success（E2E 5.5m、pytest 63.19s，其中 E2E 257 pass / 1 flaky / retry1），
+[mainCI43712362262](https://github.com/sunpcm/EchoTalk/actions/runs/43712362262) 首轮五 success（E2E 5.4m、pytest 73.13s，实际 checkout `c9f3131` 由 Harness 回读（非实施者））。
+READ 源码 `c2ffce7`、CI merge `f754a7c`、main `c9f3131` 树 `46732fb` 严格相等。
 
-| 测试树 / 门禁      | 已发布 TS main94037c0（Linux，E2E234）    | 本机 READ 候选 258（继承 TS，未发布） |
-| ------------------ | ----------------------------------------- | ------------------------------------- |
-| Vitest             | 1249 passed / 53文件                      | 1249 passed / 53文件                  |
-| Playwright E2E     | 234，C117/W117，retry/skip/flaky0（3.8m） | 258，C129/W129，retry/skip/flaky0     |
-| Fake API契约       | 125 passed                                | 125 passed                            |
-| API类型生成器      | 10 passed                                 | 10 passed                             |
-| 构建脚本           | 21 passed                                 | 21 passed                             |
-| 完整backend pytest | 957 / 3 warnings / 80.63%（60.31s）       | 957 / 3 warnings / 80.63%（77.15s）   |
+启动视图测试前提（ST）为独立偶发前提审计，测试文件 blob 冻结 `cfac9c33`，只改 first case 点击前注册
+`POST /api/sessions` 200 响应等待；受控 6s 延迟私有副本下旧 C/W 原断言 2 RED、新 2 GREEN。17 分阶段门禁全
+success（首次 6 个后端步骤因父误在根目录准备 Python 未运行，修正 backend 后新系列 6 全 0，保留首环境错误）。
 
-READ 候选 24 测试（48 启/禁用阶段），before/after 各 48 条计算样式与截图；功能输入边界 1.148→3.646、
-禁用 select 文字 3.124→4.943；四变异目标 RED/恢复 GREEN，R0/R1/R2 首失败保留。命令见 [Agent 评审手册 §2](./agent-review-loop.md)，
-详见 [设置可读性验收记录](./history/2026-11-15-settings-readability.md)。这些结果不替代真实 LiveKit、第三方 Provider、
-真实 IdP、iOS/macOS 设备或生产部署验收；READ PR/CI 待建，不预填。
+下表左列为已发布 READ main `c9f3131a`（Linux CI，E2E258），右列为 ST 本机受控 blob `cfac9c33`（未发布）。
+
+| 测试树 / 门禁      | 已发布 READ main c9f3131a（Linux，E2E258）   | ST 本机受控 blob cfac9c33（未发布） |
+| ------------------ | -------------------------------------------- | ----------------------------------- |
+| Vitest             | 1249 passed / 53文件                         | 1249 passed / 53文件                |
+| Playwright E2E     | 258，C129/W129，retry/skip/flaky0（CI 5.4m） | 258，C129/W129，retry/skip/flaky0   |
+| Fake API契约       | 125 passed                                   | 125 passed                          |
+| API类型生成器      | 10 passed                                    | 10 passed                           |
+| 构建脚本           | 21 passed                                    | 21 passed                           |
+| 完整backend pytest | 957 / 3 warnings / 80.63%（73.13s）          | 957 / 3 warnings / 80.63%（71.82s） |
+
+READ 24 测试（48 启/禁用阶段），功能输入边界 1.148→3.646、禁用 select 文字 3.124→4.943、四变异 RED/恢复 GREEN，详见
+[设置可读性验收记录](./history/2026-11-15-settings-readability.md)。ST 受控 6s 私有副本旧 C/W 原断言 2 RED、新 2 GREEN，
+压力 C/W 各 30 共 60、0 retry、40.5s，详见 [启动视图测试前提记录](./history/2026-11-15-session-start-test-barrier.md)。
+命令见 [Agent 评审手册 §2](./agent-review-loop.md)。这些结果不替代真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS
+设备或生产部署验收；ST PR/CI 待建，不预填。
 
 ## 已知限制和近期风险
 
@@ -61,6 +69,11 @@ READ 候选 24 测试（48 启/禁用阶段），before/after 各 48 条计算�
 - 设置功能输入边界已由 READ 提升至 3:1（1.148→3.646）、禁用 select 文字至 4.943（3.124）；装饰卡边框
   不统一套 3:1，不宣称全产品 AA；会话中界面 LiveKit 控制条未在真实连接下验收。
 - READ2：主题选择 radio 内容/色点在 200% 根字号下于按钮内重排/溢出（390/1280、正常/200 字号，本机前后观察，本轮未修）；保留 44px/原颜色/角色/事件与业务；原生/OS 下拉边界归入未验/非范围。
+- READ 已发布 PR179 至 main `c9f3131a`；PR CI43711155517 / Guard43711155525 的 E2E `a11y-focus-touch.spec.ts:64`（Chromium 单用例）
+  seen>=6 得 5、1 retry 通过（整轮 257 pass / 1 flaky）；根因未知，独立修复，见根 TODO 新卡 A11Y。
+- 启动视图测试前提（ST）：测试文件 blob 冻结 `cfac9c33`，受控 6s 私有副本已证旧断言 RED/新断言 GREEN；但原失败 trace 未证明
+  Vite 首次编译、机器负载或网络抖动等为历史实际原因，历史根因仍未知，不写"历史根因已成立"或"不是环境偶发"；Fake 同步响应
+  不足排除网络/编译，PR/CI 待建。
 - 真实方向键选择仍未验证：同一 Space/ArrowDown/Enter 私有探针在基线与候选双浏览器均未改值，不能认定
   为本轮引入；focus/Tab/selectOption 已通过，原生 popup 实际操作仍未验。详见本月 history。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
@@ -69,7 +82,8 @@ READ 候选 24 测试（48 启/禁用阶段），before/after 各 48 条计算�
 
 | 内容                                                          | 位置                                                                                                                                                                                                |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 设置可读性（READ，本机验收未发布）                            | [验收记录](./history/2026-11-15-settings-readability.md)                                                                                                                                            |
+| 设置可读性（READ，已发布 PR179/main c9f3131a）                | [验收记录](./history/2026-11-15-settings-readability.md)                                                                                                                                            |
+| 启动视图测试前提（ST，测试文件 blob 冻结未发布）              | [验收记录](./history/2026-11-15-session-start-test-barrier.md)                                                                                                                                      |
 | theme-storage 冷启动/水合/零写（TS，已发布 PR178/CI234）      | [验收记录](./history/2026-11-15-theme-storage-reliability.md)                                                                                                                                       |
 | I1评估提供方设计与实施（源码APPROVED R0，已发布main76d9d6ba） | [ASSESSMENT_PROVIDER_DESIGN.md](./ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](./history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](./history/2026-11-15-i1-provider-implementation.md) |
 | 遗留台账对账（LGR，纯文档）                                   | [对账记录](./history/2026-11-15-legacy-reconciliation.md)                                                                                                                                           |
