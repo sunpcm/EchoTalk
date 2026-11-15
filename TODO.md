@@ -4,7 +4,33 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **CP05L Dashboard 生命周期实际组合缺口（当前卡片，2026-11-15，FINAL_READY）：** 真实
+> **CP04E 认证退出与活动 Room 组合补验（当前卡片，2026-11-15，FINAL_READY）：**
+> 新增 `apps/vite-app/src/components/session/auth-exit.integration.test.tsx`，只以“活动会话内真实
+> `beginLogout()`”和“当前认证请求经真实 `api.ts` 收到 401”两条参数化场景，补验真实
+> `AuthGate → App → VoiceInterface → RoomSession/RoomContextSync`、认证状态机、用户 store、
+> `roomAudio` 与默认 Web 平台适配的组合退出终态。离线 OIDC、LiveKit Room/Track、严格合成
+> fetch/Response 与必要 OS 边界只作测试隔离；SDK mock 不代替产品停止 owned tracks。
+> 两场景断言私有 App/Voice/Room 卸载并出现登录边界，track 从 live 到 ended 且实际调用
+> `stop()`，conversation 回 dashboard/idle，sessionId/token/wsUrl 清空、代际推进、presentation
+> 清空，settings/assessment seed 清除；logout 不新增业务请求，401 只新增一次请求且不重放，
+> 全程无 end/token/dispatch/create、无媒体获取、无 Room 重建。
+> R1 根据独立 Review 修复两处夹具：Room 改按真实挂载/卸载周期计数，并在退出前对相同树合法
+> rerender 验证仍单挂载、track 仍 live；严格 fetch 在来源/认证/路由校验前记录全部尝试与拒绝，
+> 最终断言拒绝为空且尝试数等于允许记录数。R0 机器检查均通过，但不能冲销这两处夹具 finding。
+> R1 target `2/2` 与完整 Vitest `1270/58` 为绿，外部两探针也已正确翻转；但 quality/build/typecheck
+> 因本测试 TS18047 为 `exit 2`，且同一 React 元素重复传给 `rerender` 可被 React bail out。R2
+> 用稳定非空 render 结果消除空值，并以每次返回新元素的同一树工厂完成真实 rerender；准备期要求
+> Render 调用数严格增加但不设固定上限，同时保持 Room 挂载 `1`、卸载 `0`、同一 Room/track 仍 live
+> 且未 stop。
+> 主控最终独立核验目标与 target-final 均 `2/2`，两项核心负对照均命中具体断言；最终 13 项
+> 同源字节门禁全 `exit 0`，正式实施返修 `2/2`。完整机器数字、证据复用边界与 SDK/外部边界只在
+> [PROJECT_STATUS 的 CP04E 小节](./docs/PROJECT_STATUS.md#cp04e-认证退出与活动-room-组合补验final_ready)。
+> 代码与测试已停写；此次 next-local 新批合成 PG 已清理：`CP04E-stop-pg` `exit0`，在精确 ID、
+> 双 owner、loopback 与合成库身份核验后 `stop0`、`auto_removed=true`，名称和 ID 均不存在，
+> 其他资源未动；本批清理与旧批独立。CP04I 的换号/迟到响应三场景不重做，CP-04 父项继续不勾；
+> Review/commit/push 见主控同卡回执，用户 Review 待，不自批。
+
+> **CP05L Dashboard 生命周期实际组合缺口（历史卡片，2026-11-15，FINAL_READY）：** 真实
 > Dashboard + 四类消费者 + 实际 `api.ts` 的 3 场景组合覆盖已完成并归档，正式实施返修
 > `1/2`。两项有效私有加载期负对照命中后，恢复默认源并完成最终 13 项机器门禁；完整
 > 数字、Mock/API 基址边界、负对照与外部链路边界的唯一集中说明见
@@ -597,6 +623,7 @@ CP02I 本地组合补验（真实 controller + api.ts + stdio 桥 + ASGI + 真�
 - [ ] 原生长期凭据使用 Keychain，补齐续期、撤销及 401 恢复；验收：并发请求只触发一次续期，失败后受控退出，不盲目重放创建/结束等写请求，不在 Web Storage 保存原生长期凭据。
 - [ ] 配置各客户端的 IdP 回调白名单与 API audience；验收：三端同一账号映射同一本地用户；核实 IdP 是否使用 pairwise subject，禁止靠 email 自动合并账号。
 - [ ] 登录失效/退出时停止音频并清理用户相关内存及本地恢复提示；验收：切换账号不显示上一账号的会话、设置或报告。
+      CP04E 本地组合子卡已归档为 `FINAL_READY`：logout 与当前请求 401 均从真实认证入口验证活动 `VoiceInterface/RoomSession` 卸载、产品真实停轨及用户 store 清理；R2 最终目标 `2/2`、target-final `2/2`，最终 13 门禁全 `exit 0`，正式实施返修 `2/2`。完整数字与边界见 [PROJECT_STATUS](./docs/PROJECT_STATUS.md#cp04e-认证退出与活动-room-组合补验final_ready)。本地子卡完成不勾选 CP-04 父项；next-local 新批合成 PG 已清理，`CP04E-stop-pg` `exit0`，精确 ID、双 owner、loopback 与合成库身份核验后 `stop0`、`auto_removed=true`，名称和 ID 均不存在，其他资源未动，本批与旧批独立；真实外部/SDK 网络/设备/CI/生产仍未验收。
       CP04I 本地组合子卡已完成并归档为 `FINAL_READY`，覆盖真实入口换号、旧请求迟到隔离和同 principal 续期保活；目标、13 门禁与两个私有负对照均完成，本次合成 PG 已精确清理。R0/R1 历史、最终数字与 PG 清理细节统一见 [PROJECT_STATUS](./docs/PROJECT_STATUS.md#cp04i-真实入口换号与迟到响应组合final_ready)。本地子卡完成不勾选 CP-04 父项；真实 SSO/IdP、Keychain、设备、媒体、Provider、LiveKit、外部依赖与生产仍未验收。Review/commit/push 以主控最终同卡回执为准，用户 Review 待。
 
 ### CP-05：生命周期与响应式体验

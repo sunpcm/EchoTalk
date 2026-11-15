@@ -6,6 +6,43 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 CP04E 认证退出与活动 Room 组合补验（FINAL_READY）
+
+- **状态：`FINAL_READY`（主控最终验收完成，CP-04 父项不勾）**：唯一实施工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `a75223aa38419c07b3786465ea3fade9c930469f`。新增
+  `apps/vite-app/src/components/session/auth-exit.integration.test.tsx` 并更新四份文档；
+  产品、旧测试、helper、配置、依赖和迁移未改。
+- **独立覆盖**：只新增活动 Room 中真实 logout 与当前请求经真实 `api.ts` 收到 401 两条组合
+  场景，不重复 CP04I 的 Dashboard 换号与迟到响应三例。两场景共用同一终态断言：真实
+  `AuthGate → App → VoiceInterface → RoomSession/RoomContextSync` 卸载、owned track 由产品
+  `stopRoomLocalTracks()` 实际停止、conversation/settings/assessment 用户数据清理，并验证无
+  业务写、无 401 重放、无媒体获取与无 Room 重建。
+- **真假边界**：离线 OIDC、LiveKit 组件/Room/Track、严格 fetch/Response 与必要 OS 为测试
+  边界；真实认证状态机、用户 store、API 401 失效、Room 清理调用与默认 Web 平台适配保留。
+  SDK mock 不主动停止 track，不代替产品清理逻辑。
+- **R1 夹具修正**：Room 由 render 次数改按真实挂载/卸载 effect 周期计数，并在退出前合法
+  rerender 后断言仍单挂载、track 仍 live 且未 stop；严格 fetch 在来源、认证和路由拒绝前记录
+  全部尝试，最终断言拒绝为空、尝试数等于允许记录数，保留 logout 零新增与 401 只一次且不重放。
+- **R1 检查与 R2 修正**：R0 的 target `2/2`、完整 Vitest `1270/58`、E2E `272/0 retry` 与
+  backend `1044 passed / 3 warnings / 0 skip` 均为历史事实；R1 target `2/2` 与完整 Vitest
+  `1270/58` 也通过，外部两探针正确翻转。但 quality/build/typecheck 因 TS18047 为 `exit 2`，
+  且同一 React 元素引用 rerender 可 bail out。R2 改用稳定非空局部 render 结果和 fresh
+  elements 同一树工厂，准备期断言 render 调用数严格增加但不设固定上限，Room 挂载仍 `1`、
+  卸载仍 `0`，同一 Room/track 仍 live 且未 stop。
+- **最终验收**：主控独立核验目标 `2/2`、target-final `2/2`；停轨 disabled 与 user-clear
+  disabled 两项核心负对照均命中具体断言。严格请求探针拒绝未知尝试，fresh-tree 重渲染通过，
+  独立观察者确认发布用例真的 rerender 且未重挂载。最终 13 项同源字节门禁全 `exit 0`，正式
+  实施返修 `2/2`。详细数字与证据复用边界统一见
+  [PROJECT_STATUS](../PROJECT_STATUS.md#cp04e-认证退出与活动-room-组合补验final_ready)。
+- **收口边界**：代码与测试停写，1268 个旧测试身份保留、新增 2 例，715 个保护文件字节未变。
+  SDK 均为模拟，本地断言证明产品调用 stop、卸载与清空，不宣称真实 `MediaStreamTrack` 或 SDK
+  网络断开已验；真实外部、原生/设备、CI 与生产未验。此次 next-local 新批合成 PG 已清理：
+  `CP04E-stop-pg` `exit0`，在精确 ID、双 owner、loopback 与合成库身份核验后 `stop0`、
+  `auto_removed=true`，名称和 ID 均不存在，其他资源未动；本批清理与旧批独立。
+  Review/commit/push 见主控同卡回执，用户 Review 待，本文不自批 APPROVED。
+
 ## 2026-11-15 CP04I 真实入口换号与迟到响应组合（FINAL_READY）
 
 - **状态：`FINAL_READY`（本地子卡完成，CP-04 父项不勾）**：唯一实施工作树为

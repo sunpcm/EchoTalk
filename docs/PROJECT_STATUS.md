@@ -1,18 +1,23 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **CP04I 真实入口换号与迟到响应组合
+> 最后核对：2026-11-15。当前卡片为 **CP04E 认证退出与活动 Room 组合补验
 > （FINAL_READY）**：唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，冻结 HEAD
-> `dacf7b3337b3e4640b040ad6ce048c8ee7f9a92e`。已新增真实根入口 `AuthGate`、`App`、
-> 四类消费者、`SettingsDrawer`、store 与 `api.ts` 的 3 场景组合测试；认证边界使用真实
-> `oidc-client-ts` 的离线 `UserManager`/`User` 与合成用户、metadata、Storage，不连接真实 SSO。
-> 目标、全树、13 门禁及两个私有负对照已由主控最终验收，正式实施返修 `1/2`。详细机器数字与
-> R0/R1 历史集中在下述 CP04I 小节；Review/commit/push 以主控最终同卡回执为准，用户 Review 待，
-> 本状态不写 APPROVED。
-> CP02I 通话占用本地组合补验（FINAL_READY）与 CP05K 会话界面动态桌面与键盘覆盖
-> （FINAL_READY）以及 CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）为历史快照，
-> 详细数字只在其各自小节有效，不转作 CP04I 结果。
+> `a75223aa38419c07b3786465ea3fade9c930469f`。允许写集只含一个新测试
+> `apps/vite-app/src/components/session/auth-exit.integration.test.tsx` 与四份状态/验证文档。
+> 测试只参数化 logout 与当前请求 401 两条活动会话退出场景，保留真实
+> `AuthGate → App → VoiceInterface → RoomSession/RoomContextSync`、`auth.ts`、相关 store、
+> `api.ts`、`roomAudio` 与默认 Web 平台适配；离线 OIDC、LiveKit Room/Track、严格合成
+> fetch/Response 和必要 OS 边界只作测试隔离，SDK mock 不替产品停止 owned tracks。
+> 主控 R0 门禁虽全部通过，独立 Review 仍以两处夹具缺陷判 `CHANGES REQUESTED`；R1 又因
+> quality/build/typecheck `exit 2` 与同一 React 元素 rerender bail out 被拒绝。R2 修正后主控
+> 独立核验 target `2/2`、target-final `2/2`，两项核心负对照均命中明确断言，fresh-tree 重渲染
+> 与请求拒绝账本探针也通过。最终 13 门禁同源字节收口为全 `exit 0`，正式实施返修 `2/2`。
+> R0 全绿与两夹具反例、R1 quality/typecheck 失败历史均保留；这些是测试夹具问题，没有认定产品
+> 回归。CP04I 的换号/迟到响应三场景为历史快照，未重做；Review/commit/push 见主控同卡回执，用户 Review 待。
+> CP02I 通话占用本地组合补验、CP05K 会话界面动态桌面与键盘覆盖以及 CP05L Dashboard 生命周期
+> 实际组合缺口也均为历史快照，详细数字只在其各自小节有效。
 > 下方 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、
 > A19 P2 等小节也均为各自时点的历史交付。R2-11 当时的模型分工与路由可用性记录不代表
 > 本卡路由或产品结论。旧 CP05D 所属批次的合成 PG 已 `stop_exit0`/`auto_removed=true`；
@@ -48,6 +53,68 @@
 
 ## 当前验证基线
 
+### CP04E 认证退出与活动 Room 组合补验（`FINAL_READY`）
+
+- **基线与写集**：唯一工作树为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，
+  分支 `codex/B1-learning-events-20261112`，冻结 HEAD
+  `a75223aa38419c07b3786465ea3fade9c930469f`，开工 clean。仓内只允许新增
+  `apps/vite-app/src/components/session/auth-exit.integration.test.tsx` 并更新
+  `TODO.md`、本文件、`docs/history/todo-done.md` 与
+  `docs/verification/cross-platform/CP-04.md`；产品源码、旧测试、helper、配置、依赖、迁移与
+  715 保护文件均不改。
+- **真实接线**：从真实 `AuthGate` 包真实 `App`，以公开合成 store 动作准备 active session，
+  保留真实 `VoiceInterface`、`RoomSession`、`RoomContextSync`、`auth.ts`、真实用户 store、
+  `api.ts`、`roomAudio` 与默认 Web 平台适配。认证边界使用真实离线
+  `oidc-client-ts` `UserManager`/`User` 与合成 metadata/Storage；`automaticSilentRenew` 和
+  `monitorSession` 关闭，`signoutRedirect` 只在 SDK 外部导航边界截获。
+- **场景 1（logout）**：活动 Room 中调用真实 `beginLogout()`。断言私有 App/Voice/Room 卸载并
+  出现登录边界，owned track 从 `live` 变 `ended` 且产品路径实际调用 `stop()`；conversation
+  回 dashboard/idle，`sessionId/token/wsUrl/sessionPresentation` 清空且代际推进，
+  settings/assessment seed 清除；退出前后业务请求数不增加，不新建/结束服务端会话，不取
+  token、不 dispatch、不重建 Room、不申请媒体。
+- **场景 2（当前请求 401）**：活动 Room 中经真实 `getSessionDetail()` 与真实 `api.ts` 发出
+  唯一受控合成 GET，收到 401 后触发当前 revision 失效，并断言与 logout 相同的 App/Room、
+  owned track、conversation、settings、assessment 清理终态。401 只新增该一次请求，不重放；
+  无自动 Room 重建、新会话、end/token/dispatch 或媒体获取。
+- **测试边界**：只 mock `@livekit/components-react` 的声明式 Room/Track 组件边界；mock Room
+  不调用 stop，track 仅由真实 `stopRoomLocalTracks()` 停止。R2 在闭包中使用稳定非空
+  `renderedApp`，以每次返回新元素的同一树工厂完成 rerender；准备期要求 Room render 调用数
+  严格增加但不设固定上限，同时真实 effect 挂载数保持 `1`、卸载数保持 `0`，Room/track 对象
+  身份不变且仍 live、未 stop。严格 fetch 在来源、认证与路由校验前记录每次尝试；拒绝尝试保留
+  原因并失败关闭，最终断言拒绝为空且尝试总数等于允许记录数。测试 `finally` 卸载 UI 并
+  `disposeEvents()` 退订；`afterEach` 的 `cleanup()` 恢复组件边界，并还原 fetch、OS、env 与
+  store；所有 React 可见更新纳入 `act`。
+- **R0 检查与返修依据**：主控已完成 target `2/2`、完整 Vitest `1270/58`、E2E `272/0 retry`
+  与 backend `1044 passed / 3 warnings / 0 skip`，715 个保护文件仍一致。两项私有探针仍证明
+  夹具缺口：同树合法 rerender 使固定 render 计数由 `1` 变 `2`，目标探针 `exit 1`；logout
+  后被 fake 拒绝且被捕获的未知来源请求未进入旧 records，目标探针 `exit 0`。这些 R0 结果不能
+  冲销 fixture finding；R1 局部绿色也不能冲销其 quality/typecheck `exit 2`，本文不写
+  APPROVED。
+- **R1 检查与 R2 依据**：R1 target `2/2` 与完整 Vitest `1270/58` 已通过；两项外部探针也
+  正确翻转：未知拒绝请求命中具体失败断言，fresh tree 合法 rerender 通过。但 quality/build/
+  typecheck 均因 `auth-exit.integration.test.tsx:600` 的 TS18047 `exit 2`，且原测试将同一
+  React 元素引用重复传给 `rerender`，React 可合法 bail out，不能证明实际 render 增加。
+- **R2 最终核验**：主控目标 `2/2`、target-final 再跑 `2/2`。两个私有核心负对照均在具体断言
+  失败：停轨 disabled 时 track 仍 `live`；user-clear disabled 时 `appView` 仍为 `session`。
+  严格请求探针拒绝未知尝试；fresh-tree 重渲染通过；独立观察者确认发布用例自身确实发生了
+  rerender，且没有重挂载。SDK mock 不主动停轨，产品 `stopRoomLocalTracks()`、App/Room 卸载
+  与用户 store 清理由本地断言真实触发；这不等价于真实 `MediaStreamTrack` 或 SDK 网络断开验收。
+- **最终 13 门禁**：组合结果全部 `exit 0`。Vitest `1270 passed / 58 files / 0 skip`；E2E
+  `272 passed = Chromium 136 + WebKit 136`，每例恰有一个 passed result，`retry=0`、`skip=0`、
+  `flaky=0`、`unexpected=0`；backend `1044 passed / 3 warnings / 0 skip`，raw coverage
+  `81.84461985874533%`；build-script `47`、Fake API `116`、API 类型 runner `8`、非 native iOS
+  脚本仅 Node runner `37` 均通过；lint 为 `132 warnings / 0 errors / 0 new`，file + message +
+  rule 多重集相同。Vitest 新增 2 例后总数为 1270，1268 个旧测试身份逐条保留；715 个保护文件
+  字节未变，产品、旧测试、共享 helper、配置、依赖与迁移均未改。
+- **证据复用边界**：R0 已通过的 E2E、backend 等结果绑定同卡源字节一致证据；R1/R2 分别补跑
+  quality、完整 Vitest 与 format。最终 13 项按同源字节收口，不声称 R2 阶段又从空缓存重跑了
+  全部测试树。所有新增范围仍是 logout 与当前请求 401 两例，CP04I 三场景未重做。
+- **收口状态**：停在 `FINAL_READY`，正式实施返修 `2/2`，代码与测试停写。此次 next-local 新批
+  合成 PG 已清理：`CP04E-stop-pg` `exit0`，在精确 ID、双 owner、loopback 与合成库身份核验后
+  `stop0`、`auto_removed=true`，名称和 ID 均不存在，其他资源未动；本批清理与旧批独立。真实
+  外部依赖、原生/设备、CI 与生产仍未验收。CP-04 父项保持不勾；Review/commit/push 见主控同卡
+  回执，用户 Review 待，本文不自批 APPROVED。
+
 ### CP04I 真实入口换号与迟到响应组合（FINAL_READY）
 
 - 唯一工作树为 `b1-continuation-20261115`、分支
@@ -74,7 +141,7 @@
   `exit 2` 均由 3 个 OIDC 事件 call-through spy 未返回原方法退订函数导致；unit `exit 1`、
   format `exit 1`，后者唯一命中新增测试。上述是夹具/类型/格式问题，不是产品 RED。
 - **R1 修正**：负向夹具只排除当前 actor 对应的语法行，保留 B 正向断言；OIDC 事件 spy 原样
-  透传并保留退订清理；补充 A late active/daily ID、切换前真实 settings store 仍为 `b-model`
+  透传并保留退订清理；补充 A late active/daily ID、B设置重新打开触发重取前真实 settings store 仍为 `b-model`
   以及 weekly 非默认选日 B 计数保留。默认选日与 history 契约不变。唯一新测试文件最后以
   Node `22.13.1` 下现有 Prettier 精确格式化。
 - **最终机器验收**：目标 `green 3/3`，默认配置 target-final 再次 `3/3 exit 0`；最终 13 门禁
