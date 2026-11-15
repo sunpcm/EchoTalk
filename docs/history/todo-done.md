@@ -745,3 +745,18 @@ pytest841/3warnings/80.59071729957806%（70.61s、命令75.55s），lint132warni
 Harness在本lane亲跑14门禁全部exit0、source稳定：Vitest1234/52、Fake125、types10/build21；E2E234（C117/W117、实际retry/skip/flaky0，55.247788s/命令56.58s）；完整pytest895/3warnings/79.71%（63.39s/命令68.16s，59%门禁通过）。Linux已发布G3 mainCI43670316486的895/3/79.71%为43.13s，两来源不混写；实施方只做MD格式/静态检查，Harness停写后最终format待验。
 
 源码事实基线为1f06b03/tree85982b7；不预填H1新PR/CI或设计APPROVED。H1具体实施仍需用户确认，I1/B2及其他卡不变。过程、首结果和未验边界见[本轮记录](./2026-11-15-h1-startup-design.md)。实施方停Review，不commit/push。
+
+## 2026-11-15 H1方案A启动编排实施（源码APPROVED R0，发布验证待回执）
+
+- [x] **H1 会话切片的启动编排抽取（方案A实施）**：用户已明确确认方案A并授权实施，只抽runStartup为延迟ports的factory；
+      同步门禁、动态依赖、cleanup所有权及原slice寄存器保留，resume和其他动作不合并。
+      两份旧测试conversation/VoiceInterface原字节通过120/86；新增15条同层契约含3条真实appStore接线，四项有效私有变异均目标RED/逐字节恢复后15 GREEN。
+      源码独立APPROVED R0、无代码返修；Linux实施CI/Guard与发布待对应实际回执，不按全部门禁通过归档。
+
+Harness亲跑macOS：Vitest1249/53、Fake125、types10/build21、lint132warnings/0errors，完整pytest895/3warnings/79.71%（67.10s，命令71.66s），基础14/15。
+完整E2E首次233/1（C117/W116+1，66.80375s）、唯一完整重放233/1（C116+1/W117，55.640223s），实际retry/skip/flaky均0，均theme-storage:24期望warm实收cool。
+两次不能合算234通过；此前G3设计同位失败仅为历史对照，根因未明、主题未修，不据源码机械等价判定无关。
+实施方首次新夹具219/1、typecheck两处TS2345及后续221/221原样保留；不是实施方亲跑三树或浏览器。
+
+已发布的是设计[PR173](https://github.com/sunpcm/EchoTalk/pull/173)与main650b3c7的[最终mainCI43673387467](https://github.com/sunpcm/EchoTalk/actions/runs/43673387467)：attempt1五作业success，Linux E2E234/0、pytest895/3warnings/79.71%/63.30s；设计PR首次a11y焦点233passed/1flaky、retry1也保留，不能替代H1实施发布验证。
+见[设计历史与当前确认状态](../CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)及[实施记录](./2026-11-15-h1-startup-implementation.md)。真实Provider/LiveKit/IdP、设备、整栈/部署及I1/B2边界不变；本次仅五MD收口，停Review，不commit/push。
