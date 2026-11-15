@@ -1001,3 +1001,15 @@ retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。�
 全 success（Vitest 1260/55、Fake 125、types 10、build 21、pytest 962/3warnings/80.63%、E2E 258 C129/W129
 retry/skip/flaky0）；默认 trace/screenshot 策略受控对照负 2（trace2/PNG2/JSON）正 2（trace0/失败 PNG0），705 源文件逐字节恢复。
 实际远端 artifact 上传待发布（EV PR/main CI 尚未创建）；历史 GC60 自然未复现、根因未知，不可据后续 main 绿结案。
+
+## 2026-11-16 最终遗留对账收口（DOC）
+
+以下 `[x]` 卡为最终 DOC 文档包归档：仅把 RF-04「远端证据核对」已满足的 CI 执行部分移出归档，required check
+权限仍单列于根 `TODO.md` RF-04 主卡（未核，不在此勾选）。不关闭 RF-04 整卡，不并入真实链路/设备/部署。
+
+- [x] **RF-04 远端证据核对（CI 执行部分）**：main CI 已实跑 OpenAPI schema 与 TypeScript 类型生成门禁并成功，
+      I1 实施 PR176 已发布 main `76d9d6ba`，mainCI 43686992533 首轮五 jobs 全绿；证据收口见
+      [CI 质量门禁验证 §6](../verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。历史
+      `6bda2cd`/`ef6cb53` 因 #118 回退无 iOS job（#128 起恢复 `test-ios-build`）的标注保留。
+      required check 配置仍未核（GitHub 只读 403/INVALID_ARGUMENT，不证明设置不存在），单列于 RF-04 主卡，
+      不因本归档捎带关闭 RF-04 整卡或真实链路。

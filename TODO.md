@@ -58,11 +58,6 @@
 
 **无需 Key，可直接开发：**
 
-- [ ] **RF-04 远端证据核对**：main CI（`42c61bb`、`6bda2cd`、`ef6cb53`）已实跑 OpenAPI
-      schema 与 TypeScript 类型生成门禁并成功；验收：按 RF-04 原契约逐项核对，更新
-      [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)，标明
-      `6bda2cd`/`ef6cb53` 的 run 因 #118 回退而无 iOS job（#128 起恢复 `test-ios-build`），
-      required check 配置未核。只改文档。
 - [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长
       ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。
 
@@ -297,7 +292,9 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
       `eaac89d0f4f008e77ba51b26a590412a03541acb` 精确 fast-forward 本地 main 并通过完整
       15 项 main 门禁。2026-11-03 C 线真实 Linux arm64 API/Agent 角色镜像、frozen export
       与无 Key 运行边界已通过，PR #117 及对应 main CI 此前已绿，Web guard 三构建复验
-      也已通过；原 Compose 整栈、真实 Provider/LiveKit/设备、部署与最终组合仍待完成，
+      也已通过。区分：软件 17 门禁（前端 Vitest/Fake API/types/build/E2E + backend pytest，见状态页当前验证基线）
+      已全过；真实整栈未验（Docker compose 实际拉起与迁移、镜像体积/冷启动测量、真实 Provider/LiveKit/设备、部署）。
+      静态 Compose 启动门禁已由 CPB（R2-14 方案 B）落地并归档，不代替真实整栈运行，
       RF-07 整项保持未勾选，契约见
       [RF-07 运行角色依赖与容器配方](./docs/verification/cross-platform/RF-07-RUNTIME-ROLES.md)。
 - [ ] **RF-08 迁移与时间语义**：移除 lifespan Mock 播种；参考数据显式且幂等；

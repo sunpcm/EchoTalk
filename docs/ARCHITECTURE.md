@@ -225,7 +225,7 @@ lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死�
 
 ## 7. 架构风险
 
-状态核对日期 2026-11-10。"部分解决"表示代码已有对应机制但仍有缺口；外部环境相关结论未在真实环境验证。
+状态核对日期 2026-11-16。"部分解决"表示代码已有对应机制但仍有缺口；外部环境相关结论未在真实环境验证。
 
 ### P0：发布阻断
 
@@ -239,13 +239,17 @@ lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死�
 1. **分析可观测性不足**（仍存在）：持久化 Job 已具备重试、超时恢复与幂等；基础 JSON 结构化日志
    （领取/成功/可重试失败/耗尽/陈旧恢复，提交后输出）与队列积压、最老 pending 等待时长的 UTC 只读
    查询已落地，但生产日志采集、集中告警与延迟失败率仍未验证。
-2. **迁移与启动未编排**（部分解决）：CI 已验证从空库升级到 head；Compose 仍没有一次性迁移服务，
-   API 可能在旧 Schema 上启动。
+2. **迁移与启动未编排**（部分解决）：CI 已验证从空库升级到 head；Compose 已静态落地一次性迁移服务
+   `echotalk-migrate`（`alembic upgrade head`），并以 `service_completed_successfully` 作为 API/Agent/Worker 的
+   DAG 启动门禁（CPB 方案 B，见 docker-compose.yml），但真实整栈启动与迁移未验证，初次启动依赖不保证独立容器
+   重启顺序，API 在旧 Schema 上启动的时序风险仅被静态门禁约束。
 3. **外部服务单点**（部分解决）：LLM 客户端与 LiveKit 连接的超时/重试策略已显式化并有测试
    （`test_llm_client_policy.py`、`test_session_connect_policy.py`）；LiveKit Cloud、STT、LLM、TTS
    任一不可用仍会中断语音链路，缺少熔断指标和降级说明。
-4. **Compose 就绪门禁不足**（仍存在）：只有 PostgreSQL 有 healthcheck；Web 只等待 API 容器启动，
-   不等待就绪，API 没有容器 healthcheck。
+4. **Compose 就绪门禁不足**（部分解决）：PostgreSQL 有 `pg_isready` healthcheck；Web 等待 API `service_healthy`
+   （API 暴露 `/api/health`，仅作 liveness，非迁移状态）；迁移成功由独立的 `echotalk-migrate` 一次性服务以
+   `service_completed_successfully` 作 DAG 门禁，并非 CPB 新公开端点。但 liveness 不覆盖运行中 DB 持续 readiness，
+   独立容器重启时 DAG 依赖不保证重新编排，真实整栈未验证。
 5. **原生认证未适配**（仍存在）：前端认证只面向浏览器，iOS/macOS 的系统认证会话回跳、Keychain 存储
    与续期均未实现，属于 CP-04 门禁。
 

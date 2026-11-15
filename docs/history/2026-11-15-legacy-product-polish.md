@@ -79,3 +79,12 @@ R2 集成（只一处）：`settings-readability.spec.ts:79` dialog 可访问名
   E2E 258 C129/W129 0retry/skip/flaky 4.0m、pytest 957/3warnings/80.63%/63.11s）。
 
 停 Review；本文件为文档收口，不 commit / push / merge。
+
+## ACT wire 精度澄清（2026-11-16 追加，旧正文保全）
+
+上文「三处有效变异」的 wire 项为私有变异，须精确化以免误读为真实网络变异：该变异实际是把
+`useSessionEndFlow.ts` 中产品 `endSession` 调用的参数截短（短 ID 化），并非改动真实 HTTP 请求或网络层；
+它被 `ActiveSessions.test.tsx` 的三处 API spy 断言（`:1475` / `:1642` / `:1697`）用完整合成业务 ID
+（`sess-end-1` 等）拦截而目标 RED，恢复 116/0 GREEN。因此它只证明「产品把完整业务 ID 原样传给 end 调用」
+的单元级契约，不构成真实网络变异证据；真实 Fake HTTP 端到端行为由完整 Playwright E2E 覆盖，真实 Provider
+不在此列。
