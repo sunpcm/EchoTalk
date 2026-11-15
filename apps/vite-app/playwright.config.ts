@@ -39,7 +39,8 @@ export default defineConfig({
   use: {
     baseURL: `https://127.0.0.1:${webPort}`,
     ignoreHTTPSErrors: true,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   projects: [
     {

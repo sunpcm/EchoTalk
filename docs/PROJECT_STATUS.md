@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16；READ2 已发布 PR182 至 main `3d246c3`；ST 已发布 PR180 至 main `f915157`；A11Y 已发布 PR181 至 main `cf104bb`；ST2 已发布 PR183 至 main `7780c718`。ACT（遗留产品润色）PR184 已合 main `bb1ed292`，mainCI 首五 success（COMPLETE）。DASH（Dashboard 抽取）PR185 已合 main `543e266`（PR CI/Guard 首六 + mainCI 首五 success）。CPB（Compose 启动门禁方案 B）源码 APPROVED，本机 17 门禁全 success、组合 E2E 实测通过，PR/CI 待建。
+> 最后核对：2026-11-16；READ2 PR182/main `3d246c3`、ST PR180/main `f915157`、A11Y PR181/main `cf104bb`、ST2 PR183/main `7780c718`、ACT PR184/main `bb1ed292`、DASH PR185/main `543e266`、CPB PR186/main `53d2a409` 均已发布。CPB mainCI 43737179366 刚开跑 pending（不预判绿）。EV（CI 首失败取证）源码 APPROVED，本机 17 门禁全 success，PR/CI 待建。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)。
 
 ## 当前功能
@@ -25,32 +25,24 @@
 
 ## 当前验证基线
 
-ACT（遗留产品润色）PR184 已合 main `bb1ed292`：PR CI 43731788773 / Guard 43731788758 首六 success，最终 mainCI
-43732696365 首五 success（COMPLETE）；下表为 ACT/DASH 共用基线，DASH 三树计数相对 ACT 零变化。ST2 已发布 main `7780c718` 另列。
+EV（CI 首失败取证）源码 APPROVED，本机 17 门禁全 success、未发布；下表为 EV 本机（亲跑，未发布）分列。
+CPB PR186 首六 success 已合 main `53d2a409`（tree `cec480de` 与 source `e0a6250`/CI merge 全等；Linux PR Vitest 1260/55、
+Fake 125、types 10、build 21、E2E 258 C129/W129 retry/skip/flaky0 4.1m、pytest 962/3warnings/80.63%/63.67s；
+mainCI 43737179366 刚开跑 pending，不预判绿）。相对 CPB source 仅 EV 两配置差异，410 个 17 门禁 source manifest 同字节。
 
-Dashboard 抽取（DASH）源码 APPROVED，三树计数相对 ACT 基线零变化（Vitest 1260/55、E2E 258 C129/W129
-retry/skip/flaky0、pytest 957/3warnings/80.63%），17 门禁全 success；PR185 已合 main `543e266`（PR CI 43733406381 / Guard 43733406421 首六、mainCI 43734407828 首五 success）。
+| 测试树 / 门禁      | EV 本机 Harness（未发布）         |
+| ------------------ | --------------------------------- |
+| Vitest             | 1260 passed / 55 文件             |
+| Playwright E2E     | 258，C129/W129，retry/skip/flaky0 |
+| Fake API契约       | 125 passed                        |
+| API类型生成器      | 10 passed                         |
+| 构建脚本           | 21 passed                         |
+| 完整backend pytest | 962 / 3 warnings / 80.63%         |
 
-Compose 启动门禁方案 B（CPB）源码 APPROVED R1，本机 17 门禁全 success（Vitest 1260/55、Fake 125、types 10、build 21、
-pytest 962/3warnings/80.63%、E2E 258 C129/W129 retry/skip/flaky0，相对 DASH 后端 +5 其余 0）；组合 E2E 实测 258/0（命令 53.47s）；整栈/实际迁移仍未验。
-
-| 测试树 / 门禁      | ACT 已合 main `bb1ed292`（DASH 零变化）  |
-| ------------------ | ---------------------------------------- |
-| Vitest             | 1260 passed / 55 文件                    |
-| Playwright E2E     | 258，C129/W129，retry/skip/flaky0        |
-| Fake API契约       | 125 passed                               |
-| API类型生成器      | 10 passed                                |
-| 构建脚本           | 21 passed                                |
-| 完整backend pytest | 957 / 3 warnings / 80.63%（R1 字节未变） |
-
-ACT PR184 最终 mainCI 43732696365 首五 success（Linux 1260/55、E2E 258 C129/W129 retry/skip/flaky0 5.4m、
-pytest 957/3warnings/80.63%/48.99s）；本机先原 234/0，继承 READ 后首轮 234/24（旧 dialog 标题定位失效），R2 对齐后
-258/0（52.39s / 命令 53.39s）；三处有效变异 RED/恢复 GREEN。详见 [遗留产品润色记录](./history/2026-11-15-legacy-product-polish.md)。
-
-已发布 main `7780c718`（ST2 PR183，源码 `4980d219`）：PR CI 43728809132 / Guard 43728809100 六 first success；
-main CI 43729553370 首五 success（Linux 回读 Vitest 1249/53、Fake 125、types 10、build 21、
-E2E 258 C129/W129 0retry/skip/flaky 4.0m、pytest 957/3warnings/80.63%/63.11s）。命令见 [Agent 评审手册 §2](./agent-review-loop.md)。
-这些结果不替代真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS 设备或生产部署验收。
+EV 默认 trace/screenshot 策略受控对照（未覆盖策略、retries0）：负 2（trace2/PNG2/JSON）正 2（trace0/失败 PNG0），
+705 源文件逐字节恢复；历史 GC60 自然未复现、根因未知，不宣称修复。已发布 ACT/DASH/ST2 计数见各自 history。
+命令见 [Agent 评审手册 §2](./agent-review-loop.md)。这些结果不替代真实 LiveKit、第三方 Provider、真实 IdP、iOS/macOS
+设备或生产部署验收。
 
 ## 已知限制和近期风险
 
@@ -71,6 +63,8 @@ E2E 258 C129/W129 0retry/skip/flaky 4.0m、pytest 957/3warnings/80.63%/63.11s）
   同源旧用例 flaky；真实触发因果仍未知，PR181 修正后其 PR/main 首轮全 258/0，已修确定前提缺口而非证得根因。
 - 历史首失败与因果未知继续保留：theme-storage 两次 233/1 warm/cool、weekly-grammar 5/1、启动视图测试前提
   （ST）历史根因未知，不写"历史根因已成立"或"不是环境偶发"。
+- CI 首失败取证（EV）只补证据保存（retain-on-failure/only-on-failure + list,json reporter + artifact 上传），
+  不修复也不宣称修复 GC；历史 GC60 自然未复现、根因未知；首次 YAML require 根路径 module-not-found 失败保留（工具/环境证据）。
 - 真实方向键选择仍未验证：focus/Tab/selectOption 已通过，原生 popup 实际操作仍未验。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 
@@ -78,6 +72,7 @@ E2E 258 C129/W129 0retry/skip/flaky 4.0m、pytest 957/3warnings/80.63%/63.11s）
 
 | 内容                                                            | 位置                                                                                                                                                                                                |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI 首失败取证（EV，源码 APPROVED，本机 17 门禁全 success）      | [验收记录](./history/2026-11-16-e2e-first-failure-evidence.md)                                                                                                                                      |
 | Compose 启动门禁方案 B（CPB，源码 APPROVED，17 门禁全 success） | [验收记录](./history/2026-11-15-compose-startup-gates.md)                                                                                                                                           |
 | Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）  | [验收记录](./history/2026-11-15-dashboard-extraction.md)                                                                                                                                            |
 | 遗留产品润色（ACT，三处产品修复 + R2-10 剩余 UI，本机 17 门禁） | [验收记录](./history/2026-11-15-legacy-product-polish.md)                                                                                                                                           |
