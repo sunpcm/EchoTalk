@@ -592,4 +592,11 @@ describe("SettingsDrawer Component", () => {
 
     expect(screen.getByText("store-error")).toBeInTheDocument();
   });
+
+  it("renders the confirmed literal settings dialog and heading name", () => {
+    render(<SettingsDrawer open={true} onClose={vi.fn()} />);
+
+    expect(screen.getByRole("dialog", { name: "设置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "设置" })).toBeInTheDocument();
+  });
 });

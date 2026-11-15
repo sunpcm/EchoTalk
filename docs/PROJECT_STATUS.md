@@ -1,15 +1,16 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **R2-LIVE 活动会话生命周期实时门禁（FINAL_READY，本地实现）**：
-> 生命周期事件现从同一 conversation store 实时读取当前启动状态，本轮最小实现与主控新鲜 13 门禁已
-> 完成，详细数字与边界见下方 R2-LIVE 小节。独立技术 Review、最终文档 format、提交和推送以主控同卡
-> 回执为准；用户 Review 待。R2-UI 与 SGEC-OFF 仍未实施，合成 PG 继续由本批独占并留待后两卡，尚未清理。
-> 此前 DEC-A 设计回写、RDOC、A18P2、A19 P2、A82C、A84C、CF20、RF04E、WG20、R2-12/13/14、A6 与 B1
-> 均绑定各自历史快照；其“最近产品”“当前数字”“当前停点”只描述当时状态，不能转作 R2-LIVE 当前结果。
-> 本轮 GO 只授权本地实现，生产、真实 Provider/IdP/LiveKit、设备与部署从未获 GO 或完成验收。
+> 最后核对：2026-11-15。当前卡片为 **R2-UI 设置标题与活动记录去 UUID（FINAL_READY，本地实现）**：
+> 四个生产文件已完成显示/props 最小实现，完整测试树、质量门禁、目标变异和实际截图复核均已由主控
+> 完成。最终 Vitest 为 `1225 passed / 52 files / 0 skip`，完整 E2E 为
+> `252 = Chromium 126 + WebKit 126`；13 项门禁组合全部 `exit 0`。R2-UI 的独立技术 Review、
+> 最终 format、commit/push 以主控同卡回执为准，用户 Review 待，当前不写 APPROVED。
+> R2-LIVE 的 `1219 / 248` 是上一卡快照，DEC-A、RDOC、A18P2、A19 P2 等数字也各自绑定历史时点，
+> 均不能转作 R2-UI 当前结果。SGEC-OFF 仍未实施；合成 PG 继续由本批独占并留待 SGEC 后清理。
+> 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
 > requested model 为 `workbuddy/deepseek-v4.1-flash`；工具请求和真实读写成功，实际后端身份未独立认证。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
-> 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
+> 本文只回答“现在实现了什么、验证到哪一步、有哪些已知限制”。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
 > [`history/`](./history/)，不在本文追加。
 
@@ -35,6 +36,61 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### R2-UI 设置标题与活动记录去 UUID（FINAL_READY）
+
+- 唯一 W 为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，本卡开工基线 HEAD
+  `7b5b770118807dc4b79bc9d32a80e14a0af27d9e`；开工 clean。
+  baseline 初始允许 23 文件、保护 673 文件；R2 因既有 `session-start.spec.ts` 同样依赖 ID 正文，
+  经确认调整为 allowed=`24`、protected=`672`；初始 23 个允许路径、扩展后的 24 个路径以及初始 673 pins/计数均保留。
+  `baseline.json` 的 `scope_adjustment_R2` 记录新增路径与理由。
+- 主控有效 TDD 历史保持：v1 两测试文件 `19 = 2 failed / 17 passed / 0 skip / exit 1`，失败分别来自
+  活动行完整 UUID 与 dialog 仍名“自定义模型设置”；v1 长用例存在目标归属缺口。加强后的 v2 为
+  `23 = 4 failed / 19 passed / 0 skip / exit 1`，四个失败独立来自活动行、结束面板、恢复面板和
+  literal 设置名称；两个“两条同模式同时间记录都仍存在时操作第二条”的原实现 target 控制均 passed，
+  证明错误首项会被独立捕获。这两个定向 Vitest 文件随后为主控 `GREEN 23 / 0 skip / exit 0`。
+- GO 后四个生产文件只做显示/props 最小改动：`ActiveSessions.tsx` 复用现有
+  `resolveModeLabel` / `formatStartedAt`，`SessionRow.tsx` 与 `ConfirmPanel.tsx` 改为显示模式和时间，
+  `zh-CN.ts` 将共享设置名称改为“设置”。完整 ID 保留在 React key、原 API 闭包/参数、稳定
+  `data-testid` 和精确目标归属；hooks/auth/store/data、请求、复制、格式、超时、重试和业务时序未改。
+- 新 Vitest 将行、结束面板、恢复面板拆为独立可执行场景，检查正文、scope 根及子孙 `title`、最终
+  computed accessible-name 和按钮 accessible-name；target 控制在两条同标签记录仍同时存在时，结束精确
+  请求 `SECOND_ID`，恢复精确请求 `SECOND_ID` 且保留原 principal/revision。fixture 的 `afterEach`
+  显式 `cleanup`、`goHome`，并恢复 `document.visibilityState`、`navigator.onLine` 原 descriptor。
+- 旧 `ActiveSessions.test.tsx` 的 31 处同类 ID 正文定位全部迁移：22 个正向使用
+  `expectDisplayedSessionRow(id, mode, startedAt)` 按各 case 原 fixture 精确校验目标行、模式、时间与
+  无 UUID；9 个负向改为 `active-session-item-${ID}` 整行不在 DOM，防止 UUID 隐藏后空过。该旧文件的
+  116 个测试条目保留（其中两条显示描述名按合同更新）；原 await/timer/动作顺序和 153 条 API/次数/principal/revision/busy/取消/迟到隔离
+  expect 保持不变。`SettingsDrawer.test.tsx` 只追加 literal “设置” dialog/heading case，16 个旧
+  callback 与 21 条 API/忙态 expect 保持；两个旧 unit 合计 174 条 API/忙态 expect。旧 105+16 个
+  callback 除 expect 外的动作、await、timer AST 完全相同。
+- 旧 E2E 中 11 份只同步已确认标题/显示口径，所有“设置”按钮查询使用 `exact: true`，未改 timeout、
+  retry、skip、`only` 或 `fixme`。`session-start.spec.ts` 的首轮真实错误 trace 指向正向 `:98`；信令失败回主页后的正向目标检查，以及 token 失败后的负向目标检查，两处同类依赖均已迁移：正向改为精确目标行/模式/时间/无 UUID，负向改为目标行 `toHaveCount(0)`；WS/API、原 30 秒 timeout、completed detail、请求次数与顺序和 cleanup
+  均不变。新 `settings-session-labels.spec.ts` 使用本地 Fake API，不连接 Room、麦克风、Provider 或
+  生产，并对三张截图加局部 `animations: "disabled"` 以记录终态。
+- 历史失败链保持区分：本卡首轮 full Vitest 为
+  `1209 passed / 16 failed / 1225 total / 0 skip / exit 1`，16 个失败全部来自旧显示目标定位迁移不全；
+  私有 overlay 迁移后旧 `ActiveSessions.test.tsx` 为 `116 passed / 0 failed / 0 skip / exit 0`，确认不是
+  16 个产品 bug。首轮 full E2E 为 `250 passed / 2 failed / 252 / exit 1`：Chromium 与 WebKit 各在
+  同一个正向 `session-start.spec.ts:98` 定位失败一次，合计两个失败；token 失败后的负向目标检查当时 passed，但因 UUID 已隐藏而会空过。两处均完成迁移，负向通过不等于旧断言仍有效；这两个失败都不是信令或行为回归。
+  首轮全仓 `format:check` 为 `exit 1`，仅定位到 3 个文件；R1 对这 3 个文件精准格式化后，全仓
+  `format:check` 为 `exit 0`。`expect(null).not.toContain` 仅是本地 matcher 诊断，从未冒充完整 E2E
+  失败。
+- 最终主控 13 项门禁全部 `exit 0`：Vitest `1225 passed / 52 files / 0 skip`；完整 E2E
+  `252 = Chromium 126 + WebKit 126`，每个 test 恰有一个 passed result，
+  `retry / skip / flaky / unexpected` 均为 `0`。backend 为 `941 passed / 3 warnings / 0 skip`，raw
+  coverage 为 `81.55505107832009%`；build-script `47`、Fake API `116`、API 类型 runner `8`、iOS 仅
+  Node `37` 均通过。lint 为 `132 warning / 0 error / 0 new`，file/message/rule 多重集与父基线一致。
+- TDD v2 原 32 个 `expect` AST 全部保留并增加 scope root-title 1 项；4 项目标变异仅通过私有
+  overlay 执行，跟踪源码始终保持未改。最终相关 5 文件已有 hash 绑定；672 个保护文件不变。四生产
+  diff 已核仅有显示/props，无 API 闭包漂移。
+- 主控已亲看实际 6 图：设置抽屉完整终态正常，end/resume 模式与时间布局正常且无 UUID。初轮 6 图保留，
+  其中设置图处于滑入中，不把初轮部分画面称为完整布局通过。
+- 本地实现、门禁与截图已收口；独立技术 Review、最终文档 format、commit/push 以主控同卡回执为准，
+  用户 Review 待，本状态不自行写成 APPROVED。正式返修计数为 `2/2`，没有第三轮正式返修额度；本轮仅
+  做文档最终收口。生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收。合成 PG 仍由本批
+  独占，待 SGEC 完成后清理。
 
 ### R2-LIVE 活动会话生命周期实时门禁（FINAL_READY）
 
@@ -62,8 +118,8 @@
 - 本地实现与门禁已收口，但独立技术 Review、最终文档 format、正常 Husky、提交/推送仍以主控同卡
   回执为准；不能自行写成 APPROVED。用户 Review 待。生产、真实 Provider/IdP/LiveKit、设备、
   部署和真实链路均未授权或验收。
-- R2-UI 与 SGEC-OFF 仍未实施，不能提前勾选；本批独占合成 PG 留待后两卡使用且尚未清理。正式返修
-  仍为 `0/2`。
+- R2-LIVE 完成时 R2-UI 与 SGEC-OFF 仍未实施，不能提前勾选；R2-UI 后续已另行完成并达到 FINAL_READY，
+  SGEC-OFF 仍未实施。本批独占合成 PG 留待后一卡使用且尚未清理。R2-LIVE 当时正式返修为 `0/2`。
 
 ### DEC-A R2 与 SGEC 设计口径回写（FINAL_READY）
 

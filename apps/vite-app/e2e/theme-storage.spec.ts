@@ -81,9 +81,9 @@ test.describe("CP-05 / A31 主题 Storage 容错与持久化恢复 E2E", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
     await expect(dialog).toBeVisible();
 
     // 1. 在写故障下切换到 dark
@@ -192,9 +192,9 @@ test.describe("CP-05 / A31 主题 Storage 容错与持久化恢复 E2E", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme", "cool");
 
     // 打开设置抽屉验证没有错误提示且冷色单选框为选中状态
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
     await expect(dialog).toBeVisible();
 
     const coolBtn = dialog.getByRole("radio", { name: /冷色/ });

@@ -185,8 +185,8 @@ test.describe("Provider native select touch geometry and interaction", () => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await openDashboard(page);
 
-        await page.getByRole("button", { name: "自定义模型设置" }).click();
-        const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+        await page.getByRole("button", { name: "设置", exact: true }).click();
+        const dialog = page.getByRole("dialog", { name: "设置", exact: true });
         await expect(dialog).toBeVisible();
 
         const customModeSwitch = dialog.getByRole("switch");
@@ -281,7 +281,7 @@ test("interactive controls are at least 44x44 at 390px on the dashboard and in s
 
   expect(await undersized("main")).toEqual([]);
 
-  await page.getByRole("button", { name: "自定义模型设置" }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   // 打开自定义模式以渲染全部 Provider 表单控件
   await page.getByRole("dialog").getByRole("switch").click();

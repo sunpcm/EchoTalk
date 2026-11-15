@@ -1,5 +1,5 @@
 /**
- * 单条活动记录：模式标签、id、开始时间与“恢复 / 结束”入口。纯展示。
+ * 单条活动记录：模式标签、开始时间与“恢复 / 结束”入口。纯展示。
  */
 
 import React, { type ReactNode } from "react";
@@ -44,13 +44,6 @@ export function SessionRow({
               className="text-accent bg-accent-soft-bg shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
             >
               {resolveModeLabel(session.mode)}
-            </span>
-            <span
-              data-testid={`session-id-${session.id}`}
-              className="text-text-muted font-mono text-xs break-all"
-              title={session.id}
-            >
-              {session.id}
             </span>
           </div>
           <time

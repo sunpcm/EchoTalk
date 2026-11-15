@@ -6,6 +6,18 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 R2-UI 设置标题与活动记录去 UUID
+
+- [x] **R2-UI 设置标题与活动记录去 UUID（FINAL_READY，本地实现）**：设置入口/dialog 使用“设置”，
+      活动行与结束/恢复面板使用既有模式和开始时间，用户可见正文、`title` 与最终计算可访问名称均无完整
+      UUID；内部 key、稳定定位、API 目标与业务行为保持。阶段链由历史 `DRAFT_READY` 快照进入
+      `FINAL_READY`；首轮完整 Vitest 与 E2E 的失败来自旧显示定位迁移不全，不是产品、信令或行为回归。
+      31 处旧定位、两处既有 E2E 同类依赖、私有 overlay 变异、最终 `allowed=24 / protected=672`、截图边界
+      和最终门禁的完整事实见
+      [PROJECT_STATUS 的 R2-UI 小节](../PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
+      独立技术 Review、最终 format、commit/push 以主控同卡回执为准，用户 Review 待，不写 APPROVED。
+      生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收；SGEC-OFF 待实施，合成 PG 待 SGEC 后清理。
+
 ## 2026-11-15 R2-LIVE 活动会话生命周期实时门禁
 
 - [x] **R2-LIVE 活动会话生命周期实时门禁（FINAL_READY，本地实现）**：生命周期事件现从同一

@@ -4,14 +4,21 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
+> **R2-UI 设置标题与活动记录去 UUID（2026-11-15，FINAL_READY，已归档）：** 用户已确认的方案 A
+> 已实施完成：共享设置入口与 dialog 名为“设置”，活动行及结束/恢复确认面板复用既有模式与开始时间，
+> 用户可见正文、`title` 和最终计算可访问名称均不暴露完整 UUID；完整 ID 只保留内部 key、稳定定位、
+> API 参数和精确目标归属。本卡 13 项门禁已通过，详细历史、数字、变异、截图与边界见
+> [PROJECT_STATUS 的 R2-UI 小节](./docs/PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
+> 独立技术 Review、最终 format、commit/push 以主控同卡回执为准；用户 Review 待，本文件不写 APPROVED。
+
 > **R2-LIVE 活动会话生命周期实时门禁（2026-11-15，FINAL_READY 并归档）：** 生命周期事件现从同一
 > conversation store 实时读取当前启动状态，复用 `isStartingConversationSession`；本轮 GO 仅指本地实现，
 > 本地实现与主控新鲜门禁已完成。完整数字、变异和边界集中在
 > [PROJECT_STATUS 的 R2-LIVE 小节](./docs/PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
 > 归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-live-活动会话生命周期实时门禁)。
 > 独立技术 Review、最终文档 format、提交和推送以主控同卡回执为准；用户 Review 待。生产、真实
-> Provider/IdP/LiveKit、设备与部署从未获本轮 GO 授权。R2-UI 与 SGEC-OFF 仍未实施；合成 PG 继续由
-> 本批独占，留待后两卡使用且尚未清理。
+> Provider/IdP/LiveKit、设备与部署从未获本轮 GO 授权。R2-LIVE 完成时 R2-UI 与 SGEC-OFF 仍未实施；
+> R2-UI 后续已另行完成并达到 FINAL_READY，SGEC-OFF 仍未实施。合成 PG 继续由本批独占，留待 SGEC 后清理。
 
 > **A18P2 历史快照（2026-11-15，当时 FINAL_READY 并归档）：** 启动/恢复生命周期减重与实例隔离已完成；
 > 移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入 setter，start/resume
@@ -44,19 +51,13 @@
 来源：[2026-11 云端评审](./docs/reviews/2026-11-cloud-review.md) §3。R2-01～R2-08 已完成，
 证据见该报告 §3.1～§3.4；以下为剩余项，括号内编号对应报告中的发现。
 
-- [ ] **R2-UI 设置标题与活动记录去 UUID**（已确认 A，待实现）：共享设置入口与 dialog 名称改为
-      “设置”；活动行及展开的结束/恢复确认面板用现有模式 + 开始时间明确目标，用户可见正文、`title`
-      与最终计算的可访问名称均不出现完整 UUID。完整 ID 只保留内部 key、稳定 `data-testid` 和 API/目标归属；
-      不新增复制或请求，确认/取消/失败/重试/busy/互锁行为不变。同步 `ActiveSessions`、`ConfirmPanel`、
-      `SessionRow`、`zh-CN` 及既有 Vitest/E2E 断言。合同见
-      [R2_FOLLOWUP_CONTRACT](./docs/R2_FOLLOWUP_CONTRACT.md)。
 - [ ] **R2-09 平台接缝：认证会话、安全存储、麦克风权限**（2026-11-10 已删除 `utils/env.ts`；三个平台接口与能力标志待 CP-03/CP-04 设备证据后与原生实现同轮完成）（P-1，P1）：在 `src/platform/` 增加三个接口及
       Web 实现，`lib/auth.ts` 改为经接口装配；把 `RoomSession.tsx:50` 与 `store/conversation.ts:69` 的
       平台名判断改为读取适配器能力；删除 `src/utils/env.ts`。验收：`auth.test.ts`、`VoiceInterface.test.tsx`
       零改动通过；`src/` 中 `platform/` 之外不再出现 `=== "ios"` 这类平台名比较；不新增依赖。
       原生实现不在本项范围。
-- [ ] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；设置标题与活动记录 UUID
-      两项已确认 A，由 R2-UI 实施）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与
+- [ ] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；其中设置标题与活动记录
+      UUID 两项已由 R2-UI 按方案 A 核销）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与
       `goalReached` 英文迁入 `src/i18n/`；设置抽屉标题改为“设置”；活动行及确认面板不展示完整
       UUID；推荐卡片与语法提示的技能标签复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、
       非测试文件中无中文字符串字面量。

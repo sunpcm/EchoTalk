@@ -30,7 +30,7 @@ async function createActiveSession(request: APIRequestContext): Promise<string> 
 }
 
 test.describe("Session Recovery Error & Cancellation Terminal States (CP-05 / A23)", () => {
-  test("real store detail 503 failure shows dedicated safe error, full UUID, >=44px retry, and retries same record on explicit click without implicit token or write", async ({
+  test("real store detail 503 failure shows dedicated safe error, mode/start target, >=44px retry, and retries same record on explicit click without implicit token or write", async ({
     page,
     request,
   }, testInfo) => {
@@ -57,6 +57,11 @@ test.describe("Session Recovery Error & Cancellation Terminal States (CP-05 / A2
     await page.goto("/");
     const sessionItem = page.getByTestId(`active-session-item-${targetId}`);
     await expect(sessionItem).toBeVisible();
+    const modeElem = page.getByTestId(`session-mode-${targetId}`);
+    const startedAtElem = page.getByTestId(`session-started-at-${targetId}`);
+    const modeText = await modeElem.innerText();
+    const startedAtText = await startedAtElem.innerText();
+    await expect(sessionItem).not.toContainText(targetId);
 
     // 1. 点击恢复练习，弹出确认面板
     const resumeButton = page.getByTestId(`resume-session-button-${targetId}`);
@@ -65,7 +70,10 @@ test.describe("Session Recovery Error & Cancellation Terminal States (CP-05 / A2
 
     const confirmPanel = page.getByTestId(`resume-confirm-panel-${targetId}`);
     await expect(confirmPanel).toBeVisible();
-    await expect(page.getByTestId(`confirm-resume-session-id-${targetId}`)).toHaveText(targetId);
+    const confirmTarget = page.getByTestId(`confirm-resume-session-id-${targetId}`);
+    await expect(confirmTarget).toContainText(modeText);
+    await expect(confirmTarget).toContainText(startedAtText);
+    await expect(confirmTarget).not.toContainText(targetId);
 
     // 2. 点击确认恢复（触发真实 store.resumeSession 与真实的 503 响应）
     const confirmButton = page.getByTestId(`confirm-resume-button-${targetId}`);
@@ -78,8 +86,10 @@ test.describe("Session Recovery Error & Cancellation Terminal States (CP-05 / A2
     await expect(resumeErrorAlert).toHaveText("恢复会话失败");
     await expect(page.locator("body")).not.toContainText(rawErrorMessage);
 
-    // 4. 验证完整可见 UUID 与意图保留
-    await expect(page.getByTestId(`confirm-resume-session-id-${targetId}`)).toHaveText(targetId);
+    // 4. 验证模式与开始时间目标保留，完整 UUID 不进入展示
+    await expect(confirmTarget).toContainText(modeText);
+    await expect(confirmTarget).toContainText(startedAtText);
+    await expect(confirmTarget).not.toContainText(targetId);
 
     // 5. 验证专用重试按钮与取消按钮均可用，且重试按钮满足 >= 44x44px 无障碍触控
     const retryButton = page.getByTestId(`retry-resume-button-${targetId}`);
@@ -116,9 +126,11 @@ test.describe("Session Recovery Error & Cancellation Terminal States (CP-05 / A2
     // 验证同记录再次发起 GET，且严格去重
     await expect.poll(() => detailCount).toBe(2);
 
-    // 保持在可恢复错误态，专用错误、完整 UUID 及 44px 重试/取消按钮均完好保留
+    // 保持在可恢复错误态，专用错误、模式/开始时间目标及 44px 重试/取消按钮均完好保留
     await expect(resumeErrorAlert).toBeVisible();
-    await expect(page.getByTestId(`confirm-resume-session-id-${targetId}`)).toHaveText(targetId);
+    await expect(confirmTarget).toContainText(modeText);
+    await expect(confirmTarget).toContainText(startedAtText);
+    await expect(confirmTarget).not.toContainText(targetId);
     await expect(retryButton).toBeVisible();
     await expect(cancelButton).toBeEnabled();
 

@@ -1,6 +1,6 @@
 # R2 活动会话生命周期与显示合同
 
-> 状态：**DEC-A 设计已确认；R2-LIVE 本地实施 FINAL_READY，R2-UI 尚未实施**。
+> 状态：**DEC-A 设计已确认；R2-LIVE 本地实施 FINAL_READY；R2-UI 本地实施 FINAL_READY**。
 > 确认日期：2026-11-15；确认范围：R2 推荐 A 与 SGEC 推荐 A。
 > 设计基线：`codex/B1-learning-events-20261112@0aae655928cf046482627830aee9df6cb7fc1fc1`。
 > 本文件只写已确认合同，不改代码、测试、API、数据库、依赖或服务。
@@ -159,9 +159,21 @@ APPROVED 或已获用户批准。
 - 稳定 `data-testid` 仍可精确定位原记录；
 - 确认、取消、失败、重试、busy、互锁和目标归属断言不削减。
 
-R2-LIVE 已按“先有效 RED、再最小实现、主控执行完整三测试树与门禁、私有变异”完成本地合同。
-R2-UI 尚未实施，仍须先取得有效 RED；其针对性变异必须证明确认面板 UUID 泄漏或目标归属回归会被
-杀死。未执行的门禁不得写成通过。
+R2-LIVE 已按先有效 RED、再最小实现、完整三测试树与私有变异完成本地合同。R2-UI 当前为
+**FINAL_READY（2026-11-15，本地实现）**：四个生产文件只完成显示/props 最小实现，复用既有
+`resolveModeLabel` / `formatStartedAt`，完整 ID 仍只用于内部 key、稳定定位、API 参数与目标归属；
+hooks/auth/store/data、请求、复制、格式、超时、重试和业务时序保持不变。
+
+显示验收边界为：设置入口/dialog/heading 的可访问名称为“设置”；行与结束/恢复面板显示既有模式和时间，
+用户可见正文、`title` 与最终计算可访问名称不出现完整 UUID；两条同模式同时间记录同时存在时，结束与
+恢复都精确操作第二条并保留原 principal/revision。旧安全、取消、失败、重试、busy、互锁和归属断言不削减；
+既有 E2E 的同类正负向检查迁移为精确目标行，新 E2E 只使用本地 Fake API，不连接 Room、麦克风、外部
+Provider 或生产。
+
+TDD、首轮失败、全仓 format 链、最终门禁、变异/hash、保护集、截图与 Review 边界集中在
+[PROJECT_STATUS 的 R2-UI 小节](./PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
+独立技术 Review、最终文档 format、commit/push 以主控同卡回执为准；用户 Review 待，本文件不写
+APPROVED。生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收；SGEC-OFF 仍待实施。
 
 ## 6. 非目标
 

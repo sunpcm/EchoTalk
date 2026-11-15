@@ -1,5 +1,5 @@
 /**
- * 结束/恢复共用的确认面板：目标 id、说明、可选错误与取消/确认按钮。纯展示。
+ * 结束/恢复共用的确认面板：目标模式与开始时间、说明、可选错误与取消/确认按钮。纯展示。
  */
 
 import React from "react";
@@ -16,7 +16,8 @@ const TONE_CLASS = {
 } as const;
 
 export interface ConfirmPanelProps {
-  sessionId: string;
+  modeLabel: string;
+  startedAtLabel: string;
   tone: keyof typeof TONE_CLASS;
   disclaimer: string;
   /** 为 null 时不显示错误；显示错误时确认按钮切换为重试。 */
@@ -38,7 +39,8 @@ export interface ConfirmPanelProps {
 }
 
 export function ConfirmPanel({
-  sessionId,
+  modeLabel,
+  startedAtLabel,
   tone,
   disclaimer,
   errorMessage,
@@ -56,12 +58,13 @@ export function ConfirmPanel({
     >
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-wrap items-baseline gap-1.5">
-          <span className="text-text-muted shrink-0 font-medium">{t.targetIdLabel}</span>
+          <span className="text-text-muted shrink-0 font-medium">{t.targetLabel}</span>
           <span
             data-testid={testIds.targetId}
-            className="text-text-default font-mono font-semibold break-all"
+            className="text-text-default flex flex-wrap items-baseline gap-x-2 gap-y-1 font-semibold"
           >
-            {sessionId}
+            <span>{modeLabel}</span>
+            <span>{startedAtLabel}</span>
           </span>
         </div>
         <p className="text-text-muted leading-relaxed break-words">{disclaimer}</p>

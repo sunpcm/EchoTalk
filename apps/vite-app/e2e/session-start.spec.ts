@@ -95,7 +95,12 @@ test("a refused signaling connection stops at the connection-failed view and ret
     await page.getByRole("button", { name: "返回主页" }).click();
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
     // 既有契约：记录保留在活动会话中，由用户显式恢复或结束
-    await expect(page.getByText(tracker.getSessionId() ?? "missing-session-id")).toBeVisible();
+    const sessionId = tracker.getSessionId() ?? "missing-session-id";
+    const sessionRow = page.getByTestId(`active-session-item-${sessionId}`);
+    await expect(sessionRow).toBeVisible();
+    await expect(sessionRow.getByTestId(`session-mode-${sessionId}`)).toBeVisible();
+    await expect(sessionRow.getByTestId(`session-started-at-${sessionId}`)).toBeVisible();
+    await expect(sessionRow).not.toContainText(sessionId);
     expect(tracker.calls.filter((c) => c === "POST /api/sessions")).toHaveLength(1);
   } finally {
     await endSessionForCleanup(page, tracker.getSessionId());
@@ -133,7 +138,7 @@ test("a failed token request ends the just-created session and shows a generic m
       headers: { Authorization: "Bearer e2e-dev-token" },
     });
     expect(await detail.json()).toMatchObject({ id: sessionId, status: "completed" });
-    await expect(page.getByText(sessionId ?? "missing-session-id")).toHaveCount(0);
+    await expect(page.getByTestId(`active-session-item-${sessionId}`)).toHaveCount(0);
   } finally {
     await endSessionForCleanup(page, tracker.getSessionId());
   }

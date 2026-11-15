@@ -14,7 +14,12 @@ import { isStartingConversationSession } from "@/store/conversationState";
 import { zhCN } from "@/i18n/zh-CN";
 import { ConfirmPanel } from "./activeSessions/ConfirmPanel";
 import { SessionRow } from "./activeSessions/SessionRow";
-import { createActiveSessionsRuntime, type ActiveSessionsRuntime } from "./activeSessions/shared";
+import {
+  createActiveSessionsRuntime,
+  formatStartedAt,
+  resolveModeLabel,
+  type ActiveSessionsRuntime,
+} from "./activeSessions/shared";
 import { useActiveSessionList } from "./activeSessions/useActiveSessionList";
 import { useActiveSessionsLifecycle } from "./activeSessions/useActiveSessionsLifecycle";
 import { useSessionEndFlow } from "./activeSessions/useSessionEndFlow";
@@ -133,7 +138,8 @@ export function ActiveSessions() {
                 >
                   {isConfirmingEnd && (
                     <ConfirmPanel
-                      sessionId={session.id}
+                      modeLabel={resolveModeLabel(session.mode)}
+                      startedAtLabel={formatStartedAt(session.started_at)}
                       tone="danger"
                       disclaimer={t.endConfirmDisclaimer}
                       errorMessage={endError ? t.endError : null}
@@ -160,7 +166,8 @@ export function ActiveSessions() {
 
                   {isConfirmingResume && (
                     <ConfirmPanel
-                      sessionId={session.id}
+                      modeLabel={resolveModeLabel(session.mode)}
+                      startedAtLabel={formatStartedAt(session.started_at)}
                       tone="accent"
                       disclaimer={t.resumeConfirmDisclaimer}
                       errorMessage={resumeError && !hasReadinessFeedback ? t.resumeError : null}

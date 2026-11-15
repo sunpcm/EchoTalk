@@ -125,9 +125,9 @@ test.describe("CP-05 / A35 主要容器主题颜色过渡 E2E", () => {
     const cardBoxBefore = await card.boundingBox();
 
     // 3. 打开抽屉并验证抽屉与 sticky header 的 computed transition
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
     await expect(dialog).toBeVisible();
 
     const drawerStyle = await dialog.evaluate((el) => {
@@ -272,9 +272,9 @@ test.describe("CP-05 / A35 主要容器主题颜色过渡 E2E", () => {
     ).toBe(true);
 
     // 2. 打开抽屉并验证无入场动画 (animationName 为 none)
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
     await settingsBtn.click();
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
     await expect(dialog).toBeVisible();
 
     const drawerAnim = await dialog.evaluate((el) => window.getComputedStyle(el).animationName);

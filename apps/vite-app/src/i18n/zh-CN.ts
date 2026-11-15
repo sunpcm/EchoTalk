@@ -187,7 +187,7 @@ export const zhCN = {
     retryLoadMore: "重试加载更多",
     unknownMode: "其他模式",
     endRecord: "结束记录",
-    targetIdLabel: "目标ID:",
+    targetLabel: "目标练习:",
     endConfirmDisclaimer: "将结束此会话的服务端记录，无法撤销；不保证其他端音频已停止",
     confirmEnd: "确认结束",
     cancelEnd: "取消",
@@ -232,7 +232,7 @@ export const zhCN = {
     dismiss: "知道了",
   },
   settings: {
-    title: "自定义模型设置",
+    title: "设置",
     vipOnlyNotice:
       "该功能仅限 VIP 用户使用（或引导升级）。由于您是普通用户，请继续使用自定义模式。",
     customModeLabel: "自定义模式",

@@ -6,6 +6,7 @@ import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
 import { useAppStore } from "@/store/appStore";
 import { zhCN } from "@/i18n/zh-CN";
+import { formatStartedAt, resolveModeLabel } from "./activeSessions/shared";
 
 const fakeAppListeners = new Set<(state: { isActive: boolean }) => void>();
 let fakeAppGetState = vi.fn().mockImplementation(() => Promise.resolve({ isActive: true }));
@@ -29,6 +30,24 @@ vi.mock("@capacitor/app", () => ({
 }));
 
 const t = zhCN.activeSessions;
+
+function expectDisplayedSessionRow(id: string, mode: string, startedAt: string) {
+  const row = screen.getByTestId(`active-session-item-${id}`);
+  expect(row).toHaveTextContent(resolveModeLabel(mode));
+  expect(row).toHaveTextContent(formatStartedAt(startedAt));
+  expect(row).not.toHaveTextContent(id);
+  expect(row.getAttribute("title") ?? "").not.toContain(id);
+  return row;
+}
+
+function expectDisplayedConfirmTarget(testId: string, id: string, mode: string, startedAt: string) {
+  const target = screen.getByTestId(testId);
+  expect(target).toHaveTextContent(resolveModeLabel(mode));
+  expect(target).toHaveTextContent(formatStartedAt(startedAt));
+  expect(target).not.toHaveTextContent(id);
+  expect(target.getAttribute("title") ?? "").not.toContain(id);
+  return target;
+}
 
 function createDeferred<T>() {
   let resolve!: (val: T) => void;
@@ -159,7 +178,7 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-id-session-abc-123")).toHaveTextContent("session-abc-123");
+      expectDisplayedSessionRow("session-abc-123", "free_talk", "2026-10-21T10:00:00Z");
       expect(screen.getByTestId("session-mode-session-abc-123")).toHaveTextContent(
         t.modes.free_talk,
       );
@@ -300,8 +319,12 @@ describe("ActiveSessions Component", () => {
       });
 
       const items = screen.getAllByRole("listitem");
-      expect(items[0]).toHaveTextContent("sess-2");
-      expect(items[1]).toHaveTextContent("sess-1");
+      expect(items[0]).toHaveTextContent(t.modes.doc_chat);
+      expect(items[0]).toHaveTextContent(formatStartedAt("2026-10-21T11:00:00Z"));
+      expect(items[0]).not.toHaveTextContent("sess-2");
+      expect(items[1]).toHaveTextContent(t.modes.scenario);
+      expect(items[1]).toHaveTextContent(formatStartedAt("2026-10-21T09:00:00Z"));
+      expect(items[1]).not.toHaveTextContent("sess-1");
     });
   });
 
@@ -350,7 +373,7 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
-      expect(screen.getByText("sess-recovered")).toBeInTheDocument();
+      expectDisplayedSessionRow("sess-recovered", "free_talk", "2026-10-21T10:00:00Z");
     });
 
     it("prevents duplicate requests during retry in-flight", async () => {
@@ -432,7 +455,7 @@ describe("ActiveSessions Component", () => {
 
       // 依然为空，不被旧数据回填污染
       expect(container).toBeEmptyDOMElement();
-      expect(screen.queryByText("stale-session-id")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("active-session-item-stale-session-id")).not.toBeInTheDocument();
     });
 
     it("clears data upon account switch and fetches for the new account", async () => {
@@ -472,7 +495,7 @@ describe("ActiveSessions Component", () => {
       });
 
       // 不应展示 user-1 的数据
-      expect(screen.queryByText("user-1-session")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("active-session-item-user-1-session")).not.toBeInTheDocument();
 
       // 新 user-2 请求返回
       await act(async () => {
@@ -490,8 +513,8 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("user-2-session")).toBeInTheDocument();
-      expect(screen.queryByText("user-1-session")).not.toBeInTheDocument();
+      expectDisplayedSessionRow("user-2-session", "doc_chat", "2026-10-21T10:00:00Z");
+      expect(screen.queryByTestId("active-session-item-user-1-session")).not.toBeInTheDocument();
     });
 
     it("ignores old request when same principal logs out and logs in again with new revision", async () => {
@@ -547,7 +570,7 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("relogin-fresh-session")).toBeInTheDocument();
+      expectDisplayedSessionRow("relogin-fresh-session", "free_talk", "2026-10-21T10:00:00Z");
     });
   });
 
@@ -589,7 +612,7 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("newer-session-data")).toBeInTheDocument();
+      expectDisplayedSessionRow("newer-session-data", "free_talk", "2026-10-21T10:00:00Z");
 
       // 第一个请求迟到返回
       await act(async () => {
@@ -608,8 +631,10 @@ describe("ActiveSessions Component", () => {
       });
 
       // 页面应依然展示 newer-session-data，绝不被旧数据冲掉
-      expect(screen.getByText("newer-session-data")).toBeInTheDocument();
-      expect(screen.queryByText("older-stale-session-data")).not.toBeInTheDocument();
+      expectDisplayedSessionRow("newer-session-data", "free_talk", "2026-10-21T10:00:00Z");
+      expect(
+        screen.queryByTestId("active-session-item-older-stale-session-data"),
+      ).not.toBeInTheDocument();
     });
 
     it("safely unmounts without writing state when in-flight request resolves or rejects", async () => {
@@ -661,9 +686,9 @@ describe("ActiveSessions Component", () => {
         });
       });
 
-      expect(screen.getByText("strict-mode-session")).toBeInTheDocument();
+      expectDisplayedSessionRow("strict-mode-session", "free_talk", "2026-10-21T10:00:00Z");
 
-      expect(screen.getByText("strict-mode-session")).toBeInTheDocument();
+      expectDisplayedSessionRow("strict-mode-session", "free_talk", "2026-10-21T10:00:00Z");
     });
   });
 
@@ -733,7 +758,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("user-1-initial-session")).toBeInTheDocument();
+        expectDisplayedSessionRow("user-1-initial-session", "free_talk", "2026-10-21T10:00:00Z");
         expect(listSpy).toHaveBeenCalledTimes(1);
 
         // 1. 进入后台
@@ -750,7 +775,9 @@ describe("ActiveSessions Component", () => {
         });
 
         // 旧账号数据已立即清空
-        expect(screen.queryByText("user-1-initial-session")).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("active-session-item-user-1-initial-session"),
+        ).not.toBeInTheDocument();
         // 处于后台，门禁阻止发起网络请求
         expect(listSpy).toHaveBeenCalledTimes(1);
 
@@ -778,7 +805,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("user-2-resumed-session")).toBeInTheDocument();
+        expectDisplayedSessionRow("user-2-resumed-session", "doc_chat", "2026-10-21T11:00:00Z");
       });
     });
 
@@ -810,7 +837,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("resumed-session-1")).toBeInTheDocument();
+        expectDisplayedSessionRow("resumed-session-1", "free_talk", "2026-10-21T10:00:00Z");
       });
 
       it("does not fetch on resume event if offline (online = false)", async () => {
@@ -856,7 +883,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("online-session-1")).toBeInTheDocument();
+        expectDisplayedSessionRow("online-session-1", "pronunciation", "2026-10-21T10:00:00Z");
       });
 
       it("does not fetch on connectivity event if in background (visibility = hidden), but fetches when resumed", async () => {
@@ -895,7 +922,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("resumed-after-connectivity")).toBeInTheDocument();
+        expectDisplayedSessionRow("resumed-after-connectivity", "scenario", "2026-10-21T10:00:00Z");
       });
 
       it("merges and deduplicates duplicate resume and connectivity events while request is in-flight", async () => {
@@ -944,7 +971,7 @@ describe("ActiveSessions Component", () => {
         await act(async () => {
           await Promise.resolve();
         });
-        expect(screen.getByText("kept-session-1")).toBeInTheDocument();
+        expectDisplayedSessionRow("kept-session-1", "free_talk", "2026-10-21T10:00:00Z");
 
         // 发起第二轮请求并在途
         const deferred = createDeferred<api.SessionListResponse>();
@@ -963,7 +990,7 @@ describe("ActiveSessions Component", () => {
 
         // 立即退出 loading、保留已有 session、不新增错误提示
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
-        expect(screen.getByText("kept-session-1")).toBeInTheDocument();
+        expectDisplayedSessionRow("kept-session-1", "free_talk", "2026-10-21T10:00:00Z");
         expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
 
         // 迟到的旧请求 resolve，被废弃且不污染
@@ -981,8 +1008,10 @@ describe("ActiveSessions Component", () => {
             next_cursor: null,
           });
         });
-        expect(screen.getByText("kept-session-1")).toBeInTheDocument();
-        expect(screen.queryByText("stale-session-ignored")).not.toBeInTheDocument();
+        expectDisplayedSessionRow("kept-session-1", "free_talk", "2026-10-21T10:00:00Z");
+        expect(
+          screen.queryByTestId("active-session-item-stale-session-ignored"),
+        ).not.toBeInTheDocument();
       });
 
       it("aborts in-flight request, clears inFlight slot, exits loading, keeps existing sessions, and does not show error on offline event", async () => {
@@ -1075,7 +1104,11 @@ describe("ActiveSessions Component", () => {
             next_cursor: null,
           });
         });
-        expect(screen.getByText("fresh-session-after-resume")).toBeInTheDocument();
+        expectDisplayedSessionRow(
+          "fresh-session-after-resume",
+          "free_talk",
+          "2026-10-21T10:00:00Z",
+        );
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
 
         // 旧请求迟到 resolve
@@ -1095,8 +1128,14 @@ describe("ActiveSessions Component", () => {
         });
 
         // 验证展示的依然是新请求数据，旧数据被安全废弃
-        expect(screen.getByText("fresh-session-after-resume")).toBeInTheDocument();
-        expect(screen.queryByText("stale-session-before-suspend")).not.toBeInTheDocument();
+        expectDisplayedSessionRow(
+          "fresh-session-after-resume",
+          "free_talk",
+          "2026-10-21T10:00:00Z",
+        );
+        expect(
+          screen.queryByTestId("active-session-item-stale-session-before-suspend"),
+        ).not.toBeInTheDocument();
       });
 
       it("when old request is still pending and lifecycle suspends then resumes, stale old reject does not set error", async () => {
@@ -1143,7 +1182,7 @@ describe("ActiveSessions Component", () => {
             next_cursor: null,
           });
         });
-        expect(screen.getByText("new-session-ok")).toBeInTheDocument();
+        expectDisplayedSessionRow("new-session-ok", "free_talk", "2026-10-21T10:00:00Z");
         expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
       });
 
@@ -1194,7 +1233,7 @@ describe("ActiveSessions Component", () => {
         });
 
         expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
-        expect(screen.getByText("session-finally-verified")).toBeInTheDocument();
+        expectDisplayedSessionRow("session-finally-verified", "free_talk", "2026-10-21T10:00:00Z");
       });
     });
 
@@ -1250,7 +1289,7 @@ describe("ActiveSessions Component", () => {
         });
         expect(listSpy).toHaveBeenCalledTimes(2);
 
-        expect(screen.getByText("session-retry-success")).toBeInTheDocument();
+        expectDisplayedSessionRow("session-retry-success", "free_talk", "2026-10-21T10:00:00Z");
         expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
       });
     });
@@ -1305,7 +1344,11 @@ describe("ActiveSessions Component", () => {
           });
         });
 
-        expect(screen.getByText("strict-mode-lifecycle-session")).toBeInTheDocument();
+        expectDisplayedSessionRow(
+          "strict-mode-lifecycle-session",
+          "exam_prep",
+          "2026-10-21T10:00:00Z",
+        );
       });
     });
 
@@ -1330,7 +1373,11 @@ describe("ActiveSessions Component", () => {
           await Promise.resolve();
         });
 
-        expect(screen.getByText("session-readonly-invariants")).toBeInTheDocument();
+        expectDisplayedSessionRow(
+          "session-readonly-invariants",
+          "free_talk",
+          "2026-10-21T10:00:00Z",
+        );
         expect(
           screen.queryByRole("button", {
             name: /创建|接管|开始|claim|heartbeat|dispatch/i,
@@ -1383,10 +1430,15 @@ describe("ActiveSessions Component", () => {
         const endBtn1 = screen.getByTestId("end-session-button-sess-end-1");
         fireEvent.click(endBtn1);
 
-        // 验证内联确认面板、目标ID标签与文案提示
+        // 验证内联确认面板的目标模式、开始时间与文案提示
         expect(screen.getByTestId("end-confirm-panel-sess-end-1")).toBeInTheDocument();
-        expect(screen.getByText(t.targetIdLabel)).toBeInTheDocument();
-        expect(screen.getByTestId("confirm-session-id-sess-end-1")).toHaveTextContent("sess-end-1");
+        expect(screen.getByText(t.targetLabel)).toBeInTheDocument();
+        expectDisplayedConfirmTarget(
+          "confirm-session-id-sess-end-1",
+          "sess-end-1",
+          "free_talk",
+          "2026-10-21T10:00:00Z",
+        );
         expect(screen.getByText(t.endConfirmDisclaimer)).toBeInTheDocument();
         expect(confirmSpy).not.toHaveBeenCalled();
 
@@ -1626,8 +1678,13 @@ describe("ActiveSessions Component", () => {
         expect(screen.queryByText(/Postgres 5432/)).not.toBeInTheDocument();
         // 展示安全本地化错误
         expect(screen.getByTestId("end-error-sess-end-1")).toHaveTextContent(t.endError);
-        // 目标ID保持
-        expect(screen.getByTestId("confirm-session-id-sess-end-1")).toHaveTextContent("sess-end-1");
+        // 目标模式与开始时间保持，内部 ID 不进入展示
+        expectDisplayedConfirmTarget(
+          "confirm-session-id-sess-end-1",
+          "sess-end-1",
+          "free_talk",
+          "2026-10-21T10:00:00Z",
+        );
 
         // 重试按钮可用
         const retryBtn = screen.getByTestId("retry-end-button-sess-end-1");
@@ -1758,7 +1815,9 @@ describe("ActiveSessions Component", () => {
           });
         });
         // 不污染界面
-        expect(screen.queryByText("stale-polluted-list-session")).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("active-session-item-stale-polluted-list-session"),
+        ).not.toBeInTheDocument();
 
         // 结束请求完成
         await act(async () => {
@@ -2073,8 +2132,11 @@ describe("ActiveSessions Component", () => {
         fireEvent.click(screen.getByTestId(`resume-session-button-${targetId}`));
 
         expect(screen.getByTestId(`resume-confirm-panel-${targetId}`)).toBeInTheDocument();
-        expect(screen.getByTestId(`confirm-resume-session-id-${targetId}`)).toHaveTextContent(
+        expectDisplayedConfirmTarget(
+          `confirm-resume-session-id-${targetId}`,
           targetId,
+          "free_talk",
+          "2026-10-21T10:00:00Z",
         );
         expect(screen.getByText(t.resumeConfirmDisclaimer)).toBeInTheDocument();
         expect(confirmSpy).not.toHaveBeenCalled();
@@ -2241,7 +2303,9 @@ describe("ActiveSessions Component", () => {
             next_cursor: null,
           });
         });
-        expect(screen.queryByText("5fa85f64-5717-4562-b3fc-2c963f66afa8")).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("active-session-item-5fa85f64-5717-4562-b3fc-2c963f66afa8"),
+        ).not.toBeInTheDocument();
 
         await act(async () => {
           resumeDeferred.resolve(true);
@@ -2334,7 +2398,12 @@ describe("ActiveSessions Component", () => {
         // 不回显敏感报错，显示本地化安全错误
         expect(screen.queryByText(/Sensitive backend token issue/)).not.toBeInTheDocument();
         expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
-        expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+        expectDisplayedConfirmTarget(
+          `confirm-resume-session-id-${id}`,
+          id,
+          "free_talk",
+          "2026-10-21T10:00:00Z",
+        );
 
         const retryBtn = screen.getByTestId(`retry-resume-button-${id}`);
         expect(retryBtn).toHaveTextContent(t.retryResume);
@@ -2887,7 +2956,7 @@ describe("ActiveSessions Component", () => {
 
       // 成功 active 且 Web visible 后，只触发一次 GET 查询（不与 whenReady 重复发起）
       expect(listSpy).toHaveBeenCalledTimes(1);
-      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+      expectDisplayedSessionRow("sess-native-1", "free_talk", "2026-10-23T10:00:00Z");
     });
 
     it("initial native getState returning inactive does not trigger GET", async () => {
@@ -2956,7 +3025,7 @@ describe("ActiveSessions Component", () => {
         await Promise.resolve();
       });
       // 仍然不展示旧数据
-      expect(screen.queryByTestId("session-id-sess-native-1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("active-session-item-sess-native-1")).not.toBeInTheDocument();
 
       // 原生重新切回前台 (active)
       await act(async () => {
@@ -2985,7 +3054,7 @@ describe("ActiveSessions Component", () => {
         await Promise.resolve();
       });
 
-      expect(screen.getByTestId("session-id-sess-native-2")).toHaveTextContent("sess-native-2");
+      expectDisplayedSessionRow("sess-native-2", "scenario", "2026-10-23T11:00:00Z");
     });
 
     it("initial fetch failure can recover on subsequent valid native resume event", async () => {
@@ -3031,7 +3100,7 @@ describe("ActiveSessions Component", () => {
 
       // 错误状态清除，正常展示列表
       expect(screen.queryByText(t.loadError)).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-id-sess-native-1")).toHaveTextContent("sess-native-1");
+      expectDisplayedSessionRow("sess-native-1", "free_talk", "2026-10-23T10:00:00Z");
     });
 
     it("native inactive overrides DOM visibilitychange and window online/pageshow", async () => {
@@ -3276,7 +3345,7 @@ describe("ActiveSessions Component", () => {
       expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
       expect(screen.queryByText(t.empty)).not.toBeInTheDocument();
       expect(screen.queryByText(t.unqueried)).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-id-sess-a20-1")).toHaveTextContent("sess-a20-1");
+      expectDisplayedSessionRow("sess-a20-1", "free_talk", "2026-10-23T10:00:00Z");
     });
 
     it("preserves unqueried state on initial failure and transitions to empty only after retry succeeds with []", async () => {
@@ -3537,7 +3606,7 @@ describe("ActiveSessions Component", () => {
       next_cursor: null,
     };
 
-    it("real store linkage: getSessionDetail 503 synchronous idle notification does not swallow error, retains full UUID, and renders 44px retry button", async () => {
+    it("real store linkage: getSessionDetail 503 synchronous idle notification does not swallow error, retains mode/start target, and renders 44px retry button", async () => {
       vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
       vi.spyOn(api, "getCallCapabilities").mockResolvedValue({
         call_lease_mode: "disabled",
@@ -3555,17 +3624,27 @@ describe("ActiveSessions Component", () => {
 
       const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
       fireEvent.click(screen.getByTestId(`resume-session-button-${id}`));
-      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expectDisplayedConfirmTarget(
+        `confirm-resume-session-id-${id}`,
+        id,
+        "scenario",
+        "2026-10-21T10:00:00Z",
+      );
 
       // 点击确认恢复（真实 store.resumeSession 执行）
       await act(async () => {
         fireEvent.click(screen.getByTestId(`confirm-resume-button-${id}`));
       });
 
-      // 验证：同步 idle 通知不得吞错！专用 resume-error 正常显示，完整 UUID 保留
+      // 验证：同步 idle 通知不得吞错！专用 resume-error 正常显示，模式与开始时间目标保留
       expect(screen.getByTestId(`resume-confirm-panel-${id}`)).toBeInTheDocument();
       expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
-      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expectDisplayedConfirmTarget(
+        `confirm-resume-session-id-${id}`,
+        id,
+        "scenario",
+        "2026-10-21T10:00:00Z",
+      );
 
       // 专用重试按钮与取消按钮均可用且具备文案与目标
       const retryBtn = screen.getByTestId(`retry-resume-button-${id}`);
@@ -3603,7 +3682,7 @@ describe("ActiveSessions Component", () => {
       expect(screen.queryByTestId(`resume-confirm-panel-${id}`)).not.toBeInTheDocument();
     });
 
-    it("preceding failure: getCallCapabilities rejection shows dedicated resumeError, preserves target UUID, and sends zero detail or token requests", async () => {
+    it("preceding failure: getCallCapabilities rejection shows dedicated resumeError, preserves mode/start target, and sends zero detail or token requests", async () => {
       vi.spyOn(api, "listActiveSessions").mockResolvedValue(mockSessions);
       vi.spyOn(api, "getCallCapabilities").mockRejectedValue(new Error("cap fail"));
       const detailSpy = vi.spyOn(api, "getSessionDetail");
@@ -3622,7 +3701,12 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
-      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expectDisplayedConfirmTarget(
+        `confirm-resume-session-id-${id}`,
+        id,
+        "scenario",
+        "2026-10-21T10:00:00Z",
+      );
       expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
       expect(screen.getByTestId(`cancel-resume-button-${id}`)).not.toBeDisabled();
 
@@ -3658,7 +3742,12 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
-      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expectDisplayedConfirmTarget(
+        `confirm-resume-session-id-${id}`,
+        id,
+        "scenario",
+        "2026-10-21T10:00:00Z",
+      );
       expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
       expect(tokenSpy).not.toHaveBeenCalled();
     });
@@ -3697,7 +3786,12 @@ describe("ActiveSessions Component", () => {
         message: zhCN.practiceReadiness.fallback,
         canOpenSettings: false,
       });
-      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expectDisplayedConfirmTarget(
+        `confirm-resume-session-id-${id}`,
+        id,
+        "scenario",
+        "2026-10-21T10:00:00Z",
+      );
       expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
       act(() => {
         useAppStore.setState({ readinessIssue: null, readinessNotice: true });
@@ -3736,7 +3830,12 @@ describe("ActiveSessions Component", () => {
       });
 
       expect(screen.getByTestId(`resume-error-${id}`)).toHaveTextContent(t.resumeError);
-      expect(screen.getByTestId(`confirm-resume-session-id-${id}`)).toHaveTextContent(id);
+      expectDisplayedConfirmTarget(
+        `confirm-resume-session-id-${id}`,
+        id,
+        "scenario",
+        "2026-10-21T10:00:00Z",
+      );
       expect(screen.getByTestId(`retry-resume-button-${id}`)).toBeInTheDocument();
     });
 

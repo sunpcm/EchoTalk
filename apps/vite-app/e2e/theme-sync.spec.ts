@@ -36,10 +36,10 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
     await expect(dialog).toBeVisible();
 
     const coolBtn = dialog.getByRole("radio", { name: /冷色/ });
@@ -145,8 +145,8 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
     await page1.goto("/");
     await expect(page1.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
-    await page1.getByRole("button", { name: "自定义模型设置" }).click();
-    const dialog1 = page1.getByRole("dialog", { name: "自定义模型设置" });
+    await page1.getByRole("button", { name: "设置", exact: true }).click();
+    const dialog1 = page1.getByRole("dialog", { name: "设置", exact: true });
     await expect(dialog1).toBeVisible();
 
     // 切换到 dark 并等待 PUT 完成
@@ -175,8 +175,8 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
     expect(storedThemeInContext2).toBe("dark");
 
     // 测试后端写失败保持与再次选择恢复
-    await page2.getByRole("button", { name: "自定义模型设置" }).click();
-    const dialog2 = page2.getByRole("dialog", { name: "自定义模型设置" });
+    await page2.getByRole("button", { name: "设置", exact: true }).click();
+    const dialog2 = page2.getByRole("dialog", { name: "设置", exact: true });
     await expect(dialog2).toBeVisible();
 
     // 模拟服务端失败
@@ -268,10 +268,10 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
         }, vp.scale);
       }
 
-      const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+      const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
       await settingsBtn.click();
 
-      const dialog = page.getByRole("dialog", { name: "自定义模型设置" });
+      const dialog = page.getByRole("dialog", { name: "设置", exact: true });
       await expect(dialog).toBeVisible();
 
       // 等待设置加载完成，确保内容几何完全稳定
