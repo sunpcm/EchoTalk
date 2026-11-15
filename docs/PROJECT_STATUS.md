@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16；READ2 已发布 PR182 至 main `3d246c3`；ST 已发布 PR180 至 main `f915157`；A11Y 已发布 PR181 至 main `cf104bb`；ST2 已发布 PR183 至 main `7780c718`。ACT（遗留产品润色）PR184 已合 main `bb1ed292`，最终 mainCI 运行中。DASH（Dashboard 抽取）源码 APPROVED，三树计数相对 ACT 基线零变化，PR/CI 待建。
+> 最后核对：2026-11-16；READ2 已发布 PR182 至 main `3d246c3`；ST 已发布 PR180 至 main `f915157`；A11Y 已发布 PR181 至 main `cf104bb`；ST2 已发布 PR183 至 main `7780c718`。ACT（遗留产品润色）PR184 已合 main `bb1ed292`，mainCI 首五 success（COMPLETE）。DASH（Dashboard 抽取）PR185 已合 main `543e266`（PR CI/Guard 首六 + mainCI 首五 success）。CPB（Compose 启动门禁方案 B）源码 APPROVED，本机 17 门禁全 success、组合 E2E 实测通过，PR/CI 待建。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)。
 
 ## 当前功能
@@ -26,10 +26,13 @@
 ## 当前验证基线
 
 ACT（遗留产品润色）PR184 已合 main `bb1ed292`：PR CI 43731788773 / Guard 43731788758 首六 success，最终 mainCI
-43732696365 运行中（不计绿）；下表为 ACT/DASH 共用基线，DASH 三树计数相对 ACT 零变化。ST2 已发布 main `7780c718` 另列。
+43732696365 首五 success（COMPLETE）；下表为 ACT/DASH 共用基线，DASH 三树计数相对 ACT 零变化。ST2 已发布 main `7780c718` 另列。
 
 Dashboard 抽取（DASH）源码 APPROVED，三树计数相对 ACT 基线零变化（Vitest 1260/55、E2E 258 C129/W129
-retry/skip/flaky0、pytest 957/3warnings/80.63%），17 门禁全 success；PR/CI/主线 SHA 待建不预填。
+retry/skip/flaky0、pytest 957/3warnings/80.63%），17 门禁全 success；PR185 已合 main `543e266`（PR CI 43733406381 / Guard 43733406421 首六、mainCI 43734407828 首五 success）。
+
+Compose 启动门禁方案 B（CPB）源码 APPROVED R1，本机 17 门禁全 success（Vitest 1260/55、Fake 125、types 10、build 21、
+pytest 962/3warnings/80.63%、E2E 258 C129/W129 retry/skip/flaky0，相对 DASH 后端 +5 其余 0）；组合 E2E 实测 258/0（命令 53.47s）；整栈/实际迁移仍未验。
 
 | 测试树 / 门禁      | ACT 已合 main `bb1ed292`（DASH 零变化）  |
 | ------------------ | ---------------------------------------- |
@@ -40,8 +43,8 @@ retry/skip/flaky0、pytest 957/3warnings/80.63%），17 门禁全 success；PR/C
 | 构建脚本           | 21 passed                                |
 | 完整backend pytest | 957 / 3 warnings / 80.63%（R1 字节未变） |
 
-ACT PR184 Linux 回读：Vitest 1260/55、Fake 125、types 10、build 21、E2E 258 C129/W129 0retry/skip/flaky 5.6m、
-pytest 957/3warnings/80.63%/48.53s；本机先原 234/0，继承 READ 后首轮 234/24（旧 dialog 标题定位失效），R2 对齐后
+ACT PR184 最终 mainCI 43732696365 首五 success（Linux 1260/55、E2E 258 C129/W129 retry/skip/flaky0 5.4m、
+pytest 957/3warnings/80.63%/48.99s）；本机先原 234/0，继承 READ 后首轮 234/24（旧 dialog 标题定位失效），R2 对齐后
 258/0（52.39s / 命令 53.39s）；三处有效变异 RED/恢复 GREEN。详见 [遗留产品润色记录](./history/2026-11-15-legacy-product-polish.md)。
 
 已发布 main `7780c718`（ST2 PR183，源码 `4980d219`）：PR CI 43728809132 / Guard 43728809100 六 first success；
@@ -75,6 +78,7 @@ E2E 258 C129/W129 0retry/skip/flaky 4.0m、pytest 957/3warnings/80.63%/63.11s）
 
 | 内容                                                            | 位置                                                                                                                                                                                                |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Compose 启动门禁方案 B（CPB，源码 APPROVED，17 门禁全 success） | [验收记录](./history/2026-11-15-compose-startup-gates.md)                                                                                                                                           |
 | Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）  | [验收记录](./history/2026-11-15-dashboard-extraction.md)                                                                                                                                            |
 | 遗留产品润色（ACT，三处产品修复 + R2-10 剩余 UI，本机 17 门禁） | [验收记录](./history/2026-11-15-legacy-product-polish.md)                                                                                                                                           |
 | Token 失败自动清理测试前提（ST2，已发布 PR183/main 7780c718）   | [验收记录](./history/2026-11-15-session-token-error-test-barrier.md)                                                                                                                                |
