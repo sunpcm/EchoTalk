@@ -860,3 +860,19 @@ pytest957/3warnings/80.63%（80.63339413%）、完整E2E234（C117/W117、retry/
 spec125 `expect(themePutCount).toBe(0)` 抓住。历史 H1 两次 233/1 与 weekly-grammar rootCause 未知项保留，
 不因本次 300/300 或原自然 100/100 证明因果；PR/CI 待建，不填编号。详见
 [theme-storage 验收记录](./2026-11-15-theme-storage-reliability.md)。
+
+## 2026-11-15 设置可读性（READ，归档）
+
+以下原「当前优先问题」的 (READ) 卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本轮功能输入边界/禁用文字可读性修复与本机验收，不追认全产品 AA 或真实设备已验。
+
+- [x] **(READ) 设置可读性**：深色 200% Provider disabled 组 opacity0.5、功能输入边框低对比、
+      手机 200% 说明文字/开关重叠。验收：三主题/390 和 1280/正常和 200% 字号/启用禁用前后计算样式与截图；
+      保留 44px/焦点/AA 旧断言；功能输入边界按 3:1 核验；禁用可读性是产品增强，纯装饰卡不自动套 WCAG 硬门禁。
+      见 [W3C non-text-contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html) 与
+      [W3C contrast-minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)。实施另包，
+      不写成产品已修或真实设备已验。
+
+结果（本机 Harness，未发布）见 [设置可读性验收记录](./2026-11-15-settings-readability.md)：17 门禁全 success、
+完整 E2E 258（C129/W129，retry/skip/flaky 0）、功能输入边界 1.148→3.646、禁用 select 文字 3.124→4.943；
+READ PR/CI 待建，不填编号或发布终点 SHA。
