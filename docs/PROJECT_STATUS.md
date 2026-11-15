@@ -1,6 +1,6 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15；READ2 已发布 PR182 至 main `3d246c3`；ST 已发布 PR180 至 main `f915157`；A11Y 已发布 PR181 至 main `cf104bb`；ST2 已发布 PR183 至 main `7780c718`。ACT（遗留产品润色）三处产品修复 + R2-10 剩余 UI 源码 APPROVED、集成 R2 标题定位修正、本机 17 门禁全 success，PR/CI 待建。
+> 最后核对：2026-11-16；READ2 已发布 PR182 至 main `3d246c3`；ST 已发布 PR180 至 main `f915157`；A11Y 已发布 PR181 至 main `cf104bb`；ST2 已发布 PR183 至 main `7780c718`。ACT（遗留产品润色）PR184 已合 main `bb1ed292`，最终 mainCI 运行中。DASH（Dashboard 抽取）源码 APPROVED，三树计数相对 ACT 基线零变化，PR/CI 待建。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)。
 
 ## 当前功能
@@ -25,10 +25,13 @@
 
 ## 当前验证基线
 
-ACT（遗留产品润色）源码 APPROVED，本机 Harness 17 门禁全 success，尚未发布；表为 ACT 本机（亲跑，未发布）分列，
-已发布 main `7780c718`（ST2 PR183，CI 回读）另列（PR CI 六 first success，main CI 首五 success）。
+ACT（遗留产品润色）PR184 已合 main `bb1ed292`：PR CI 43731788773 / Guard 43731788758 首六 success，最终 mainCI
+43732696365 运行中（不计绿）；下表为 ACT/DASH 共用基线，DASH 三树计数相对 ACT 零变化。ST2 已发布 main `7780c718` 另列。
 
-| 测试树 / 门禁      | ACT 本机 Harness（未发布）               |
+Dashboard 抽取（DASH）源码 APPROVED，三树计数相对 ACT 基线零变化（Vitest 1260/55、E2E 258 C129/W129
+retry/skip/flaky0、pytest 957/3warnings/80.63%），17 门禁全 success；PR/CI/主线 SHA 待建不预填。
+
+| 测试树 / 门禁      | ACT 已合 main `bb1ed292`（DASH 零变化）  |
 | ------------------ | ---------------------------------------- |
 | Vitest             | 1260 passed / 55 文件                    |
 | Playwright E2E     | 258，C129/W129，retry/skip/flaky0        |
@@ -37,9 +40,9 @@ ACT（遗留产品润色）源码 APPROVED，本机 Harness 17 门禁全 success
 | 构建脚本           | 21 passed                                |
 | 完整backend pytest | 957 / 3 warnings / 80.63%（R1 字节未变） |
 
-ACT 本机 E2E 先原 234/0，继承 READ 新增 24 例后首轮 234 pass / 24 fail（全为旧 dialog 标题定位失效），R2 一处对齐后
-258/0（52.39s / 命令 53.39s）；新 ST2/ACT 启动文件组合 6/0（C3/W3，23.6s）；三处有效变异 RED/恢复 GREEN。
-详见 [遗留产品润色记录](./history/2026-11-15-legacy-product-polish.md)。
+ACT PR184 Linux 回读：Vitest 1260/55、Fake 125、types 10、build 21、E2E 258 C129/W129 0retry/skip/flaky 5.6m、
+pytest 957/3warnings/80.63%/48.53s；本机先原 234/0，继承 READ 后首轮 234/24（旧 dialog 标题定位失效），R2 对齐后
+258/0（52.39s / 命令 53.39s）；三处有效变异 RED/恢复 GREEN。详见 [遗留产品润色记录](./history/2026-11-15-legacy-product-polish.md)。
 
 已发布 main `7780c718`（ST2 PR183，源码 `4980d219`）：PR CI 43728809132 / Guard 43728809100 六 first success；
 main CI 43729553370 首五 success（Linux 回读 Vitest 1249/53、Fake 125、types 10、build 21、
@@ -72,6 +75,7 @@ E2E 258 C129/W129 0retry/skip/flaky 4.0m、pytest 957/3warnings/80.63%/63.11s）
 
 | 内容                                                            | 位置                                                                                                                                                                                                |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）  | [验收记录](./history/2026-11-15-dashboard-extraction.md)                                                                                                                                            |
 | 遗留产品润色（ACT，三处产品修复 + R2-10 剩余 UI，本机 17 门禁） | [验收记录](./history/2026-11-15-legacy-product-polish.md)                                                                                                                                           |
 | Token 失败自动清理测试前提（ST2，已发布 PR183/main 7780c718）   | [验收记录](./history/2026-11-15-session-token-error-test-barrier.md)                                                                                                                                |
 | 主题按钮大字号重排（READ2，已发布 PR182/main 3d246c3）          | [验收记录](./history/2026-11-15-theme-swatch-reflow.md)                                                                                                                                             |
