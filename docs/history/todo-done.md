@@ -888,3 +888,17 @@ click 前注册 `POST /api/sessions` 200 响应等待，响应到达后再保留
 types10/build21、pytest957/3warnings/80.63%（71.82s / 命令 79.07s）、完整 E2E258 C129/W129 0retry/skip/flaky
 （53.02s / 命令 53.97s）、压力 C/W 各 30 共 60、0retry、40.5s。历史根因未知，不写"历史根因已成立"或"不是环境偶发"；
 详见 [启动视图测试前提记录](./2026-11-15-session-start-test-barrier.md)。
+
+## 2026-11-15 键盘焦点遍历可靠性（A11Y，归档）
+
+以下原「当前优先问题」的 (A11Y) 维护卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本次受控反例补丁与本机验收，历史 CI 根因仍未知，不追认历史完整因果。
+
+- [x] **(A11Y) a11y-focus-touch 偶发失败（根因未知）**：READ 已发布 PR179 至 main `c9f3131a`；PR CI43711155517 / Guard43711155525 的 E2E `a11y-focus-touch.spec.ts:64`（Chromium 单用例）seen>=6 得 5、1 retry 通过（整轮 257 pass / 1 flaky）；根因未知，独立修复，本轮不并入 READ。
+      验收：受控反例验证并修复可证前提、保留原焦点/触控目标断言与首次失败；历史原因缺 trace 时继续标未知，不包装已确证。
+
+结果（本机 Harness，受控，未发布）：受控 weekly GET 6s 下旧 C/W seen5 目标 RED、R0 UI 5s 2 RED、R1 同输入 2 GREEN；
+17 门禁全 success（Vitest1249/53、Fake125、types10/build21、pytest957/3warnings/80.63%）、完整 E2E258（C129/W129、
+0retry/skip/flaky）、继承 ST 后再次完整 258（C129/W129、retry/skip/flaky0、Playwright 51.243352s/命令 52.29s）、首用例压力 60（C/W 各30、
+retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。详见
+[键盘焦点遍历可靠性记录](./2026-11-15-dashboard-focus-test-reliability.md)。
