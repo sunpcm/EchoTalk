@@ -47,6 +47,7 @@ interface UseSettingsDialogOptions {
 export function useSettingsDialog({ open, onClose }: UseSettingsDialogOptions) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
 
@@ -87,7 +88,50 @@ export function useSettingsDialog({ open, onClose }: UseSettingsDialogOptions) {
 
     document.addEventListener("focusin", handleFocusIn);
 
+    let ownsViewportResources = true;
+    let revealFrameId: number | null = null;
+    const scheduleReveal = () => {
+      if (!ownsViewportResources || revealFrameId !== null) return;
+
+      revealFrameId = requestAnimationFrame(() => {
+        revealFrameId = null;
+        const scrollContainer = scrollContainerRef.current;
+        const activeElement = document.activeElement;
+        if (
+          !ownsViewportResources ||
+          !scrollContainer ||
+          !(activeElement instanceof HTMLElement) ||
+          !activeElement.isConnected ||
+          !scrollContainer.contains(activeElement)
+        ) {
+          return;
+        }
+
+        activeElement.scrollIntoView({ block: "nearest", inline: "nearest" });
+      });
+    };
+
+    window.addEventListener("resize", scheduleReveal);
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", scheduleReveal);
+
+    const scrollContainer = scrollContainerRef.current;
+    const resizeObserver =
+      scrollContainer && typeof ResizeObserver === "function"
+        ? new ResizeObserver(scheduleReveal)
+        : null;
+    if (scrollContainer) {
+      resizeObserver?.observe(scrollContainer);
+    }
+
     return () => {
+      ownsViewportResources = false;
+      if (revealFrameId !== null) {
+        cancelAnimationFrame(revealFrameId);
+      }
+      window.removeEventListener("resize", scheduleReveal);
+      visualViewport?.removeEventListener("resize", scheduleReveal);
+      resizeObserver?.disconnect();
       cancelAnimationFrame(frameId);
       document.removeEventListener("focusin", handleFocusIn);
       document.body.style.overflow = originalOverflow;
@@ -166,6 +210,7 @@ export function useSettingsDialog({ open, onClose }: UseSettingsDialogOptions) {
   return {
     dialogRef,
     closeButtonRef,
+    scrollContainerRef,
     handleDialogClick,
     handleKeyDown,
     handleCancel,

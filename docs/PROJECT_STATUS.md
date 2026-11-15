@@ -1,15 +1,15 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **R2-11 会话中界面本地子卡（FINAL_READY）**：
-> LiveKit 主题背景、场景/墙钟页头、移动字幕优先、thinking 独立文案与单实例回答推荐的本地模块桩
-> 子卡已完成；13 项门禁最终机器验收全部 `exit 0`，完整机器数字集中在本节。R2-10 硬编码文案收口及
-> SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、A19 P2 等均为各自时点的历史交付，其数字不能
-> 转作本卡结果。R2-11/CP05 共用的本批独占合成 PG 仍在运行，待本批末尾统一清理。
+> 最后核对：2026-11-15。当前卡片为 **CP05D 设置抽屉动态可见性（FINAL_READY）**：
+> 聚焦输入在 resize 或根字号变化后通过中间滚动区保持完整可见，同时保留焦点、草稿和既有焦点
+> 语义。质量、Vitest、backend、相关 runner、全量 E2E 与新增场景 20 次重复均已通过；两份测试
+> 完整行为 AST 与有效 RED 一致，E2E 与四份文档已完成 Node22 纯格式化。独立 Review、正常
+> commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待；本状态不自行写 APPROVED。
+> 下方的 R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、A19 P2 等小节均为
+> 各自时点的历史交付，其机器数字不能转作 CP05D 结果。R2-11 当时的模型分工与路由可用性记录保留在
+> 历史口径中，不代表本卡路由或产品结论。本批自有合成 PG 已按精确资源身份停止并确认自动移除，
+> 其他资源未动。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
-> 本卡模型分工：TDD/测试与产品实施由 `workbuddy/deepseek-v4-pro/high` 及
-> `workbuddy/deepseek-v4.1-flash` 前序节点产出并保留，路由切换属吞吐优化，不代表旧路由不可用；
-> R1 返修与文档收口由接续节点 `zcode/GLM-5.3-Flash/low` 完成。真实调用成功仅证明对应路由可用，
-> 各路由底层模型身份未独立认证。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
@@ -38,9 +38,53 @@
 
 ## 当前验证基线
 
+### CP05D 设置抽屉动态可见性
+
+- 本节是 2026-11-15 CP05D 的 `FINAL_READY` 快照。唯一实施 W 为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，正式基线 HEAD
+  `1df095fb89af7488b7618c73397345b6a11584f9`。只改 `SettingsDrawer.tsx`、
+  `useSettingsDialog.ts` 与两份新增测试；其余产品、后端、配置和依赖未改。正式产品返修 `0/2`。
+- 范围只覆盖设置抽屉的真实活动输入可见性：普通窗口 resize、根字号 200% 后再 resize、聚焦后仅改
+  根字号。静态布局 6 例通过；该静态矩阵未复现固有尺寸裁切，本卡不修改布局或控件尺寸。未先建立
+  input focus/value/完整可见前置的早期诊断不作为回归证据。
+- 正式有效 RED：Vitest `7 failed / 0 passed / 0 skipped / exit 1`，失败均来自实际 Drawer 挂载后
+  缺少 viewport reveal 资源。Playwright `4 failed / 2 passed / 6 total / retry 0 / exit 1`，四例
+  均在严格初始 `focus/value/visibleRatio=1` 前置成立后发生于 factor 阶段，焦点保持；Chromium
+  ordinary、200%、font-only 为 `visibleRatio=0`，WebKit ordinary 为部分可见 `0.0966`。WebKit
+  200% 与 font-only 原通过，显式 Save 恰 `1 PUT` 已走通。
+- 修复在既有中间 `overflow-y-auto` 滚动区上建立资源监听：`window.resize`、可用
+  `visualViewport.resize` 与特征守卫的 `ResizeObserver` 统一合并到一个 rAF。帧执行时重新读取
+  `document.activeElement`，仅对 connected 且属于该滚动区的当前活动元素执行
+  `scrollIntoView({ block: "nearest", inline: "nearest" })`；不捕获旧 active 节点、不主动 focus、
+  不改草稿/store、不新增请求，也不改变既有 focus trap/Tab 与初始 Close 聚焦语义。Close、卸载与
+  StrictMode cleanup 取消 rAF、移除监听并断开 Observer；缺失 `visualViewport`/`ResizeObserver`
+  时安全退化，迟到回调不作用于新周期。
+- 主控实跑：quality `0`；Vitest `1262 passed / 55 files / 0 skip`；backend
+  `1044 passed / 3 warnings / 0 skip`，raw coverage `81.94155934081152%`；本卡后端 5 门禁均为
+  `0`；build `47`、Fake API `116`、API 类型 runner `8` 通过；iOS 侧仅 Node `37` 通过，不表示
+  native iOS 或真机通过。
+- 三项有效私有 load 变异分别模拟不滚动、帧内捕获旧焦点与 Observer 泄漏；每项命令均 `exit 1`、
+  目标断言 `fail 1`、driver `0`。每命令 6 个未选用例不构成覆盖；恢复后冻结目标测试为 `7 passed /
+0 failed`，全量 Vitest 零 skip 用于佐证没有全局放宽。
+- 全量 E2E 为 `262 = Chromium 131 + WebKit 131`，全部 passed；每项恰有一个 passed result，
+  skip / flaky / unexpected / retry 均为 `0`，命令 `exit 0`，主控已独立归档。新增三场景在
+  Chromium/WebKit 各重复 20 次，机器核验为 `6` 组、每组 `20` 次，共 `120` 次；每项均为单
+  passed result，skip/flaky/unexpected/retry 均为 `0`，`workers=1`，命令 `exit 0`。
+- 两份测试完整行为 AST 与有效 RED 一致。最终收尾以 Node22 Prettier 纯格式化新 E2E 与四份仓内
+  文档并保留结果，不再追 raw SHA，也不计产品返修；两份产品与 unit 测试文件未改动，断言未改。
+- 所有数据库验证已完成；本批自有合成 PG 已回执 `stop_exit0`、`auto_removed=true`，精确 container
+  ID、双 owner、loopback 与合成身份均核验，其他资源未动。四份仓内文档与
+  `implementation/report.md` 已完成 `FINAL_READY` 收口；独立 Review、正常 commit/当前分支 push
+  以主控同卡最终回执为准，用户 Review 待，本状态不自行写 APPROVED。真实 OS 键盘、非零
+  safe-area、设备、Media/Provider、IdP、真实数据和生产未验；CP-05 手机动态视口/键盘/safe-area
+  父项保持 `[ ]`。
+- 范围、RCA、实现与验收口径见
+  [CP-05 设置抽屉动态可见性](./verification/cross-platform/CP-05-SETTINGS-FOCUS-VIEWPORT.md)。
+
 ### R2-11 会话中界面本地子卡（FINAL_READY）
 
-- 本小节是 2026-11-15 R2-11 本地模块桩子卡的 `FINAL_READY` 快照；正式返修 `1/2`。主控机器最终
+- 历史时点：本小节是 2026-11-15 R2-11 本地模块桩子卡当时的 `FINAL_READY` 快照；正式返修 `1/2`。主控机器最终
   验收的 13 项门禁全部 `exit 0`；独立技术 Review、正常 commit/当前分支 push 以主控同卡最终回执
   为准，用户 Review 待。父项 R2-11 保持未勾：真实 LiveKit 人工媒体验收未做，不得勾选整项。
 - 唯一实施 W 为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
@@ -77,7 +121,7 @@
 
 ### R2-10 硬编码文案收口（FINAL_READY）
 
-- 本小节是 2026-11-15 的本地实现 `FINAL_READY` 快照，正式返修 `2/2`。主控机器最终验收的
+- 历史时点：本小节是 2026-11-15 的本地实现当时 `FINAL_READY` 快照，正式返修 `2/2`。主控机器最终验收的
   13 项门禁全部 `exit 0`；独立技术 Review、正常 commit/当前分支 push 以主控同卡回执为准，
   用户 Review 待。
 - 唯一实施 W 为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支

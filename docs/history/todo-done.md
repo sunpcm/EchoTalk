@@ -6,6 +6,36 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 CP05D 设置抽屉动态可见性
+
+- **状态：`FINAL_READY`（本地子卡完成归档）**：设置抽屉已打开且输入聚焦后，普通 resize、
+  根字号 200% 后 resize 与聚焦后仅改字号三种动态空间场景，通过当前活动元素归属、单帧合并和
+  `nearest` 滚动保持输入可见，同时保留焦点、草稿和既有焦点语义。
+- **有效 RED**：单测先证明实际 Drawer 挂载后缺少 viewport reveal 资源；浏览器在严格初始
+  focus/value/完整可见成立后只改变 factor，目标场景仍出现不可见。静态布局通过；该静态矩阵未
+  复现固有尺寸裁切，本卡不修改布局或控件尺寸；早期未建立初始可见性的诊断不作为回归。精确失败
+  计数与 ratio 集中在 PROJECT_STATUS。
+- **实现边界**：`window.resize`、可用 `visualViewport.resize` 与特征守卫的滚动区
+  `ResizeObserver` 合并到一个 rAF；帧执行时只滚当前 connected 且归属滚动区的 active 元素。
+  不主动 focus、不改草稿/store、不发业务写，不改变既有 focus trap/Tab；关闭、卸载与 StrictMode
+  清理资源，特性缺失安全退化。
+- **最终验收**：quality、Vitest、backend、build、Fake API、API 类型与 iOS Node runner 已通过；
+  全量 E2E 为 Chromium/WebKit 各 `131`、共 `262`，全部 passed，skip/flaky/unexpected/retry 均为
+  `0`、`exit 0`。新增三场景双浏览器各重复 `20` 次、共 `120` 次，机器确认六组各 `20` 次，
+  每次执行恰有一个 passed result，skip/flaky/unexpected/retry 均为 `0`、`workers=1`、`exit 0`。三项有效私有 load 变异均
+  杀死目标断言，恢复后冻结目标测试为 `7 passed / 0 failed`；未选用例不计覆盖。其余精确机器计数
+  集中在 PROJECT_STATUS。
+- **收口边界**：两份测试完整行为 AST 与有效 RED 一致；Node22 Prettier 仅纯格式化新 E2E 与四份
+  仓内文档，产品与 unit 测试未改动，既有断言未改。所有数据库验证已完成；本批自有合成 PG 已
+  `stop_exit0`、`auto_removed=true`，精确 container ID、双 owner、loopback 与合成身份均核验，
+  其他资源未动。独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，
+  本归档不写 APPROVED。真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP、真实数据与
+  生产未验；CP-05 手机动态视口/键盘/safe-area 父项继续保留 `[ ]`。
+- 完整机器数字集中在
+  [PROJECT_STATUS 的 CP05D 小节](../PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)，验证口径见
+  [CP-05 设置抽屉动态可见性](../verification/cross-platform/CP-05-SETTINGS-FOCUS-VIEWPORT.md)。
+  下方 R2-11/R2-10 等条目均为各自历史时点，与本卡不合并计数。
+
 ## 2026-11-15 R2-11 会话中界面本地子卡（FINAL_READY）
 
 - [x] **R2-11 会话中界面本地子卡（FINAL_READY，本地实现）**：LiveKit 容器背景映射主题
@@ -52,7 +82,8 @@
       顺序/归一化 AST 与保护文件字节核对通过。完整机器数字集中在
       [PROJECT_STATUS 的 R2-10 小节](../PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)。
       独立 Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待；本归档不写
-      APPROVED。本批独占合成 PG 仍供 R2-10/R2-11/CP05 使用，待三卡末尾统一清理。
+      APPROVED。该历史时点，本批独占合成 PG 仍供 R2-10/R2-11/CP05 使用；当前已按 CP05D 回执
+      停止并确认自动移除。
 
 ## 2026-11-15 SGEC-OFF 严格离线校验与合成评测
 
