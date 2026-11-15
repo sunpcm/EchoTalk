@@ -40,6 +40,43 @@ def _current_user(user_id: uuid.UUID) -> CurrentUser:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["future_code", None])
+async def test_status_open_code_and_owner_predicates_do_not_expose_internal_message(
+    code,
+):
+    user_id = uuid.uuid4()
+    now = utc_now()
+    job = AnalysisJob(
+        id=uuid.uuid4(),
+        session_id=uuid.uuid4(),
+        status=AnalysisJobStatus.failed,
+        attempt_count=3,
+        last_error_code=code,
+        last_error="INTERNAL-CANARY",
+        created_at=now,
+        updated_at=now,
+    )
+    db = _db_returning(job)
+    response = await get_analysis_status(
+        job.session_id, current_user=_current_user(user_id), db=db
+    )
+    assert response.error_code == code
+    assert response.retryable is True
+    assert response.attempt_count == 3
+    assert "last_error" not in response.model_dump()
+    assert "INTERNAL-CANARY" not in response.model_dump_json()
+    params = db.execute.call_args.args[0].compile().params
+    assert user_id in params.values() and job.session_id in params.values()
+    response = await retry_analysis(
+        job.session_id, current_user=_current_user(user_id), db=db
+    )
+    assert response.error_code is None and job.last_error is None
+    assert response.attempt_count == 3
+    params = db.execute.call_args.args[0].compile().params
+    assert user_id in params.values() and job.session_id in params.values()
+
+
+@pytest.mark.asyncio
 async def test_end_session_only_completes_session_and_enqueues_job():
     user_id = uuid.uuid4()
     session = _session(user_id)

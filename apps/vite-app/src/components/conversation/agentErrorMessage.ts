@@ -1,7 +1,5 @@
-export interface AgentErrorMessage {
-  readonly code: string;
-  readonly message: string;
-}
+import { AGENT_ERROR_TOPIC, type AgentErrorMessage } from "@/lib/agentAnalysisContract";
+export type { AgentErrorMessage } from "@/lib/agentAnalysisContract";
 
 const decoder = new TextDecoder();
 
@@ -20,7 +18,7 @@ export function parseAgentErrorMessage(payload: Uint8Array): AgentErrorMessage |
     const candidate = parsed as Record<string, unknown>;
     if (
       !Object.prototype.hasOwnProperty.call(candidate, "type") ||
-      candidate.type !== "agent_error" ||
+      candidate.type !== AGENT_ERROR_TOPIC ||
       !Object.prototype.hasOwnProperty.call(candidate, "code") ||
       !isNonEmptyString(candidate.code) ||
       !Object.prototype.hasOwnProperty.call(candidate, "message") ||

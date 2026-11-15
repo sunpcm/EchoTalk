@@ -1,10 +1,10 @@
 # Agent DataChannel 与分析错误码契约设计
 
-> 已独立评审APPROVED R0，待用户确认、未实施。
-> 以下新增文件、生成流程、测试和变异均为拟议，未实施、未运行。
+> 设计已独立评审APPROVED R0，已获用户确认；实施本机验收数据已补齐，待最终独立Review。
+> §5–7 保留设计阶段的方案与计划时态；当前实测见[最终本机测试补齐回执](./history/2026-11-15-g3-contract-implementation.md)，实现PR及最终mainCI尚未发布。
 > 当前事实冻结于 `fcc9d6ed519196383d3b929da3a2a4f8d11e5dad`。
 > [TODO G3](https://github.com/sunpcm/EchoTalk/blob/fcc9d6ed519196383d3b929da3a2a4f8d11e5dad/TODO.md#L14-L25)
-> 要求先设计、用户确认后实施；设计通过不解除该门禁。
+> 原“先设计、用户确认后实施”门禁已满足；本机验证材料收口不预报最终评审或发布验证结论。
 
 ## 1. 结论与范围
 
@@ -187,7 +187,7 @@ flowchart TD
 
 为何不把所有 Provider/诊断字符串做闭集：异常类名和外部状态随 SDK/Provider 变化；typed 分析错误 code 当前可透传开放值；前端 Agent parser 明确测试允许未知码。闭集会改变失败接收、历史数据和滚动升级行为，而且不能单独实现脱敏。闭集只用于应用自有的已知目录/安全发送集合，公开开放字段、日志归一化和业务策略分别表达。
 
-待用户确认：是否采用上述 Python 唯一来源与 components 容器方案；确认后另开实施范围和验收，不以设计评审代替用户实现授权。以下观察不阻塞这份保行为设计，若要改变需独立裁定：
+用户已确认上述 Python 唯一来源与 components 容器方案并授权隔离实施；Harness已补齐完整backend pytest（895passed/3warnings，79.71%，59%门禁通过），实施本机验收数据齐备，仍待最终独立Review及尚未发布的实现PR/最终mainCI验证。以下观察不阻塞这份保行为设计，若要改变需独立裁定：
 
 - typed 分析异常的任意 code/截断 message 目前不等于脱敏；现有日志 canary 测试未证明数据库/API 安全。未来引入真实 Provider 前应明确哪些稳定公开码/安全消息可以构造该异常，不能直接转发 Provider 正文。本轮不擅自改成闭集或归一化持久化值。
 - Agent topic 和 JSON 形状不证明发送者身份；当前回调只取 payload，核的是本地 Room/auth ownership，没有显式校验发送 participant 是否 Agent。SDK/Room 的发布权限与真实攻击面未在本轮验证，不能宣称端到端已认证；增加发送者门禁需另核权限契约。

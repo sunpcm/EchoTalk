@@ -37,6 +37,9 @@ jobs:
       - name: Check generated API types
         run: pnpm --filter vite-app check:api-types
 
+      - name: Check Agent and analysis generated types
+        run: pnpm --filter vite-app check:agent-analysis-types
+
       - name: Test API type generation
         run: pnpm --filter vite-app test:api-types
 
@@ -131,6 +134,10 @@ jobs:
       - name: Check generated Provider display metadata
         working-directory: backend
         run: .venv/bin/python export_provider_metadata.py --check
+
+      - name: Check Agent and analysis contract
+        working-directory: backend
+        run: .venv/bin/python export_agent_analysis_contract.py --check
 
       - name: Ruff format
         working-directory: backend

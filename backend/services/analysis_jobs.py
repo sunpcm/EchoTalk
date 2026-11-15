@@ -7,6 +7,13 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agent_analysis_contract import (
+    NON_RETRYABLE_ERROR_CODES as NON_RETRYABLE_ERROR_CODES,
+)
+from agent_analysis_contract import (
+    AnalysisPublicErrorCode,
+    KnownAnalysisErrorCode,
+)
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.session import Session
 from services.analysis_observability import record_event, transaction_events
@@ -21,11 +28,6 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 RETRY_DELAYS_SECONDS = (5, 30)
 STALE_AFTER = timedelta(minutes=5)
-NON_RETRYABLE_ERROR_CODES = {
-    "analysis_unsupported",
-    "no_user_transcript",
-    "session_missing",
-}
 
 
 class InvalidAnalysisTransition(ValueError):
@@ -35,7 +37,9 @@ class InvalidAnalysisTransition(ValueError):
 class AnalysisExecutionError(RuntimeError):
     """An analysis failure with a stable, non-sensitive public error code."""
 
-    def __init__(self, code: str, message: str, *, retryable: bool = False):
+    def __init__(
+        self, code: AnalysisPublicErrorCode, message: str, *, retryable: bool = False
+    ):
         super().__init__(message)
         self.code = code
         self.retryable = retryable
@@ -151,13 +155,13 @@ async def recover_stale_jobs(
     for job in jobs:
         if job.attempt_count >= MAX_ATTEMPTS:
             transition_job(job, AnalysisJobStatus.failed, now=current_time)
-            job.last_error_code = "worker_timeout"
+            job.last_error_code = KnownAnalysisErrorCode.WORKER_TIMEOUT.value
             job.last_error = "Analysis worker stopped before completing the job"
             outcome = "failed"
         else:
             transition_job(job, AnalysisJobStatus.pending, now=current_time)
             job.next_retry_at = current_time
-            job.last_error_code = "worker_timeout"
+            job.last_error_code = KnownAnalysisErrorCode.WORKER_TIMEOUT.value
             job.last_error = "Analysis worker stopped before completing the job"
             outcome = "pending"
         record_event(
@@ -165,7 +169,7 @@ async def recover_stale_jobs(
             job_id=job.id,
             session_id=job.session_id,
             attempt_count=job.attempt_count,
-            error_code="worker_timeout",
+            error_code=KnownAnalysisErrorCode.WORKER_TIMEOUT.value,
             outcome=outcome,
         )
     await db.flush()
@@ -181,12 +185,15 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
 
     session = await db.get(Session, job.session_id)
     if session is None:
-        raise AnalysisExecutionError("session_missing", "Session no longer exists")
+        raise AnalysisExecutionError(
+            KnownAnalysisErrorCode.SESSION_MISSING.value, "Session no longer exists"
+        )
 
     analysis_result = await analyze_session(job.session_id, db)
     if analysis_result is None:
         raise AnalysisExecutionError(
-            "no_user_transcript", "Session has no user transcript to analyze"
+            KnownAnalysisErrorCode.NO_USER_TRANSCRIPT.value,
+            "Session has no user transcript to analyze",
         )
     await update_knowledge(job.session_id, session.user_id, db)
 
@@ -209,7 +216,10 @@ def _safe_error(exc: Exception) -> tuple[str, str]:
         return exc.code, str(exc)[:1000]
     # Provider exceptions may echo request headers or credentials. Persist only
     # the exception class; detailed provider diagnostics belong in redacted telemetry.
-    return "analysis_failed", f"Unexpected analysis failure ({type(exc).__name__})"
+    return (
+        KnownAnalysisErrorCode.ANALYSIS_FAILED.value,
+        f"Unexpected analysis failure ({type(exc).__name__})",
+    )
 
 
 async def record_job_failure(

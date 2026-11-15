@@ -713,3 +713,18 @@ pytest841/3warnings/80.59071729957806%（70.61s、命令75.55s），lint132warni
 完整数字、命令来源、首失败、私有toy和未验证边界见[本轮记录](./2026-11-14-g3-contract-design.md)。
 
 本轮仅设计文档收口；实施方停Review、不commit/push。后续仅设计PR与CI收尾，暂不merge，不实施、不启动H1/I1。
+
+## 2026-11-15 G3同源契约实施与本机验证补齐（待最终Review，未发布）
+
+以下为先前文档草稿时的原卡，按本次授权勾选归档，仅调整归档后的相对链接；卡内“停机/未运行/待完整验收”属于补齐前时点，不是当前状态。完成的是实施及本机验证材料收口，不预告最终Review或发布CI结论。
+
+- [x] **G3 实施：已获用户确认，待完整验收**：设计已独立评审 APPROVED R0，用户已确认并授权实施，
+      见 [设计 §6 / §7](../AGENT_AND_ANALYSIS_CONTRACT_DESIGN.md)。兼容、生成器回归、契约测试及8项有效变异已分阶段验证；
+      完整 backend pytest 尚未运行：指定 PG 仍 exited，等待用户恢复或授权启动，不换库、不执行迁移。
+      保持未完成，待完整三树与独立最终 Review 后再收口归档；[实施验收草稿](./2026-11-15-g3-contract-implementation.md)。
+
+补齐后结果：用户已恢复专用库，Harness亲自核验 `postgres:15.19-alpine`、label `echotalk-a1-20261111`、loopback5432及身份 `echotalk_test|echotalk|150019|c06_transcript_events`，完整backend pytest collected895、895passed/3warnings、79.71%，pytest47.14s/命令53.90s，exit0，source前后稳定。不是实施方执行；59%门禁通过，较旧设计CI841/3warnings/80.59%下降0.88个百分点，原因未知，旧基线不改写。
+
+此前14门禁、R1 Vitest1234/52、Fake125、类型10/构建21、8项有效变异目标RED/恢复GREEN及全部恢复字节证据保留；R0 E2E234、C117/W117、实际retry/skip/flaky0、52.0237s/命令53.30s，生产/E2E在R1不变，不冒称此次重跑。本轮源码、测试、配置及生成物均冻结。
+
+实现PR及最终mainCI尚未发布，未预填编号/实现终点SHA或APPROVED；当前基线仍为设计合并main0e70680。真实Provider/LiveKit/IdP、设备、Docker整栈与部署未验，H1/I1/B2不因此开工。完整来源、历史草稿/首失败与补齐时序见[实施记录的最终本机测试补齐回执](./2026-11-15-g3-contract-implementation.md)。实施方仅文档检查，停Review，不commit/push。

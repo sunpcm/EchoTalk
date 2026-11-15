@@ -13,6 +13,7 @@ EchoTalk 自定义凭据解析器 (RF-09 CredentialResolver)。
 from dataclasses import dataclass, field
 from typing import Any
 
+from agent_analysis_contract import KnownAgentErrorCode
 from livekit_agent.plugin_errors import PluginInitError
 
 
@@ -83,36 +84,36 @@ class CredentialResolver:
         # ── 1. 严格 6 项必填预检（3 providers -> 3 encrypted keys） ──
         if not getattr(us, "stt_provider", None):
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "自定义模式下 STT provider 未配置。请在设置页面选择提供商。",
             )
         if not getattr(us, "llm_provider", None):
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "自定义模式下 LLM provider 未配置。请在设置页面选择提供商。",
             )
         if not getattr(us, "tts_provider", None):
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "自定义模式下 TTS provider 未配置。请在设置页面选择提供商。",
             )
 
         encrypted_stt = getattr(us, "encrypted_stt_key", None)
         if not encrypted_stt:
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "自定义模式下 STT API Key 未配置。请在设置页面输入密钥。",
             )
         encrypted_llm = getattr(us, "encrypted_llm_key", None)
         if not encrypted_llm:
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "自定义模式下 LLM API Key 未配置。请在设置页面输入密钥。",
             )
         encrypted_tts = getattr(us, "encrypted_tts_key", None)
         if not encrypted_tts:
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "自定义模式下 TTS API Key 未配置。请在设置页面输入密钥。",
             )
 
@@ -123,7 +124,7 @@ class CredentialResolver:
             )
         except Exception:
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "API Key 解密失败，请重新保存密钥。",
             ) from None
 
@@ -133,7 +134,7 @@ class CredentialResolver:
             )
         except Exception:
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "API Key 解密失败，请重新保存密钥。",
             ) from None
 
@@ -143,7 +144,7 @@ class CredentialResolver:
             )
         except Exception:
             raise PluginInitError(
-                "ERR_CUSTOM_KEY_INVALID",
+                KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 "API Key 解密失败，请重新保存密钥。",
             ) from None
 
