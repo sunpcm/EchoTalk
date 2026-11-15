@@ -103,6 +103,52 @@ describe("PronunciationFeedback", () => {
     expect(delElem2.tagName.toLowerCase()).toBe("del");
   });
 
+  it("maps every seeded backend skill ID to Chinese without changing established labels", () => {
+    const skillLabels = [
+      ["article_usage", "冠词使用"],
+      ["verb_tense_past", "过去时态"],
+      ["verb_tense_present", "现在时态"],
+      ["subject_verb_agreement", "主谓一致"],
+      ["preposition", "介词使用"],
+      ["vowel_sounds", "元音发音"],
+      ["consonant_clusters", "辅音连缀"],
+      ["word_stress", "单词重音"],
+      ["linking_sounds", "连读"],
+      ["th_sounds", "TH 发音"],
+      ["other", "其他语法"],
+    ] as const;
+    const grammarErrors = skillLabels.map(([skillTag], index) => ({
+      ...mockGrammarErrors[0],
+      id: `seeded-skill-${index}`,
+      skill_tag: skillTag,
+      original: `source ${skillTag}`,
+      corrected: "",
+    }));
+
+    render(<PronunciationFeedback assessment={mockAssessment} grammarErrors={grammarErrors} />);
+
+    for (const [, label] of skillLabels) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it("keeps unknown and prototype property tags unchanged", () => {
+    const skillTags = ["future_skill", "constructor", "toString", "__proto__"];
+    const grammarErrors = skillTags.map((skillTag, index) => ({
+      ...mockGrammarErrors[0],
+      id: `unknown-skill-${index}`,
+      skill_tag: skillTag,
+      original: `source ${skillTag}`,
+      corrected: "",
+    }));
+
+    render(<PronunciationFeedback assessment={mockAssessment} grammarErrors={grammarErrors} />);
+
+    for (const skillTag of skillTags) {
+      expect(screen.getByText(skillTag)).toBeInTheDocument();
+    }
+  });
+
   it("renders grammar error items within a standard list structure without cluttering tab stops", () => {
     render(<PronunciationFeedback assessment={mockAssessment} grammarErrors={mockGrammarErrors} />);
 

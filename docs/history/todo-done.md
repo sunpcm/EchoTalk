@@ -6,6 +6,33 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 R2-10 硬编码文案收口（FINAL_READY）
+
+- [x] **R2-10 硬编码文案收口（FINAL_READY，本地实现）**：父项原验收完整保留：store/lib/组件中
+      14 处中文字面量与 `goalReached` 英文迁入 `src/i18n/`；`Goal reached!` 按已确认文案改为
+      “已达成今日目标！”，其余既有文案内容不变；设置抽屉标题为“设置”；推荐卡片与语法提示复用
+      真实技能中文映射；扫描测试要求 `src/` 非 i18n、非测试文件无中文字符串字面量。
+- [x] **父项既有回执未被新工作覆盖**：设置入口/dialog 标题和活动行、结束/恢复确认面板去完整 UUID
+      已由 R2-UI 按方案 A 完成并留档；用户可见正文、`title` 与最终可访问名称均无 UUID，完整 ID
+      只保留内部 key、稳定定位、API 参数与精确目标归属。R2-10 承接该既有回执，没有重复实现或
+      改写其历史数字。
+- [x] **本卡新增收口**：10 个后端真实技能共用中文标签目录，推荐卡已知标签与语法提示扩展标签均
+      命中中文；未知标签分别维持原 `formatTitle` / 原 `skill_tag` 回退，原型属性使用 own-property
+      安全判断。`platform/url.ts` 的 20 条 `[EchoTalk]` 配置错误原文迁入语言包，21 处抛错原位保留，
+      异常类型、校验顺序与全部 URL 安全行为不变；中文扫描撤除该文件豁免。
+- [x] **TDD 与历史失败保留**：冻结测试先为
+      `3 failed / 18 passed / 21 total / 0 skip / exit 1`，三项有效失败对应推荐已知标签、语法提示
+      扩展标签和 URL 中文扫描。首轮 `toString -> To String` 是测试夹具对 `formatTitle` 的误判，
+      正确回退为 `ToString`，不混作产品回归。初始完整 format `exit 1`、R0/R1 两次 quality
+      `exit 2` 均保留；R2 只补齐生成类型要求的 `target_level` 与 `weakest_skill_mastery`，并格式化
+      同一测试，断言、API 类型和产品字节未改。
+- [x] **最终机器验收**：主控确认 13 项门禁全部 `exit 0`，R2 修正后的 quality、Vitest、E2E、
+      backend、format、build 与 lint 均全绿；全部私有加载变异均被目标断言杀死，独立 AST、URL
+      顺序/归一化 AST 与保护文件字节核对通过。完整机器数字集中在
+      [PROJECT_STATUS 的 R2-10 小节](../PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)。
+      独立 Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待；本归档不写
+      APPROVED。本批独占合成 PG 仍供 R2-10/R2-11/CP05 使用，待三卡末尾统一清理。
+
 ## 2026-11-15 SGEC-OFF 严格离线校验与合成评测
 
 - [x] **SGEC-OFF 严格离线校验与合成评测（FINAL_READY，本地实现）**：新增纯模块

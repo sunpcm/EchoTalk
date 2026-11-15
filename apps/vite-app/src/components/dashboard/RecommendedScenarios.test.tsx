@@ -58,6 +58,79 @@ describe("RecommendedScenarios UX & Accessibility", () => {
     expect(enterButton).not.toHaveAttribute("aria-busy");
   });
 
+  it("maps every seeded backend skill ID to Chinese while preserving the scenario title", async () => {
+    vi.mocked(api.getRecommendedCurriculum).mockResolvedValueOnce({
+      weakest_skill: "verb_tense_past",
+      weakest_skill_mastery: 0.45,
+      target_level: "B1",
+      recommendations: [
+        {
+          scenario_name: "restaurant_ordering",
+          difficulty_cefr: "B1",
+          category: "conversation",
+          focus_skills: [
+            "article_usage",
+            "verb_tense_past",
+            "verb_tense_present",
+            "subject_verb_agreement",
+            "preposition",
+            "vowel_sounds",
+            "consonant_clusters",
+            "word_stress",
+            "linking_sounds",
+            "th_sounds",
+          ],
+          system_prompt_template: "",
+        },
+      ],
+    });
+
+    render(<RecommendedScenarios />);
+
+    expect(await screen.findByRole("heading", { name: "Restaurant Ordering" })).toBeInTheDocument();
+    for (const label of [
+      "冠词使用",
+      "过去时态",
+      "现在时态",
+      "主谓一致",
+      "介词使用",
+      "元音发音",
+      "辅音连缀",
+      "单词重音",
+      "连读",
+      "TH 发音",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it("keeps unknown focus skills on formatTitle fallback, including prototype property names", async () => {
+    vi.mocked(api.getRecommendedCurriculum).mockResolvedValueOnce({
+      target_level: "B2",
+      weakest_skill_mastery: 0.25,
+      weakest_skill: "future_skill",
+      recommendations: [
+        {
+          scenario_name: "future_skills",
+          difficulty_cefr: "B2",
+          category: "conversation",
+          focus_skills: ["future_perfect_progressive", "constructor", "toString", "__proto__"],
+          system_prompt_template: "",
+        },
+      ],
+    });
+
+    render(<RecommendedScenarios />);
+
+    expect(await screen.findByRole("heading", { name: "Future Skills" })).toBeInTheDocument();
+    expect(screen.getByText("Future Perfect Progressive")).toBeInTheDocument();
+    expect(screen.getByText("Constructor")).toBeInTheDocument();
+    expect(screen.getByText("ToString")).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.textContent?.trim() === "Proto"),
+    ).toBeInTheDocument();
+  });
+
   it("sets aria-busy and shows checking state when connectionState is checking_health", async () => {
     useConversationStore.setState({
       connectionState: "checking_health",

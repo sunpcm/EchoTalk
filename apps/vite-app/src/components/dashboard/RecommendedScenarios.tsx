@@ -8,6 +8,7 @@ import { getRecommendedCurriculum } from "@/lib/api";
 import type { CurriculumRecommendation, CurriculumNextResponse } from "@/lib/api";
 import { useConversationStore } from "@/store/conversation";
 import { zhCN } from "@/i18n/zh-CN";
+import { resolveSkillLabel } from "@/i18n/skillLabels";
 import { SectionState } from "@/components/shared/SectionState";
 import { formatTitle } from "@/utils/format";
 
@@ -59,7 +60,7 @@ function ScenarioCard({
               key={skill}
               className="bg-accent-soft-bg text-accent-soft-text rounded-md px-2 py-0.5 text-xs"
             >
-              {formatTitle(skill)}
+              {resolveSkillLabel(skill, formatTitle)}
             </span>
           ))}
         </div>

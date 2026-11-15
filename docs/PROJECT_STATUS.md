@@ -1,12 +1,13 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **SGEC-OFF 严格离线校验与合成评测（FINAL_READY，本地实现）**：
-> 纯模块、CLI runner、固定合成 fixtures 与结构化单测已完成并通过主控完整验收，精确数字见下方
-> SGEC-OFF 小节。
-> R2-UI 的 `1225 / 252`、R2-LIVE 的 `1219 / 248` 及 DEC-A、RDOC、A18P2、A19 P2 等数字均绑定各自
-> 历史时点，不能转作本卡结果。SGEC-OFF 已 FINAL_READY；本批独占合成 PG 已在完成后清理。
+> 最后核对：2026-11-15。当前卡片为 **R2-10 硬编码文案收口（FINAL_READY，本地实现）**：
+> 父项原有文案迁移、设置标题与活动 UUID 验收完整承接；本卡补齐 10 个真实技能中文标签与平台 URL
+> 配置错误入 i18n。R2 夹具修正后的最终 13 项门禁全部 `exit 0`，完整机器数字集中在本节。
+> SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、A19 P2 等均为各自时点的历史交付，其数字不能
+> 转作本卡结果。SGEC-OFF 等历史批次的独占合成 PG 已清理；R2-10/R2-11/CP05 共用的本批独占 PG
+> 仍在运行，待三卡末尾统一清理。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
-> requested model 为 `workbuddy/deepseek-v4-pro/high`；工具请求和真实读写成功，实际后端身份未独立认证。
+> requested route 为 `workbuddy/deepseek-v4.1-flash`；真实调用成功仅证明路由可用，实际后端身份未独立认证。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
 > [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在
@@ -34,6 +35,55 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### R2-10 硬编码文案收口（FINAL_READY）
+
+- 本小节是 2026-11-15 的本地实现 `FINAL_READY` 快照，正式返修 `2/2`。主控机器最终验收的
+  13 项门禁全部 `exit 0`；独立技术 Review、正常 commit/当前分支 push 以主控同卡回执为准，
+  用户 Review 待。
+- 唯一实施 W 为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，基线 HEAD
+  `6240e2e31921efd1fa8e8731861c82cd183b7a9a`。本轮只在任务卡允许的推荐卡、语法提示、i18n、
+  平台 URL 与三份冻结回归测试范围内修改，并新增共享标签解析器；未改后端技能集合、URL 校验行为、
+  API、切面结构或依赖。
+- 主控修正夹具后实跑冻结测试为
+  `3 failed / 18 passed / 21 total / 0 skip / exit 1`，且当时产品零改动。3 项有效 RED 分别为推荐
+  卡已知技能中文标签、语法提示扩展技能中文标签、`platform/url.ts` 纳入中文无豁免扫描。首轮第 4
+  个 `toString` 失败已单独认定为测试预期错误并纠正为 `ToString`：`formatTitle` 只按下划线拆词；
+  该夹具错误不混作产品回归，既有回退断言保持冻结。
+- R0 独立完整 quality 为 `exit 2`，唯一错误是新增推荐测试的合成夹具
+  `weakest_skill: null` 与当前 API 的 string 类型不符；该 RED 原始证据保留，不属产品运行回归。
+- R1 精确 GO 后只把该值改为合法 `future_skill`，并在 Node `22.13.1` 下用现有 pnpm Prettier 格式
+  化该测试文件。R1 复验 quality 仍为 `exit 2`：TypeScript 在同一新增响应对象继续指出
+  `CurriculumNextResponse` 的必填 `target_level` 与 `weakest_skill_mastery` 缺失；该第二次失败
+  记录同样保留，不覆盖 R0。
+- R2 独立审查为 `CHANGES_REQUESTED`（正式返修 `2/2`）。按 `api.generated.ts` 的实际必填字段一次核齐该新增外层对象，只补
+  `target_level: "B2"`、`weakest_skill_mastery: 0.25`；内层推荐原有五个必填字段保持。随后对同一
+  测试重跑 Node `22.13.1` 现有 pnpm Prettier，输出 `unchanged / exit 0`。全部断言、API 类型与
+  5 个产品源文件字节未变。
+- R2 修正后的最终机器验收为 13 项门禁全部 `exit 0`：Vitest
+  `1229 passed / 52 files / 0 skip`；完整 E2E
+  `252 = Chromium 126 + WebKit 126`，每个 test 恰有一个 passed result，
+  `retry / skip / flaky / unexpected` 均为 `0`。
+- backend 为 `1044 passed / 3 warnings / 0 skip`，raw coverage
+  `81.85846835618335%`；build-script `47`、Fake API `116`、API 类型 runner `8`、iOS 侧仅
+  Node `37` 均通过。lint 为 `132 warning / 0 error / 0 new`，file/message/rule 多重集与父基线
+  一致。
+- 三项目标私有加载变异均被对应断言杀死。AST 独立核对覆盖 74 个源文件，CJK 字面量为 `0`；
+  `platform/url.ts` 的 21 个抛点、20 条文案顺序与归一化 AST 不变，原有 `zhCN` 值不变；
+  690 个保护文件字节不变。R2 修正后的 quality、Vitest、format 及全部 13 门禁均全绿。
+- 初始完整 format 为 `exit 1`，R0/R1 的两次 quality `exit 2`、首轮 `ToString` 夹具误预期及
+  首轮真实 RED 的原始记录均保留；这些历史失败不覆盖、也不被 R2 后全绿抹掉。
+- 推荐卡保留场景名的 `formatTitle` 口径，只在技能标签命中 10 个后端真实技能时显示中文；语法提示
+  复用同一技能目录并保留既有 6 类语法文案。两者的未知标签分别继续原 `formatTitle` 与原
+  `skill_tag` 回退；`constructor`、`toString`、`__proto__` 等原型属性名不会误取继承值或导致渲染
+  崩溃。
+- `platform/url.ts` 的 20 条 `[EchoTalk]` 配置错误原文迁入 `zh-CN.ts`，21 个
+  `PlatformConfigError` 构造原位保留并改为读取语言包；异常类型、校验顺序、返回行为、协议/凭据/
+  Query/路径/Hash 等 URL 安全判断未改，硬编码扫描不再豁免该文件。
+- 实施端除 R1/R2 精确 GO 下对同一推荐测试执行现有 formatter 外，未运行 Vitest、13 门禁、
+  lint、typecheck、build、E2E 或服务；最终数字来自主控机器回执，不继承 SGEC-OFF、R2-UI、
+  R2-LIVE 或其他历史轮次结果。最终文档收口只格式化 TODO、本状态页和历史归档。
 
 ### SGEC-OFF 严格离线校验与合成评测（FINAL_READY）
 

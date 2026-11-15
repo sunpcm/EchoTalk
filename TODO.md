@@ -4,7 +4,17 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **SGEC-OFF 严格离线校验与合成评测（2026-11-15，FINAL_READY，已归档）：** 纯模块
+> **R2-10 硬编码文案收口（2026-11-15，FINAL_READY，已归档）：** 父项原有 14 处中文文案与
+> `goalReached` 英文迁移、设置标题和活动记录去 UUID 已由既有完成回执承接；本卡补齐 10 个真实技能
+> 中文标签复用与 `platform/url.ts` 20 条配置错误原文入 i18n，保持 21 处抛点和全部 URL 安全行为。
+> R2 夹具修正后的最终 13 项门禁均 `exit 0`；完整机器数字、变异、AST 与保护矩阵集中在
+> [PROJECT_STATUS 的 R2-10 小节](./docs/PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)，
+> 父项验收、原文案迁移和 R2-UI 既有回执见
+> [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-10-硬编码文案收口final_ready)。
+> 独立 Review、正常 commit/当前分支 push 见主控同卡回执，用户 Review 待；产品与测试已冻结。
+> 本批独占合成 PG 仍由 R2-10/R2-11/CP05 共用运行，待三卡末尾统一清理。
+
+> **SGEC-OFF 严格离线校验与合成评测（历史交付，2026-11-15，FINAL_READY，已归档）：** 纯模块
 > `services/sgec_offline.py`、CLI runner `scripts/evaluate_sgec_offline.py`、固定合成
 > `tests/fixtures/sgec_offline_cases.json` 与结构化单测 `tests/test_sgec_offline.py` 已完成；只做现有
 > 五核心字段全批次严格结构校验、调用方合法集合与受控合成元数据，不接默认分析/API/DB/BKT/events/Provider。
@@ -12,16 +22,17 @@
 > [PROJECT_STATUS 的 SGEC-OFF 小节](./docs/PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)。
 > 独立技术 Review、最终文档 format、正常 Husky commit/当前分支 API 发布以主控同卡回执为准；
 > 用户 Review 待，本文件不写 APPROVED。SGEC 总项仍 `[ ]`（真实 Provider、人工 gold 与教学质量未验）；
-> 本批独占合成 PG 已在完成后清理。
+> SGEC-OFF 所属历史批次的独占合成 PG 已在完成后清理；本轮 R2-10/R2-11/CP05 共用的独占 PG
+> 仍在运行，待三卡末尾统一清理。
 
-> **R2-UI 设置标题与活动记录去 UUID（2026-11-15，FINAL_READY，已归档）：** 用户已确认的方案 A
+> **R2-UI 设置标题与活动记录去 UUID（历史交付，2026-11-15，FINAL_READY，已归档）：** 用户已确认的方案 A
 > 已实施完成：共享设置入口与 dialog 名为“设置”，活动行及结束/恢复确认面板复用既有模式与开始时间，
 > 用户可见正文、`title` 和最终计算可访问名称均不暴露完整 UUID；完整 ID 只保留内部 key、稳定定位、
 > API 参数和精确目标归属。本卡 13 项门禁已通过，详细历史、数字、变异、截图与边界见
 > [PROJECT_STATUS 的 R2-UI 小节](./docs/PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
 > 独立技术 Review、最终 format、commit/push 以主控同卡回执为准；用户 Review 待，本文件不写 APPROVED。
 
-> **R2-LIVE 活动会话生命周期实时门禁（2026-11-15，FINAL_READY 并归档）：** 生命周期事件现从同一
+> **R2-LIVE 活动会话生命周期实时门禁（历史交付，2026-11-15，FINAL_READY 并归档）：** 生命周期事件现从同一
 > conversation store 实时读取当前启动状态，复用 `isStartingConversationSession`；本轮 GO 仅指本地实现，
 > 本地实现与主控新鲜门禁已完成。完整数字、变异和边界集中在
 > [PROJECT_STATUS 的 R2-LIVE 小节](./docs/PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
@@ -67,11 +78,12 @@
       平台名判断改为读取适配器能力；删除 `src/utils/env.ts`。验收：`auth.test.ts`、`VoiceInterface.test.tsx`
       零改动通过；`src/` 中 `platform/` 之外不再出现 `=== "ios"` 这类平台名比较；不新增依赖。
       原生实现不在本项范围。
-- [ ] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；其中设置标题与活动记录
-      UUID 两项已由 R2-UI 按方案 A 核销）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与
-      `goalReached` 英文迁入 `src/i18n/`；设置抽屉标题改为“设置”；活动行及确认面板不展示完整
-      UUID；推荐卡片与语法提示的技能标签复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、
-      非测试文件中无中文字符串字面量。
+- [x] **R2-10 硬编码文案收口（FINAL_READY，已归档）**：父项原有中文字面量与
+      `goalReached` 迁移、设置标题、活动记录去 UUID 和扫描验收完整保留；R2-UI 的标题/UUID 回执
+      继续作为父项既有证据。本卡补齐 10 个真实技能中文标签与 URL 配置错误入 i18n，并通过最终
+      13 门禁。详见
+      [PROJECT_STATUS](./docs/PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)与
+      [已完成事项](./docs/history/todo-done.md#2026-11-15-r2-10-硬编码文案收口final_ready)。
 - [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：覆盖 LiveKit 容器背景为主题色、增加
       场景名与计时页头、手机上字幕优先、`thinking` 使用独立文案。验收：模块桩布局 E2E 覆盖 390 与 1280；
       真实 LiveKit 下的人工验收单列，未做不得勾选整项。

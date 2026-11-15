@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 // AGENTS.md：前端文案必须走 src/i18n/。本测试扫描源码，禁止在语言包之外出现中文字面量。
-// 注释不算文案；platform/url.ts 抛出的是面向开发者的配置错误，不进入用户界面，单独豁免。
+// 注释不算文案；platform/url.ts 的配置错误文案同样必须经过语言包。
 
 const sources = import.meta.glob<string>("../**/*.{ts,tsx}", {
   query: "?raw",
@@ -9,7 +9,6 @@ const sources = import.meta.glob<string>("../**/*.{ts,tsx}", {
   eager: true,
 });
 
-const ALLOWED = new Set(["../platform/url.ts"]);
 const CJK = /[一-鿿]/;
 
 function isScanned(path: string): boolean {
@@ -17,8 +16,7 @@ function isScanned(path: string): boolean {
     !path.startsWith("./") &&
     !path.startsWith("../i18n/") &&
     !/\.test\.tsx?$/.test(path) &&
-    !path.endsWith(".d.ts") &&
-    !ALLOWED.has(path)
+    !path.endsWith(".d.ts")
   );
 }
 
@@ -37,6 +35,7 @@ describe("no hardcoded user-facing copy outside src/i18n", () => {
     expect(scanned.length).toBeGreaterThan(40);
     expect(scanned).toContain("../store/conversation.ts");
     expect(scanned).toContain("../components/doc-chat/DocUploadCard.tsx");
+    expect(scanned).toContain("../platform/url.ts");
   });
 
   it("has no CJK literals outside the language pack", () => {

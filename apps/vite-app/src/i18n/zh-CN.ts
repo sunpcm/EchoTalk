@@ -2,7 +2,42 @@
  * i18n 中文字符串映射。
  * TODO: i18n — 后续接入 react-i18next 或 next-intl，将此对象替换为语言包文件。
  */
+export const catalogSkillLabels = {
+  article_usage: "冠词使用",
+  verb_tense_past: "过去时态",
+  verb_tense_present: "现在时态",
+  subject_verb_agreement: "主谓一致",
+  preposition: "介词使用",
+  vowel_sounds: "元音发音",
+  consonant_clusters: "辅音连缀",
+  word_stress: "单词重音",
+  linking_sounds: "连读",
+  th_sounds: "TH 发音",
+} as const;
+
 export const zhCN = {
+  platformConfigErrors: {
+    apiEmpty: "[EchoTalk] API 地址不能为空",
+    apiInvalid: "[EchoTalk] 非法的 API 地址",
+    apiProtocol: "[EchoTalk] API 地址仅支持 HTTP/HTTPS 协议",
+    apiCredentials: "[EchoTalk] API 地址禁止包含用户名或密码",
+    apiQuery: "[EchoTalk] API 地址禁止包含 Query 参数",
+    apiHash: "[EchoTalk] API 地址禁止包含 Hash 片段",
+    apiPath: "[EchoTalk] API 地址仅支持根路径或 /api 前缀，不支持其他路径",
+    apiNativeHttps: "[EchoTalk] 生产原生环境仅允许 HTTPS API 地址",
+    devHostEmpty: "[EchoTalk] dev_server_host 覆盖配置不能为空",
+    nativeApiMissing: "[EchoTalk] 原生环境未配置有效的 VITE_API_BASE_URL",
+    apiExplicitEmpty: "[EchoTalk] 显式配置的 VITE_API_BASE_URL 不能为空",
+    liveKitEmpty: "[EchoTalk] LiveKit WebSocket 地址不能为空",
+    liveKitInvalid: "[EchoTalk] 非法的 LiveKit WebSocket 地址",
+    liveKitProtocol: "[EchoTalk] LiveKit 仅允许 ws:// 或 wss:// 协议",
+    liveKitCredentials: "[EchoTalk] LiveKit 地址禁止包含用户名或密码",
+    liveKitHash: "[EchoTalk] LiveKit 地址禁止包含 Hash 片段",
+    liveKitNativeWss: "[EchoTalk] 生产原生环境仅允许使用 wss:// 协议连接 LiveKit",
+    liveKitWebDirectMissing: "[EchoTalk] Web 直连模式未配置有效的 LiveKit 地址",
+    liveKitLocationMissing: "[EchoTalk] 无法获取当前页面 location 构造代理地址",
+    liveKitNativeDirectMissing: "[EchoTalk] 原生直连模式未配置有效的 LiveKit 地址",
+  },
   auth: {
     title: "登录 EchoTalk",
     loading: "正在恢复登录状态…",
@@ -165,11 +200,11 @@ export const zhCN = {
       other: "复习已完成的语法表达",
     },
     skills: {
-      article_usage: "冠词使用",
-      verb_tense_past: "过去时态",
-      verb_tense_present: "现在时态",
-      subject_verb_agreement: "主谓一致",
-      preposition: "介词使用",
+      article_usage: catalogSkillLabels.article_usage,
+      verb_tense_past: catalogSkillLabels.verb_tense_past,
+      verb_tense_present: catalogSkillLabels.verb_tense_present,
+      subject_verb_agreement: catalogSkillLabels.subject_verb_agreement,
+      preposition: catalogSkillLabels.preposition,
       other: "其他语法",
     },
   },
