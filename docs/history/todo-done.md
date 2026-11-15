@@ -966,3 +966,22 @@ retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。�
 结果（父 Harness，源码独立 APPROVED）见 [Dashboard 抽取记录](./2026-11-15-dashboard-extraction.md)：
 三树计数相对 ACT 基线零变化（Vitest1260/55、E2E258 C129/W129 retry/skip/flaky0、pytest957/3warnings/80.63%），
 17 门禁全 success。ACT PR184 已发布（source `5e478b8`）、CI 运行中未合 main；DASH 不预填 PR/主线 SHA。
+
+## 2026-11-15 Compose 启动门禁方案 B（CPB，归档）
+
+以下 `[x]` 卡由根 TODO R2-14 移入归档：方案 B 实现 + 静态契约验证已完成并独立 APPROVED；整栈/实际迁移
+仍明确未验证、不记完成（`.env` 与外部依赖另列为未验证）。真实 Provider/LiveKit/IdP、设备、整栈与部署仍未验。
+
+- [x] **R2-14 Compose 就绪与迁移编排（方案 B 实现 + 静态契约验证）**（A-1 的 P1-3、P1-5，P2；用户已确认采用方案 B）：
+      API 公开 `/api/health` + 专用一次性迁移成功作为启动依赖，`echotalk-web` 改为 `condition: service_healthy`，
+      保留用户级 ready 认证（`backend/routers/health.py:25–29` 的 ready 端点 `Depends(get_current_user)`，
+      故不能用匿名 `/api/health/ready` 做匿名 healthcheck）。验收：云端可做 `docker compose config` 校验（静态契约已验）；
+      整栈启动验证需要 `.env` 与外部依赖，另列为未验证；不实际迁移/整栈/部署。
+
+结果（父 Harness，源码独立 APPROVED）见 [Compose 启动门禁记录](./2026-11-15-compose-startup-gates.md)：本机
+17 门禁全 success（Vitest 1260/55、Fake 125、types 10、build 21、pytest 962/3warnings/80.63%、组合 E2E 实测
+258/0 C129/W129 retry/skip/flaky0、命令 53.47s），相对 DASH 后端 +5（962 vs 957）其余 0；三处有效变异
+（wrong-path/barrier/web）目标 RED + 恢复 GREEN。整栈/实际迁移仍未验，liveness + 迁移门禁只约束 Compose 启动
+顺序，不保证运行中 DB 持续 ready 或独立容器重启依赖顺序；本机未运行迁移服务/整栈/本机库 alembic，父用已有
+专用 PG 容器亲跑 pytest；CI「Upgrade empty PostgreSQL database」对一次性合成库执行 `alembic upgrade head`
+（原流程未改），不声称所有环境零迁移或零容器运行。

@@ -45,11 +45,10 @@
       `git mv` 归位 dashboard 之外的组件目录。用户已裁定本轮仅做既有 `Dashboard` 函数体跨文件搬运例外，
       其余目录随以后分层迁移顺带归位，不扩大 rename。验收：`git diff --stat -M` 全部为 rename 或纯 import
       路径修改；三测试树计数不变。
-- [ ] **R2-14 Compose 就绪与迁移编排**（A-1 的 P1-3、P1-5，P2；用户已确认采用方案 B、实施待做）：API 公开
-      `/api/health` + 专用一次性迁移成功作为启动依赖，`echotalk-web` 改为 `condition: service_healthy`，
-      保留用户级 ready 认证（`backend/routers/health.py:25–29` 的 ready 端点 `Depends(get_current_user)`，
-      故不能用匿名 `/api/health/ready` 做匿名 healthcheck）。验收：云端可做 `docker compose config` 校验；
-      整栈启动验证需要 `.env` 与外部依赖，另列为未验证；不实际迁移/整栈/部署。
+- [ ] **R2-14 剩余整栈/迁移服务实证（实现和静态已归档）**（A-1 的 P1-3、P1-5，P2）：方案 B 实现 + 静态契约验证
+      （API 公开 `/api/health` + 专用一次性迁移成功作为启动依赖、`echotalk-web` `condition: service_healthy`、
+      保留用户级 ready 认证 `backend/routers/health.py:25–29` 的 ready 端点 `Depends(get_current_user)`）已归档；
+      剩余整栈/迁移服务实证（真实迁移服务容器与整栈启动顺序）需要 `.env` 与外部依赖，仍未验证；不实际迁移/整栈/部署。
 
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
