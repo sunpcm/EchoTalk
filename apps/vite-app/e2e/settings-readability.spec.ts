@@ -391,6 +391,79 @@ function measureFocusRing(page: Page, selector: string) {
   }, selector);
 }
 
+/** 读取每个主题 radio 的色点（外圈/内点）与文字真实矩形，证明均在按钮边界内（不只看 class）。 */
+function measureSwatchGeometry(page: Page) {
+  return page.evaluate(() => {
+    type Rect = {
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+      width: number;
+      height: number;
+    };
+    const elRect = (el: Element | null): Rect | null => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        left: r.left,
+        top: r.top,
+        right: r.right,
+        bottom: r.bottom,
+        width: r.width,
+        height: r.height,
+      };
+    };
+    const rangeRect = (range: Range): Rect => {
+      const r = range.getBoundingClientRect();
+      return {
+        left: r.left,
+        top: r.top,
+        right: r.right,
+        bottom: r.bottom,
+        width: r.width,
+        height: r.height,
+      };
+    };
+    const contains = (child: Rect | null, parent: Rect): boolean => {
+      if (!child) return false;
+      const e = 0.5; // 亚像素/取整容差
+      return (
+        child.left >= parent.left - e &&
+        child.right <= parent.right + e &&
+        child.top >= parent.top - e &&
+        child.bottom <= parent.bottom + e
+      );
+    };
+    const group = document.querySelector('[role="radiogroup"]');
+    const buttons = group ? Array.from(group.querySelectorAll('[role="radio"]')) : [];
+    return buttons.map((btn) => {
+      const btnBox = elRect(btn)!;
+      const swatch = btn.children[0] ?? null;
+      const dot = swatch?.children[0] ?? null;
+      const label = btn.children[1] ?? null;
+      const swatchBox = elRect(swatch);
+      const dotBox = elRect(dot);
+      let textBox: Rect | null = null;
+      if (label && label.textContent && label.textContent.trim() !== "") {
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        textBox = rangeRect(range);
+      }
+      return {
+        label: btn.getAttribute("aria-label"),
+        btn: btnBox,
+        swatch: swatchBox,
+        dot: dotBox,
+        text: textBox,
+        swatchWithin: contains(swatchBox, btnBox),
+        dotWithin: contains(dotBox, btnBox),
+        textWithin: contains(textBox, btnBox),
+      };
+    });
+  });
+}
+
 for (const theme of THEMES) {
   for (const viewport of VIEWPORTS) {
     for (const rootFontSize of ROOT_FONT_SIZES) {
@@ -424,6 +497,15 @@ for (const theme of THEMES) {
         const overflow = await dialog.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
         expect(overflow).toBe(false);
 
+        // 主题按钮大字号重排：每个 radio 的色点/内点/文字真实矩形均落在按钮边界内。
+        const swatchGeometry = await measureSwatchGeometry(page);
+        expect(swatchGeometry).toHaveLength(THEMES.length);
+        for (const g of swatchGeometry) {
+          expect(g.swatchWithin).toBe(true);
+          expect(g.dotWithin).toBe(true);
+          expect(g.textWithin).toBe(true);
+        }
+
         // P1-2：合成祖先 opacity 后的真实文字对比，能杀 opacity-50 变异。
         const disabledText = await measureProviderTextEffective(page, "#stt-provider-select");
         expect(disabledText.ratio).toBeGreaterThanOrEqual(disabledText.required);
@@ -448,6 +530,7 @@ for (const theme of THEMES) {
               descBox,
               switchBox,
               overflow,
+              swatchGeometry,
             },
             null,
             2,
