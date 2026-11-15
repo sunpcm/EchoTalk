@@ -985,3 +985,19 @@ retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。�
 顺序，不保证运行中 DB 持续 ready 或独立容器重启依赖顺序；本机未运行迁移服务/整栈/本机库 alembic，父用已有
 专用 PG 容器亲跑 pytest；CI「Upgrade empty PostgreSQL database」对一次性合成库执行 `alembic upgrade head`
 （原流程未改），不声称所有环境零迁移或零容器运行。
+
+## 2026-11-16 CI 首失败取证（EV，归档）
+
+以下 `[x]` 卡为 EV（CI 首失败取证，轻量维护）新增归档：仅 E2E 证据保存实施，根 TODO 无旧卡可移
+（GC 与 weekly-grammar 历史根因仍开放，不在此勾选）。本归档只落证据保存配置与本机验收，不宣称修复 GC 根因。
+
+- [x] **（EV）CI 首失败取证证据保存**：`apps/vite-app/playwright.config.ts` `use.trace` 由 `on-first-retry` 改
+      `retain-on-failure`、新增 `use.screenshot: only-on-failure`；`.github/workflows/ci.yml` E2E 步骤 reporter 改
+      `list,json` + `env.PLAYWRIGHT_JSON_OUTPUT_NAME=playwright-report/results.json`，其后新增 always 上传 JSON 报告
+      与 test-results（7 天 retention、run_id/run_attempt 区分名，复用 actions/upload-artifact@v4）。不加 retry/timeout、
+      不弱断言、不宣称修复 GC。
+
+结果（父 Harness，源码独立 APPROVED）见 [CI 首失败取证记录](./2026-11-16-e2e-first-failure-evidence.md)：本机 17 门禁
+全 success（Vitest 1260/55、Fake 125、types 10、build 21、pytest 962/3warnings/80.63%、E2E 258 C129/W129
+retry/skip/flaky0）；默认 trace/screenshot 策略受控对照负 2（trace2/PNG2/JSON）正 2（trace0/失败 PNG0），705 源文件逐字节恢复。
+实际远端 artifact 上传待发布（EV PR/main CI 尚未创建）；历史 GC60 自然未复现、根因未知，不可据后续 main 绿结案。
