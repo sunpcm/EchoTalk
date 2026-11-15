@@ -843,3 +843,20 @@ fresh 当前 VoiceInterface 86 通过、全 Vitest 1249/53 通过（`native-curr
       （`native-current-inheritance.json`）。此证据不依赖 `d8c9ff9` 祖先关系；非祖先事实与
       更正仍保留（merge-base exit1、共同祖先 `c704925`），不追认历史完整因果，真实 Room/设备
       其他卡仍独立未勾。见 [CP-06 Native Room 回归夹具就绪](../verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
+
+## 2026-11-15 theme-storage 冷启动输入/水合时序（TS，归档）
+
+以下原「当前优先问题」的 (TS) 维护卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本次前提固化与零写保护，不追认历史 H1 完整因果。
+
+- [x] **(TS) theme-storage 冷启动输入/水合时序**：历史 H1 两次 233/1 warm/cool、原自然 100/100、
+      受控 GET cool 水合后原 warm 断言 4/4 失败、GET warm 同条件 4/4 通过，历史完整因果未证。
+      验收：确定冷启动本地 fallback 与远端水合各阶段、保留原 3 用例断言与真实 UI/HTTP；原文件双浏览器
+      repeat50 共 300 零重试、三树全跑；不加 sleep/重试、不放宽断言。实施另包。
+
+结果（本机 Harness，未发布）：17 门禁全 success——Vitest1249/53、Fake125、types10/build21、
+pytest957/3warnings/80.63%（80.63339413%）、完整E2E234（C117/W117、retry/skip/flaky0、61.84s）、
+目标全文件300（C150/W150、retry/skip/flaky0、263.375914s）。三私有变异 fallback/hydrate/badput 均目标 RED+恢复 GREEN，坏 PUT 由
+spec125 `expect(themePutCount).toBe(0)` 抓住。历史 H1 两次 233/1 与 weekly-grammar rootCause 未知项保留，
+不因本次 300/300 或原自然 100/100 证明因果；PR/CI 待建，不填编号。详见
+[theme-storage 验收记录](./2026-11-15-theme-storage-reliability.md)。
