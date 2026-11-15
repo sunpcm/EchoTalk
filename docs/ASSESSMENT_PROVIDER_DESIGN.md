@@ -1,7 +1,7 @@
 # I1 发音与语法评估提供方设计
 
-> 设计候选R0，待独立Review与用户确认；未实施。源码事实冻结于main `0f7a5e57f809f8566efc39ca582bdc95fc260dfc`，tree `eeb37709c6e8802092eb8a25ba8fb5b799965d39`。
-> 下文接口、文件和验收均是未来建议。当前轮仅五MD；不新增源码、测试、DB结构、HTTP/OpenAPI字段、依赖、真实Provider或B2事件。
+> 设计R0已获独立Review APPROVED，用户已确认方案A；方案A已实施、源码APPROVED R0。以下§1–§7保留设计时点（源码事实冻结于main `0f7a5e57f809f8566efc39ca582bdc95fc260dfc`，tree `eeb37709c6e8802092eb8a25ba8fb5b799965d39`）的推荐、冻结事实与未来验收计划，不因实施而改写设计历史。
+> 实际实现文件/行、验收索引与5项有效变异见§9及[实施记录](./history/2026-11-15-i1-provider-implementation.md)。
 
 ## 1. 推荐与输入边界
 
@@ -160,10 +160,39 @@ service观察点只覆盖其调用范围；若取消发生在service已经返回
 
 未来完整三树必须由实际实施包按手册和专用PG身份执行，禁止换库、假skip或用缓存计数。测试范围会包含既有规则、发音对齐、service、Job/worker、HTTP响应兼容及前端原测试；I1设计轮的冻结代码全绿只能证明该轮基线，不验证这些新接口、coverage或变异。
 
-## 8. 待确认、未验证与独立政策
+## 8. 已确认已实施、未验证与独立政策
 
-待用户确认是否采用A、本文内部coverage/同步诊断观察点以及第6节未来最小范围；独立Review通过、设计PR或合并授权均不替代具体实施确认。若实施发现必须改旧测试/Job/配置或引入新产品口径，先给真实冲突与最小变更理由，不自行放宽。
+用户已确认采用方案A，本文内部coverage/同步诊断观察点及第6节未来最小范围已按设计实施落地，源码APPROVED R0。独立Review、设计PR或合并授权已随用户确认与实际实施闭合；若后续发现必须改旧测试/Job/配置或引入新产品口径，仍先给真实冲突与最小变更理由，不自行放宽。
 
 I1不引入DB字段、learning_events、analysis run身份、用户锁、HTTP/OpenAPI/前端coverage，不修BKT并发/历史重复观察。B2的切换方式、旧pending/failed Job、retention/删除、重新分析、bkt-v1五问仍待用户，[B1§9](https://github.com/sunpcm/EchoTalk/blob/0f7a5e57f809f8566efc39ca582bdc95fc260dfc/docs/LEARNING_EVENTS_DESIGN.md#L263-L270)。Typed coverage重启不可查，日志也不是已持久化B2审计，不能补历史调用。
 
 真实发音/语法质量、真实音频采集和权限/保留、Provider/LiveKit/IdP、设备/OS权限、整栈/生产均未验；“发音Protocol能接真实提供方”仍缺输入与外部验收设计，不能用当前demo的文本计算或合成PG夹具替代。H1主题历史失败不在本轮修复。当前冻结代码、设计验证来源和停止点见[本轮记录](./history/2026-11-15-i1-assessment-provider-design.md)。
+
+## 9. 实际实现与验收索引（方案A已实施）
+
+设计§6两条生产路径已落地，§7验收/变异计划中本轮实际运行5项有效变异、其余设计变异未运行（§1–§7保留设计时点）。源码独立APPROVED R0，实现PR/main尚未发布。实际文件与行号以冻结lane HEAD `312a8f802b73f5fcb1e285a52c9dce2b1b497bad` 的工作树为准。
+
+| 路径                                                 | 状态 | 职责                                                                                                                                          |
+| ---------------------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend/services/assessment_providers.py`           | 新增 | 标准库frozen DTO、两个窄async Protocol、两个文本demo及原计算辅助；无DB/Job/settings/网络/线程                                                 |
+| `backend/services/analysis_service.py`               | 修改 | 原动态选择、独立幂等/持久映射/flush、`SessionAnalysisResult.coverage`默认None及同步`_observe_coverage`；`update_knowledge`与BKT段尾逐字节保留 |
+| `backend/tests/test_assessment_providers.py`         | 新增 | 真demo本体/Protocol直接契约（30项）                                                                                                           |
+| `backend/tests/test_assessment_provider_pipeline.py` | 新增 | 实际service/Job接线（3同步+29专用PG）、失败/取消/复用/零结果/BKT对照（32项）                                                                  |
+
+验收（Harness亲跑，非实施方）：15门禁全绿——Vitest1249/53、Fake125、types10/build21、lint132warnings/0errors、
+pytest957/3warnings/80.63%（80.83s，命令85.74s）、E2E234（C117/W117、实际retry/skip/flaky0、61.89s）；
+5项有效变异均目标RED、恢复62GREEN、逐字节恢复（变异结束、文档收口前：正式/私有695文件均与冻结R0一致；当前最终docs已变、总696文件，四代码/测试始终原字节）。旧算法、独立DB/Job/BKT边界、metadata NULL/0/False与
+原`response_ref`/`elsa_response`兼容全部保持，`update_knowledge`及旧逐行synthetic过滤原字节。
+
+5项有效变异（源码:行 → 目标断言文件:行）：
+
+| 变异源码:行                   | 单变量改动                     | 目标断言                                                                   |
+| ----------------------------- | ------------------------------ | -------------------------------------------------------------------------- |
+| `analysis_service.py:333`     | G confidence补`or 0.5`         | `test_assessment_provider_pipeline.py:363` finding持久confidence须0.0/None |
+| `analysis_service.py:317`     | G零输出coverage改`not_called`  | `test_assessment_provider_pipeline.py:574` `status=="evaluated"`           |
+| `analysis_service.py:221`     | P普通异常snapshot改`evaluated` | `test_assessment_provider_pipeline.py:612` `failed.status=="failed"`       |
+| `analysis_service.py:386`     | synthetic过滤改`if True`       | `test_assessment_provider_pipeline.py:876` `{state.skill_id} == expected`  |
+| `assessment_providers.py:112` | TH/DH替换改`list(ref)`         | `test_assessment_providers.py:57` score66.7                                |
+
+上述变异只证目标测试定位与恢复；synthetic过滤变异不表示本轮改了BKT——`update_knowledge`与旧逐行synthetic过滤保持原字节。
+完整范围、15项命令/时间与首次失败见[实施记录](./history/2026-11-15-i1-provider-implementation.md)。
