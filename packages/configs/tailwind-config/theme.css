@@ -33,6 +33,7 @@
   --color-surface-alt: var(--surface-alt);
   --color-border-default: var(--border);
   --color-border-soft: var(--border-soft);
+  --color-control-border: var(--control-border);
 
   --color-text-default: var(--text);
   --color-text-muted: var(--text-muted);

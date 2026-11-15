@@ -107,8 +107,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
         {!loading && (
           <>
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
                 <p className="text-text-default text-sm font-medium">{t.customModeLabel}</p>
                 <p className="text-text-muted text-xs">{t.customModeDesc}</p>
               </div>
@@ -118,7 +118,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 aria-checked={form.draft.isCustomMode}
                 aria-label={t.customModeLabel}
                 onClick={form.toggleCustomMode}
-                className="focus-visible:ring-accent relative inline-flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                className="focus-visible:ring-accent relative inline-flex min-h-[44px] min-w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 <span
                   className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${

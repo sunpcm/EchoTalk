@@ -48,7 +48,7 @@ export function SettingsProviderFields({
   onTtsKeyChange,
 }: SettingsProviderFieldsProps) {
   return (
-    <fieldset disabled={disabled} className={disabled ? "opacity-50" : ""}>
+    <fieldset disabled={disabled}>
       <div className="space-y-5">
         <ProviderGroup
           idPrefix="stt"
@@ -86,7 +86,7 @@ export function SettingsProviderFields({
               value={llmModel}
               onChange={(event) => onLlmModelChange(event.target.value)}
               placeholder={t.llmModelPlaceholder}
-              className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+              className="border-control-border bg-surface focus:ring-accent disabled:bg-surface-alt disabled:text-text-muted min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-2 disabled:cursor-not-allowed"
             />
           </div>
         </ProviderGroup>
@@ -182,7 +182,7 @@ function ProviderGroup({
           id={selectId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="border-border-default bg-surface focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full appearance-none rounded-md border px-3 py-1.5 pr-10 text-sm transition-colors outline-none focus:ring-1"
+          className="border-control-border bg-surface focus:ring-accent disabled:bg-surface-alt disabled:text-text-muted min-h-[44px] w-full appearance-none rounded-md border px-3 py-1.5 pr-10 text-sm transition-colors outline-none focus:ring-2 disabled:cursor-not-allowed"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -219,7 +219,7 @@ function ProviderGroup({
           value={apiKey}
           onChange={(event) => onKeyChange(event.target.value)}
           placeholder={hasKey ? t.apiKeyConfiguredPlaceholder : t.apiKeyPlaceholder}
-          className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+          className="border-control-border bg-surface focus:ring-accent disabled:bg-surface-alt disabled:text-text-muted min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-2 disabled:cursor-not-allowed"
         />
       </div>
     </div>

@@ -413,12 +413,8 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
 
 ## 当前优先问题（已确认，实施另包）
 
-- [ ] **(READ) 设置可读性**：深色 200% Provider disabled 组 opacity0.5、功能输入边框低对比、
-      手机 200% 说明文字/开关重叠。验收：三主题/390 和 1280/正常和 200% 字号/启用禁用前后计算样式与截图；
-      保留 44px/焦点/AA 旧断言；功能输入边界按 3:1 核验；禁用可读性是产品增强，纯装饰卡不自动套 WCAG 硬门禁。
-      见 [W3C non-text-contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html) 与
-      [W3C contrast-minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)。实施另包，
-      不写成产品已修或真实设备已验。
+- [ ] **(READ2) 主题 radio 内容/色点在按钮内重排**：本机 READ 前后观察发现，主题选择 radio 内容与色点在 200% 根字号下于按钮内重排/溢出（390/1280、正常/200 字号；本轮 READ 不修，仅记录待办）。
+      验收：保留 44px、原颜色/角色/事件与业务，只修按钮内内容与色点重排；原生/OS 下拉边界归入未验/非范围，不在本卡新增设备门禁。
 
 ## P1 — 功能完整性
 
