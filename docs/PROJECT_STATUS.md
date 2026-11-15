@@ -2,8 +2,7 @@
 
 > 最后核对：2026-11-15；I1设计PR175已发布main312a8f8，实施PR176已发布main76d9d6ba（source7f272cd/CImerge5e5c1f8）；I1实施源码APPROVED R0。
 > 已发布设计main、本机I1实施候选与已发布实施main76d9d6ba分列；首轮CI/Guard与mainCI回执已记录，不预填后续整包/发布结论。
-> 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；
-> 逐轮实施记录在 [`history/`](./history/)，不在本文追加。
+> 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)，不在本文追加。
 
 ## 当前功能
 
@@ -61,7 +60,7 @@ I1 源码 APPROVED R0 已实有，接口/coverage/5项变异与来源/首失败�
   避免运行时安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - 前端 lint 有 132 条 warning（0 error），主要是 `Unexpected any`。
-- H1历史本机E2E首233/1、唯一完整重放233/1，均theme-storage:24 warm/cool；本轮I1冻结代码234通过不定位根因或证明稳定性，历史不改写。
+- H1历史本机E2E首233/1、唯一完整重放233/1，均theme-storage:24 warm/cool；本轮I1冻结代码234通过不定位根因或证明稳定性，历史不改写。TS theme-storage 冷启动/水合/零写本机验收 17 门禁全 success（Vitest1249/53、Fake125、types10/build21、pytest957/3warnings/80.63%、完整E2E234 C117/W117、目标全文件300 C150/W150，未发布、PR/CI待建），见[验收记录](./history/2026-11-15-theme-storage-reliability.md)。
 - I1方案A已实施、源码APPROVED R0，文本demo仍无真实音频输入契约；真实音频来源/权限/保留、Provider/LiveKit/IdP、设备、整栈及部署仍未验。
 - G2 Fake 默认租约仍disabled/503；成功Cloud租约和Provider验证仅显式合成fixture，不代表真实撤销/验证。
   保留两条UUID偏差：assessment `$.session_id` 绑定 `analysis-success-*`，grammar `$[0].session_id` 绑定
@@ -87,6 +86,7 @@ I1 源码 APPROVED R0 已实有，接口/coverage/5项变异与来源/首失败�
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | I1评估提供方设计与实施（源码APPROVED R0，已发布main76d9d6ba） | [ASSESSMENT_PROVIDER_DESIGN.md](./ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](./history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](./history/2026-11-15-i1-provider-implementation.md) |
 | 遗留台账对账（LGR，纯文档）                                   | [对账记录](./history/2026-11-15-legacy-reconciliation.md)                                                                                                                                           |
+| theme-storage 冷启动/水合/零写（TS，本机验收未发布）          | [验收记录](./history/2026-11-15-theme-storage-reliability.md)                                                                                                                                       |
 | H1设计与实施（已发布，保留首失败）                            | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](./history/2026-11-15-h1-startup-implementation.md)                                             |
 | G3同源契约本机验收补齐与历史草稿                              | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                                                                              |
 | G2 主题对比度 CI 收尾与当前验收                               | [history/2026-11-14-g2-theme-contrast-ci.md](./history/2026-11-14-g2-theme-contrast-ci.md)                                                                                                          |
