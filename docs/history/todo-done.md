@@ -728,3 +728,20 @@ pytest841/3warnings/80.59071729957806%（70.61s、命令75.55s），lint132warni
 此前14门禁、R1 Vitest1234/52、Fake125、类型10/构建21、8项有效变异目标RED/恢复GREEN及全部恢复字节证据保留；R0 E2E234、C117/W117、实际retry/skip/flaky0、52.0237s/命令53.30s，生产/E2E在R1不变，不冒称此次重跑。本轮源码、测试、配置及生成物均冻结。
 
 实现PR及最终mainCI尚未发布，未预填编号/实现终点SHA或APPROVED；当前基线仍为设计合并main0e70680。真实Provider/LiveKit/IdP、设备、Docker整栈与部署未验，H1/I1/B2不因此开工。完整来源、历史草稿/首失败与补齐时序见[实施记录的最终本机测试补齐回执](./2026-11-15-g3-contract-implementation.md)。实施方仅文档检查，停Review，不commit/push。
+
+## 2026-11-15 H1会话启动编排抽取设计（R0交付，待Review与用户确认）
+
+以下为原H1卡，仅勾选归档设计交付；原实施验收继续保留在根TODO独立后续卡。设计尚待独立Review/用户确认，未创建启动编排候选代码，不以本卡勾选授权实施。
+
+- [x] **H1 会话切片的启动编排抽取**（先出设计，用户确认后实施）：`store/conversationSlice.ts` 约 1400 行，
+      同时承担状态机投影、启动编排（健康检查 → 创建 → 取 Token）、就绪检查与生命周期追踪。设计需给出拆分边界、
+      哪些是纯函数、对既有测试的影响。验收（设计轮）：设计文档，含"测试文件零改动是否可达"的明确判断及理由。
+      实施轮验收：`conversation.test.ts` 与 `VoiceInterface.test.tsx` 零改动通过；对启动路径做 3 处以上变异并列结果。
+
+产物见[CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](../CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)：推荐只抽runStartup，同步门禁与await时序保留；API/auth/platform/options延迟读取，tracker寄存器留slice、每次资源由原tracker清理，readiness常驻观察者与resume不顺手合并。注入ports的runStartup仍是副作用编排，不称纯函数。
+
+两原测试零改“有条件可达”，以原mock/export/setter/物理store身份、同步顺序与cleanup边界为条件；未来仍要新增同层契约测试并实际完成至少3处有效变异，本轮变异计划未运行。原conversation/Voice文件及全部源码/测试字节保全。
+
+Harness在本lane亲跑14门禁全部exit0、source稳定：Vitest1234/52、Fake125、types10/build21；E2E234（C117/W117、实际retry/skip/flaky0，55.247788s/命令56.58s）；完整pytest895/3warnings/79.71%（63.39s/命令68.16s，59%门禁通过）。Linux已发布G3 mainCI43670316486的895/3/79.71%为43.13s，两来源不混写；实施方只做MD格式/静态检查，Harness停写后最终format待验。
+
+源码事实基线为1f06b03/tree85982b7；不预填H1新PR/CI或设计APPROVED。H1具体实施仍需用户确认，I1/B2及其他卡不变。过程、首结果和未验边界见[本轮记录](./2026-11-15-h1-startup-design.md)。实施方停Review，不commit/push。
