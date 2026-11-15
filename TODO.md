@@ -4,13 +4,29 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **CP02I 通话占用本地组合补验（当前本地已验收归档，2026-11-15，FINAL_READY）：** 真实
+> **CP05L Dashboard 生命周期实际组合缺口（当前卡片，2026-11-15，FINAL_READY）：** 真实
+> Dashboard + 四类消费者 + 实际 `api.ts` 的 3 场景组合覆盖已完成并归档，正式实施返修
+> `1/2`。两项有效私有加载期负对照命中后，恢复默认源并完成最终 13 项机器门禁；完整
+> 数字、Mock/API 基址边界、负对照与外部链路边界的唯一集中说明见
+> [PROJECT_STATUS 的 CP05L 小节](./docs/PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)，
+> 验证口径见 [CP-05 Dashboard 生命周期验证](./docs/verification/cross-platform/CP-05-LIFECYCLE-COMBINATION.md)。
+> `cp05k-cp02i-cp05l-20261115` 三卡共用合成 PG 已按精确 container ID、双 owner、
+> `127.0.0.1` 与合成身份核验后 `stop_exit0`、`auto_removed=true`。测试 SHA-256 冻结为
+> `4f46f3ecba0529df2fa99390989bf0fcd3504de59a6971890237f819bfa51a35`。本批三张本地范围卡
+> 均已收口，用户 Review 待；CP-05 与 CP-02 父项继续保留真实验收条件，不能因本地子卡完成而
+> 全勾。
+
+> **CP02I 通话占用本地组合补验（历史快照，2026-11-15，FINAL_READY）：** 真实
 > controller + `api.ts` + stdio 桥 + ASGI + 真实合成 PG 的 6 场景组合补验已通过主控最终
 > 验收（13 门禁 exit0、真实 PG 6/6、707 保护文件未变），正式实施返修 `2/2`（产品未改）。
 > 完整数字见 [PROJECT_STATUS 的 CP02I 小节](./docs/PROJECT_STATUS.md#cp02i-通话占用本地组合补验final_ready)；
-> 独立组合为显式入口，默认 src lint/typecheck 不覆盖，默认 CI 不运行六例。CP-02 父项保持 `[ ]`。
+> 独立组合为显式入口，默认 src lint/typecheck 不覆盖六例，默认 CI 也不运行；该卡专用 config
+> 的 `VITE_API_URL` 未被当前 URL 模块读取，六例实走 Web 默认 `/api`，不能当作 native 显式
+> 绝对 URL 证明；前卡代码无需修改。CP-02 父项保持 `[ ]`。
 
-> **CP05K 会话界面动态桌面与键盘覆盖（历史卡片，2026-11-15，FINAL_READY）：** 5 个新增 E2E 覆盖补证已完成，正式产品返修 `0/2`。完整门禁、重复与负对照回执见 [PROJECT_STATUS 的 CP05K 小节](./docs/PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)，归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-cp05k-会话界面动态桌面与键盘覆盖final_ready)。CP-05 桌面缩放/键盘父项保持 `[ ]`。当前 `cp05k-cp02i-cp05l-20261115` 新批合成 PG 仍由三卡共同运行，旧 CP05D 批次已清理。
+> **CP05K 会话界面动态桌面与键盘覆盖（历史卡片，2026-11-15，FINAL_READY）：** 5 个新增 E2E 覆盖补证已完成，正式产品返修 `0/2`。完整门禁、重复与负对照回执见 [PROJECT_STATUS 的 CP05K 小节](./docs/PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)，归档见 [已完成事项](./docs/history/todo-done.md#2026-11-15-cp05k-会话界面动态桌面与键盘覆盖final_ready)。CP-05 桌面缩放/键盘父项保持 `[ ]`。
+> 该卡当时保留的 `cp05k-cp02i-cp05l-20261115` 共用合成 PG，已在同批 CP05L 最终收口时按精确
+> ID 清理；旧 CP05D 批次更早独立清理，两段回执均已完成。
 
 > **CP05D 设置抽屉动态可见性（历史交付，2026-11-15，FINAL_READY）：** 设置抽屉已打开且输入
 > 聚焦后，普通 resize、根字号 200% 后 resize、聚焦后仅改字号三种场景以当前活动元素归属、
@@ -24,8 +40,9 @@
 > 独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待；本文件不写
 > APPROVED。所有数据库验证及 **旧 CP05D 所属批次**的自有合成 PG
 > `stop_exit0`/`auto_removed=true` 核验均已完成，其他资源未动。该旧清理不代表当前
-> CP05K/CP02I/CP05L 批次。真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP 与生产
-> 未验，CP-05 父项继续保留 `[ ]`。
+> CP05K/CP02I/CP05L 批次当时状态；该新批三卡共用 PG 后续也已按精确 ID 完成
+> `stop_exit0`/`auto_removed=true`。真实 OS 键盘、非零 safe-area、设备、
+> Media/Provider、IdP 与生产未验，CP-05 父项继续保留 `[ ]`。
 
 > **R2-11 会话中界面本地子卡（历史时点，2026-11-15，当时 FINAL_READY，已归档）：** 本地模块桩子卡
 > （LiveKit 主题背景、场景/墙钟页头、移动字幕优先、thinking 独立文案、单实例回答推荐）已完成并
@@ -584,6 +601,7 @@ CP02I 本地组合补验（真实 controller + api.ts + stdio 桥 + ASGI + 真�
 ### CP-05：生命周期与响应式体验
 
 - [ ] Web visibility/online 与原生前后台/唤醒统一进入恢复流程；验收：重新校验身份、服务端状态和 LiveKit 连接，回前台立即刷新分析，避免并行轮询或重复 dispatch。
+      CP05L 本地组合子卡已归档：[归档记录](./docs/history/todo-done.md#2026-11-15-cp05l-dashboard-生命周期实际组合缺口final_ready)。父项不勾选；真机 iOS 网络/OS、真实 SSO/LiveKit/媒体与生产仍未验。
 - [ ] 完善 iOS 音频中断与路由变化；验收：来电、锁屏、蓝牙插拔后无假在线或意外采音，恢复遵守用户选择；后台持续通话另立后续范围。
 - [ ] 完善手机动态视口、键盘避让、safe area 与触控目标；验收：窄屏/横屏/大字号无关键按钮遮挡，设置面板按可用空间适配。
       CP05D 本地子卡已归档：[归档记录](./docs/history/todo-done.md#2026-11-15-cp05d-设置抽屉动态可见性)。

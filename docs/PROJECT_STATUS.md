@@ -1,19 +1,23 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-15。当前卡片为 **CP02I 通话占用本地组合补验（FINAL_READY）**：本卡
-> 补齐真实 controller + 实际 `api.ts` 封装 + stdio fetch 薄桥 + 真实 ASGI + 真实合成 PG
-> 的 6 场景组合覆盖，主控最终验收全过（13 门禁 exit0、额外 types 0、显式 backend 配置
-> Ruff 0、真实 PG 组合 6/6 retry/skip 0、707 保护文件未变），负对照 2 变异各 fail1 后
-> 恢复全绿，正式实施返修 `2/2`（产品源码未改）。独立组合是显式入口，默认 src 的
-> lint/typecheck 不覆盖它；本卡主控已额外跑 integration 类型检查，默认 CI 不运行六例。
-> 完整数字见下方 CP02I 小节。CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY，2026-11-15）
-> 为紧邻的历史卡片：5 个 E2E 覆盖补证、12 项行为门禁 exit0，详细数字在其专属小节，
-> 不转作本卡结果。下方的 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、
-> RDOC、A18P2、A19 P2 等小节均为各自时点的历史交付，其机器数字不能转作当前卡结果。
-> R2-11 当时的模型分工与路由可用性记录也不代表本卡路由或产品结论。旧 CP05D 所属批次的
-> 合成 PG 已 `stop_exit0`/`auto_removed=true`；当前 `cp05k-cp02i-cp05l-20261115` 新批
-> 独立创建的三卡共用 PG 仍在运行（为 CP05L 保留），按三卡批次末尾统一精确清理，旧清理
-> 回执不得转作当前回执。
+> 最后核对：2026-11-15。当前卡片为 **CP05L Dashboard 生命周期实际组合缺口
+> （FINAL_READY）**：唯一工作树为
+> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，冻结 HEAD
+> `9a7ec847e36b3187f03076eb280f6b0bc78c7a4e`。已新增真实 `Dashboard`、四类真实消费者、
+> 默认生命周期工厂与实际 `api.ts` 的 3 场景组合测试及验证说明；只合成认证、Capacitor App
+> 外部状态与严格 fake `fetch`/`Response`，不改产品源码、mock 工厂/组件或扩大业务范围。
+> R0 target 与恢复默认源后的 target-final 均为 `3/3 exit 0`，R1 后最终 13 项门禁全部
+> `exit 0`；正式实施返修 `1/2`。详细机器数字见下方 CP05L 小节，Mock/API 基址与外部链路边界见
+> [CP-05 Dashboard 生命周期实际组合验证](./verification/cross-platform/CP-05-LIFECYCLE-COMBINATION.md)。
+> CP02I 通话占用本地组合补验（FINAL_READY）与 CP05K 会话界面动态桌面与键盘覆盖
+> （FINAL_READY）为紧邻的历史快照，详细数字只在其各自小节有效，不转作 CP05L 结果。
+> 下方 CP05D、R2-11、R2-10 以及 SGEC-OFF、R2-UI、R2-LIVE、DEC-A、RDOC、A18P2、
+> A19 P2 等小节也均为各自时点的历史交付。R2-11 当时的模型分工与路由可用性记录不代表
+> 本卡路由或产品结论。旧 CP05D 所属批次的合成 PG 已 `stop_exit0`/`auto_removed=true`；
+> `cp05k-cp02i-cp05l-20261115` 新批三卡共用 PG 也已在 CP05L 最终收口时按精确 container ID、
+> 双 owner、`127.0.0.1` 与合成身份核验后 `stop_exit0`、`auto_removed=true`。本批三卡的本地
+> 范围已完成，用户 Review 待。
 > 生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据仍未验收。
 > 正式 macOS 客户端、Tauri 选型、native 认证、设备与签名均未创建或验收。
 > 本文只回答"现在实现了什么、验证到哪一步、有哪些已知限制"。未完成工作只在根目录
@@ -42,6 +46,48 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）
+
+- 唯一工作树为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，
+  分支 `codex/B1-learning-events-20261112`，冻结 HEAD
+  `9a7ec847e36b3187f03076eb280f6b0bc78c7a4e`。新增
+  `apps/vite-app/src/components/dashboard/Dashboard.lifecycle-integration.test.tsx` 与
+  [验证说明](./verification/cross-platform/CP-05-LIFECYCLE-COMBINATION.md)，并更新三份状态
+  文档；未改产品源码、既有测试、依赖、CI 或迁移。正式实施返修 `1/2`，R1 只补测试夹具的
+  异常路径清理。新增测试停写后的 SHA-256 为
+  `4f46f3ecba0529df2fa99390989bf0fcd3504de59a6971890237f819bfa51a35`。
+- 测试直接渲染真实 Dashboard，保留 ActiveSessions、DailyProgress、WeeklyProgress 与
+  WeeklyGrammar 的真实组件、query/controller/hook、默认 `createLifecycleAdapter()` 和实际
+  `api.ts`；认证状态、Capacitor App 外部状态及严格 fake `fetch`/`Response` 只作测试隔离。
+- 场景 1 验证 iOS pending 期间受管端点 0 GET，active 后首波 5 条受管 GET；WeeklyProgress
+  概览 settle 后默认选日另发 1 条 history，不能把首波 5 条写成最终所有 GET。场景 2 验证
+  Web `online`→`pageshow` 两次合格事件下 AS/WP/WG 的 ignore 合并、DP 的 override 多发和旧响应
+  隔离，周概览 settle 后默认 history +1，手动选日再 +1。场景 3 验证整页 unmount 后迟到 App/
+  Web 事件不增加请求、不产生非 GET 写且不采音。
+- iOS 场景在 `beforeEach` 中以 `vi.stubEnv` 设置安全合成绝对 `VITE_API_BASE_URL`，并在
+  `afterEach` 以 `vi.unstubAllEnvs()` 恢复；真实 `getApiBaseUrl()` 与 API 封装保留。Web 场景
+  仍只证明生命周期组合接线，不冒充 Web 默认相对 `/api` 或 native 无配置 fail-fast 的独立证据；
+  `api.ts` 缓存首个有效基址也使 Web 场景不能转作默认 `/api` 验证；这些 URL 策略由既有
+  `platform/url.ts`、`platform/globalEnvironment.test.ts` 与 `lib/api.test.ts` 继续承担。
+- **最终机器验收**：R0 target 与恢复默认源后的 target-final 均为 `3/3 exit 0`；R1 后最终
+  13 门禁全部 `exit 0`。Vitest `1265 passed / 56 files / 0 skip`；E2E
+  `272 = Chromium 136 + WebKit 136`，每个执行恰有一个 passed result，
+  retry/skip/flaky/unexpected 均为 `0`；backend
+  `1044 passed / 3 warnings / 0 skip`，raw coverage `81.84461985874533%`；build `47`、
+  Fake API `116`、API 类型 `8`、iOS 仅 Node `37`；quality `0`；lint
+  `132 warnings / 0 errors / 0 new`，且诊断的 file + message + rule 多重集一致。
+- 1262 个旧测试身份逐条保持，新增 3 例后恰为 `1265 / 56`；713 个保护文件字节不变。R1 在
+  第一例 `finally` 的 unmount 后补 `getStateDeferred.resolve({ isActive: false })`，保证前置
+  监听/0 GET 断言失败时也释放受控状态 promise；其余断言、事件、计数与超时未改动。
+- **负对照与恢复**：两个有效私有加载期负对照均命中目标断言且不是通用超时。WG 强制 Web
+  接线后，命中 native 监听断言，expected `4` actual `3`；DP 将 `override` 改为 `ignore`
+  后，命中第二轮请求断言，expected `2` actual `1`。两项各自仅选中 `fail 1`，各另有 `2`
+  未选，未选不计通过；恢复默认源后的最终门禁全绿。
+- 三个 UI 组合场景本身不连接 PG；backend `1044 passed` 在本批真实合成 PG 上完成，不能写成
+  “PG 未验证”。真实 OS、真机 iOS pending/网络恢复、SSO、Cloud、LiveKit、媒体与生产仍未
+  验收。最终 format、独立 Review、正常 commit 与当前分支 push 以主控同卡回执为准，用户
+  Review 待，本状态不写 APPROVED。
 
 ### CP02I 通话占用本地组合补验（FINAL_READY）
 
@@ -73,9 +119,11 @@
   `03d3b6e9cba116db8cad5015791b39f05e92391d0209ed0a03a14aeb797d943e`）。正式实施返修
   `2/2`（产品源码未改，未重置）。私有前置路径/ambient 配置错误不计产品失败。
 - **边界**：stdio 桥为 fetch 传输替换，ASGI 无真实 HTTP socket；Cloud 仅 `LiveKitAPI.room`
-  显式模拟；真实 OS/SSO/Cloud/设备未验。当前 `cp05k-cp02i-cp05l-20261115` 三卡共用合成
-  PG 仍在运行，为 CP05L 保留，未停库。最终全仓 format、独立 Review、正常 Husky 与当前
-  分支发布以主控同卡回执为准，用户 Review 待，本状态不自行写 APPROVED。
+  显式模拟；真实 OS/SSO/Cloud/设备未验。该卡专用 config 的 `VITE_API_URL` 未被当前 URL
+  模块读取，六例实际走 Web 默认 `/api`，不能当作 native 显式绝对 URL 证据；前卡代码无需
+  修改。`cp05k-cp02i-cp05l-20261115` 三卡共用合成 PG 已在本批 CP05L 最终收口时按精确 ID
+  清理完成。最终全仓 format、独立 Review、正常 Husky 与当前分支发布以主控同卡回执为准，
+  用户 Review 待，本状态不自行写 APPROVED。
 
 ### CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY）
 
@@ -101,9 +149,10 @@
   `toBeLessThanOrEqual` 目标断言失败 `1`；禁用 toggle 后 `aria-expanded` 目标断言失败 `1`。
   两项各 `exit 1`；变异未改动物理源码。正向 200 次重复是在恢复原响应后再次执行并全部通过。
   初次私有配置的 `cwd` 前置错误已保留为非产品执行错误，不纳入产品结果或负对照计数。
-- 数据库资源必须按批次区分：旧 CP05D 所属批次的合成 PG 已完成 `stop_exit0`/`auto_removed=true`；
-  当前 `cp05k-cp02i-cp05l-20261115` 新建的三卡共用合成 PG 仍在运行，待 CP05K、CP02I、CP05L
-  全部收口时统一精确停止并核验移除。旧批清理回执不代表当前批已清理。
+- 数据库资源必须按批次区分：旧 CP05D 所属批次的合成 PG 已完成
+  `stop_exit0`/`auto_removed=true`；该卡当时保留的
+  `cp05k-cp02i-cp05l-20261115` 三卡共用合成 PG 也已在本批 CP05L 最终收口时按精确 ID 停止
+  并核验移除。两个批次均已完成各自的精确清理回执。
 - CP05D 与 R2-11 小节均为此前卡片的明确历史交付，不并入本卡数字或结论。原生 desktop 关闭
   会话、真实 Media/设备、Provider、IdP、真实数据与生产仍未验收，也不由 LiveKit 模块桩覆盖。
 - 本卡已停在 `FINAL_READY`；最终 format、独立 Review、commit 与 push 以主控同卡回执为准，
@@ -147,8 +196,9 @@
   文档并保留结果，不再追 raw SHA，也不计产品返修；两份产品与 unit 测试文件未改动，断言未改。
 - **旧 CP05D 所属批次**的所有数据库验证已完成，该旧批自有合成 PG 已回执 `stop_exit0`、
   `auto_removed=true`，精确 container ID、双 owner、loopback 与合成身份均核验，其他资源未动。
-  该清理只属于旧批；当前 `cp05k-cp02i-cp05l-20261115` 新批三卡独占 PG 仍运行，待三卡末尾
-  统一清理。四份仓内文档与 `implementation/report.md` 已完成 CP05D 的 `FINAL_READY` 收口；
+  `cp05k-cp02i-cp05l-20261115` 新批三卡共用 PG 后续也已在同批 CP05L 最终收口时按精确 ID
+  完成 `stop_exit0`/`auto_removed=true`；两个批次均已有各自清理回执。四份仓内文档与
+  `implementation/report.md` 已完成 CP05D 的 `FINAL_READY` 收口；
   独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，本状态不自行
   写 APPROVED。真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP、真实数据和生产未验；
   CP-05 手机动态视口/键盘/safe-area 父项保持 `[ ]`。

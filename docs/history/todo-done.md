@@ -6,6 +6,38 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-15 CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）
+
+- **状态：`FINAL_READY`（本地子卡完成归档）**：唯一实施工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `9a7ec847e36b3187f03076eb280f6b0bc78c7a4e`。新增真实 Dashboard 的四类消费者组合测试与
+  验证说明；认证、Capacitor App 外部状态及 fake `fetch`/`Response` 仅为测试隔离，产品源码、
+  默认工厂、四组件、query/hook 与 `api.ts` 均未 mock 或修改。正式实施返修 `1/2`。
+  测试停写后的 SHA-256 为
+  `4f46f3ecba0529df2fa99390989bf0fcd3504de59a6971890237f819bfa51a35`。
+- **覆盖差集**：iOS pending→active；Web 真实 `online`→`pageshow` 的 AS/WP/WG ignore、DP
+  override、旧响应丢弃和 WeeklyProgress 选日；整页 unmount 后迟到事件零新增请求、零业务写、
+  零采音。iOS active 后首波为 5 条受管 GET；周概览 settle 默认选日另发 1 条 history，手动
+  选日再增 1 条，不能混写为一次首波。
+- **请求基址**：iOS 通过 `vi.stubEnv` 使用安全合成绝对 `VITE_API_BASE_URL` 并恢复，完整经过
+  真实 `getApiBaseUrl()` 与 API 封装；Web 场景只证明生命周期组合接线，Web 默认 `/api` 与
+  native fail-fast 的独立证据仍由既有 URL/API 测试承担；`api.ts` 的首个基址缓存限制如实
+  保留。
+- **最终机器验收**：R0 target `3/3 exit 0`，恢复默认源后的 target-final 亦为 `3/3 exit 0`，
+  R1 后最终 13 门禁全部 `exit 0`。1262 个旧测试身份逐条保持，713 个保护文件字节不变。其余
+  完整机器数字集中在
+  [PROJECT_STATUS 的 CP05L 小节](../PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
+- **负对照与返修**：WG 与 DP 两项有效私有加载期负对照均命中各自目标断言，均非通用超时；
+  每项仅选中的一个 failure 可计负对照，各另有 2 个未选用例不计通过。精确 expected/actual
+  集中在 PROJECT_STATUS。R1 仅在第一例 finally 的 unmount 后幂等释放 `getStateDeferred`，
+  其余断言、事件、计数与超时不变。
+- **边界**：三个 UI 场景本身不连接 PG；本批真实合成 PG 已实际承载 backend 全量测试。真实
+  OS、真机 iOS 网络/恢复、SSO、Cloud、LiveKit、媒体与生产未验。本批三卡共用 PG 已按精确
+  container ID、双 owner、`127.0.0.1` 与合成身份核验后
+  `stop_exit0`、`auto_removed=true`。最终 format、独立 Review、正常 commit/当前分支 push
+  以主控同卡回执为准，用户 Review 待，本归档不写 APPROVED。
+
 ## 2026-11-15 CP02I 通话占用本地组合补验（FINAL_READY）
 
 - **状态：`FINAL_READY`（主控最终验收全过）**：
@@ -46,9 +78,9 @@
   toggle 后 `aria-expanded` 目标断言失败 `1`。两项各 `exit 1`，变异未修改物理源码；恢复原响应
   后的正向 200 次重复再次全部通过。初次私有配置 `cwd` 前置错误保留为非产品执行错误，不计
   产品失败。
-- **数据库批次**：旧 CP05D 所属批次已完成 `stop_exit0`/`auto_removed=true`。当前
-  `cp05k-cp02i-cp05l-20261115` 新批三卡共用 PG 仍在运行，待三卡末尾统一精确清理；旧批回执
-  不代表当前批已清理。
+- **数据库批次**：旧 CP05D 所属批次已完成 `stop_exit0`/`auto_removed=true`。该卡当时仍在
+  运行的 `cp05k-cp02i-cp05l-20261115` 三卡共用 PG，后续已在本批 CP05L 最终收口时按精确 ID
+  停止并核验移除；两个批次均已有各自完成回执。
 - **边界**：CP05D、R2-11 均为历史交付；原生 desktop 关闭会话、真实 Media/设备、Provider、
   IdP、真实数据与生产未验。最终 format、独立 Review、commit 与 push 以主控同卡回执为准，
   用户 Review 待，本归档不写 APPROVED。完整事实见
@@ -76,9 +108,10 @@
 - **收口边界**：两份测试完整行为 AST 与有效 RED 一致；Node22 Prettier 仅纯格式化新 E2E 与四份
   仓内文档，产品与 unit 测试未改动，既有断言未改。**旧 CP05D 所属批次**的数据库验证已完成，
   该旧批自有合成 PG 已 `stop_exit0`、`auto_removed=true`，精确 container ID、双 owner、
-  loopback 与合成身份均核验，其他资源未动；该历史回执不涉及当前
-  `cp05k-cp02i-cp05l-20261115` 新批。独立 Review、正常 commit/当前分支 push 以主控同卡最终
-  回执为准，用户 Review 待，本归档不写 APPROVED。真实 OS 键盘、非零 safe-area、设备、
+  loopback 与合成身份均核验，其他资源未动；`cp05k-cp02i-cp05l-20261115` 新批三卡共用 PG
+  后续也已在同批 CP05L 最终收口时按精确 ID 完成 `stop_exit0`/`auto_removed=true`。独立
+  Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，本归档不写
+  APPROVED。真实 OS 键盘、非零 safe-area、设备、
   Media/Provider、IdP、真实数据与生产未验；CP-05 手机动态视口/键盘/safe-area 父项继续保留
   `[ ]`。
 - 完整机器数字集中在
