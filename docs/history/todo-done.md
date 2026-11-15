@@ -760,3 +760,18 @@ Harness亲跑macOS：Vitest1249/53、Fake125、types10/build21、lint132warnings
 
 已发布的是设计[PR173](https://github.com/sunpcm/EchoTalk/pull/173)与main650b3c7的[最终mainCI43673387467](https://github.com/sunpcm/EchoTalk/actions/runs/43673387467)：attempt1五作业success，Linux E2E234/0、pytest895/3warnings/79.71%/63.30s；设计PR首次a11y焦点233passed/1flaky、retry1也保留，不能替代H1实施发布验证。
 见[设计历史与当前确认状态](../CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)及[实施记录](./2026-11-15-h1-startup-implementation.md)。真实Provider/LiveKit/IdP、设备、整栈/部署及I1/B2边界不变；本次仅五MD收口，停Review，不commit/push。
+
+## 2026-11-15 I1评估提供方接口设计（R0交付，待Review与用户确认，未实施）
+
+以下原设计卡仅勾选归档设计交付，不表示I1源码、coverage、真实Provider或B2已实施；根TODO保留另行用户确认/实施验收待办。
+
+- [x] **I1 评估提供方接口设计**（先出设计，用户确认后实施）：把"发音评估""语法检测"定义为可替换的提供方，
+      每个声明 `source`、`provider`、`model_version`、`is_synthetic`、`confidence`（字段已在数据模型中），
+      现有 `demo_mock`、`demo_rule` 成为两个实现；与 [学习事件设计](../LEARNING_EVENTS_DESIGN.md) 的
+      coverage 状态（未调用 / 已评估零结果 / 评估失败）对齐。验收（设计轮）：设计文档；不改代码。
+
+产物见[ASSESSMENT_PROVIDER_DESIGN.md](../ASSESSMENT_PROVIDER_DESIGN.md)：推荐两个文本demo的窄Protocol与显式metadata/内部coverage，NULL原值、零结果/未调用/失败/复用区别、Job事务/重试/BKT原行为保留。真实发音仍缺音频来源/权限/保留与设备输入契约，不由文本Protocol自动覆盖；方案尚待用户确认，未来测试/变异均未运行。
+
+Harness在I1本轮冻结代码亲跑14源码门禁success、source前后稳定：Vitest1249/53、Fake125、types10/build21，pytest895/3warnings/79.71%（75.46s，命令80.30s）；E2E234、C117/W117、实际retry/skip/flaky0、80.394227s。实施方仅文档校验，最终五MD格式/Markdown/范围另由Harness验，不预报设计Review或新CI成功。
+
+已发布H1 PR174/main0f7a的mainCI43677877043首轮五success，Linux main覆盖率79.68%/52.49s，与PR/本机79.71%分开；0.03个百分点差异未知。H1历史两次233/1不能被本轮234抹去。来源、首结果、未实施范围见[本轮记录](./2026-11-15-i1-assessment-provider-design.md)。停Review，不commit/push，不实施I1/B2。
