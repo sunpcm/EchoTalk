@@ -50,10 +50,21 @@ test("starting practice creates one session, fetches a token and shows the conne
   const tracker = trackSessionRequests(page);
 
   try {
+    // 先等待真实“创建会话”成功响应，确认前置健康门禁（call-capabilities / health-ready）
+    // 与创建完成后再断言 connecting，避免 5s UI 断言与前置 HTTP 耗时形成结构性竞态。
+    const sessionCreated = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        new URL(res.url()).pathname === "/api/sessions" &&
+        res.status() === 200,
+    );
+
     await page
       .getByRole("button", { name: /进入练习/ })
       .first()
       .click();
+
+    await sessionCreated;
 
     await expect(page.getByText("正在连接...")).toBeVisible();
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toHaveCount(0);

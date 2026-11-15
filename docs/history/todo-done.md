@@ -876,3 +876,15 @@ spec125 `expect(themePutCount).toBe(0)` 抓住。历史 H1 两次 233/1 与 week
 结果（本机 Harness，未发布）见 [设置可读性验收记录](./2026-11-15-settings-readability.md)：17 门禁全 success、
 完整 E2E 258（C129/W129，retry/skip/flaky 0）、功能输入边界 1.148→3.646、禁用 select 文字 3.124→4.943；
 READ PR/CI 待建，不填编号或发布终点 SHA。
+
+## 2026-11-15 启动视图测试前提（ST，独立偶发审计，归档）
+
+ST 为独立偶发测试前提审计包（非根 TODO 既有 `[ ]` 卡），只改 `apps/vite-app/e2e/session-start.spec.ts` first case：
+click 前注册 `POST /api/sessions` 200 响应等待，响应到达后再保留全部原 UI/HTTP/order 断言；第二、三 case 与文件外代码
+逐字节保留。测试文件 blob 冻结 `cfac9c33`，PR/CI 待建，不预填编号或发布终点 SHA。
+
+结果（本机 Harness，受控，未发布）：受控 6s 延迟私有副本下旧 C/W 原断言 2 RED、新 2 GREEN；17 分阶段门禁全 success
+（首次 6 个后端步骤因父误在根目录准备 Python 未运行，修正 backend 后新系列 6 全 0，保留首环境错误）；Vitest1249/53、Fake125、
+types10/build21、pytest957/3warnings/80.63%（71.82s / 命令 79.07s）、完整 E2E258 C129/W129 0retry/skip/flaky
+（53.02s / 命令 53.97s）、压力 C/W 各 30 共 60、0retry、40.5s。历史根因未知，不写"历史根因已成立"或"不是环境偶发"；
+详见 [启动视图测试前提记录](./2026-11-15-session-start-test-barrier.md)。
