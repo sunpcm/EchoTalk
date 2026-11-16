@@ -1023,3 +1023,12 @@ retry/skip/flaky0）；默认 trace/screenshot 策略受控对照负 2（trace2/
       审计保留部分：初始 Web 快照门禁的临时 adapter 仅在 `subscribe` 时挂监听、非泄漏，保留每次 render
       即时读取 hidden/offline 语义，本轮未为整洁强改。源码独立 APPROVED R1，详见
       [验收记录](./2026-11-16-a19-room-ownership-maintenance.md)；尚未发布。
+
+## 2026-11-16 A18 生命周期测试边界收窄（源码 APPROVED R0）
+
+- [x] **在回归保护下减少 start/resume 重复生命周期逻辑及全局测试注入入口（A18）**：移除产品 store 的
+      `testingLifecycleOptions` 与 `_setLifecycleOptionsForTesting` 公开 setter，`getLifecycleOptions` 恒 null、
+      `createLifecycleAdapter()` / `isNativeIos()` 不再读测试选项，平台判定严格经 `detectPlatform()` 判 ios；
+      测试平台假对象移入 test-only fixture（spyOn 并委托真实 Native/Web adapter）。原生命周期业务差异与准备段重复
+      经审计保留，不声称完整统一 runner。源码独立 APPROVED R0，详见
+      [验收记录](./2026-11-16-a18-lifecycle-testing-boundary.md)。

@@ -1,23 +1,23 @@
 # EchoTalk 下一步行动评估
 
 > 2026-11-16。本文件只做行动分层与执行状态，未完成待办以根目录 [TODO.md](../TODO.md) 为唯一来源；
-> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 DOC 收口 `0a4b6fdf`（mainCI 43744058036）；
-> A19 本机候选的发布与 CI 回执在 PR 正文另给，避免合并后误读为主线未前进。
+> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 A19 `0151223`（PR190，mainCI 43788320370
+> 首五 success）；A18 本机候选已源码 APPROVED R0，其发布与 CI 回执在 PR 正文另给，避免合并后误读为主线未前进。
 
 ## 执行状态
 
-- **A19 RoomSession 所有权收窄**：已完成（源码独立 APPROVED R1，截至本次文档核对为本机候选、尚未发布）。无用回调/ref 收窄 + 新 4 条同层回归；
-  初始 Web 临时 adapter 经审计非泄漏且保留即时语义，未为整洁强改。见 [history](./history/2026-11-16-a19-room-ownership-maintenance.md)。
-- **A18 减少 start/resume 重复生命周期逻辑及全局测试注入入口**：未开工（维护候选，不阻断本地增量）。
+- **A19 RoomSession 所有权收窄**：已完成并已发布（PR190 merged main `0151223`，PR/Guard 首六、mainCI 43788320370
+  首五 success）。无用回调/ref 收窄 + 新 4 条同层回归；初始 Web 临时 adapter 经审计非泄漏且保留即时语义。见
+  [history](./history/2026-11-16-a19-room-ownership-maintenance.md)。
+- **A18 生命周期测试边界收窄**：已完成（源码独立 APPROVED R0，本机候选、尚未发布）。移除产品测试注入及
+  start/resume 重复的测试选项 plumbing，测试平台假对象移入 test-only fixture。见
+  [history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)。
 
 ## 行动分层
 
 ### ① 现在可做：只读范围审计 / 设计（不写产品代码）
 
-- **A18**：H1 已把 `runStartup` 抽取到 `apps/vite-app/src/store/conversationStartup.ts`（:53 定义、:478 返回），
-  `apps/vite-app/src/store/conversationSlice.ts`（:306、:401、:406 接线）消费，见
-  [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)。A18 须结合这份已落地的
-  runStartup 抽取现状重新评估，不能沿用"抽取前"的假设直接改。
+- A18 scope 审计已完成并落地实施（见「执行状态」）；当前无新的只读审计候选。
 - 产出限于只读审计结论、契约边界与候选范围说明；候选先审计收敛范围，再按用户已授范围进入单包实施/独立评审，
   出现新产品口径、契约/权限变化、迁移等才需裁定。
 
@@ -52,5 +52,5 @@
 
 ## 推荐顺序（仅建议，非授权）
 
-先做 ① 的只读审计/设计（不依赖真实外部服务），再视结果决定 ② 的有界复现与 ③ 的 Mock 契约收敛；④ 全部等待对应裁定、设备或前置。
+下一可做为 ② 的 weekly/GC 有界调查与 ③ 的 SGEC Mock 契约收敛；④ 全部等待对应裁定、设备或前置。
 候选先审计收敛范围，再按用户已授范围进入单包实施/独立评审；仅出现新产品口径、契约/权限变化、迁移等才需裁定。
