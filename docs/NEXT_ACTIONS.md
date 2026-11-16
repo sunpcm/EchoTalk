@@ -1,15 +1,15 @@
 # EchoTalk 下一步行动评估
 
 > 2026-11-16。本文件只做行动分层与执行状态，未完成待办以根目录 [TODO.md](../TODO.md) 为唯一来源；
-> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 A19 `0151223`（PR190，mainCI 43788320370
-> 首五 success）；A18 本机候选已源码 APPROVED R0，其发布与 CI 回执在 PR 正文另给，避免合并后误读为主线未前进。
+> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 A18 `0422c9e`（PR191，mainCI 43800300024
+> 首五 success）；WGGC 有界调查完成、缺陷仍开放，未完成待办见 TODO。
 
 ## 执行状态
 
 - **A19 RoomSession 所有权收窄**：已完成并已发布（PR190 merged main `0151223`，PR/Guard 首六、mainCI 43788320370
   首五 success）。无用回调/ref 收窄 + 新 4 条同层回归；初始 Web 临时 adapter 经审计非泄漏且保留即时语义。见
   [history](./history/2026-11-16-a19-room-ownership-maintenance.md)。
-- **A18 生命周期测试边界收窄**：已完成（源码独立 APPROVED R0，本机候选、尚未发布）。移除产品测试注入及
+- **A18 生命周期测试边界收窄**：已完成并已发布（PR191 merged main `0422c9e`，PR/Guard 首六、mainCI 43800300024 首五 success）。移除产品测试注入及
   start/resume 重复的测试选项 plumbing，测试平台假对象移入 test-only fixture。见
   [history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)。
 
@@ -21,13 +21,11 @@
 - 产出限于只读审计结论、契约边界与候选范围说明；候选先审计收敛范围，再按用户已授范围进入单包实施/独立评审，
   出现新产品口径、契约/权限变化、迁移等才需裁定。
 
-### ② 可做有界复现 / 现有 CI 留证分析（无根因不改产品）
+### ② 有界复现 / 现有 CI 留证分析（WGGC 已完成调查，缺陷仍开放）
 
-- `apps/vite-app/e2e/weekly-grammar.spec.ts`（[TODO.md](../TODO.md) 记录 :57 偶发失败，历史无重试 5 次失败 1 次）：
-  只做有界复现与现有 CI/留证分析；根因未证实前，不改产品、断言或 retries。
-- `apps/vite-app/e2e/session-flow.spec.ts`（READ2 首轮记录的 `showEndedSession` 内 `page.evaluate` 的 Promise GC 观察，
-  见 [legacy-maintenance-closeout](./history/2026-11-16-legacy-maintenance-closeout.md)）：同样只做有界复现与留证分析；
-  根因未知保持开放，不承诺"复现即修复"。
+- `apps/vite-app/e2e/weekly-grammar.spec.ts` 与 `apps/vite-app/e2e/session-flow.spec.ts` 的 GC/偶发调查已完成：
+  corrected60 与全量 E2E 258 均零重试零 flaky，近期无复现；GC 因果与 weekly 5/1 根因仍未知，继续开放。见
+  [history](./history/2026-11-16-weekly-gc-investigation.md)。不承诺"复现即修复"，不改产品、断言或 retries。
 
 ### ③ 可做 Mock 结构化输出 / 契约收敛（不接真实 Provider）
 
@@ -52,5 +50,5 @@
 
 ## 推荐顺序（仅建议，非授权）
 
-下一可做为 ② 的 weekly/GC 有界调查与 ③ 的 SGEC Mock 契约收敛；④ 全部等待对应裁定、设备或前置。
+② 调查已完成；下一可做为 ③ 的 SGEC Mock 契约收敛；④ 全部等待对应裁定、设备或前置。
 候选先审计收敛范围，再按用户已授范围进入单包实施/独立评审；仅出现新产品口径、契约/权限变化、迁移等才需裁定。

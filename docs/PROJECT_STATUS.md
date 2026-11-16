@@ -1,8 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。已发布 main 为 A19 `0151223`（PR190，PR/Guard 首六、mainCI 43788320370 首五 success）；
-> A18 生命周期测试边界收窄为本机候选（源码 APPROVED R0，尚未发布），其发布与 CI 回执由 PR 正文另给，避免自引用。
-> 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)。
+> 最后核对：2026-11-16。已发布 main 为 A18 `0422c9e`（PR191，PR/Guard 首六、mainCI 43800300024 首五 success）；
+> WGGC 有界调查完成（无复现、缺陷仍开放）；未完成工作只在根目录 [`TODO.md`](../TODO.md)。
 
 ## 当前功能
 
@@ -13,7 +12,7 @@
 | 会话生命周期            | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                                | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                     |
 | 启动编排（H1）          | 原runStartup抽为延迟ports的factory；同步门禁、动态依赖与cleanup所有权保留，resume未合并                             | 已合并PR174、最终mainCI成功；H1当轮旧测试零改、新15条同层测试及四项有效变异保留，真实依赖仍未验 |
 | Room 所有权收窄（A19）  | RoomContextSync 移除无用 onRoom/onRoomRef、roomRef 改必传，render 期绑定与 stop 语义保留                            | 已发布 PR190 main015；初始 Web 快照门禁经审计非泄漏保留                                         |
-| 生命周期测试边界（A18） | 移除产品测试注入 setter 与 start/resume 重复的测试选项 plumbing，测试平台假对象移入 test-only fixture               | 源码 APPROVED R0；平台判定仍经 detectPlatform()，未统一 runner；尚未发布                        |
+| 生命周期测试边界（A18） | 移除产品测试注入 setter 与 start/resume 重复的测试选项 plumbing，测试平台假对象移入 test-only fixture               | 已发布 PR191 main `0422c9e`；平台判定仍经 detectPlatform()，未统一 runner                       |
 | 会话分析                | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态；可替换评估提供方与内部coverage                     | 源码APPROVED R0；仍为文本demo规则，真实发音 Provider 未验收                                     |
 | 契约同源（G3）          | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试                   | 已合并PR172、最终mainCI首轮成功；重试与wire语义保留                                             |
 | 结果可信度              | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                                  | 已实现                                                                                          |
@@ -28,21 +27,21 @@
 
 ## 当前验证基线
 
-最新已发布 main 为 A19 `0151223`（PR190，PR/Guard 首六、mainCI 43788320370 首五 success）。下表 Linux 为 CI 日志回读
-（A19 main015）、macOS 为父 Harness 亲跑（A18 本机候选，未跑本轮 CI），分列；计数不替代真实 LiveKit、第三方 Provider、
-真实 IdP、iOS/macOS 设备或生产部署验收。
+最新已发布 main 为 A18 `0422c9e`（PR191，PR/Guard 首六、mainCI 43800300024 首五 success）。下表 Linux 为 CI 日志回读（A18 main0422）、
+macOS 为父 Harness 亲跑（WGGC 本机 fresh，未跑本轮 CI），分列；计数不替代真实 LiveKit/第三方 Provider/真实 IdP/iOS/macOS 设备或生产部署验收。
 
-| 测试树 / 门禁       | macOS 父 Harness 亲跑（A18 本机候选） | Linux CI 日志回读（A19 main015）        |
-| ------------------- | ------------------------------------- | --------------------------------------- |
-| Vitest              | 1270 passed / 57 文件                 | 1264 passed / 56 文件                   |
-| Playwright E2E      | 258，C129/W129，retry/skip/flaky0     | 258，C129/W129，retry/skip/flaky0，7.0m |
-| Fake API 契约       | 125 passed                            | 125 passed                              |
-| API 类型生成器      | 10 passed                             | 10 passed                               |
-| 构建脚本            | 21 passed                             | 21 passed                               |
-| 完整 backend pytest | 962 / 3 warnings / 80.63% / 81.45s    | 962 / 3 warnings / 80.63% / 65.86s      |
+| 测试树 / 门禁       | macOS 父 Harness 亲跑（WGGC fresh）  | Linux CI 日志回读（A18 main0422）       |
+| ------------------- | ------------------------------------ | --------------------------------------- |
+| Vitest              | 1270 passed / 57 文件                | 1270 passed / 57 文件                   |
+| Playwright E2E      | 258，C129/W129，retry/skip/flaky0    | 258，C129/W129，retry/skip/flaky0，5.2m |
+| Fake API 契约       | 125 passed（A18 阶段，非本轮 fresh） | 125 passed                              |
+| API 类型生成器      | 10 passed（A18 阶段，非本轮 fresh）  | 10 passed                               |
+| 构建脚本            | 21 passed（A18 阶段，非本轮 fresh）  | 21 passed                               |
+| 完整 backend pytest | 962 / 3 warnings / 80.63% / 80.64s   | 962 / 3 warnings / 80.63% / 72.53s      |
 
-A18 本机候选（父 Harness macOS 亲跑，17 门禁分阶段过，未跑本轮 CI）：有效 projects retries[0,0]，实际 retry/skip/flaky 0；
-旧断言 716 matcher 中 715 同文（唯一 H1 测试参数改动态平台），详见 [history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)。
+A18 已发布（PR191 main `0422c9e`，本机 17 门禁分阶段过、旧断言 715/716 同文），见
+[history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)。WGGC 有界调查（纯调查零改）corrected60 全 60 绿、全量 E2E 258 全绿，
+weekly 5/1 与 Promise GC 近期无复现、根因未知继续开放，见 [history](./history/2026-11-16-weekly-gc-investigation.md)。
 
 EV trace/screenshot 策略本机受控对照与历史 GC60 自然未复现见
 [EV 首失败取证](./history/2026-11-16-e2e-first-failure-evidence.md)；命令见 [Agent 评审手册 §2](./agent-review-loop.md)。
