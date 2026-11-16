@@ -1,5 +1,6 @@
 """Build a complete, fully buffered user data export from one database snapshot."""
 
+import hashlib
 import uuid
 from typing import Any, Sequence
 
@@ -10,16 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from database import async_session_maker
 from models.analysis import AnalysisJob
 from models.exercise import GrammarError, PronunciationAssessment
+from models.goal_evaluation import GoalEvaluationResult, GoalRun
 from models.knowledge import KnowledgeState, Skill
 from models.learning_event import LearningEvent
 from models.scenario_goals import GoalCatalogVersion, SessionGoalSnapshot
-from models.session import Session, Transcript
+from models.session import Session, Transcript, TranscriptRole
 from schemas.scenario_goals import GoalDefinition
 from schemas.user_data_export import (
     BktAlgorithmParams,
     CoverageDirection,
     EventCoverage,
     EventUnmappedCounts,
+    GoalEvidenceRef,
+    GoalResultExport,
+    GoalRunExport,
     GrammarAssessmentExport,
     KnowledgeStateExport,
     LearningEventDetails,
@@ -31,6 +36,7 @@ from schemas.user_data_export import (
     TranscriptExport,
     UserDataExport,
     UserDataExportV2,
+    UserDataExportV3,
 )
 from time_utils import utc_now
 
@@ -257,12 +263,99 @@ async def _validate_relationships(
             raise UserDataExportIntegrityError("Unknown skill reference")
 
 
+async def _validate_goal_evidence(
+    db: AsyncSession,
+    goal_run_rows: Sequence[Any],
+    user_id: uuid.UUID,
+) -> None:
+    """Prove every frozen evidence reference belongs to the user's session."""
+    for run_row in goal_run_rows:
+        evidence = run_row.evidence
+        if not isinstance(evidence, list):
+            raise UserDataExportIntegrityError("Goal evidence is not an array")
+        for item in evidence:
+            if not isinstance(item, dict):
+                raise UserDataExportIntegrityError(
+                    "Goal evidence reference is malformed"
+                )
+            raw_id = item.get("transcript_id")
+            expected_digest = item.get("sha256")
+            try:
+                transcript_id = int(raw_id)
+            except (TypeError, ValueError):
+                raise UserDataExportIntegrityError(
+                    "Goal evidence transcript id is malformed"
+                )
+            row = (
+                await db.execute(
+                    select(Transcript.id, Transcript.role, Transcript.content).where(
+                        Transcript.id == transcript_id,
+                        Transcript.session_id == run_row.session_id,
+                    )
+                )
+            ).one_or_none()
+            if row is None:
+                raise UserDataExportIntegrityError("Goal evidence transcript missing")
+            _transcript_id, role, content = row
+            if role != TranscriptRole.user:
+                raise UserDataExportIntegrityError(
+                    "Goal evidence transcript is not student"
+                )
+            if hashlib.sha256(content.encode("utf-8")).hexdigest() != expected_digest:
+                raise UserDataExportIntegrityError("Goal evidence digest mismatch")
+
+
+def _validate_goal_results(
+    goal_run_rows: Sequence[Any],
+    goal_result_rows: Sequence[Any],
+    session_goal_rows: Sequence[Any],
+) -> None:
+    """Prove goal results match the frozen catalog and terminal completeness."""
+    frozen_by_session: dict[uuid.UUID, dict[str, int]] = {}
+    for row in session_goal_rows:
+        goals = row.goals
+        if not isinstance(goals, list):
+            raise UserDataExportIntegrityError("Session goal catalog is not an array")
+        frozen: dict[str, int] = {}
+        for raw in goals:
+            goal = GoalDefinition.model_validate(raw)
+            if goal.goal_id in frozen:
+                raise UserDataExportIntegrityError("Duplicate frozen goal id")
+            frozen[goal.goal_id] = goal.goal_version
+        frozen_by_session[row.session_id] = frozen
+
+    run_status = {row.id: row.status.value for row in goal_run_rows}
+    results_by_run: dict[uuid.UUID, dict[str, int]] = {}
+    for row in goal_result_rows:
+        if row.run_id not in run_status:
+            raise UserDataExportIntegrityError("Goal result references unknown run")
+        results_by_run.setdefault(row.run_id, {})[row.goal_id] = row.goal_version
+
+    for run_row in goal_run_rows:
+        frozen = frozen_by_session.get(run_row.session_id)
+        if frozen is None:
+            raise UserDataExportIntegrityError("Goal run has no frozen session goals")
+        results = results_by_run.get(run_row.id, {})
+        if run_row.status.value in ("pending", "running"):
+            if results:
+                raise UserDataExportIntegrityError(
+                    "Progress goal run already has results"
+                )
+            continue
+        if set(results) != set(frozen):
+            raise UserDataExportIntegrityError("Terminal goal run result set mismatch")
+        for goal_id, goal_version in frozen.items():
+            if results[goal_id] != goal_version:
+                raise UserDataExportIntegrityError("Goal result version mismatch")
+
+
 async def build_user_data_export(
     *,
     session_factory: SessionFactory,
     user_id: uuid.UUID,
     include_session_goals: bool = False,
-) -> UserDataExport | UserDataExportV2:
+    include_goal_evaluations: bool = False,
+) -> UserDataExport | UserDataExportV2 | UserDataExportV3:
     """Read all export sections from one repeatable-read, read-only snapshot."""
     async with session_factory() as db:
         await db.execute(
@@ -395,6 +488,9 @@ async def build_user_data_export(
             )
         ).all()
 
+        if include_goal_evaluations:
+            include_session_goals = True
+
         session_goal_rows: Sequence[Any] = ()
         if include_session_goals:
             session_goal_rows = (
@@ -422,6 +518,54 @@ async def build_user_data_export(
                     .order_by(Session.started_at, SessionGoalSnapshot.session_id)
                 )
             ).all()
+
+        goal_run_rows: Sequence[Any] = ()
+        goal_result_rows: Sequence[Any] = ()
+        if include_goal_evaluations:
+            goal_run_rows = (
+                await db.execute(
+                    select(
+                        GoalRun.id,
+                        GoalRun.session_id,
+                        GoalRun.revision,
+                        GoalRun.status,
+                        GoalRun.evaluator_version,
+                        GoalRun.evidence,
+                        GoalRun.attempt_count,
+                        GoalRun.last_error_code,
+                        GoalRun.last_error,
+                        GoalRun.next_retry_at,
+                        GoalRun.started_at,
+                        GoalRun.finished_at,
+                        GoalRun.created_at,
+                        GoalRun.updated_at,
+                    )
+                    .join(Session, Session.id == GoalRun.session_id)
+                    .where(Session.user_id == user_id)
+                    .order_by(GoalRun.created_at, GoalRun.id)
+                )
+            ).all()
+            goal_result_rows = (
+                await db.execute(
+                    select(
+                        GoalEvaluationResult.id,
+                        GoalEvaluationResult.run_id,
+                        GoalEvaluationResult.goal_id,
+                        GoalEvaluationResult.goal_version,
+                        GoalEvaluationResult.result,
+                        GoalEvaluationResult.created_at,
+                    )
+                    .join(GoalRun, GoalRun.id == GoalEvaluationResult.run_id)
+                    .join(Session, Session.id == GoalRun.session_id)
+                    .where(Session.user_id == user_id)
+                    .order_by(
+                        GoalEvaluationResult.created_at,
+                        GoalEvaluationResult.id,
+                    )
+                )
+            ).all()
+            await _validate_goal_evidence(db, goal_run_rows, user_id)
+            _validate_goal_results(goal_run_rows, goal_result_rows, session_goal_rows)
 
         await _validate_relationships(
             db,
@@ -521,22 +665,66 @@ async def build_user_data_export(
             ],
         }
         exported_at = utc_now()
+        session_goal_exports = [
+            SessionGoalExport(
+                session_id=row.session_id,
+                material_id=row.material_id,
+                material_version=row.material_version,
+                goals=_project_goal_definitions(
+                    row.goals,
+                    material_id=row.material_id,
+                ),
+            )
+            for row in session_goal_rows
+        ]
+        if include_goal_evaluations:
+            return UserDataExportV3(
+                schema_version=3,
+                exported_at=exported_at,
+                session_goals=session_goal_exports,
+                goal_runs=[
+                    GoalRunExport(
+                        id=row.id,
+                        session_id=row.session_id,
+                        revision=row.revision,
+                        status=row.status.value,
+                        evaluator_version=row.evaluator_version,
+                        evidence=[
+                            GoalEvidenceRef(
+                                transcript_id=item["transcript_id"],
+                                sha256=item["sha256"],
+                            )
+                            for item in row.evidence
+                        ],
+                        attempt_count=row.attempt_count,
+                        last_error_code=row.last_error_code,
+                        last_error=row.last_error,
+                        next_retry_at=row.next_retry_at,
+                        started_at=row.started_at,
+                        finished_at=row.finished_at,
+                        created_at=row.created_at,
+                        updated_at=row.updated_at,
+                    )
+                    for row in goal_run_rows
+                ],
+                goal_results=[
+                    GoalResultExport(
+                        id=row.id,
+                        run_id=row.run_id,
+                        goal_id=row.goal_id,
+                        goal_version=row.goal_version,
+                        result=row.result.value,
+                        created_at=row.created_at,
+                    )
+                    for row in goal_result_rows
+                ],
+                **export_sections,
+            )
         if include_session_goals:
             return UserDataExportV2(
                 schema_version=2,
                 exported_at=exported_at,
-                session_goals=[
-                    SessionGoalExport(
-                        session_id=row.session_id,
-                        material_id=row.material_id,
-                        material_version=row.material_version,
-                        goals=_project_goal_definitions(
-                            row.goals,
-                            material_id=row.material_id,
-                        ),
-                    )
-                    for row in session_goal_rows
-                ],
+                session_goals=session_goal_exports,
                 **export_sections,
             )
         return UserDataExport(

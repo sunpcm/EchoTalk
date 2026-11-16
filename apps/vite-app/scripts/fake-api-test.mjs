@@ -1413,6 +1413,27 @@ const EXPECTED_CONTRACT_DEVIATIONS = [
   },
 ];
 
+const BOUND_ACTIVE_NO_RUN_GOALS = [
+  {
+    goal_id: "mat_biz_greet_b1:introduce_name_and_role",
+    goal_version: 1,
+    description_en: "Introduce your name and your job or role.",
+    description_zh: "介绍自己的姓名及工作/角色。",
+    criteria: ["State your name.", "State your job or role."],
+    evidence_types: ["transcript"],
+    result: "not_assessed",
+  },
+  {
+    goal_id: "mat_biz_greet_b1:ask_other_work_question",
+    goal_version: 1,
+    description_en: "Ask the other person a question about their work.",
+    description_zh: "向对方提出一个与其工作相关的问题。",
+    criteria: ["Ask the other person a question about their work."],
+    evidence_types: ["transcript"],
+    result: "not_assessed",
+  },
+];
+
 const FAKE_SUCCESS_CASES = [
   {
     operation: "GET /api/health",
@@ -1486,6 +1507,14 @@ const FAKE_SUCCESS_CASES = [
     buildRequest: (context) => ({
       method: "GET",
       path: `/api/sessions/${context.sessionId}`,
+    }),
+  },
+  {
+    operation: "GET /api/sessions/{session_id}/goals",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "GET",
+      path: `/api/sessions/${context.sessionId}/goals`,
     }),
   },
   {
@@ -1767,6 +1796,82 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
       );
     });
   }
+
+  it("GET /api/sessions/{session_id}/goals 对默认无绑定会话返回空未配置视图", () => {
+    const result = results.get("GET /api/sessions/{session_id}/goals");
+    assert.ok(result, "未取得 GET /api/sessions/{session_id}/goals 的真实 HTTP 响应");
+    assert.deepStrictEqual(result.body, {
+      session_id: context.sessionId,
+      configured: false,
+      material_id: null,
+      material_version: null,
+      goals: [],
+      execution: null,
+      summary: null,
+    });
+  });
+
+  it("GET /api/sessions/{session_id}/goals 对绑定 active/no-run 派生 not_assessed 且无副作用，未知会话404", async () => {
+    const isolated = await startFakeApiServer();
+    try {
+      const createdResponse = await timedFetch(`${isolated.baseUrl}/api/sessions`, {
+        method: "POST",
+        headers: {
+          ...AUTH_HEADER,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mode: "scenario",
+          goal_binding: {
+            material_id: "mat_biz_greet_b1",
+            material_version: 1,
+          },
+        }),
+      });
+      assert.equal(createdResponse.status, 201);
+      const session = await createdResponse.json();
+
+      const goalsUrl = `${isolated.baseUrl}/api/sessions/${session.id}/goals`;
+      const firstResponse = await timedFetch(goalsUrl, { headers: AUTH_HEADER });
+      assert.equal(firstResponse.status, 200);
+      const firstBody = await firstResponse.json();
+      assert.deepStrictEqual(firstBody, {
+        session_id: session.id,
+        configured: true,
+        material_id: "mat_biz_greet_b1",
+        material_version: 1,
+        goals: BOUND_ACTIVE_NO_RUN_GOALS,
+        execution: null,
+        summary: {
+          total: 2,
+          achieved: 0,
+          not_achieved: 0,
+          assessed: 0,
+          unknown: 0,
+          not_assessed: 2,
+        },
+      });
+
+      const secondResponse = await timedFetch(goalsUrl, { headers: AUTH_HEADER });
+      assert.equal(secondResponse.status, 200);
+      assert.deepStrictEqual(await secondResponse.json(), firstBody);
+
+      const sessionResponse = await timedFetch(`${isolated.baseUrl}/api/sessions/${session.id}`, {
+        headers: AUTH_HEADER,
+      });
+      assert.equal(sessionResponse.status, 200);
+      assert.equal((await sessionResponse.json()).status, "active");
+
+      const unknownResponse = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/00000000-0000-4000-8000-00000000dead/goals`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(unknownResponse.status, 404);
+      await unknownResponse.json();
+    } finally {
+      await terminateServer(isolated.child);
+    }
+  });
 
   it("GET /api/user/data-export 返回可审计本人数据与固定安全头", async () => {
     const result = results.get("GET /api/user/data-export");

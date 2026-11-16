@@ -111,9 +111,21 @@ def memory_queue(monkeypatch):
             await queue.release.wait()
             queue.jobs[job_id] = "succeeded"
 
+    async def recover_goal(_db):
+        return 0
+
+    async def claim_goal(_db):
+        return None
+
+    async def process_goal(_run_id, _factory):
+        raise AssertionError("unexpected goal processing in memory fixture")
+
     monkeypatch.setattr(worker, "recover_stale_jobs", recover)
     monkeypatch.setattr(worker, "claim_next_job", claim)
     monkeypatch.setattr(worker, "process_job", process)
+    monkeypatch.setattr(worker, "recover_stale_goal_runs", recover_goal)
+    monkeypatch.setattr(worker, "claim_next_goal_run", claim_goal)
+    monkeypatch.setattr(worker, "process_goal_run", process_goal)
     return queue
 
 
@@ -403,6 +415,12 @@ def test_real_posix_signals_exit_zero_dispose_and_restore(stop_signal, fallback)
         async def claim(db):
             print('READY', flush=True)
             return None
+        async def recover_goal(db):
+            return 0
+        async def claim_goal(db):
+            return None
+        async def process_goal(run_id, factory):
+            raise AssertionError('unexpected goal processing')
         class Engine:
             async def dispose(self):
                 os.kill(os.getpid(), signal.SIGTERM)
@@ -414,6 +432,9 @@ def test_real_posix_signals_exit_zero_dispose_and_restore(stop_signal, fallback)
         worker.async_session_maker = session
         worker.recover_stale_jobs = recover
         worker.claim_next_job = claim
+        worker.recover_stale_goal_runs = recover_goal
+        worker.claim_next_goal_run = claim_goal
+        worker.process_goal_run = process_goal
         worker.settings.ANALYSIS_WORKER_POLL_SECONDS = 60
         worker.engine = Engine()
         async def run():
@@ -482,6 +503,12 @@ def test_cli_cancellation_resistant_job_exits_nonzero_within_outer_stop_budget()
             return 0
         async def claim(db):
             return 'one-job'
+        async def recover_goal(db):
+            return 0
+        async def claim_goal(db):
+            return None
+        async def process_goal(run_id, factory):
+            raise AssertionError('unexpected goal processing')
         async def stubborn(job, factory):
             print('READY', flush=True)
             try:
@@ -495,6 +522,9 @@ def test_cli_cancellation_resistant_job_exits_nonzero_within_outer_stop_budget()
         worker.recover_stale_jobs = recover
         worker.claim_next_job = claim
         worker.process_job = stubborn
+        worker.recover_stale_goal_runs = recover_goal
+        worker.claim_next_goal_run = claim_goal
+        worker.process_goal_run = process_goal
         worker.engine = Engine()
         worker.main()
         """

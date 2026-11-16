@@ -183,3 +183,62 @@ class UserDataExportV2(BaseModel):
     learning_events: list[LearningEventExport]
     knowledge_states: list[KnowledgeStateExport]
     session_goals: list[SessionGoalExport]
+
+
+class GoalEvidenceRef(BaseModel):
+    """One frozen student transcript reference (id + digest, no body)."""
+
+    model_config = {"extra": "forbid"}
+
+    transcript_id: str
+    sha256: str
+
+
+class GoalRunExport(BaseModel):
+    """One frozen evaluation run header with its evidence references."""
+
+    model_config = {"extra": "forbid"}
+
+    id: uuid.UUID
+    session_id: uuid.UUID
+    revision: int
+    status: str
+    evaluator_version: str
+    evidence: list[GoalEvidenceRef]
+    attempt_count: int
+    last_error_code: str | None
+    last_error: str | None
+    next_retry_at: UtcDatetime | None
+    started_at: UtcDatetime | None
+    finished_at: UtcDatetime | None
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
+
+
+class GoalResultExport(BaseModel):
+    """One append-only terminal result for a goal."""
+
+    model_config = {"extra": "forbid"}
+
+    id: uuid.UUID
+    run_id: uuid.UUID
+    goal_id: str
+    goal_version: int
+    result: str
+    created_at: UtcDatetime
+
+
+class UserDataExportV3(BaseModel):
+    """Explicit opt-in version-3 export with goal runs/results references."""
+
+    schema_version: Literal[3]
+    exported_at: UtcDatetime
+    sessions: list[SessionExport]
+    transcripts: list[TranscriptExport]
+    pronunciation_assessments: list[PronunciationAssessmentExport]
+    grammar_assessments: list[GrammarAssessmentExport]
+    learning_events: list[LearningEventExport]
+    knowledge_states: list[KnowledgeStateExport]
+    session_goals: list[SessionGoalExport]
+    goal_runs: list[GoalRunExport]
+    goal_results: list[GoalResultExport]

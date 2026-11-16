@@ -13,7 +13,7 @@ from livekit.api import (
     LiveKitAPI,
     VideoGrants,
 )
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,6 +24,8 @@ from database import get_db
 from dependencies import get_current_user
 from models.analysis import AnalysisJob
 from models.call_lease import CallLease, CallLeaseState
+from models.goal_evaluation import GoalEvaluationResult, GoalRun, GoalRunStatus
+from models.scenario_goals import GoalCatalogVersion, SessionGoalSnapshot
 from models.session import Session, SessionContext, SessionMode, SessionStatus
 from schemas.call_lease import (
     CallClaimRequest,
@@ -32,6 +34,13 @@ from schemas.call_lease import (
     CallReleaseRequest,
     CallReleaseResponse,
 )
+from schemas.goal_evaluation import (
+    GoalExecution,
+    GoalSummary,
+    GoalViewEntry,
+    GoalViewResponse,
+)
+from schemas.scenario_goals import GoalDefinition
 from schemas.session import (
     AnalysisStatusResponse,
     DailyProgressResponse,
@@ -55,6 +64,7 @@ from services.call_leases import (
     revoke_cloud_participant,
     verify_call_lease_for_token_or_dispatch,
 )
+from services.goal_evaluation import create_goal_run
 from services.session_admission import (
     get_active_session_or_raise,
     verify_session_admission,
@@ -542,6 +552,7 @@ async def end_session(
         session.status = SessionStatus.completed
         session.ended_at = utc_now()
         await create_analysis_job(session.id, db)
+        await create_goal_run(db, session_id=session.id, user_id=current_user.id)
         await db.flush()
         await db.commit()
         await db.refresh(session)
@@ -572,10 +583,184 @@ async def end_session(
     session.status = SessionStatus.completed
     session.ended_at = utc_now()
     await create_analysis_job(session.id, db)
+    await create_goal_run(db, session_id=session.id, user_id=current_user.id)
     await db.flush()
     await db.refresh(session)
 
     return session
+
+
+@router.get(
+    "/sessions/{session_id}/goals",
+    response_model=GoalViewResponse,
+)
+async def get_session_goals(
+    session_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the frozen goal definitions, execution and summary (read-only).
+
+    Uses one outer-join select for a consistent snapshot; it never issues
+    ``SET TRANSACTION`` so it stays safe on the shared authentication session.
+    """
+    rows = (
+        await db.execute(
+            select(
+                Session.id,
+                Session.user_id,
+                SessionGoalSnapshot.material_id,
+                SessionGoalSnapshot.material_version,
+                GoalCatalogVersion.goals,
+                GoalRun.id,
+                GoalRun.status,
+                GoalRun.revision,
+                GoalRun.evaluator_version,
+                GoalEvaluationResult.goal_id,
+                GoalEvaluationResult.goal_version,
+                GoalEvaluationResult.result,
+            )
+            .select_from(Session)
+            .outerjoin(
+                SessionGoalSnapshot,
+                SessionGoalSnapshot.session_id == Session.id,
+            )
+            .outerjoin(
+                GoalCatalogVersion,
+                and_(
+                    GoalCatalogVersion.material_id == SessionGoalSnapshot.material_id,
+                    GoalCatalogVersion.material_version
+                    == SessionGoalSnapshot.material_version,
+                ),
+            )
+            .outerjoin(GoalRun, GoalRun.session_id == Session.id)
+            .outerjoin(
+                GoalEvaluationResult,
+                GoalEvaluationResult.run_id == GoalRun.id,
+            )
+            .where(Session.id == session_id)
+        )
+    ).all()
+
+    if not rows or rows[0][1] != current_user.id:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    material_id = rows[0][2]
+    material_version = rows[0][3]
+    goals_json = rows[0][4]
+    run_id = rows[0][5]
+    run_status = rows[0][6]
+    run_revision = rows[0][7]
+    run_evaluator_version = rows[0][8]
+
+    if material_id is None:
+        return GoalViewResponse(
+            session_id=session_id,
+            configured=False,
+            material_id=None,
+            material_version=None,
+            goals=[],
+            execution=None,
+            summary=None,
+        )
+
+    goals = [GoalDefinition.model_validate(raw) for raw in goals_json]
+
+    def entry(goal: GoalDefinition, result: str | None) -> GoalViewEntry:
+        return GoalViewEntry(
+            goal_id=goal.goal_id,
+            goal_version=goal.goal_version,
+            description_en=goal.description_en,
+            description_zh=goal.description_zh,
+            criteria=goal.criteria,
+            evidence_types=goal.evidence_types,
+            result=result,
+        )
+
+    if run_id is None:
+        return GoalViewResponse(
+            session_id=session_id,
+            configured=True,
+            material_id=material_id,
+            material_version=material_version,
+            goals=[entry(goal, "not_assessed") for goal in goals],
+            execution=None,
+            summary=GoalSummary(
+                total=len(goals),
+                achieved=0,
+                not_achieved=0,
+                assessed=0,
+                unknown=0,
+                not_assessed=len(goals),
+            ),
+        )
+
+    result_by_goal = {
+        row[9]: (row[10], row[11].value) for row in rows if row[9] is not None
+    }
+
+    execution = GoalExecution(
+        status=run_status.value,
+        revision=run_revision,
+        evaluator_version=run_evaluator_version,
+    )
+    if run_status in (GoalRunStatus.pending, GoalRunStatus.running):
+        if result_by_goal:
+            raise HTTPException(
+                status_code=500,
+                detail="goal evaluation inconsistent: progress state has results",
+            )
+        summary = None
+        view_entries = [entry(goal, None) for goal in goals]
+    else:
+        goal_ids = {goal.goal_id for goal in goals}
+        if set(result_by_goal) != goal_ids:
+            raise HTTPException(
+                status_code=500,
+                detail="goal evaluation inconsistent: result set mismatch",
+            )
+        for goal in goals:
+            if result_by_goal[goal.goal_id][0] != goal.goal_version:
+                raise HTTPException(
+                    status_code=500,
+                    detail="goal evaluation inconsistent: goal version mismatch",
+                )
+        achieved = sum(
+            1 for _version, value in result_by_goal.values() if value == "achieved"
+        )
+        not_achieved = sum(
+            1 for _version, value in result_by_goal.values() if value == "not_achieved"
+        )
+        unknown = sum(
+            1 for _version, value in result_by_goal.values() if value == "unknown"
+        )
+        not_assessed = sum(
+            1 for _version, value in result_by_goal.values() if value == "not_assessed"
+        )
+        if achieved + not_achieved + unknown + not_assessed != len(goals):
+            raise HTTPException(
+                status_code=500,
+                detail="goal evaluation count invariant violated",
+            )
+        view_entries = [entry(goal, result_by_goal[goal.goal_id][1]) for goal in goals]
+        summary = GoalSummary(
+            total=len(goals),
+            achieved=achieved,
+            not_achieved=not_achieved,
+            assessed=achieved + not_achieved,
+            unknown=unknown,
+            not_assessed=not_assessed,
+        )
+
+    return GoalViewResponse(
+        session_id=session_id,
+        configured=True,
+        material_id=material_id,
+        material_version=material_version,
+        goals=view_entries,
+        execution=execution,
+        summary=summary,
+    )
 
 
 def _analysis_status_response(job: AnalysisJob) -> AnalysisStatusResponse:

@@ -7,6 +7,12 @@ from .analysis import AnalysisJob, AnalysisJobStatus
 from .base import Base
 from .call_lease import CallLease, CallLeaseState
 from .exercise import GrammarError, PronunciationAssessment
+from .goal_evaluation import (
+    GoalEvaluationResult,
+    GoalResult,
+    GoalRun,
+    GoalRunStatus,
+)
 from .knowledge import KnowledgeState, Skill
 from .learning_event import LearningEvent
 from .learning_event_cutover import LearningEventCutover
@@ -42,6 +48,10 @@ __all__ = [
     "LearningEventCutover",
     "GoalCatalogVersion",
     "SessionGoalSnapshot",
+    "GoalRun",
+    "GoalEvaluationResult",
+    "GoalRunStatus",
+    "GoalResult",
     "PronunciationAssessment",
     "GrammarError",
 ]

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.analysis import AnalysisJob
 from models.call_lease import CallLease
 from models.exercise import GrammarError, PronunciationAssessment
+from models.goal_evaluation import GoalRun
 from models.knowledge import KnowledgeState
 from models.learning_event import LearningEvent
 from models.scenario_goals import SessionGoalSnapshot
@@ -66,6 +67,20 @@ async def _lock_job_sessions(
         .with_for_update()
     )
     return {row[0]: row[1] for row in result.all()}
+
+
+async def _lock_goal_runs(
+    db: AsyncSession,
+    session_ids: set[uuid.UUID],
+) -> None:
+    if not session_ids:
+        return
+    await db.execute(
+        select(GoalRun.id)
+        .where(GoalRun.session_id.in_(session_ids))
+        .order_by(GoalRun.id)
+        .with_for_update()
+    )
 
 
 async def _lock_assessment_sessions(
@@ -237,6 +252,7 @@ async def delete_user_account(
 
     session_ids = await _lock_session_ids(db, user_id)
     job_sessions = await _lock_job_sessions(db, session_ids)
+    await _lock_goal_runs(db, session_ids)
     assessment_sessions = await _lock_assessment_sessions(db, session_ids)
     grammar_sessions = await _lock_grammar_sessions(db, session_ids)
 
@@ -294,12 +310,13 @@ async def delete_user_account(
             delete(SessionContext).where(SessionContext.session_id.in_(session_ids))
         )
         await db.execute(
+            delete(AnalysisJob).where(AnalysisJob.session_id.in_(session_ids))
+        )
+        await db.execute(delete(GoalRun).where(GoalRun.session_id.in_(session_ids)))
+        await db.execute(
             delete(SessionGoalSnapshot).where(
                 SessionGoalSnapshot.session_id.in_(session_ids)
             )
-        )
-        await db.execute(
-            delete(AnalysisJob).where(AnalysisJob.session_id.in_(session_ids))
         )
     await db.execute(delete(CallLease).where(CallLease.user_id == user_id))
     await db.execute(delete(KnowledgeState).where(KnowledgeState.user_id == user_id))

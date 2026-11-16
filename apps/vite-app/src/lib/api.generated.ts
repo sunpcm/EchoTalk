@@ -482,6 +482,29 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/{session_id}/goals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Session Goals
+     * @description Return the frozen goal definitions, execution and summary (read-only).
+     *
+     *     Uses one outer-join select for a consistent snapshot; it never issues
+     *     ``SET TRANSACTION`` so it stays safe on the shared authentication session.
+     */
+    get: operations["get_session_goals_api_sessions__session_id__goals_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}/token": {
     parameters: {
       query?: never;
@@ -903,6 +926,160 @@ export interface components {
       goal_id: string;
       /** Goal Version */
       goal_version: number;
+    };
+    /**
+     * GoalEvidenceRef
+     * @description One frozen student transcript reference (id + digest, no body).
+     */
+    GoalEvidenceRef: {
+      /** Sha256 */
+      sha256: string;
+      /** Transcript Id */
+      transcript_id: string;
+    };
+    /**
+     * GoalExecution
+     * @description Execution progress for the one active revision.
+     */
+    GoalExecution: {
+      /** Evaluator Version */
+      evaluator_version: string;
+      /** Revision */
+      revision: number;
+      /** Status */
+      status: string;
+    };
+    /**
+     * GoalResultExport
+     * @description One append-only terminal result for a goal.
+     */
+    GoalResultExport: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Goal Id */
+      goal_id: string;
+      /** Goal Version */
+      goal_version: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Result */
+      result: string;
+      /**
+       * Run Id
+       * Format: uuid
+       */
+      run_id: string;
+    };
+    /**
+     * GoalRunExport
+     * @description One frozen evaluation run header with its evidence references.
+     */
+    GoalRunExport: {
+      /** Attempt Count */
+      attempt_count: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Evaluator Version */
+      evaluator_version: string;
+      /** Evidence */
+      evidence: components["schemas"]["GoalEvidenceRef"][];
+      /** Finished At */
+      finished_at: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Last Error */
+      last_error: string | null;
+      /** Last Error Code */
+      last_error_code: string | null;
+      /** Next Retry At */
+      next_retry_at: string | null;
+      /** Revision */
+      revision: number;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Started At */
+      started_at: string | null;
+      /** Status */
+      status: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * GoalSummary
+     * @description Terminal count invariants; ``0 <= achieved <= assessed <= total``.
+     */
+    GoalSummary: {
+      /** Achieved */
+      achieved: number;
+      /** Assessed */
+      assessed: number;
+      /** Not Achieved */
+      not_achieved: number;
+      /** Not Assessed */
+      not_assessed: number;
+      /** Total */
+      total: number;
+      /** Unknown */
+      unknown: number;
+    };
+    /**
+     * GoalViewEntry
+     * @description One frozen goal definition plus its terminal result (or null).
+     */
+    GoalViewEntry: {
+      /** Criteria */
+      criteria: string[];
+      /** Description En */
+      description_en: string;
+      /** Description Zh */
+      description_zh: string;
+      /** Evidence Types */
+      evidence_types: string[];
+      /** Goal Id */
+      goal_id: string;
+      /** Goal Version */
+      goal_version: number;
+      /** Result */
+      result: string | null;
+    };
+    /**
+     * GoalViewResponse
+     * @description Stable owner-scoped read for one session's goals.
+     */
+    GoalViewResponse: {
+      /** Configured */
+      configured: boolean;
+      execution: components["schemas"]["GoalExecution"] | null;
+      /** Goals */
+      goals: components["schemas"]["GoalViewEntry"][];
+      /** Material Id */
+      material_id: string | null;
+      /** Material Version */
+      material_version: number | null;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      summary: components["schemas"]["GoalSummary"] | null;
     };
     /**
      * GrammarAssessmentExport
@@ -1424,6 +1601,40 @@ export interface components {
        * @constant
        */
       schema_version: 2;
+      /** Session Goals */
+      session_goals: components["schemas"]["SessionGoalExport"][];
+      /** Sessions */
+      sessions: components["schemas"]["SessionExport"][];
+      /** Transcripts */
+      transcripts: components["schemas"]["TranscriptExport"][];
+    };
+    /**
+     * UserDataExportV3
+     * @description Explicit opt-in version-3 export with goal runs/results references.
+     */
+    UserDataExportV3: {
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Goal Results */
+      goal_results: components["schemas"]["GoalResultExport"][];
+      /** Goal Runs */
+      goal_runs: components["schemas"]["GoalRunExport"][];
+      /** Grammar Assessments */
+      grammar_assessments: components["schemas"]["GrammarAssessmentExport"][];
+      /** Knowledge States */
+      knowledge_states: components["schemas"]["KnowledgeStateExport"][];
+      /** Learning Events */
+      learning_events: components["schemas"]["LearningEventExport"][];
+      /** Pronunciation Assessments */
+      pronunciation_assessments: components["schemas"]["PronunciationAssessmentExport"][];
+      /**
+       * Schema Version
+       * @constant
+       */
+      schema_version: 3;
       /** Session Goals */
       session_goals: components["schemas"]["SessionGoalExport"][];
       /** Sessions */
@@ -2418,6 +2629,39 @@ export interface operations {
       };
     };
   };
+  get_session_goals_api_sessions__session_id__goals_get: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GoalViewResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   get_session_token_api_sessions__session_id__token_get: {
     parameters: {
       query?: never;
@@ -2505,7 +2749,8 @@ export interface operations {
         content: {
           "application/json":
             | components["schemas"]["UserDataExport"]
-            | components["schemas"]["UserDataExportV2"];
+            | components["schemas"]["UserDataExportV2"]
+            | components["schemas"]["UserDataExportV3"];
         };
       };
       /** @description Validation Error */

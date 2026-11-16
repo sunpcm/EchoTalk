@@ -748,6 +748,392 @@
         "title": "GoalDefinition",
         "type": "object"
       },
+      "GoalEvidenceRef": {
+        "additionalProperties": false,
+        "description": "One frozen student transcript reference (id + digest, no body).",
+        "properties": {
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "transcript_id": {
+            "title": "Transcript Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transcript_id",
+          "sha256"
+        ],
+        "title": "GoalEvidenceRef",
+        "type": "object"
+      },
+      "GoalExecution": {
+        "additionalProperties": false,
+        "description": "Execution progress for the one active revision.",
+        "properties": {
+          "evaluator_version": {
+            "title": "Evaluator Version",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "revision",
+          "evaluator_version"
+        ],
+        "title": "GoalExecution",
+        "type": "object"
+      },
+      "GoalResultExport": {
+        "additionalProperties": false,
+        "description": "One append-only terminal result for a goal.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "goal_id": {
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "goal_version": {
+            "title": "Goal Version",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "goal_id",
+          "goal_version",
+          "result",
+          "created_at"
+        ],
+        "title": "GoalResultExport",
+        "type": "object"
+      },
+      "GoalRunExport": {
+        "additionalProperties": false,
+        "description": "One frozen evaluation run header with its evidence references.",
+        "properties": {
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evaluator_version": {
+            "title": "Evaluator Version",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/GoalEvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "next_retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Retry At"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "revision",
+          "status",
+          "evaluator_version",
+          "evidence",
+          "attempt_count",
+          "last_error_code",
+          "last_error",
+          "next_retry_at",
+          "started_at",
+          "finished_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GoalRunExport",
+        "type": "object"
+      },
+      "GoalSummary": {
+        "additionalProperties": false,
+        "description": "Terminal count invariants; ``0 <= achieved <= assessed <= total``.",
+        "properties": {
+          "achieved": {
+            "title": "Achieved",
+            "type": "integer"
+          },
+          "assessed": {
+            "title": "Assessed",
+            "type": "integer"
+          },
+          "not_achieved": {
+            "title": "Not Achieved",
+            "type": "integer"
+          },
+          "not_assessed": {
+            "title": "Not Assessed",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unknown": {
+            "title": "Unknown",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "achieved",
+          "not_achieved",
+          "assessed",
+          "unknown",
+          "not_assessed"
+        ],
+        "title": "GoalSummary",
+        "type": "object"
+      },
+      "GoalViewEntry": {
+        "additionalProperties": false,
+        "description": "One frozen goal definition plus its terminal result (or null).",
+        "properties": {
+          "criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "description_en": {
+            "title": "Description En",
+            "type": "string"
+          },
+          "description_zh": {
+            "title": "Description Zh",
+            "type": "string"
+          },
+          "evidence_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Types",
+            "type": "array"
+          },
+          "goal_id": {
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "goal_version": {
+            "title": "Goal Version",
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          }
+        },
+        "required": [
+          "goal_id",
+          "goal_version",
+          "description_en",
+          "description_zh",
+          "criteria",
+          "evidence_types",
+          "result"
+        ],
+        "title": "GoalViewEntry",
+        "type": "object"
+      },
+      "GoalViewResponse": {
+        "additionalProperties": false,
+        "description": "Stable owner-scoped read for one session's goals.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/GoalViewEntry"
+            },
+            "title": "Goals",
+            "type": "array"
+          },
+          "material_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Id"
+          },
+          "material_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Version"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "session_id",
+          "configured",
+          "material_id",
+          "material_version",
+          "goals",
+          "execution",
+          "summary"
+        ],
+        "title": "GoalViewResponse",
+        "type": "object"
+      },
       "GrammarAssessmentExport": {
         "description": "Grammar error and correction fields for the authenticated user.",
         "properties": {
@@ -2057,6 +2443,99 @@
           "session_goals"
         ],
         "title": "UserDataExportV2",
+        "type": "object"
+      },
+      "UserDataExportV3": {
+        "description": "Explicit opt-in version-3 export with goal runs/results references.",
+        "properties": {
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "goal_results": {
+            "items": {
+              "$ref": "#/components/schemas/GoalResultExport"
+            },
+            "title": "Goal Results",
+            "type": "array"
+          },
+          "goal_runs": {
+            "items": {
+              "$ref": "#/components/schemas/GoalRunExport"
+            },
+            "title": "Goal Runs",
+            "type": "array"
+          },
+          "grammar_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/GrammarAssessmentExport"
+            },
+            "title": "Grammar Assessments",
+            "type": "array"
+          },
+          "knowledge_states": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeStateExport"
+            },
+            "title": "Knowledge States",
+            "type": "array"
+          },
+          "learning_events": {
+            "items": {
+              "$ref": "#/components/schemas/LearningEventExport"
+            },
+            "title": "Learning Events",
+            "type": "array"
+          },
+          "pronunciation_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/PronunciationAssessmentExport"
+            },
+            "title": "Pronunciation Assessments",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 3,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session_goals": {
+            "items": {
+              "$ref": "#/components/schemas/SessionGoalExport"
+            },
+            "title": "Session Goals",
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionExport"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptExport"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "sessions",
+          "transcripts",
+          "pronunciation_assessments",
+          "grammar_assessments",
+          "learning_events",
+          "knowledge_states",
+          "session_goals",
+          "goal_runs",
+          "goal_results"
+        ],
+        "title": "UserDataExportV3",
         "type": "object"
       },
       "UserSettingsResponse": {
@@ -4068,6 +4547,66 @@
         ]
       }
     },
+    "/api/sessions/{session_id}/goals": {
+      "get": {
+        "description": "Return the frozen goal definitions, execution and summary (read-only).\n\nUses one outer-join select for a consistent snapshot; it never issues\n``SET TRANSACTION`` so it stays safe on the shared authentication session.",
+        "operationId": "get_session_goals_api_sessions__session_id__goals_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalViewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Goals",
+        "tags": [
+          "会话管理"
+        ]
+      }
+    },
     "/api/sessions/{session_id}/token": {
       "get": {
         "description": "为指定会话生成加入房间的 LiveKit 令牌。并在签发前校验鉴权与连通状态。",
@@ -4219,7 +4758,7 @@
             "required": false,
             "schema": {
               "default": 1,
-              "maximum": 2,
+              "maximum": 3,
               "minimum": 1,
               "title": "Schema Version",
               "type": "integer"
@@ -4253,6 +4792,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/UserDataExportV2"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UserDataExportV3"
                     }
                   ],
                   "title": "Response Export User Data Api User Data Export Get"

@@ -21,7 +21,11 @@ from models.user import (
 )
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
 from schemas.user_account_deletion import UserAccountDeletionResponse
-from schemas.user_data_export import UserDataExport, UserDataExportV2
+from schemas.user_data_export import (
+    UserDataExport,
+    UserDataExportV2,
+    UserDataExportV3,
+)
 from services.learning_event_cutover import lock_cutover_control_for_update
 from services.user_account_deletion import (
     delete_user_account as delete_user_account_data,
@@ -131,14 +135,14 @@ def _apply_settings_update(
 
 @router.get(
     "/user/data-export",
-    response_model=UserDataExport | UserDataExportV2,
+    response_model=UserDataExport | UserDataExportV2 | UserDataExportV3,
 )
 async def export_user_data(
     current_user: CurrentUser = Depends(get_current_user),
     session_factory: async_sessionmaker[AsyncSession] = Depends(
         get_user_data_export_session_factory
     ),
-    schema_version: Annotated[int, Query(ge=1, le=2)] = 1,
+    schema_version: Annotated[int, Query(ge=1, le=3)] = 1,
 ) -> Response:
     """Export the authenticated user's data as one complete JSON attachment."""
     try:
@@ -147,11 +151,18 @@ async def export_user_data(
                 session_factory=session_factory,
                 user_id=current_user.id,
             )
+        elif schema_version == 2:
+            export = await build_user_data_export(
+                session_factory=session_factory,
+                user_id=current_user.id,
+                include_session_goals=True,
+            )
         else:
             export = await build_user_data_export(
                 session_factory=session_factory,
                 user_id=current_user.id,
                 include_session_goals=True,
+                include_goal_evaluations=True,
             )
         payload = serialize_user_data_export(export)
     except Exception as exc:

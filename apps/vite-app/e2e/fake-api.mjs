@@ -6,6 +6,7 @@ const port = Number(process.env.E2E_API_PORT ?? 18181);
 const sessions = new Map();
 const analysisJobs = new Map();
 const sessionIdempotency = new Map();
+const sessionGoalBindings = new Map();
 let accountDeleted = false;
 
 function sendJson(response, status, body, extraHeaders = {}) {
@@ -877,6 +878,7 @@ const server = createServer(async (request, response) => {
     sessions.clear();
     analysisJobs.clear();
     sessionIdempotency.clear();
+    sessionGoalBindings.clear();
     accountDeleted = true;
     sendJson(response, 200, { status: "deleted" });
     return;
@@ -952,6 +954,12 @@ const server = createServer(async (request, response) => {
 
     const session = createSession(typeof body.mode === "string" ? body.mode : "scenario");
     sessions.set(session.id, session);
+    if (goalBinding) {
+      sessionGoalBindings.set(session.id, {
+        material_id: goalBinding.material_id,
+        material_version: goalBinding.material_version,
+      });
+    }
     if (typeof idempotencyKey === "string") {
       sessionIdempotency.set(idempotencyKey, {
         fingerprint,
@@ -1165,6 +1173,51 @@ const server = createServer(async (request, response) => {
       return;
     }
     sendJson(response, 200, res);
+    return;
+  }
+
+  const sessionGoalsMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/goals$/);
+  if (method === "GET" && sessionGoalsMatch) {
+    const sessionId = sessionGoalsMatch[1];
+    if (!sessions.has(sessionId)) {
+      sendJson(response, 404, { detail: "Session not found" });
+      return;
+    }
+
+    const binding = sessionGoalBindings.get(sessionId);
+    if (!binding) {
+      sendJson(response, 200, {
+        session_id: sessionId,
+        configured: false,
+        material_id: null,
+        material_version: null,
+        goals: [],
+        execution: null,
+        summary: null,
+      });
+      return;
+    }
+
+    const goals = PILOT_GOALS[binding.material_id].map((goal) => ({
+      ...goal,
+      result: "not_assessed",
+    }));
+    sendJson(response, 200, {
+      session_id: sessionId,
+      configured: true,
+      material_id: binding.material_id,
+      material_version: binding.material_version,
+      goals,
+      execution: null,
+      summary: {
+        total: goals.length,
+        achieved: 0,
+        not_achieved: 0,
+        assessed: 0,
+        unknown: 0,
+        not_assessed: goals.length,
+      },
+    });
     return;
   }
 

@@ -1,15 +1,14 @@
 # 场景 goals 与 Task Completion 设计（GOAL-DESIGN）
 
 > 状态分层：第 1–6、8–9 节保留 **GOAL-DESIGN / GOAL-DATA** 各自历史卡的时点、数字和边界；
-> §7 在保留原决策项的同时写明后续确认状态；§10 保留 `G-CONTRACT` 已发布的业务合同，并由当前
-> `G-WIRE` 实施结果更新落地状态。
-> GOAL-DATA 已由主控独立 Review `APPROVED` 并发布为
-> `codex/B1-learning-events-20261112@353e0c9f61693d0e1134843abd25da61bb7df1fa`；G-CONTRACT
-> 随后独立 Review `APPROVED` 并发布为 `882a1a9853f37235d0a1ef5f1521e8d01d422ada`。当前
-> G-WIRE 已完成首期 6 个版本化目标、创建会话 binding/snapshot 接线和前端冻结引用；真实 backend
-> 定向通过，完整 E2E 也已通过，详细数字只集中在 `PROJECT_STATUS.md` 的 G-WIRE 当前小节。四文档
-> 为 `FINAL_READY`，最终 13 项门禁、独立 Review、commit/push 仍待主控同卡回执。G-EVAL 自动判定/
-> 结果持久化和 G-VIEW 展示仍未实施。本文件不自称 `APPROVED`，用户 Review 待。
+> §7 在保留原决策项的同时写明后续确认/实施状态；§10 保留 G-CONTRACT 已发布的业务合同，并
+> 由 G-WIRE 与 G-EVAL 的落地状态更新当前说明。
+> GOAL-DATA 已 Review APPROVED 并发布为 353e0c9，G-CONTRACT 发布为 882a1a9，G-WIRE 随后发布
+> 为 2d6a916 并作为历史接线快照保留。G-EVAL 已实现 append-only run/results、completed 同事务
+> 唯一 revision 1、精确学生 IDs/顺序/digest、四结果规则、worker 生命周期、owner-scoped goals
+> GET、v3 同 RR 导出与整账号删除；四文档为 FINAL_READY。G-VIEW 用户界面目标预览、轮询和四状态/
+> 汇总展示尚未实施。详细数字只集中在 PROJECT_STATUS.md 的 G-EVAL 当前小节；本文件不自称
+> APPROVED，最终 Review/commit/push 见同卡回执，用户 Review 待。
 
 ## 1. 原 GOAL-DESIGN 范围与非目标（历史）
 
@@ -95,16 +94,20 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 更早已经批准。
 
 1. **已确认采用 A**：目标放在版本化 material 目录；B/C 不采用。
-2. **已确认内容，已部分实现接线前置**：GOAL-DATA 已实现 material/version 目录与 session snapshot
-   的 synthetic PG 数据层；首批目标内容与当前创建会话 API 接线仍由 `G-WIRE` 实施。
-3. **已确认，尚未实施**：`achieved / not_achieved / unknown / not_assessed` 四终态及
-   `pending / running` 独立执行进度由 `G-EVAL` 落地并持久化，`G-VIEW` 展示。
-4. **已确认，尚未实施**：首期只用确定性规则与离线人工 gold/复核；不启用真实 LLM，不允许用户
-   自评覆盖判定。关键词未命中不得直接判失败，无法可靠判断时输出 `unknown`。
-5. **已确认，尚未实施**：总体显示 `achieved X / assessed Y / total Z`，其中
-   `0 ≤ X ≤ Y ≤ Z`；`unknown` 与 `not_assessed` 分开计数，部分结果禁止百分比。
-6. **前置已部分实现、范围已确认**：新增 goal/evaluation/revision 数据必须进入账号结构化导出，
-   并在既有整账号删除事务内同步删除。GOAL-DATA 已覆盖目录/快照；判定结果由 `G-EVAL` 补齐。
+2. **已确认并完成接线**：GOAL-DATA 已实现 material/version 目录与 session snapshot 数据层；
+   G-WIRE 已发布，首批目标内容和创建会话 API 接线已完成。
+
+3. **已实施后端，待展示**：achieved / not_achieved / unknown / not_assessed 四终态及
+   pending / running 独立执行进度已由 G-EVAL 持久化；G-VIEW 展示尚未实施。
+4. **规则后端已实现，人工 gold 待标注验证**：确定性规则已由 G-EVAL 实现并落盘四结果；离线人工
+   gold/复核尚未完成标注与验证，当前只确认合同与显式合成样例。不启用真实 LLM，不允许用户自评
+   覆盖判定；关键词未命中不得直接判失败，无法可靠判断时输出 unknown。
+
+5. **合同已确认，待展示**：总体 achieved X / assessed Y / total Z、
+   0 ≤ X ≤ Y ≤ Z 与 unknown/not_assessed 分列由 G-VIEW 接入；后端 counts 已由 G-EVAL 提供。
+6. **已完成后端与隐私配套**：新增 goal/evaluation/revision 数据进入账号结构化导出，并在既有
+   整账号删除事务内同步删除。GOAL-DATA 覆盖目录/快照；G-EVAL 已补齐 v3 同 RR 导出与整账号同事务
+   删除。
 
 ## 8. 拆卡与验收边界
 
@@ -191,8 +194,8 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 
 ### 9.6 非目标
 
-- 本卡未实现判定器、四状态、总体完成度、周报派生指标或正式 i18n；其中前两项及总体汇总的业务
-  合同已由后续 `G-CONTRACT` 确认，实施仍待 `G-EVAL / G-VIEW`。
+- 本卡未实现判定器、四状态、总体完成度、周报派生指标或正式 i18n。判定与四状态后端后来由
+  G-EVAL 实现；总体展示仍待 G-VIEW。
 - 不填 10 条真实课程 goals，不改教学内容、scenario_id、BKT/Job、恢复 UI 或录音策略。
 - 不声称真实 Provider、真实课程数据、教学效果、实际恢复流程或生产不可恢复性已验收。
 
@@ -200,17 +203,19 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 
 ### 10.1 状态与边界
 
-- G-CONTRACT 合同已 `APPROVED` 并发布 `882a1a9`；本节标题保留既有 `DRAFT_READY` 锚点。当前
-  G-WIRE 文档收口只更新本文件、`TODO.md`、`PROJECT_STATUS.md` 与 `history/2026-11.md`，源、测试、
-  schema 和生成物已冻结，实施节点不运行测试、服务或 PostgreSQL，也不执行 Git 写操作。
-- G-WIRE 的产品与目标测试已落盘；完整数字集中在 `PROJECT_STATUS.md` 的 G-WIRE 当前小节。
-  `FINAL_READY` 表示作者已完成四文档收口，不表示最终 13 项门禁、技术 Review、commit/push 或用户
-  Review 已完成。
-- 用户已确认 goal A、首批目标内容、四终态与总体汇总口径。GOAL-DATA 的数据层已发布；创建会话
-  binding/snapshot 与 curriculum API 目标预览字段已由 G-WIRE 实现；判定结果持久化、自动判定和界面
-  目标预览/展示仍由 G-EVAL / G-VIEW 负责，尚未完成。
-- 本文件只冻结业务合同、最小验收与拆卡边界。具体 API、表结构、触发位置、规则结构、文案键和
-  组件接线由主控在后续卡中决定，不在本卡额外发明业务开关、分数或阈值。
+- G-CONTRACT 合同已 APPROVED 并发布 882a1a9；本节标题保留既有 DRAFT_READY 锚点。
+  G-WIRE 已发布 2d6a916 并作为历史接线快照；G-EVAL 已完成后端实现并进入四文档 FINAL_READY。
+  最终文档收口阶段只更新本文件、TODO.md、PROJECT_STATUS.md 与 history/2026-11.md；G-EVAL
+  实际改动 23 份文件，其中 19 个已审定源/测试/生成/迁移文件保持冻结。实施节点不运行测试、
+  服务、PostgreSQL 或 Git 写操作。
+- GOAL-DATA、G-WIRE 与 G-EVAL 的合同和实现已落地；G-VIEW 用户界面目标预览、轮询及四状态/汇总
+  展示尚未实施。FINAL_READY 表示作者完成四文档收口；最终完整 13 门禁、Review、正常提交发布与
+  用户 Review 以主控同卡回执为准。
+- 用户已确认 goal A、首批目标内容、四终态与无百分比汇总口径。判定与持久化遵守原判不可改、
+  首期唯一 revision 1、仅学生证据、success analysis 不重跑和整账号同事务删除；详细实现与数字只在
+  PROJECT_STATUS.md。
+- 本文件冻结业务合同、状态/汇总不变量与拆卡边界；没有新增业务开关、分数、阈值、重判入口或用户
+  自评覆盖。
 
 ### 10.2 首批目标内容与目录兼容
 
@@ -280,27 +285,28 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
   transcript/assessment/job 的 ID 或有序范围，不复制正文、不新增录音。
 - 合同验收只证明结构与确定性规则行为，不声明真实教学效果、真实 Provider 能力或生产质量。
 
-### 10.6 G-EVAL 后续技术计划、未落地
+### 10.6 G-EVAL 实施合同、只读读取与导出边界
 
-- G-EVAL 自动判定、结果持久化和 G-VIEW 展示仍未实施、未勾选。以下均为已授权业务内的技术实现
-  计划，不属于本次 G-WIRE 完成范围。
-- completed 事务将独立 goal run 落为 `pending`。
-- 启动评估时冻结精确 user transcript IDs、排序与 digest；证据不复制正文，也不能只保存 max id。
-- worker 在同一进程公平 poll，每轮最多处理 `1 goal + 1 analysis`；两者各自使用事务并隔离失败，
-  保留既有停机 drain 语义。
-- 不新增服务、依赖或业务开关。
-- run header 按 session/revision 唯一，per-goal 结果 append-only；首期仅 revision 1，不提供重判
-  入口，终态不可覆盖。
-- 发音或语法评估失败不得触发已成功的 analysis Job 重跑。
-- v1/v2 导出合同保持；新增显式 v3 可导出新评估记录，GET 只读，整账号事务删除新记录。
-- 当前只承诺离线人工标注合同或显式 synthetic 样例，不称真实人工审校、准确率或教学效果已经
-  验证。
+- completed 结束事务为已绑定 snapshot 的会话创建唯一 revision 1 run；active/cancelled 不自动
+  判定。append-only run header 与 per-goal results 保留不可变终态，首期无重判入口。
+- completed 结束事务创建 run 时冻结精确 user transcript IDs、顺序与 digest；worker 只读取并验证；
+  证据只引用既有记录，不复制正文、不新增
+  录音。首批 6 个 goal 使用确定性规则输出四结果，不可靠或执行失败为 unknown，未运行/不适用为
+  not_assessed；success analysis Job 不重跑。
+- worker 在同一进程公平轮询，每轮最多 1 goal + 1 analysis，各自事务、失败隔离并保留停止/
+  drain/stale 恢复。pending/running 只表示进度，与四终态分离。
+- GET /api/sessions/{id}/goals 使用 owner-scoped 单 SELECT；无 snapshot 返回
+  configured=false，有 snapshot 无 run 派生 not_assessed，GET 不创建 run 或修改 session。
+- v1/v2 导出保持；显式 v3 在同一 repeatable-read 快照返回完整 goals/run/results，整账号删除在同一
+  事务内删除新记录。真实外部服务、生产数据、人工 gold 准确率、设备与远端 CI 未验。
+- G-VIEW 仍负责用户界面目标预览、受控 pending/running 轮询、四终态与
+  X / Y / Z + unknown / not_assessed 展示；后端合同完成不代表界面已实施。
 
 ### 10.7 四卡拆分
 
-| 卡           | 最小目标与验收                                                                                                                                                                                                                                                                                              |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `G-CONTRACT` | 已独立 Review `APPROVED` 并发布 `882a1a9853f37235d0a1ef5f1521e8d01d422ada`；冻结本节的批准内容、状态含义、汇总不变量、四卡边界和文档状态，作为历史合同保留。                                                                                                                                                |
-| `G-WIRE`     | 已实现 3 课 × 2 个中英文版本化 goal、其他 7 课兼容，以及 §10.3 的 material/version/snapshot 创建接线、curriculum API opt-in 预览字段、旧指纹兼容和真实 PostgreSQL 合成数据验收。真实 backend 与完整 E2E 已通过；四文档为 `FINAL_READY`，最终 13 项门禁和 Review 待主控回执。用户界面目标预览留给 G-VIEW。   |
-| `G-EVAL`     | 持久化 `pending / running` 与四终态、冻结版本和证据引用；completed 后按确定性规则执行，并提供离线人工 gold/复核与不可变 revision。验收：active/cancelled 不自动判定；只有学生发言可作证据；关键词未命中不直接失败；不可靠或执行失败为 `unknown`；成功 analysis Job 不重跑；新数据可导出且整账号同事务删除。 |
-| `G-VIEW`     | 展示执行中的“评估中”、四终态、`X / Y / Z`、独立 `unknown / not_assessed` 计数及“未配置”。验收：计数满足 `0 ≤ X ≤ Y ≤ Z`；部分结果不显示百分比；历史无 goal 不伪造行或 0/100%；不增加任意重跑入口、用户自评覆盖、业务开关、分数或阈值。                                                                      |
+| 卡           | 最小目标与验收                                                                                                                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `G-CONTRACT` | 已独立 Review `APPROVED` 并发布 `882a1a9853f37235d0a1ef5f1521e8d01d422ada`；冻结本节的批准内容、状态含义、汇总不变量、四卡边界和文档状态，作为历史合同保留。                                                                                            |
+| G-WIRE       | 已独立 Review APPROVED 并发布 2d6a916；实现首批版本化 goals、snapshot 创建接线、curriculum opt-in 预览、旧指纹兼容和合成 PostgreSQL 验收。历史数字见 PROJECT_STATUS。                                                                                   |
+| G-EVAL       | 已实现 append-only run/results、completed 同事务 revision 1、学生证据冻结、四结果规则、进度分离、worker 生命周期、owner-scoped GET、v3 同 RR 导出和整账号删除；四文档 FINAL_READY。最终完整 13 门禁、Review、正常提交发布与用户 Review 以同卡回执为准。 |
+| `G-VIEW`     | 展示执行中的“评估中”、四终态、`X / Y / Z`、独立 `unknown / not_assessed` 计数及“未配置”。验收：计数满足 `0 ≤ X ≤ Y ≤ Z`；部分结果不显示百分比；历史无 goal 不伪造行或 0/100%；不增加任意重跑入口、用户自评覆盖、业务开关、分数或阈值。                  |

@@ -4,21 +4,29 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **G-WIRE 首期课程目标与会话创建接线（当前实施卡，2026-11-16，`FINAL_READY`）：** 唯一
-> 工作树为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
-> `codex/B1-learning-events-20261112`，当前基线 HEAD
-> `882a1a9853f37235d0a1ef5f1521e8d01d422ada`。已实现商务寒暄、酒店入住、餐厅点餐各 2 个中英文
-> 版本化 goal，其他 7 课保持无目标兼容；按受控目录校验最小 `goal_binding`，在同事务写入不可变
-> catalog+snapshot，并保持旧请求/fingerprint、User→Session 锁序、scenario-only 提交和 opt-in
-> curriculum API 目标预览字段边界。真实 backend 目标定向通过；仅使用合成 PostgreSQL/合成目标
-> 数据。G-EVAL 判定/结果持久化和 G-VIEW 用户界面目标预览/展示尚未实施，相关父项不勾选。
+> **G-EVAL 场景目标自动判定、持久化与导出（当前实施卡，2026-11-16，FINAL_READY）：** 唯一工作树为
+> /Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115，分支
+> codex/B1-learning-events-20261112，基于 G-WIRE 已发布的 HEAD
+> 2d6a916fcdfbd22cb8a9dee4f2f6c510b462a0b0。已实现 append-only goal run/results、completed
+> 同事务唯一 revision 1、completed 结束事务创建 run 时冻结精确学生 transcript IDs/顺序/digest、
+> 6 个目标四结果规则、
+> pending/running 执行进度分离、worker 公平调度/停止/恢复、owner-scoped 单 SELECT goals GET、
+> v3 完整同 RR 快照导出、v1/v2 兼容和整账号同事务删除。G-EVAL 未重跑成功 analysis，未新增产品
+> 开关、分数或阈值。
 >
-> 四文档已完成最终收口；源、测试和 schema 生成物已冻结。12 项行为门禁与完整双浏览器 E2E 已通过。
-> 最终 13 项全仓 format、独立 Review、commit/push 仍以主控同卡回执为准，用户 Review 待。详细数字、
-> R1/R2 历史、
-> RED 测试变体、保护边界和 PG 保留状态集中在
-> [PROJECT_STATUS 的 G-WIRE 小节](./docs/PROJECT_STATUS.md#g-wire-首期课程目标与会话创建接线final_ready)。
-> 本文件不自称 `APPROVED`。
+> 四份文档已完成最终收口；12 项行为门禁最终全 0，原始失败和修正历史保留。最终完整 13 门禁、
+> Review、正常提交发布以主控同卡回执为准，用户 Review 待；本文件不自称
+> APPROVED。详细实现、完整数字、RED/变异、保护边界和 PG 保留状态集中在
+> [PROJECT_STATUS 的 G-EVAL 小节](./docs/PROJECT_STATUS.md#g-eval-场景目标自动判定持久化与导出final_ready)。
+> G-VIEW 尚未实施，场景 goals 父项和其他 RF/CP 复选框保持未勾。
+>
+> **G-WIRE 首期课程目标与会话创建接线（历史实施卡，2026-11-16，已 APPROVED 并发布
+> 2d6a916fcdfbd22cb8a9dee4f2f6c510b462a0b0）：** 实现商务寒暄、酒店入住、餐厅点餐各 2 个
+> 中英文版本化 goal，其他 7 课保持无目标兼容；按受控目录校验最小 goal_binding，在同事务写入
+> 不可变 catalog+snapshot，并保持旧请求/fingerprint、User→Session 锁序、scenario-only 提交和
+> opt-in curriculum API 目标预览字段边界。真实 backend 目标定向通过，仅使用合成 PostgreSQL/
+> 合成目标数据。详细数字和 R1/R2 历史见
+> [PROJECT_STATUS 的 G-WIRE 历史小节](./docs/PROJECT_STATUS.md#g-wire-首期课程目标与会话创建接线final_ready)。
 >
 > **G-CONTRACT 场景目标实施合同（历史合同卡，2026-11-16）：** 原业务合同在 HEAD `353e0c9` 上
 > 冻结 goal A、首批 3 课各 2 个目标、确定性规则加离线人工 gold/复核、四终态与
@@ -395,12 +403,12 @@
       events、Provider 或自动重试。结构通过不称准确率；SGEC 总项（真实 Provider、人工 gold 与教学
       质量）仍未验，保持未勾。合同见
       [SGEC_OFFLINE_CONTRACT](./docs/SGEC_OFFLINE_CONTRACT.md)。
-- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：业务合同已 `APPROVED`；GOAL-DATA
-      数据层发布 `353e0c9`，G-CONTRACT 发布 `882a1a9`。G-WIRE 已在合成 PostgreSQL/合成目标数据上
-      实现首期 6 个版本化目标、创建会话 binding/snapshot、旧请求/幂等兼容、User→Session 锁序和
-      scenario-only 冻结引用；真实 backend 目标定向、12 项行为门禁和完整双浏览器 E2E 已通过，
-      最终 13 项全仓 format 待主控回执。G-EVAL 判定/结果持久化与 G-VIEW 四状态/汇总展示仍未实施，
-      所以父项保持未勾；完整数字见 PROJECT_STATUS。逐卡验收见
+- [ ] 场景 goals[] + Task Completion（方案 D-1，#115）：业务合同已 APPROVED；GOAL-DATA
+      发布 353e0c9，G-CONTRACT 发布 882a1a9，G-WIRE 已 APPROVED 并发布 2d6a916。G-EVAL 已实现
+      append-only run/results、四结果规则、worker 生命周期、owner-scoped goals GET、v3 同 RR
+      导出和整账号删除，四文档达到 FINAL_READY；主控 12 项行为门禁全 0，最终完整 13 门禁、Review、
+      正常提交发布与用户 Review 待同卡回执。G-VIEW 四状态/汇总展示尚未实施，所以父项保持
+      未勾；完整数字只集中在 PROJECT_STATUS，逐卡验收见
       [SCENARIO_GOALS_DESIGN.md §10](./docs/SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
