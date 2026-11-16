@@ -6,6 +6,15 @@
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
+## 2026-11-16 HHTTP-CLOSE 历史宿主 HTTP 待办核销（`FINAL_READY`）
+
+- [x] 补充轮历史宿主 HTTP 补验：后续 host-gateway 已通过，原 internal-only 限制保留。
+      原时点失败与后续独立 host-gateway 核销证据见
+      [2026-11 HHTTP-CLOSE 记录](./2026-11.md#2026-11-16-hhttp-close-历史宿主-http-待办核销final_ready)。
+- [x] 七天概览历史宿主 HTTP 补验：后续 host-gateway 已通过，原 internal-only 限制保留。
+      原时点失败与后续独立 host-gateway 核销证据见
+      [2026-11 HHTTP-CLOSE 记录](./2026-11.md#2026-11-16-hhttp-close-历史宿主-http-待办核销final_ready)。
+
 ## 2026-11-16 WD-UI 周报“已记录会话时长”前端显示与浏览器验收（FINAL_READY）
 
 - **状态：`FINAL_READY`，正式返修 `1/2`**：唯一工作树为

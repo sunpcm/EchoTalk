@@ -4,16 +4,25 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **I18N-DESIGN 正式 i18n 迁移设计（当前卡，2026-11-16，`FINAL_READY`）：** 把已内容评审的设计
-> 草案写回，推荐 i18next/react-i18next 渐进迁移，FormatJS 为标准 ICU 备选，自研 typed dictionary
-> 只能作为改目标/延期方案，不能冒充正式框架完成。首期建议仅 `zh-CN`，A/B/C、fallback 与何时进入
-> 依赖/兼容/试点仍待用户确认；依赖安装尚未授权。四维度分离、Provider catalog 原值、现有中文/
-> ARIA/日期兼容及显式插值转换与渲染回归属于固定技术前置。已批准的时长方案 A 不自动授权本稿 i18n
-> 路线；既有 R2/SGEC 等确认不受本稿变更，未实施。设计见
+> **HHTTP-CLOSE 历史宿主 HTTP 待办核销（当前卡，2026-11-16，`FINAL_READY`）：** 只核销两条
+> 2026-11-04 TODO 记录。旧 internal-only 拓扑下宿主 `18800` 不可达的失败原文保留在新月档；对应
+> 动作后来由独立 host-gateway 合成拓扑完成，TODO 当时遗漏核销。该通过只绑定旧历史拓扑，不是当前
+> HEAD 重跑、原 Compose、真实外链或 RF/CP 父项通过。两条记录移入已完成归档后，原始未勾记录由
+> `58` 降到 `56`，这里的 `56` 是原始记录数，不是 56 张开发卡；其他父项不勾。主控本卡 12 项当前
+> 应用回归及机器 behavior 核验已完成，完整数字集中在状态小节；全仓最终 format、技术 Review、
+> 正常 commit/push 以主控回执为准。状态见
+> [PROJECT_STATUS 的 HHTTP-CLOSE 小节](./docs/PROJECT_STATUS.md#hhttp-close-历史宿主-http-待办核销final_ready)。
+
+> **I18N-DESIGN 正式 i18n 迁移设计（历史子卡，2026-11-16，已 `APPROVED` 并发布
+> `4c3bd1accfa06d66b2d21b560b5db69eb4a7920b`）：** 推荐 i18next/react-i18next 渐进迁移，FormatJS
+> 为标准 ICU 备选，自研 typed dictionary 只能作为改目标/延期方案，不能冒充正式框架完成。首期
+> 建议仅 `zh-CN`，A/B/C、fallback 与何时进入依赖/兼容/试点仍待用户确认；依赖安装尚未授权。
+> 四维度分离、Provider catalog 原值、现有中文/ARIA/日期兼容及显式插值转换与渲染回归属于固定
+> 技术前置。已批准的时长方案 A 不自动授权本稿 i18n 路线；既有 R2/SGEC 等确认不受本稿变更，未
+> 实施。设计见
 > [I18N_MIGRATION_DESIGN.md](./docs/I18N_MIGRATION_DESIGN.md)，状态见
 > [PROJECT_STATUS 的 I18N-DESIGN 小节](./docs/PROJECT_STATUS.md#i18n-design-正式-i18n-迁移设计final_ready)。
-> 主控 12 项现有应用回归门禁已完成，数字只集中在该状态小节；全仓最终 format、独立 Review、
-> commit/push 以主控回执为准，三项路线/范围决策仍待用户确认。
+> 三项路线/范围决策仍待用户确认。
 
 > **GOAL-DESIGN 场景 goals 与 Task Completion 设计（历史子卡，2026-11-16，已 `APPROVED` 并发布
 > `3322bef719947342b3c5c805524a512aa45efb16`）：** goal 持久化 A/B/C、判定器、状态机与总体完成度
@@ -380,7 +389,6 @@ Worker 运行时与 UI 三文件范围独立 Review 均 APPROVED，已机械集�
 及[进度回执](.review/reports/overnight-followup-20261104/progress.json)。
 以下证据路径相对 `.review/reports/overnight-followup-20261104/`。
 
-- [ ] 补验宿主 HTTP 入口：18800仍为 false，容器内真实 TCP 已验；不据容器访问勾选宿主入口。
 - [ ] 真实 Provider/IdP/LiveKit、语音、设备、签名、本轮原生 App 编译与远端 CI 仍待；
       原 Compose 整栈未启动，显式预置过期任务恢复不代表任意真实崩溃恢复。
       RF-04/05/07/08/09/12 等外部边界保留，next2 未融合；停在 Review，未 commit/push/部署或发布。
@@ -398,8 +406,6 @@ Dashboard 已实现含今天的最近七个本地自然日已完成会话分布�
 [进度回执](.review/reports/overnight-product-runtime-20261103/progress.json)为最新权威。
 以下证据路径相对本轮 `.review/reports/overnight-product-runtime-20261103/`。
 
-- [ ] 补验宿主 HTTP：internal 网络下宿主18800仍不可达，容器 loopback HTTP 已验，不代表宿主入口通过。
-      prepared stale 只证明显式准备的过期任务恢复/幂等，不覆盖任意真实崩溃恢复。
 - [ ] 真实 Provider/IdP/LiveKit、语音、设备、签名、本轮 native 编译与远端 CI 继续未验；
       原 Compose 整栈未启动，未发布。RF-04/05/07/08/09/12 等大项外部边界不因此勾选。
 

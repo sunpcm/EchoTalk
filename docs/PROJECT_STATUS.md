@@ -1,15 +1,24 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **I18N-DESIGN 正式 i18n 迁移设计（`FINAL_READY`）**：
+> 最后核对：2026-11-16。当前卡片为 **HHTTP-CLOSE 历史宿主 HTTP 待办核销（`FINAL_READY`）**：
 > 唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，冻结 HEAD
-> `3322bef719947342b3c5c805524a512aa45efb16`，开工 clean。本卡只新增
-> `docs/I18N_MIGRATION_DESIGN.md` 并更新 `TODO.md`、本文件与 `docs/history/2026-11.md`；A/B/C、
-> 首期语言范围/fallback 与何时进入依赖/兼容/试点待用户确认，未实施；依赖安装尚未授权。实施节点
-> 不运行测试/服务/PG，不执行 Git 写操作；主控 12 项现有应用回归门禁与机器 behavior 核验已完成，
-> 本卡数字、资源清理与交付边界集中记录在下方 I18N-DESIGN 小节。设计见
-> [I18N_MIGRATION_DESIGN.md](./I18N_MIGRATION_DESIGN.md)。
+> `4c3bd1accfa06d66b2d21b560b5db69eb4a7920b`，开工 clean。本卡只从 `TODO.md` 移除两条
+> 2026-11-04 宿主 HTTP 待办记录，并在 `docs/history/todo-done.md` 增两条归档入口、
+> `docs/history/2026-11.md` 增一个月档事实节；本文件同步状态。原始失败文字与旧 internal-only
+> 不可达事实保持原时点，本次通过只绑定后来的独立 host-gateway 合成拓扑。实施节点不运行
+> 测试/服务/PG，不执行 Git 写操作；主控本卡 12 项当前应用回归及机器 behavior 核验已完成，精确
+> 机器数字只集中在本卡的 HHTTP-CLOSE 小节。
+>
+> 主控在本卡源码基线 `4c3bd1accfa06d66b2d21b560b5db69eb4a7920b` 的两个远端 CI 查询为
+> `total_count=0`；该结果只绑定此基线，不推断后续提交。原始未勾记录因两条活动记录核销由 `58`
+> 降为 `56`，这不是独立开发卡或工期计数。
+>
+> I18N-DESIGN 现作为最近历史快照保留（已 `APPROVED` 并发布
+> `4c3bd1accfa06d66b2d21b560b5db69eb4a7920b`）：A/B/C、首期语言范围/fallback 与依赖/兼容/试点
+> 时点仍待用户确认，未实施、业务未获批准。详见下方
+> [I18N-DESIGN 小节](#i18n-design-正式-i18n-迁移设计final_ready)。
 >
 > GOAL-DESIGN 现作为历史快照保留（已 `APPROVED` 并发布
 > `3322bef719947342b3c5c805524a512aa45efb16`）：goal 持久化 A/B/C、判定器、状态机与总体完成度
@@ -114,6 +123,40 @@
 
 ## 当前验证基线
 
+### HHTTP-CLOSE 历史宿主 HTTP 待办核销（`FINAL_READY`）
+
+- **范围与基线**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，源码基线 HEAD
+  `4c3bd1accfa06d66b2d21b560b5db69eb4a7920b`，开工 clean。允许写集为 `TODO.md`、本文件、
+  `docs/history/todo-done.md` 与 `docs/history/2026-11.md`；本卡不新增产品代码、测试、依赖或
+  迁移，不读取凭据或旧 runtime/manifest。
+- **核销依据**：两条活动记录来自 2026-11-04。原 internal-only 拓扑下宿主 `18800` 不可达的
+  失败文字保留在月档；后来独立 `host-gateway` 合成拓扑以“宿主 urllib → loopback 固定 gateway →
+  internal 真实 uvicorn TCP”完成 16 次 GET，命令与门禁 exit 0。主控已亲核无凭据原始结果及
+  2026-11-05 独立 `APPROVED` 历史。
+- **边界**：该通过只核销后来的独立历史拓扑，不把旧 internal-only 失败改写为当时已通，也不表示
+  当前 HEAD 已重跑、原 Compose 整栈通过、真实外链、真实 Provider/IdP/LiveKit 通过或
+  RF-04/05/07/08/09/10/12、CP 父项完成。Worker 137 等原失败事实继续保留。
+- **记录变化**：仅移除指定两条活动复选框并在 `todo-done` 增加两条 `[x]` 归档入口；原始未勾
+  记录由 `58` 降为 `56`，这里的 `56` 是原始记录数而非 56 张开发卡。除此之外的其他 RF、CP 及
+  业务父项均不勾；三份新设计仍未获业务确认，异步询问尚无回答，本卡不自行选择。
+- **主控当前应用回归（12 项原应用行为/工程门禁全 `exit 0`，机器 behavior 核验为 `0`）**：
+  Vitest `1309 passed / 60 files`；默认 E2E `278 = 139 Chromium + 139 WebKit`，每例单个 passed
+  result、`retry 0`、`0 skip/flaky/unexpected`；backend `1055 passed / 3 warnings / 0 skip`，
+  raw coverage `81.76300179335081%`；build `47`、Fake API `117`、API 类型生成器 `8`、iOS（仅
+  Node）`37`；lint `132 warnings / 0 errors / 0 new`，file/message/rule 多重集与基线相同。这些
+  是本卡当前应用回归，与历史 host-gateway 的 `200/401/503`、16 次 GET 等旧数字分开计账；旧
+  host-gateway 数据不得冒充本卡新实测，也不外推当前镜像、原 Compose 或真实外链通过。
+- **本卡合成 PG 清理**：主 checkout 本地回执
+  `.review/reports/b1-implementation-20261112/todo-host-http-close-20261116/pg-cleanup.json`
+  （未纳 Git）记录精确 ID
+  `b4344068e8a4688956c79351f8d93625c3198e5f8a2f3b2f7fe79fb5889e94ed`，双 owner、loopback-only
+  与合成库身份均已核验；`stop_exit 0`、`auto_removed true`、确认 `exit 0`，名称与精确 ID 均不
+  存在，其他资源未动。
+- **状态与交接**：`FINAL_READY`；四文档已用固定 Node 22 Prettier 精确格式化。全仓最终 format、
+  技术 Review、正常 commit/push 以主控同卡回执为准，本文不预报 format 已全仓通过。
+
 ### I18N-DESIGN 正式 i18n 迁移设计（`FINAL_READY`）
 
 - **范围与写集**：唯一工作树为
@@ -145,9 +188,9 @@
   `5ccc6b710e08cb084544f98816745c4ec1a24aa9654eb2175e6c249a5aa0d5cf`，`stop_exit0`、
   `auto_removed=true`、独立确认 `exit 0`；精确 ID、双 owner、loopback-only、合成库身份和名称/ID
   不存在均已核验，其他资源未动。历史 WDI 等小节的“PG 保留”只属于各自原时点，不代表当前整批状态。
-- **状态与下一步**：`FINAL_READY`；四文档已按固定 Node 22 Prettier 精确格式化。全仓最终 format、
-  独立 Review、正常 commit/push 以主控同卡回执为准。A/B/C、首期范围/fallback 与依赖/兼容/试点
-  时点三项仍待用户确认。
+- **状态与下一步**：原卡已 `APPROVED` 并发布
+  `4c3bd1accfa06d66b2d21b560b5db69eb4a7920b`。A/B/C、首期范围/fallback 与依赖/兼容/试点时点
+  三项仍待用户确认，设计未实施、业务未获批准。
 
 ### GOAL-DESIGN 场景 goals 与 Task Completion 设计（`FINAL_READY`）
 
