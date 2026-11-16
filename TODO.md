@@ -4,7 +4,13 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **WDI 周报时长真实本地组合补验（当前卡，2026-11-16，`FINAL_READY`）：** 唯一工作树为
+> **WR-DESIGN 周报剩余指标设计（当前卡，2026-11-16，`FINAL_READY`）：** 把私有已内容评审的周报
+> 剩余指标设计草案写回，`p_mastery` 环比 A/B/C、报告/对比窗口与 IANA 时区均待用户确认，未实施。
+> 设计见 [WEEKLY_REMAINING_METRICS_DESIGN.md](./docs/WEEKLY_REMAINING_METRICS_DESIGN.md)，状态与
+> 数字见 [PROJECT_STATUS 的 WR-DESIGN 小节](./docs/PROJECT_STATUS.md#wr-design-周报剩余指标设计final_ready)。
+>
+> **WDI 周报时长真实本地组合补验（历史子卡，2026-11-16，已 `APPROVED` 并发布
+> `9d75fb0a67c835eb7b29af6f88b284a28ca9263a`）：** 唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，冻结 HEAD 为
 > `ad4f61e70fe471cb7ef3c8e5351fb2d0aa177410`，开工 clean。本卡只补齐浏览器 → 真实 HTTP →
@@ -674,6 +680,12 @@ C 四阶段验收与 Web 三构建已结束，主控按归属核验后已清理�
         [已完成事项](./docs/history/todo-done.md#2026-11-16-wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)；
         合同见[周报“已记录会话时长”合同](./docs/WEEKLY_RECORDED_DURATION_CONTRACT.md)。
         本范围完成不勾选完整周报、CP-05、三端或真实学习质量父项。
+
+周报剩余指标设计稿已产出、待用户确认：见
+[WEEKLY_REMAINING_METRICS_DESIGN.md](./docs/WEEKLY_REMAINING_METRICS_DESIGN.md)（WR-DESIGN，
+`DRAFT_READY`）。`p_mastery` 环比 A/B/C、报告/对比窗口与 IANA 时区均待确认，未实施、未勾选父项；
+下一步等主控补详细数字并独立 Review。
+
 - [ ] 计算各技能 `p_mastery` 环比趋势：历史数据、对比窗口与指标口径仍待明确。
 - [ ] 按会话聚合发音准确率趋势。
 - [ ] 基于 RAG/Krashen i+1 生成下周学习重点。

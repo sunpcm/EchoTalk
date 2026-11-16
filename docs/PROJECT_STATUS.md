@@ -1,10 +1,20 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **WDI 周报时长真实本地组合补验（`FINAL_READY`）**：
+> 最后核对：2026-11-16。当前卡片为 **WR-DESIGN 周报剩余指标设计（`FINAL_READY`）**：
 > 唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，冻结 HEAD
-> `ad4f61e70fe471cb7ef3c8e5351fb2d0aa177410`，开工 clean。本卡只新增显式本地测试入口、
+> `9d75fb0a67c835eb7b29af6f88b284a28ca9263a`，开工 clean。本卡只把私有已内容评审的
+> 周报剩余指标设计草案写回 `docs/WEEKLY_REMAINING_METRICS_DESIGN.md`，并只更新 `TODO.md`、
+> 本文件与 `docs/history/2026-11.md`；`p_mastery` 环比 A/B/C、报告/对比窗口与 IANA 时区均待
+> 用户确认，未实施、未获业务批准。实施节点不运行测试/服务/PG，不执行 Git 写操作（允许只读核基线）；主控 13 项机器门禁已全部
+> `exit 0`（机器 verify `0`），完整数字集中在下方 WR-DESIGN 小节。设计草案见
+> [WEEKLY_REMAINING_METRICS_DESIGN.md](./WEEKLY_REMAINING_METRICS_DESIGN.md)。
+>
+> WDI 周报时长真实本地组合补验（`FINAL_READY`）现作为最近历史快照保留（已发布
+> `9d75fb0a67c835eb7b29af6f88b284a28ca9263a`）：唯一工作树为
+> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，开工 clean。本卡只新增显式本地测试入口、
 > Chromium/WebKit 组合用例及隔离 harness/说明，补浏览器 → 真实 HTTP → 本地 FastAPI/main lifespan/
 > dev 认证/生产 `get_db` → 真实 SQLAlchemy/asyncpg → 自有 PostgreSQL → 现有 parser/controller/UI
 > 的组合缺口。产品、既有测试、默认 Playwright/Vite 配置、旧 bridge、迁移与依赖锁不改；默认 278
@@ -94,9 +104,37 @@
 
 ## 当前验证基线
 
+### WR-DESIGN 周报剩余指标设计（`FINAL_READY`）
+
+- **范围与写集**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD 为
+  `9d75fb0a67c835eb7b29af6f88b284a28ca9263a`，开工 clean。允许写集为
+  `docs/WEEKLY_REMAINING_METRICS_DESIGN.md`、`TODO.md`、本文件与 `docs/history/2026-11.md`。
+  实施节点只写回设计草案，不安装依赖、不改代码/测试/迁移/锁，不运行测试/服务/PG，不执行 Git
+  写操作（允许只读核基线）；全仓
+  最终 format、独立 Review、正常 commit 与当前分支 push 以主控同卡回执为准。
+- **内容**：把私有已内容评审（`R2_READY`）的周报剩余指标设计草案写回，给出 `p_mastery` 环比
+  A/B/C（A 最小向前时点快照为推荐、待确认）、报告/对比窗口与 IANA 时区待确认（含推荐组合与
+  取舍）、发音/焦虑/语速/RAG 其他指标口径，以及供用户确认的决策清单。用户此前仅批准“已记录
+  会话时长”方案 A；本卡各方案均未获业务批准，不称已采纳或实施，用户/业务确认仍待。
+- **口径保护**：不得把既有“含今天七桶”滚动窗口静默改成自然周，旧七桶口径完全不变；快照记录
+  实际采集时刻，不能晚采后冒周边界。新增快照/读模型必须以账号结构化导出与 B1-5 同事务删除为
+  实施前置，未准备好只能延期，本卡不实施。
+- **主控机器门禁（13 项全 `exit 0`，机器 verify `0`）**：Vitest `1309 passed / 60 files`；默认
+  E2E `278 = 139 Chromium + 139 WebKit`，每例单 result/`retry0`，`0 skip/flaky/unexpected`；
+  backend `1055 passed / 3 warnings / 0 skip`，raw coverage `81.90095185542833%`；build-script
+  `47`、Fake API `117`、API 类型生成器 `8`、iOS（仅 Node）`37`；lint `132 warnings / 0 errors /
+0 new`，多重集与基线相同。
+- **状态与下一步**：`FINAL_READY`，等主控最终 format、独立 Review、commit/push 与用户/业务
+  确认；合成不替代业务确认或真实环境，不称真实准确率/教学效果。设计草案见
+  [WEEKLY_REMAINING_METRICS_DESIGN.md](./WEEKLY_REMAINING_METRICS_DESIGN.md)。
+
 ### WDI 周报时长真实本地组合补验（`FINAL_READY`）
 
-- **范围与写集**：冻结基线与工作树见文首。允许写集为
+- **范围与写集**：冻结基线为 `ad4f61e70fe471cb7ef3c8e5351fb2d0aa177410`（已发布
+  `9d75fb0a67c835eb7b29af6f88b284a28ca9263a`），工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`。允许写集为
   `apps/vite-app/integration/weekly-duration/` 的 5 个新文件、`apps/vite-app/package.json` 的
   `test:weekly-duration-local` 入口、新 CP-06 验证说明、[`TODO.md`](../TODO.md)、本文件与
   [`docs/history/2026-11.md`](./history/2026-11.md)。产品业务、既有测试、旧 bridge、默认
