@@ -1032,3 +1032,10 @@ retry/skip/flaky0）；默认 trace/screenshot 策略受控对照负 2（trace2/
       测试平台假对象移入 test-only fixture（spyOn 并委托真实 Native/Web adapter）。原生命周期业务差异与准备段重复
       经审计保留，不声称完整统一 runner。源码独立 APPROVED R0，详见
       [验收记录](./2026-11-16-a18-lifecycle-testing-boundary.md)。
+
+## 2026-11-16 WGGC weekly/GC 有界取证（纯调查完成，原缺陷不归档）
+
+- **有界调查完成（WGGC，纯调查零改）**：对 weekly-grammar 历史 5/1 与 READ2 session-flow `page.evaluate` Promise GC
+  做了只读取证与父 macOS 有界压力复现，corrected60 全 60 绿、全量 E2E 258 全绿、Vitest 1270/57、pytest 962/3w/80.63%，
+  近期无复现；GC 因果与 weekly 5/1 根因仍未知。原缺陷不勾选、不归档，继续开放于根 TODO；详见
+  [验收记录](./2026-11-16-weekly-gc-investigation.md)。

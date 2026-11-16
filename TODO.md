@@ -80,7 +80,7 @@
       耗掉测试唯一一次注入的 503，未验证。验收：先复现并确认根因，修复后 WebKit 无重试
       重复运行（≥20 次）全过，不靠放宽断言或增加重试。本轮 Harness 基线 76d9d6ba 原版
       无重试 80/80（C40/W40，retries0，55.1s），只满足定向重验，不替代历史因果；
-      历史 5/1 与根因未知保留，未满足原完整验收，继续开放。
+      历史 5/1 与根因未知保留，未满足原完整验收，继续开放。WGGC 有界调查（2026-11-16）：父 macOS corrected60 中本用例两 case × C/W × repeat10 = 40（另含 neutral GC 20，合计 60）全绿、全量 E2E 258 全绿，近期无复现；根因仍未知，继续开放。
 - [ ] **防止 bot 推送导致误合并**（2026-11-09 已加 `.github/workflows/pr-guard.yml`：删除 ≥1000 且 >5× 新增时失败，
       `allow-mass-deletion` label 放行；剩余：用户在仓库创建该 label 并把 `mass-deletion-guard` 设为 required check）：#118 合并前 google-labs-jules[bot] 在更新分支后推送
       删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
