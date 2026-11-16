@@ -592,6 +592,141 @@ async def test_execute_writes_terminal_results_atomically(eval_pg: EvalHarness) 
 
 
 @pytest.mark.asyncio
+async def test_v2_runs_use_version_guard_without_rewriting_v1_history(
+    eval_pg: EvalHarness, monkeypatch
+) -> None:
+    service = _service_api()
+    model = _model_api()
+    rules = _require_module("services.goal_rules")
+
+    _user_id, _session_id, v2_run = await _bootstrap_run(
+        eval_pg,
+        utterances=[
+            "My name is Anna and I am a product manager.",
+            "What do you do for work?",
+        ],
+    )
+    assert v2_run is not None
+    assert rules.EVALUATOR_VERSION == "deterministic-goal-v2"
+    assert v2_run.evaluator_version == "deterministic-goal-v2"
+    async with eval_pg.factory() as db, db.begin():
+        claimed = await service.claim_next_goal_run(db)
+        assert claimed == v2_run.id
+        await service.execute_claimed_goal_run(v2_run.id, db)
+
+    with monkeypatch.context() as version_override:
+        version_override.setattr(
+            rules,
+            "EVALUATOR_VERSION",
+            "deterministic-goal-v1",
+        )
+        _user_id, _session_id, pending_v1_run = await _bootstrap_run(
+            eval_pg,
+            utterances=["My name is Anna and I am a product manager."],
+        )
+    assert pending_v1_run is not None
+    assert rules.EVALUATOR_VERSION == "deterministic-goal-v2"
+    assert pending_v1_run.evaluator_version == "deterministic-goal-v1"
+    async with eval_pg.factory() as db, db.begin():
+        pending_v1 = await db.get(model.GoalRun, pending_v1_run.id)
+        pending_v1_evidence = [dict(item) for item in pending_v1.evidence]
+
+    async with eval_pg.factory() as db, db.begin():
+        claimed = await service.claim_next_goal_run(db)
+        assert claimed == pending_v1_run.id
+        await service.execute_claimed_goal_run(pending_v1_run.id, db)
+
+    async with eval_pg.factory() as db:
+        pending_v1 = await db.get(model.GoalRun, pending_v1_run.id)
+        pending_v1_results = (
+            (
+                await db.execute(
+                    select(model.GoalEvaluationResult).where(
+                        model.GoalEvaluationResult.run_id == pending_v1_run.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert pending_v1.status.value == "succeeded"
+        assert pending_v1.evaluator_version == "deterministic-goal-v1"
+        assert pending_v1.evidence == pending_v1_evidence
+        assert {result.result.value for result in pending_v1_results} == {
+            "not_assessed"
+        }
+
+    with monkeypatch.context() as version_override:
+        version_override.setattr(
+            rules,
+            "EVALUATOR_VERSION",
+            "deterministic-goal-v1",
+        )
+        _user_id, _session_id, successful_v1_run = await _bootstrap_run(
+            eval_pg,
+            utterances=[
+                "My name is Anna and I am a product manager.",
+                "What do you do for work?",
+            ],
+        )
+    assert successful_v1_run is not None
+    assert successful_v1_run.evaluator_version == "deterministic-goal-v1"
+    with monkeypatch.context() as version_override:
+        version_override.setattr(
+            rules,
+            "EVALUATOR_VERSION",
+            "deterministic-goal-v1",
+        )
+        async with eval_pg.factory() as db, db.begin():
+            claimed = await service.claim_next_goal_run(db)
+            assert claimed == successful_v1_run.id
+            await service.execute_claimed_goal_run(successful_v1_run.id, db)
+    assert rules.EVALUATOR_VERSION == "deterministic-goal-v2"
+
+    async with eval_pg.factory() as db:
+        successful_v1 = await db.get(model.GoalRun, successful_v1_run.id)
+        successful_v1_evidence = [dict(item) for item in successful_v1.evidence]
+        before = (
+            (
+                await db.execute(
+                    select(model.GoalEvaluationResult).where(
+                        model.GoalEvaluationResult.run_id == successful_v1_run.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        before_results = {(result.goal_id, result.result.value) for result in before}
+        assert successful_v1.status.value == "succeeded"
+        assert successful_v1.evaluator_version == "deterministic-goal-v1"
+
+    await service.process_goal_run(successful_v1_run.id, eval_pg.factory)
+
+    async with eval_pg.factory() as db:
+        successful_v1 = await db.get(model.GoalRun, successful_v1_run.id)
+        after = (
+            (
+                await db.execute(
+                    select(model.GoalEvaluationResult).where(
+                        model.GoalEvaluationResult.run_id == successful_v1_run.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert successful_v1.status.value == "succeeded"
+        assert successful_v1.evaluator_version == "deterministic-goal-v1"
+        assert successful_v1.evidence == successful_v1_evidence
+        assert (
+            {(result.goal_id, result.result.value) for result in after}
+            == before_results
+            == {(f"{MATERIAL_ID}:{slug}", "achieved") for slug in GOAL_SLUGS}
+        )
+
+
+@pytest.mark.asyncio
 async def test_frozen_evidence_excludes_late_transcript(eval_pg: EvalHarness) -> None:
     service = _service_api()
     model = _model_api()

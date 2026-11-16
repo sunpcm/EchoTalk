@@ -10,8 +10,10 @@
 > [B1 实施历史快照](./docs/history/b1-implementation-2026-11-16.md)，不在本页重新累积。
 >
 > 最终文档收口核对：2026-11-17。目录和历史档日期仍为 2026-11-16；截至本回执，合并工作树的
-> 前置质量、单元、后端、定向与完整浏览器门禁已有本轮证据，完整 E2E 为 322 passed / exit 0。合成 PG 已由主控
-> 精确清理，未有保留的活动 PG。当前数字、失败历史和未验收边界统一见
+> quality、Vitest、backend、目标 87、独立 22 与完整双浏览器 322 项均已通过。12 行为门禁全 0；
+> 四文档落盘后由主控执行 format 作为第 13 项门禁，本文不自批该项已完成。合成 PG 已停止且自动移除，
+> 未有保留的活动 PG。
+> 当前数字、失败历史和未验收边界统一见
 > [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md#本次合并集成验证2026-11-17)。
 
 ## 架构演进工作包（第二批：F / G / H / I）
@@ -41,10 +43,13 @@
 这些条目只说明 B1 已交付的技术行为与仍未验收的边界；详细正文、原测试数字与 PG 资源快照见
 [B1 实施历史快照](./docs/history/b1-implementation-2026-11-16.md)。
 
-- **goals 四卡技术链完成，父项仍未完成：** G-CONTRACT/GOAL-DATA/G-WIRE/G-EVAL/G-VIEW 已形成版本化目录、
-  同事务 catalog/snapshot、append-only run/results、精确 transcript evidence 顺序/digest、确定性四终态、
-  curriculum opt-in 预览、owner-scoped GET、受控 pending/running 轮询与无百分比汇总。用户 Review、人工
-  gold、真实教学质量、外部与生产环境仍未验；场景 `goals[]` 复选框保持未勾。
+- **goals RC1 技术返修完成，父项仍未完成：** G-CONTRACT/GOAL-DATA/G-WIRE/G-EVAL/G-VIEW 已形成版本化
+  目录、同事务 catalog/snapshot、append-only run/results、精确 transcript evidence 顺序/digest、确定性
+  四终态、curriculum opt-in 预览、owner-scoped GET、受控 pending/running 轮询与无百分比汇总。PR #197
+  RC1 修复两个 bot 报告的真实判定问题并将 evaluator 升为 `deterministic-goal-v2`：目标 87 项
+  （67 纯规则 + 20 持久化 worker）与独立 22 项本地测试已通过。旧 pending v1 保留 header/evidence，
+  由既有版本 guard 判 `not_assessed`；旧成功 v1 不重判。v2 通过不等于人工 gold、真实教学质量、
+  外部或生产验收完成，场景 `goals[]` 复选框保持未勾。
 - **周报时长本范围完成，完整周报未完成：** 设计、后端 opt-in 聚合和前端三态显示已归档；“已记录会话时长”
   只表示会话经过时长，不等于有效说话时长；掌握度环比、发音趋势、下周重点等仍需决策或实施。
 - **SGEC/CI：** SGEC-OFF 已随 PR194 合入 main `d33f236`；RF04E 保存三条历史 main push、iOS failure
@@ -59,9 +64,13 @@
 - **合并/数据边界：** HHTTP-CLOSE 只核销旧 host-gateway 合成拓扑；DEC-A/RDOC/TDOC 只修正历史口径；
   A3-A6/A5、A82C、A84C、RF04E 与 B1/WPH 的证据仍分别绑定原提交。B2 事件业务政策及本地合成实现已完成；
   生产切换、真实数据与真实学习质量仍未完成。
-- **本次集成本地验证：** 截至 2026-11-17，quality、前端单元、backend、Fake/build/类型/离线门禁、合成 HTTP、
-  目标 E2E 与完整 E2E 均已有本轮证据，合成 PG 已清理。13门禁及最终Review/提交/PR/合并/CI见主控同卡回执；
-  本文不自批 Independent Review，不预填远端 CI 通过，也不代表真实依赖、生产或用户验收完成。
+- **本次集成本地验证：** 截至 2026-11-17，quality 0、Vitest 1429/73、Fake 141、build 47、API 类型
+  10、backend 1351/3 warnings/0 skip、目标 87/87、独立 22/22 与完整 E2E 322/322 已通过。
+  E2E 为 Chromium 161 + WebKit 161，每项单一 passed result、retry 0、0 skip/flaky/unexpected；
+  quality 诊断多重集为 132 warning/0 error/0 新增，与 80df 基线完全一致。合成 PG `stop 0`、
+  `auto_removed=true`。12 行为门禁全 0，四文档后主控 formatter 为第 13 项及最终
+  format/Review/提交/推送/新 head CI/合并以主控同卡回执为准；本文不自批 Independent Review，
+  不预填远端 CI 通过，也不代表真实依赖、生产或用户验收完成。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -106,9 +115,11 @@ macos` 产出 `dist/macos/<mode>` 与 manifest；`sync-macos.mjs` 在外部工�
       见 [SGEC_OFFLINE_DESIGN.md](./docs/SGEC_OFFLINE_DESIGN.md) 与
       [实施记录](./docs/history/2026-11-16-sgec-offline-implementation.md)。真实 Provider、BKT 接线、人工 gold
       与教学质量仍未验收。
-- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：四卡技术实现与合成验收已闭环，包括版本化目录、
-      同事务 catalog/snapshot、append-only run/results、确定性四终态、课程 opt-in 预览、owner-scoped GET、
-      受控轮询与无百分比汇总。父项保持未勾，只待用户 Review、人工 gold、真实教学质量、外部与生产验收。
+- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：四卡技术实现与合成验收已闭环，PR #197 RC1
+      将 evaluator 升至 v2 并修复两个 bot 报告的真实判定问题；目标 87 项
+      （67 纯规则 + 20 持久化 worker）与独立 22 项本地测试已通过。旧 pending v1 保留 header/evidence
+      并由既有版本 guard 判 `not_assessed`，旧成功 v1 不重判。完整 E2E 322/322 已通过；父项保持未勾，
+      只待最终 format/Review/交付回执、用户 Review、人工 gold、真实教学质量、外部与生产验收。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。

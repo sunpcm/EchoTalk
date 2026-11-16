@@ -5,9 +5,12 @@
 > main `d33f236`；真实 Provider、BKT、人工 gold 与教学质量仍未验收。未完成与待决策事项只在根目录
 > [`TODO.md`](../TODO.md)。
 >
-> 本次合并后的本地集成验证已完成，下方“当前验证基线”仍是历史发布证据，本轮结果集中记录在
-> 13门禁及最终Review/提交/PR/合并/CI见主控同卡回执。本次表中的本轮门禁已实际通过；技术实现与合成验收完成，不等于人工 gold、真实 Provider 或生产验收；历史表只属各自原时点。
-> 本文不自批 Independent Review，也不预填远端 CI 通过。
+> 本次合并后的 RC1 本地验证进入收口中。下方“当前验证基线”仍是历史发布证据，本轮结果集中记录在
+> “本次合并集成验证”；完整 E2E 322 项已 exit 0，12 个行为门禁全部通过。
+> 四文档落盘后由主控执行 format，作为第 13 项及最终交付门禁。
+> 技术实现与合成验收完成，不等于人工 gold、真实 Provider 或生产验收；历史表只属各自原时点。
+> 最终 format/Review/提交/推送/新 head CI/合并以主控同卡回执为准；本文不自批 Independent Review，
+> 也不预填远端 CI 通过。
 > B1 的完整历史与逐卡数字只保存在
 > [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。
 
@@ -19,31 +22,31 @@
 
 ## 当前功能
 
-| 领域                        | 当前实现                                                                                                                                                                                          | 状态与边界                                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 认证与用户边界              | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                                                                                                                   | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                                        |
-| 实时对话                    | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                                                                                                                 | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                               |
-| 会话生命周期                | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                                                                                                              | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                              |
-| 启动编排（H1）              | 原runStartup抽为延迟ports的factory；同步门禁、动态依赖与cleanup所有权保留，resume未合并                                                                                                           | 已合并PR174、最终mainCI成功；H1当轮旧测试零改、新15条同层测试及四项有效变异保留，真实依赖仍未验          |
-| Room 所有权收窄（A19）      | 移除无用 onRoom/onRoomRef，roomRef 改必传；RoomContextSync 仅在 Room 提交后由 useLayoutEffect 发布引用，替换/退出时清理                                                                           | B1 da185dc 保持 commit 后发布；初始 Web 快照门禁经审计非泄漏保留，不由 render 阶段直接赋值               |
-| 生命周期测试边界（A18）     | 移除产品测试注入 setter 与 start/resume 重复的测试选项 plumbing，测试平台假对象移入 test-only fixture                                                                                             | 已发布 PR191 main `0422c9e`；平台判定仍经 detectPlatform()，未统一 runner                                |
-| 会话分析                    | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态；可替换评估提供方与内部coverage                                                                                                   | 源码APPROVED R0；仍为文本demo规则，真实发音 Provider 未验收                                              |
-| 场景目标                    | 版本化目录；创建事务 catalog/snapshot；append-only run/results；精确 transcript evidence 顺序与 digest；确定性四终态；课程 opt-in 预览；owner-scoped GET；受控 pending/running 轮询；无百分比汇总 | goals 四卡技术实现与合成验收完成；父项未勾。用户 Review、人工 gold、真实教学质量、外部环境与生产仍未验收 |
-| 契约同源（G3）              | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试                                                                                                 | 已合并PR172、最终mainCI首轮成功；重试与wire语义保留                                                      |
-| 结果可信度                  | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                                                                                                                | 已实现                                                                                                   |
-| SGEC 纯离线契约（SGEC-OFF） | 严格结构校验 + 固定合成 fixture CLI（validator/CLI/测试/合成 fixture），不接真实 Provider/BKT                                                                                                     | 已发布 PR194，main `d33f236`；真实 Provider、BKT、人工 gold 与教学质量仍未验收                           |
-| 自适应课程                  | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                                                                                                               | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                                 |
-| BYOK                        | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                                                                                                                | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                           |
-| DocTalk                     | 文档输入、Prompt 构建、文档会话入口                                                                                                                                                               | 已实现 Web 流程；原生端文件选择未验收                                                                    |
-| 前端体验                    | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标、设置抽屉标题"设置"、活动行可见 ID 前 8 位                                                                               | 设置可读性已发布（PR179）；装饰卡/全产品 AA、真实设备读屏未验                                            |
-| 周度学习                    | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3；可 opt-in 返回“已记录会话时长”                                                                                             | **部分实现**：已记录时长只表示会话经过时长，不等于有效说话时长；掌握度环比、发音趋势与下周重点未实现     |
-| iOS                         | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                                                                                                                           | 真机全链路、原生登录与发布未验收                                                                         |
-| macOS                       | macOS 产物构建与同步脚本、`tools/macos-m1-native-probe` 探测工程                                                                                                                                  | 纯脚本已完成；正式客户端、壳、Tauri 选型、设备与签名未验收                                               |
-| 数字人                      | 只有待办                                                                                                                                                                                          | **未实现**                                                                                               |
+| 领域                        | 当前实现                                                                                                                                                                                                         | 状态与边界                                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 认证与用户边界              | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                                                                                                                                  | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                                                                               |
+| 实时对话                    | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                                                                                                                                | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                                                                      |
+| 会话生命周期                | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                                                                                                                             | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                                                                     |
+| 启动编排（H1）              | 原runStartup抽为延迟ports的factory；同步门禁、动态依赖与cleanup所有权保留，resume未合并                                                                                                                          | 已合并PR174、最终mainCI成功；H1当轮旧测试零改、新15条同层测试及四项有效变异保留，真实依赖仍未验                                                 |
+| Room 所有权收窄（A19）      | 移除无用 onRoom/onRoomRef，roomRef 改必传；RoomContextSync 仅在 Room 提交后由 useLayoutEffect 发布引用，替换/退出时清理                                                                                          | B1 da185dc 保持 commit 后发布；初始 Web 快照门禁经审计非泄漏保留，不由 render 阶段直接赋值                                                      |
+| 生命周期测试边界（A18）     | 移除产品测试注入 setter 与 start/resume 重复的测试选项 plumbing，测试平台假对象移入 test-only fixture                                                                                                            | 已发布 PR191 main `0422c9e`；平台判定仍经 detectPlatform()，未统一 runner                                                                       |
+| 会话分析                    | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态；可替换评估提供方与内部coverage                                                                                                                  | 源码APPROVED R0；仍为文本demo规则，真实发音 Provider 未验收                                                                                     |
+| 场景目标                    | 版本化目录；创建事务 catalog/snapshot；append-only run/results；精确 transcript evidence 顺序与 digest；evaluator v2 与确定性四终态；课程 opt-in 预览；owner-scoped GET；受控 pending/running 轮询；无百分比汇总 | PR #197 RC1 修复两个 bot 报告的真实判定问题；目标 87、独立 22 与完整 E2E 322 通过。父项未勾；用户 Review、人工 gold、真实教学质量和生产仍未验收 |
+| 契约同源（G3）              | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试                                                                                                                | 已合并PR172、最终mainCI首轮成功；重试与wire语义保留                                                                                             |
+| 结果可信度                  | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                                                                                                                               | 已实现                                                                                                                                          |
+| SGEC 纯离线契约（SGEC-OFF） | 严格结构校验 + 固定合成 fixture CLI（validator/CLI/测试/合成 fixture），不接真实 Provider/BKT                                                                                                                    | 已发布 PR194，main `d33f236`；真实 Provider、BKT、人工 gold 与教学质量仍未验收                                                                  |
+| 自适应课程                  | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                                                                                                                              | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                                                                        |
+| BYOK                        | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                                                                                                                               | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                                                                  |
+| DocTalk                     | 文档输入、Prompt 构建、文档会话入口                                                                                                                                                                              | 已实现 Web 流程；原生端文件选择未验收                                                                                                           |
+| 前端体验                    | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标、设置抽屉标题"设置"、活动行可见 ID 前 8 位                                                                                              | 设置可读性已发布（PR179）；装饰卡/全产品 AA、真实设备读屏未验                                                                                   |
+| 周度学习                    | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3；可 opt-in 返回“已记录会话时长”                                                                                                            | **部分实现**：已记录时长只表示会话经过时长，不等于有效说话时长；掌握度环比、发音趋势与下周重点未实现                                            |
+| iOS                         | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                                                                                                                                          | 真机全链路、原生登录与发布未验收                                                                                                                |
+| macOS                       | macOS 产物构建与同步脚本、`tools/macos-m1-native-probe` 探测工程                                                                                                                                                 | 纯脚本已完成；正式客户端、壳、Tauri 选型、设备与签名未验收                                                                                      |
+| 数字人                      | 只有待办                                                                                                                                                                                                         | **未实现**                                                                                                                                      |
 
 ## 当前验证基线
 
-以下数字只绑定各自已发布提交，是 main 发布时点基线，不是本次 `46ef954 + da37683` 合并后的新结果。
+以下数字只绑定各自已发布提交，是 main 发布时点基线，不是本次 B1 主集成工作树的新结果。
 SGEC-OFF 已通过 [PR194](https://github.com/sunpcm/EchoTalk/pull/194) 合入 main `d33f236`，对应 mainCI
 `43818985856` 首五 success；B1 在合入前的候选亲跑、goals 四卡门禁与各历史卡计数只保存在
 [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。
@@ -57,33 +60,46 @@ SGEC-OFF 已通过 [PR194](https://github.com/sunpcm/EchoTalk/pull/194) 合入 m
 | 构建脚本            | 21 passed                  |
 | 完整 backend pytest | 962 / 3w / 80.63% / 59.50s |
 
-本次合并后的前端、后端、Compose、定向与完整 E2E 已有本轮证据；最终 Review、提交、PR、合并、CI 与总体放行仍以主控
-同卡回执为准。所有数字都不能证明真实 LiveKit、IdP、Provider、设备、数据库生产数据或部署已验收。
+本次 B1 主集成的前端、后端、目标、独立回归、完整双浏览器 E2E 与既有合成门禁已有本轮证据。
+最终 format/Review/提交、PR、新 head CI、合并与总体放行仍以主控同卡回执为准。所有数字都不能证明
+真实 LiveKit、IdP、Provider、设备、数据库生产数据或部署已验收。
 
 ### 本次合并集成验证（2026-11-17）
 
 以下记录当前合并工作树的本轮本地集成证据，不替代最终同卡回执；历史表保持原时点数字。
 
-| 门禁 / 范围                 | 本轮预终态证据                                                                                                                                  |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| quality / lint              | quality 0；lint 132 warning / 0 error，warning 多重集与既有集合一致，无新增项                                                                   |
-| 前端 Vitest                 | 1429 passed / 73 files / 0 skipped                                                                                                              |
-| backend                     | 1326 passed / 3 warnings / 0 skipped；raw coverage 81.7332474226804%                                                                            |
-| Fake / build / types / 离线 | Fake 141、build 47、API 类型 runner 10、iOS 仅 Node 37、keyfree 35；agent-types、backend-contract、schema、metadata 均为 0 failure              |
-| 合成 HTTP + PG              | call lease 6 项、weekly duration 4 项，均为 0 failure                                                                                           |
-| 目标 E2E                    | 26 项全部通过；焦点原用例与 controlled 用例各 20 次、双浏览器共 80 次通过，单一 result、retry 0                                                 |
-| 完整 E2E                    | 322 passed / exit 0 / 5.1m；Chromium 161 + WebKit 161，每项恰 1 passed result、retry 0，0 skip/flaky/unexpected；证据为主控同卡e2e-verified回执 |
+| 门禁 / 范围             | 本轮证据                                                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| source / RC1            | `backend/services/goal_rules.py` SHA-256 `b8c40614...`；PR #197 修复两个 bot 报告的真实判定问题；evaluator `deterministic-goal-v2` |
+| quality                 | 0；诊断多重集 132 warning / 0 error / 0 新增，与 `80df811` 基线完全一致                                                            |
+| 前端 Vitest             | 1429 passed / 73 files                                                                                                             |
+| backend                 | 1351 passed / 3 warnings / 0 skipped；raw coverage 81.99763973822552%                                                              |
+| build / Fake / API 类型 | build 47、Fake 141、API 类型 runner 10                                                                                             |
+| 目标判定                | 87/87：67 纯规则 + 20 持久化 worker                                                                                                |
+| 独立回归                | 22/22                                                                                                                              |
+| 旧 v1 加载负对照        | 75 passed / 12 项具体 AssertionError / 0 error / 0 skip                                                                            |
+| 去版本 guard 变异       | 1 selected / 1 项具体 AssertionError；driver 0                                                                                     |
+| 完整 E2E                | exit 0；322 = Chromium 161 + WebKit 161；每项单一 passed result、retry 0、0 skip/flaky/unexpected                                  |
+| 行为门禁                | 12/12 为 0；四文档后的主控 format 为第 13 项，本文不提前自批                                                                       |
+| 合成 PG                 | `stop 0`、`auto_removed=true`                                                                                                      |
 
-有效变异证据分别杀死了 module tracker（5 项失败）、Room render（1 项失败）、theme guard（1 项失败）与
-Compose body（2 项失败）路径；变异运行中未选中的测试不计覆盖。
-历史 R2 `307 passed / 15 failed` 仍是失败证据，后续修复不得回写成旧轮通过；此前 R0 原计划 322 项，约 40 项后受控停止；
-命令 exit 0 不代表完成，原始 JSON 含失败并保留，不能据此宣称 322 全绿。
+RC1 保持旧 pending v1 的 header/evidence 原样，由既有版本 guard 判 `not_assessed`；旧成功 v1 不重判。
+goal/material 版本、schema 与 20 份旧迁移保持。旧 v1 加载负对照与去版本 guard 变异均为负向验证，
+不是产品失败遗留；两项 driver 均为 0。TDD 的 R0/R1 实际失败、fixture 返修和后续转绿保留在主控本地
+证据，不用最终绿色覆盖历史。有效旧门禁变异仍分别杀死 module tracker（5 项失败）、Room render
+（1 项失败）、theme guard（1 项失败）与 Compose body（2 项失败）路径；未选中测试不计覆盖。
 
-合成 PG 已由主控运行 `ev-MERGE-stop-owned-pg` 清理并以 exit 0 结束；主控同卡PG清理回执已核验精确 ID、双 owner、
-loopback 与合成身份，`auto_removed: true`，其他资源未动。当前没有保留的本轮活动 PG，也没有据此产生真实数据、
-真实环境或生产验收结论。用户 Review、人工 gold、真实 Provider/IdP/LiveKit/设备与生产仍待后续门禁。
+当前工作树与此前已发布 `80df811` 独立基线必须分开：后者 backend 为 1326 passed、raw coverage
+81.7332474226804%，其 [CI run 43908155993](https://github.com/sunpcm/EchoTalk/actions/runs/43908155993)
+attempt 2 的五个作业成功。该运行最初一次 mac 容量取消属于资源排队事件，不是代码失败；尝试次数和
+五作业结果分别记录，不把历史运行并入当前 head。历史 R2 `307 passed / 15 failed` 与早先 R0 原计划
+322 项在约 40 项后受控停止的事实继续保留。
 
-13门禁及最终Review/提交/PR/合并/CI见主控同卡回执。本页只记录本节点可复核的本地事实，不自行批准或宣称远端 CI 已通过。
+合成 PG 已由主控运行 `ev-RC1-stop-pg` 清理并以 exit 0 结束；同卡回执核验精确 ID、双 owner、
+loopback 与合成身份，`auto_removed: true`，其他资源未动。当前没有保留的本轮活动 PG，也没有据此产生
+真实数据、真实环境或生产验收结论。v2 通过仅证明确定性规则和持久化生命周期，不证明人工 gold、
+真实教学质量、真实 Provider/IdP/LiveKit、设备、部署或用户验收。当前 12 个行为门禁全 0；
+四文档后的主控 format 是第 13 项，最终交付状态仍以主控同卡回执为准。
 
 ## B1 历史完成卡索引（原时点）
 

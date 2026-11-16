@@ -62,6 +62,10 @@ def test_evaluator_version_is_frozen_and_six_goals_are_supported() -> None:
     assert api.SUPPORTED_GOAL_IDS == OFFICIAL_GOAL_IDS
 
 
+def test_evaluator_version_uses_deterministic_goal_v2() -> None:
+    assert _rules_api().EVALUATOR_VERSION == "deterministic-goal-v2"
+
+
 @pytest.mark.parametrize(
     ("goal_id", "utterances"),
     [
@@ -294,6 +298,161 @@ def test_ambiguous_general_keywords_are_unknown(
     ],
 )
 def test_quoted_or_referenced_examples_are_unknown(
+    goal_id: str, utterances: Sequence[str]
+) -> None:
+    assert _evaluate(goal_id, 1, utterances) == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("utterances", "expected"),
+    [
+        (
+            ["I didn't say my name is Anna and I am a manager."],
+            "unknown",
+        ),
+        (
+            ["It is not true that my name is Anna and I am a manager."],
+            "unknown",
+        ),
+        (
+            ["I am Not Anna, and I am a manager."],
+            "unknown",
+        ),
+        (
+            ["I am NOT Anna, and I am a manager."],
+            "unknown",
+        ),
+        (
+            ["My name is not Anna and I am not a product manager."],
+            "unknown",
+        ),
+        (
+            ["My name is not Anna and I am a product manager."],
+            "unknown",
+        ),
+        (
+            ["My name is Anna and I am not a product manager."],
+            "unknown",
+        ),
+        (
+            ["My name is Anna.", "I am not a product manager."],
+            "unknown",
+        ),
+        (
+            ["My name is Anna and I am a product manager."],
+            "achieved",
+        ),
+        (
+            ["  My name is Anna and I am a product manager.  "],
+            "achieved",
+        ),
+        (
+            ["\n My name is Anna. ", " I am a product manager. "],
+            "achieved",
+        ),
+    ],
+)
+def test_name_and_role_negation_never_counts_as_valid_introduction(
+    utterances: Sequence[str], expected: str
+) -> None:
+    goal_id = "mat_biz_greet_b1:introduce_name_and_role"
+    assert _evaluate(goal_id, 1, utterances) == expected
+
+
+@pytest.mark.parametrize(
+    ("goal_id", "utterances"),
+    [
+        (
+            "mat_biz_greet_b1:introduce_name_and_role",
+            [
+                "My name is Anna and I am a product manager, "
+                "but I don't want to introduce myself."
+            ],
+        ),
+        (
+            "mat_biz_greet_b1:ask_other_work_question",
+            ["What do you do for work, but I don't want to ask about your job."],
+        ),
+        (
+            "mat_biz_greet_b1:ask_other_work_question",
+            ["What do you do for work.", "I don't want to ask about your job."],
+        ),
+        (
+            "mat_biz_greet_b1:ask_other_work_question",
+            ["I don't want to ask about your job; what do you do for work?"],
+        ),
+        (
+            "mat_restaurant_b1:order_one_dish_or_drink",
+            ["I'll have the pasta, but I do not want to order anything."],
+        ),
+        (
+            "mat_restaurant_b1:order_one_dish_or_drink",
+            ["I'll have the pasta.", "I do not want to order anything."],
+        ),
+        (
+            "mat_hotel_checkin_b1:express_checkin_reservation_status",
+            [
+                "I'd like to check in and I have a reservation, "
+                "but I do not want to check in."
+            ],
+        ),
+        (
+            "mat_hotel_checkin_b1:express_checkin_reservation_status",
+            [
+                "I'd like to check in.",
+                "I have a reservation.",
+                "I do not want to check in.",
+            ],
+        ),
+    ],
+)
+def test_positive_and_refusal_evidence_is_unknown_within_or_across_clauses(
+    goal_id: str, utterances: Sequence[str]
+) -> None:
+    assert _evaluate(goal_id, 1, utterances) == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("goal_id", "utterances", "expected"),
+    [
+        (
+            "mat_restaurant_b1:order_one_dish_or_drink",
+            ["I do not want to order anything."],
+            "not_achieved",
+        ),
+        (
+            "mat_restaurant_b1:order_one_dish_or_drink",
+            ["I'll have the pasta, please."],
+            "achieved",
+        ),
+    ],
+)
+def test_pure_refusal_and_pure_positive_keep_their_terminal_states(
+    goal_id: str, utterances: Sequence[str], expected: str
+) -> None:
+    assert _evaluate(goal_id, 1, utterances) == expected
+
+
+@pytest.mark.parametrize(
+    ("goal_id", "utterances"),
+    [
+        (
+            "mat_restaurant_b1:state_preference_or_no_requirements",
+            [
+                "My teacher reported that the example means no onions; "
+                "no onions, please."
+            ],
+        ),
+        (
+            "mat_restaurant_b1:order_one_dish_or_drink",
+            [
+                "If I were ordering, I'll have the pasta; "
+                "I do not want to order anything now."
+            ],
+        ),
+    ],
+)
+def test_clause_splitting_preserves_whole_utterance_non_direct_guard(
     goal_id: str, utterances: Sequence[str]
 ) -> None:
     assert _evaluate(goal_id, 1, utterances) == "unknown"

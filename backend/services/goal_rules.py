@@ -26,7 +26,7 @@ from collections.abc import Callable, Sequence
 
 from models.goal_evaluation import GoalResult
 
-EVALUATOR_VERSION = "deterministic-goal-v1"
+EVALUATOR_VERSION = "deterministic-goal-v2"
 
 SUPPORTED_GOAL_IDS = frozenset(
     {
@@ -252,24 +252,46 @@ _ROLE_NOUNS = frozenset(
 )
 
 
+_DIRECT_SELF_CLAUSE_PREFIX = r"(?:^|[.!?;,]\s*|\b(?:and|but)\s+)"
 _NAME_EXPLICIT_RE = re.compile(
-    r"\bmy name (?:is|'s)\s+['\"]?([a-z][a-z'-]*)", re.IGNORECASE
+    rf"{_DIRECT_SELF_CLAUSE_PREFIX}(?:my name (?:is|'s)\s+"
+    r"['\"]?([a-z][a-z'-]*))",
+    re.IGNORECASE,
 )
-_NAME_SELF_RE = re.compile(r"\b(?:i am|i'm)\s+['\"]?([a-z][a-z'-]*)", re.IGNORECASE)
+_NAME_SELF_RE = re.compile(
+    rf"{_DIRECT_SELF_CLAUSE_PREFIX}(?:(?:i am|i'm)\s+"
+    r"['\"]?([a-z][a-z'-]*))",
+    re.IGNORECASE,
+)
+_NEGATED_NAME_RE = re.compile(
+    r"\bmy name (?:is|'s)\s+not\b|\bmy name isn't\b",
+    re.IGNORECASE,
+)
 
 
 def _has_name(raw: str) -> bool:
-    match = _NAME_EXPLICIT_RE.search(raw)
+    stripped = raw.strip()
+    text = _norm(stripped)
+    if _is_negated_mention(text) or _NEGATED_NAME_RE.search(text):
+        return False
+    match = _NAME_EXPLICIT_RE.search(stripped)
     if match and match.group(1):
-        return True
-    match = _NAME_SELF_RE.search(raw)
-    return bool(match and match.group(1) and match.group(1)[0].isupper())
+        return match.group(1).casefold() != "not"
+    match = _NAME_SELF_RE.search(stripped)
+    return bool(
+        match
+        and match.group(1)
+        and match.group(1).casefold() != "not"
+        and match.group(1)[0].isupper()
+    )
 
 
 _ROLE_ARTICLE_RE = re.compile(
-    r"\b(?:i am|i'm)\s+(?:a|an)\s+([a-z][a-z\- ]*?)"
+    rf"{_DIRECT_SELF_CLAUSE_PREFIX}(?:(?:i am|i'm)\s+(?:a|an)\s+"
+    r"([a-z][a-z\- ]*?)"
     r"(?=\s+(?:and|but|or|so|because|which|who|that|where|when|if|"
-    r"although|though|while|on)\b|[,.!?;]|$)"
+    r"although|though|while|on)\b|[,.!?;]|$))",
+    re.IGNORECASE,
 )
 
 
@@ -283,6 +305,8 @@ def _is_role_phrase(phrase: str) -> bool:
 
 
 def _has_role(text: str) -> bool:
+    if _is_negated_mention(text):
+        return False
     match = _ROLE_ARTICLE_RE.search(text)
     if match:
         return _is_role_phrase(match.group(1).strip(" ,.-"))
@@ -311,7 +335,6 @@ def _introduce_name_and_role(utterances: Sequence[str]) -> GoalResult:
             continue
         if _refusal(low, _INTRODUCE_ACTION):
             refusal = True
-            continue
         if not has_name and _has_name(raw):
             has_name = True
         if not has_role and _has_role(low):
@@ -412,7 +435,6 @@ def _express_checkin_reservation(utterances: Sequence[str]) -> GoalResult:
             continue
         if _refusal(low, _CHECKIN_ACTION):
             refusal = True
-            continue
         if not has_checkin and _checkin_request(low):
             has_checkin = True
         if not has_reservation and _reservation_status(low):
@@ -655,7 +677,6 @@ def _single_condition(
             continue
         if refusal_fn(low):
             has_refusal = True
-            continue
         if positive_fn(low):
             has_positive = True
     if has_refusal and has_positive:
