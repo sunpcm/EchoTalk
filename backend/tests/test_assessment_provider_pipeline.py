@@ -7,9 +7,11 @@ import re
 import uuid
 from dataclasses import FrozenInstanceError
 from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from alembic.script import ScriptDirectory
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -17,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
+from models.learning_event import LearningEvent
 from models.session import (
     Session,
     SessionMode,
@@ -33,6 +36,7 @@ from services.assessment_providers import (
     GrammarFinding,
     PronunciationEvaluation,
 )
+from tests.learning_event_gate_helper import open_learning_event_gate
 from time_utils import utc_now
 
 
@@ -68,6 +72,9 @@ def _test_database_url():
 @pytest.fixture
 async def pipeline(monkeypatch):
     url = _test_database_url()
+    source_head = ScriptDirectory(
+        str(Path(__file__).resolve().parents[1] / "alembic")
+    ).get_current_head()
     engine = create_async_engine(url, pool_pre_ping=True)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     user_id, session_id, job_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -85,7 +92,7 @@ async def pipeline(monkeypatch):
             assert identity == (url.database, url.username, "150019")
             assert (
                 await db.scalar(text("SELECT version_num FROM alembic_version"))
-                == "c06_transcript_events"
+                == source_head
             )
             verified = True
             db.add(User(id=user_id, email=f"provider-{user_id}@example.invalid"))
@@ -96,6 +103,7 @@ async def pipeline(monkeypatch):
                     user_id=user_id,
                     mode=SessionMode.pronunciation,
                     status=SessionStatus.completed,
+                    ended_at=utc_now(),
                 )
             )
             await db.flush()
@@ -107,7 +115,6 @@ async def pipeline(monkeypatch):
                     timestamp_ms=1,
                 )
             )
-            db.add(AnalysisJob(id=job_id, session_id=session_id))
             for skill_id, category in (
                 ("th_sounds", "pronunciation"),
                 ("verb_tense_past", "grammar"),
@@ -115,6 +122,12 @@ async def pipeline(monkeypatch):
                 if await db.get(Skill, skill_id) is None:
                     db.add(Skill(id=skill_id, name=skill_id, category=category))
                     created_skills.append(skill_id)
+        await open_learning_event_gate(
+            factory,
+            revision=f"test-{uuid.uuid4().hex}-provider-pipeline",
+        )
+        async with factory() as db, db.begin():
+            db.add(AnalysisJob(id=job_id, session_id=session_id))
         monkeypatch.setattr(service.settings, "USE_MOCK_ELSA", True)
         yield SimpleNamespace(
             factory=factory,
@@ -127,6 +140,9 @@ async def pipeline(monkeypatch):
         try:
             if verified:
                 async with factory() as db, db.begin():
+                    await db.execute(
+                        delete(LearningEvent).where(LearningEvent.user_id == user_id)
+                    )
                     for model in (
                         GrammarError,
                         PronunciationAssessment,
@@ -145,6 +161,7 @@ async def pipeline(monkeypatch):
                         await db.execute(
                             delete(Skill).where(Skill.id.in_(created_skills))
                         )
+                    await db.execute(text("DELETE FROM learning_event_cutover"))
         finally:
             await engine.dispose()
 

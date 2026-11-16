@@ -15,14 +15,17 @@ import logging
 import os
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
-from sqlalchemy import delete, event
+from alembic.script import ScriptDirectory
+from sqlalchemy import delete, event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
+from models.learning_event import LearningEvent
 from models.session import (
     Session,
     SessionMode,
@@ -40,6 +43,7 @@ from services.analysis_observability import (
     transaction_events,
 )
 from services.analysis_service import AnalysisServiceError
+from tests.learning_event_gate_helper import open_learning_event_gate
 from workers import analysis_worker as worker
 
 
@@ -211,11 +215,18 @@ async def postgres_job():
 
     engine = create_async_engine(database_url, pool_pre_ping=True)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    source_head = ScriptDirectory(
+        str(Path(__file__).resolve().parents[1] / "alembic")
+    ).get_current_head()
     user_id = uuid.uuid4()
     session_id = uuid.uuid4()
     job_id = uuid.uuid4()
 
     async with session_factory() as db, db.begin():
+        assert (
+            await db.scalar(text("SELECT version_num FROM alembic_version"))
+            == source_head
+        )
         db.add(User(id=user_id, email=f"analysis-{user_id}@example.test"))
         db.add(
             Session(
@@ -223,6 +234,7 @@ async def postgres_job():
                 user_id=user_id,
                 mode=SessionMode.pronunciation,
                 status=SessionStatus.completed,
+                ended_at=utc_now(),
             )
         )
         db.add(
@@ -245,6 +257,11 @@ async def postgres_job():
                         category="pronunciation",
                     )
                 )
+    await open_learning_event_gate(
+        session_factory,
+        revision=f"test-{uuid.uuid4().hex}-analysis-observability",
+    )
+    async with session_factory() as db, db.begin():
         db.add(
             AnalysisJob(
                 id=job_id,
@@ -257,6 +274,9 @@ async def postgres_job():
         yield session_factory, user_id, session_id, job_id
     finally:
         async with session_factory() as db, db.begin():
+            await db.execute(
+                delete(LearningEvent).where(LearningEvent.user_id == user_id)
+            )
             await db.execute(
                 delete(GrammarError).where(GrammarError.session_id == session_id)
             )
@@ -274,6 +294,7 @@ async def postgres_job():
             await db.execute(delete(AnalysisJob).where(AnalysisJob.id == job_id))
             await db.execute(delete(Session).where(Session.id == session_id))
             await db.execute(delete(User).where(User.id == user_id))
+            await db.execute(text("DELETE FROM learning_event_cutover"))
         await engine.dispose()
 
 

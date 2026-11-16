@@ -1,18 +1,13 @@
-/**
- * Dashboard 视图组件。
- * 从 App.tsx 原样抽出：组件 props、函数体、JSX、hooks 副作用与依赖数组、文案引用均原样保全。
- */
-
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useConversationStore } from "@/store/conversation";
 import { useAppStore } from "@/store/appStore";
 import { useAssessmentStore } from "@/store/assessment";
-import { RecommendedScenarios } from "@/components/learning/RecommendedScenarios";
-import { DailyProgress } from "@/components/learning/DailyProgress";
-import { WeeklyProgress } from "@/components/learning/WeeklyProgress";
-import { WeeklyGrammar } from "@/components/learning/WeeklyGrammar";
-import { SkillTree } from "@/components/learning/SkillTree";
-import { ActiveSessions } from "@/components/conversation/ActiveSessions";
+import { RecommendedScenarios } from "./RecommendedScenarios";
+import { DailyProgress } from "./DailyProgress";
+import { WeeklyProgress } from "./WeeklyProgress";
+import { WeeklyGrammar } from "./WeeklyGrammar";
+import { SkillTree } from "@/components/shared/SkillTree";
+import { ActiveSessions } from "./ActiveSessions";
 import { zhCN } from "@/i18n/zh-CN";
 
 const tConv = zhCN.conversation;

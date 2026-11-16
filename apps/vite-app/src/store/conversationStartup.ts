@@ -1,6 +1,6 @@
 /** Startup orchestration with live ports; construction performs no runtime reads. */
 import type { AuthPrincipal } from "@/lib/auth";
-import type { DocContext } from "@/lib/api";
+import type { DocContext, SessionGoalBindingInput } from "@/lib/api";
 import type { LifecycleAdapter, LifecycleOptions } from "@/platform";
 import {
   canStartConversationSession,
@@ -23,8 +23,14 @@ export interface ActiveStartupTracker {
   cleanup: () => void;
 }
 
+export interface StartupSelection {
+  readonly scenarioName: string | null;
+  readonly goalBinding: SessionGoalBindingInput | null;
+}
+
 export interface StartupPorts {
   get(): { readonly sessionGen: number; readonly _sessionState: ConversationSessionState };
+  readStartSelection?(mode: string): StartupSelection;
   emit(event: ConversationSessionEvent, extra?: () => object): void;
   readTracker(): ActiveStartupTracker | null;
   writeTracker(value: ActiveStartupTracker | null): void;
@@ -54,6 +60,11 @@ export function createConversationStartup(ports: StartupPorts) {
     // 1. 防止重复调用（如双击或 StrictMode 双渲染），在途能力查询和启动去重
     if (!canStartConversationSession(ports.get()._sessionState)) return;
 
+    // 在任何 await 前冻结本次选择；后续 Dashboard 选择变化不得串入本会话。
+    const startSelection = ports.readStartSelection?.(mode) ?? {
+      scenarioName: null,
+      goalBinding: null,
+    };
     ports.clearReadinessWatch();
 
     // 2. 必须具备有效认证快照，否则不发起开始
@@ -425,7 +436,11 @@ export function createConversationStartup(ports: StartupPorts) {
     };
 
     try {
-      const session = await ports.api.createSession(mode, docContext);
+      const session = startSelection.goalBinding
+        ? await ports.api.createSession(mode, docContext, {
+            goalBinding: startSelection.goalBinding,
+          })
+        : await ports.api.createSession(mode, docContext);
       if (!checkOrRelease()) return;
       if (typeof session.id !== "string" || session.id.trim() === "") {
         throw new Error(ports.messages().startFailed);
@@ -455,13 +470,28 @@ export function createConversationStartup(ports: StartupPorts) {
       }
 
       createdSessionId = null;
+      const sessionMode = typeof session.mode === "string" ? session.mode : null;
+      const sessionStartedAt = typeof session.started_at === "string" ? session.started_at : null;
+      const scenarioName =
+        sessionMode === "scenario" && mode === "scenario" ? startSelection.scenarioName : null;
       tracker.cleanup();
-      ports.emit({
-        type: "credentials_ready",
-        sessionId: session.id,
-        token,
-        wsUrl: ws_url,
-      });
+      ports.emit(
+        {
+          type: "credentials_ready",
+          sessionId: session.id,
+          token,
+          wsUrl: ws_url,
+        },
+        () => ({
+          sessionPresentation: {
+            sessionId: session.id,
+            sessionGen: targetGen,
+            startedAt: sessionStartedAt,
+            mode: sessionMode,
+            scenarioName,
+          },
+        }),
+      );
     } catch (err) {
       if (!checkOrRelease()) return;
       await endOrphanedSession();

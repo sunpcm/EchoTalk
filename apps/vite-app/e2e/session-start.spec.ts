@@ -115,10 +115,13 @@ test("a refused signaling connection stops at the connection-failed view and ret
     await page.getByRole("button", { name: "返回主页" }).click();
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
     // 既有契约：记录保留在活动会话中，由用户显式恢复或结束；活动行可见 ID 仅展示前 8 位
-    const retainedSessionId = (await tracker.getSessionId()) ?? "missing-session-id";
-    await expect(page.getByTestId(`session-id-${retainedSessionId}`)).toHaveText(
-      retainedSessionId.slice(0, 8),
-    );
+    const sessionId = (await tracker.getSessionId()) ?? "missing-session-id";
+    const sessionRow = page.getByTestId(`active-session-item-${sessionId}`);
+    await expect(sessionRow).toBeVisible();
+    await expect(sessionRow.getByTestId(`session-mode-${sessionId}`)).toBeVisible();
+    await expect(sessionRow.getByTestId(`session-started-at-${sessionId}`)).toBeVisible();
+    await expect(page.getByTestId(`session-id-${sessionId}`)).toHaveText(sessionId.slice(0, 8));
+    await expect(sessionRow).not.toContainText(sessionId);
     expect(tracker.calls.filter((c) => c === "POST /api/sessions")).toHaveLength(1);
   } finally {
     await endSessionForCleanup(page, await tracker.getSessionId());

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createWebLifecycleAdapter,
+  getWebLifecycleSnapshot,
   type WebLifecycleEvent,
   type WebLifecycleOptions,
 } from "./webLifecycle";
@@ -543,5 +544,37 @@ describe("WebLifecycleAdapter", () => {
       type: "connectivity",
       snapshot: { visibility: "visible", online: true },
     });
+  });
+
+  it("A19P2 reflects every unbound read across visible, hidden/offline, and unknown/null snapshots", () => {
+    const mockDoc = new MockDocument();
+    const mockWin = new MockWindow();
+    const mockNav: { onLine?: boolean } = { onLine: true };
+    const options = {
+      window: mockWin,
+      document: mockDoc,
+      navigator: mockNav,
+    };
+
+    expect(getWebLifecycleSnapshot(options)).toEqual({
+      visibility: "visible",
+      online: true,
+    });
+
+    mockDoc.visibilityState = "hidden";
+    mockNav.onLine = false;
+    expect(getWebLifecycleSnapshot(options)).toEqual({
+      visibility: "hidden",
+      online: false,
+    });
+
+    mockDoc.visibilityState = "prerender";
+    delete mockNav.onLine;
+    expect(getWebLifecycleSnapshot(options)).toEqual({
+      visibility: "unknown",
+      online: null,
+    });
+    expect(mockWin.totalListeners()).toBe(0);
+    expect(mockDoc.totalListeners()).toBe(0);
   });
 });

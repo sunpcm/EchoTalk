@@ -73,11 +73,14 @@ interface Subscription {
   active: boolean;
 }
 
-/**
- * 创建 Web 生命周期薄适配器。
- * 遵循 CROSS_PLATFORM_LIFECYCLE.md 契约。
- */
-export function createWebLifecycleAdapter(options?: WebLifecycleOptions): WebLifecycleAdapter {
+interface ResolvedWebEnvironment {
+  readonly targetWindow: EventTargetLike | null;
+  readonly targetDocument: DocumentLike | null;
+  readonly targetNavigator: NavigatorLike | null;
+  readonly hasWebEvents: boolean;
+}
+
+function resolveWebEnvironment(options?: WebLifecycleOptions): ResolvedWebEnvironment {
   const hasWindowOption = options !== undefined && "window" in options;
   const targetWindow = hasWindowOption
     ? isEventTarget(options.window)
@@ -103,7 +106,37 @@ export function createWebLifecycleAdapter(options?: WebLifecycleOptions): WebLif
       ? (navigator as unknown as NavigatorLike)
       : null;
 
-  const hasWebEvents = Boolean(targetWindow && targetDocument);
+  return {
+    targetWindow,
+    targetDocument,
+    targetNavigator,
+    hasWebEvents: Boolean(targetWindow && targetDocument),
+  };
+}
+
+/** 读取当前 Web 生命周期事实；不创建适配器、不订阅事件或保留状态。 */
+export function getWebLifecycleSnapshot(options?: WebLifecycleOptions): WebLifecycleSnapshot {
+  const { targetDocument, targetNavigator, hasWebEvents } = resolveWebEnvironment(options);
+  if (!hasWebEvents) {
+    return {
+      visibility: "unknown",
+      online: null,
+    };
+  }
+
+  return {
+    visibility: resolveVisibility(targetDocument),
+    online: resolveOnline(targetNavigator),
+  };
+}
+
+/**
+ * 创建 Web 生命周期薄适配器。
+ * 遵循 CROSS_PLATFORM_LIFECYCLE.md 契约。
+ */
+export function createWebLifecycleAdapter(options?: WebLifecycleOptions): WebLifecycleAdapter {
+  const { targetWindow, targetDocument, targetNavigator, hasWebEvents } =
+    resolveWebEnvironment(options);
 
   let currentVisibility: WebLifecycleVisibility = hasWebEvents
     ? resolveVisibility(targetDocument)

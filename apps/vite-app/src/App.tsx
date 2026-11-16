@@ -8,10 +8,10 @@
 import React, { useEffect, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import { useSettingsStore, applyThemeAttr } from "@/store/settings";
-import { VoiceInterface } from "@/components/conversation/VoiceInterface";
+import { Dashboard } from "@/components/dashboard/Dashboard";
+import { VoiceInterface } from "@/components/session/VoiceInterface";
 import { SettingsDrawer } from "@/components/settings/SettingsDrawer";
 import { DocChatSetup } from "@/components/doc-chat/DocChatSetup";
-import { Dashboard } from "@/components/dashboard/Dashboard";
 
 const App = () => {
   const appView = useAppStore((s) => s.appView);

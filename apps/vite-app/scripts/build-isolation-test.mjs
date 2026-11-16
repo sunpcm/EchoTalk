@@ -45,14 +45,14 @@ describe("1. 配置验证与 Manifest Schema 测试 (config-validator)", () => {
   };
 
   it("应允许支持的平台与模式组合", () => {
-    assert.deepEqual(ALLOWED_PLATFORMS, ["web", "ios"]);
+    assert.deepEqual(ALLOWED_PLATFORMS, ["web", "ios", "macos"]);
     assert.deepEqual(ALLOWED_MODES, ["development", "staging", "production"]);
   });
 
   it("应拒绝不受支持的平台与模式", () => {
     assert.throws(
-      () => validateBuildConfig({ platform: "macos", mode: "production" }),
-      /不支持的构建平台: "macos"/,
+      () => validateBuildConfig({ platform: "android", mode: "production" }),
+      /不支持的构建平台: "android"/,
     );
     assert.throws(
       () => validateBuildConfig({ platform: "web", mode: "test" }),

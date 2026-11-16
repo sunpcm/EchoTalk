@@ -13,6 +13,7 @@ import {
   validateUuid,
   type CallLeaseOwner,
 } from "./callLease";
+import type { SessionGoalBindingInput } from "./goals";
 
 /** 转录记录类型 */
 export type Transcript = Omit<
@@ -67,19 +68,33 @@ export type AnalysisStatusResponse = Omit<
 export type DocContext = ApiSchemas["DocContext"];
 
 /** 创建会话请求体 */
-export type CreateSessionBody = Omit<ApiSchemas["SessionCreate"], "doc_context"> & {
+export type CreateSessionBody = Omit<
+  ApiSchemas["SessionCreate"],
+  "doc_context" | "goal_binding"
+> & {
   doc_context?: DocContext;
+  goal_binding?: SessionGoalBindingInput;
 };
+
+export interface CreateSessionOptions extends ApiRequestOptions {
+  readonly goalBinding?: SessionGoalBindingInput;
+}
 
 /** 创建会话 */
 export function createSession(
   mode: string,
   docContext?: DocContext,
-  options?: ApiRequestOptions,
+  options?: CreateSessionOptions,
 ): Promise<Session> {
   const body: CreateSessionBody = { mode };
   if (docContext) {
     body.doc_context = docContext;
+  }
+  if (options?.goalBinding) {
+    body.goal_binding = {
+      material_id: options.goalBinding.material_id,
+      material_version: options.goalBinding.material_version,
+    };
   }
   return request<Session>("/sessions", {
     method: "POST",
@@ -297,11 +312,19 @@ export function parseWeeklyProgressResponse(
   if (Object.keys(root).length !== 1 || !Array.isArray(root.days) || root.days.length !== 7) {
     throw fail();
   }
+  const allowedDayKeys = new Set([
+    "date",
+    "start",
+    "end",
+    "completed_sessions",
+    "recorded_duration_ms",
+    "duration_unavailable_count",
+  ]);
   const days = root.days.map((raw: unknown, index: number) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail();
     const day = raw as Record<string, unknown>;
     if (
-      Object.keys(day).length !== 4 ||
+      Object.keys(day).some((key) => !allowedDayKeys.has(key)) ||
       day.date !== expected[index].date ||
       !isValidIsoCalendarTimestamp(day.start) ||
       !isValidIsoCalendarTimestamp(day.end) ||
@@ -314,12 +337,32 @@ export function parseWeeklyProgressResponse(
     ) {
       throw fail();
     }
-    return {
+    const parsed: WeeklyProgressDay & {
+      recorded_duration_ms?: number;
+      duration_unavailable_count?: number;
+    } = {
       date: day.date as string,
       start: day.start,
       end: day.end,
       completed_sessions: day.completed_sessions,
     };
+    const rawRecordedDurationMs = day.recorded_duration_ms;
+    const rawDurationUnavailableCount = day.duration_unavailable_count;
+    const durationValid = isNonNegativeSafeInteger(rawRecordedDurationMs);
+    const unavailableValid = isNonNegativeSafeInteger(rawDurationUnavailableCount);
+    if (durationValid) parsed.recorded_duration_ms = rawRecordedDurationMs;
+    if (unavailableValid) parsed.duration_unavailable_count = rawDurationUnavailableCount;
+    if (durationValid && unavailableValid) {
+      const computableCount = day.completed_sessions - rawDurationUnavailableCount;
+      if (
+        rawDurationUnavailableCount > day.completed_sessions ||
+        (computableCount === 0 && rawRecordedDurationMs > 0)
+      ) {
+        delete parsed.recorded_duration_ms;
+        delete parsed.duration_unavailable_count;
+      }
+    }
+    return parsed;
   });
   return { days };
 }
@@ -330,7 +373,11 @@ export async function getWeeklyProgress(
   options?: ApiRequestOptions,
 ): Promise<WeeklyProgressResponse> {
   getZonedWeekWindows(endDate, timezone);
-  const query = new URLSearchParams({ end_date: endDate, timezone });
+  const query = new URLSearchParams({
+    end_date: endDate,
+    timezone,
+    include_recorded_duration: "true",
+  });
   const raw = await request<unknown>(`/sessions/weekly-progress?${query.toString()}`, {
     cache: "no-store",
     signal: options?.signal,

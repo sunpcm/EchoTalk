@@ -57,12 +57,18 @@ def _fallback_email(identity: AuthIdentity) -> str:
     return f"oidc-{digest}@users.invalid"
 
 
-async def get_current_user(
+async def get_authenticated_identity(
     authorization: Annotated[str | None, Header()] = None,
-    db: AsyncSession = Depends(get_db),
+) -> AuthIdentity:
+    """Verify the Bearer token without touching the local user table."""
+    return await _verified_identity(_extract_bearer(authorization))
+
+
+async def _map_identity_to_current_user(
+    identity: AuthIdentity,
+    db: AsyncSession,
 ) -> CurrentUser:
-    """校验 Bearer token，并仅按不可变 issuer/sub 映射或创建本地用户。"""
-    identity = await _verified_identity(_extract_bearer(authorization))
+    """Map one authenticated identity to its local user."""
     stmt = select(User).where(
         User.auth_issuer == identity.issuer,
         User.auth_subject == identity.subject,
@@ -102,3 +108,20 @@ async def get_current_user(
         issuer=identity.issuer,
         subject=identity.subject,
     )
+
+
+async def get_current_user_from_identity(
+    identity: AuthIdentity = Depends(get_authenticated_identity),
+    db: AsyncSession = Depends(get_db),
+) -> CurrentUser:
+    """Map an already authenticated identity to its local user."""
+    return await _map_identity_to_current_user(identity, db)
+
+
+async def get_current_user(
+    authorization: Annotated[str | None, Header()] = None,
+    db: AsyncSession = Depends(get_db),
+) -> CurrentUser:
+    """校验 Bearer token，并仅按不可变 issuer/sub 映射或创建本地用户。"""
+    identity = await get_authenticated_identity(authorization)
+    return await _map_identity_to_current_user(identity, db)

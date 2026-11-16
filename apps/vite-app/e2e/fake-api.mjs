@@ -5,6 +5,9 @@ const host = "127.0.0.1";
 const port = Number(process.env.E2E_API_PORT ?? 18181);
 const sessions = new Map();
 const analysisJobs = new Map();
+const sessionIdempotency = new Map();
+const sessionGoalBindings = new Map();
+let accountDeleted = false;
 const settingsFixtures = new Map();
 const callLeaseFixtures = new Map();
 let transcriptId = 0;
@@ -103,12 +106,250 @@ function updateSettings(current, body, validationFixture) {
   return { settings: next };
 }
 
-function sendJson(response, status, body) {
+function sendJson(response, status, body, extraHeaders = {}) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    ...extraHeaders,
   });
   response.end(JSON.stringify(body));
+}
+
+function userDataExportFixture() {
+  const exportedAt = new Date().toISOString();
+  if (accountDeleted) {
+    return {
+      schema_version: 1,
+      exported_at: exportedAt,
+      sessions: [],
+      transcripts: [],
+      pronunciation_assessments: [],
+      grammar_assessments: [],
+      learning_events: [],
+      knowledge_states: [],
+    };
+  }
+  const sessionId = "78100000-0000-4000-8000-000000000001";
+  const jobId = "78100000-0000-4000-8000-000000000002";
+  const pronunciationId = "78100000-0000-4000-8000-000000000003";
+  const grammarId = "78100000-0000-4000-8000-000000000004";
+  return {
+    schema_version: 1,
+    exported_at: exportedAt,
+    sessions: [
+      {
+        id: sessionId,
+        mode: "pronunciation",
+        status: "completed",
+        started_at: "2026-11-13T04:00:00Z",
+        ended_at: "2026-11-13T04:10:00Z",
+      },
+    ],
+    transcripts: [
+      {
+        id: 1,
+        session_id: sessionId,
+        event_id: "78100000-0000-4000-8000-000000000005",
+        role: "user",
+        content: "I go yesterday, but I said the word three.",
+        timestamp_ms: 1,
+      },
+      {
+        id: 2,
+        session_id: sessionId,
+        event_id: "78100000-0000-4000-8000-000000000006",
+        role: "assistant",
+        content: "Try the past tense and the TH sound again.",
+        timestamp_ms: 2,
+      },
+    ],
+    pronunciation_assessments: [
+      {
+        id: pronunciationId,
+        session_id: sessionId,
+        overall_score: 82.5,
+        phoneme_alignment: [
+          {
+            position: 0,
+            phoneme: "TH",
+            expected: "TH",
+            actual: "S",
+            type: "substitution",
+          },
+        ],
+        source: "acme_pronunciation",
+        provider: "acme",
+        model_version: "acme-phoneme-v1",
+        is_synthetic: false,
+        confidence: 0.91,
+        created_at: "2026-11-13T04:10:01Z",
+      },
+    ],
+    grammar_assessments: [
+      {
+        id: grammarId,
+        session_id: sessionId,
+        skill_tag: "verb_tense_past",
+        original: "I go yesterday.",
+        corrected: "I went yesterday.",
+        error_type: "tense",
+        source: "acme_grammar",
+        provider: null,
+        model_version: null,
+        is_synthetic: true,
+        confidence: 0.63,
+        created_at: "2026-11-13T04:10:02Z",
+      },
+    ],
+    learning_events: [
+      {
+        apply_seq: 9001,
+        event_type: "analysis_completed",
+        session_id: sessionId,
+        analysis_job_id: jobId,
+        pronunciation_assessment_id: null,
+        grammar_error_id: null,
+        skill_id: null,
+        source_ordinal: null,
+        observation_correct: null,
+        observation_code: null,
+        source: "analysis",
+        provider: null,
+        model_version: null,
+        confidence: null,
+        is_synthetic: null,
+        algorithm_version: "bkt-v1",
+        algorithm_params: {
+          p_init: 0.1,
+          p_transit: 0.2,
+          p_slip: 0.1,
+          p_guess: 0.2,
+        },
+        p_mastery_snapshot: null,
+        cutover_revision: null,
+        occurred_at: "2026-11-13T04:10:00Z",
+        recorded_at: "2026-11-13T04:10:03Z",
+        details: {
+          schema_version: 1,
+          coverage: {
+            pronunciation: {
+              status: "evaluated",
+              source: "acme_pronunciation",
+              provider: "acme",
+              model_version: "acme-phoneme-v1",
+              is_synthetic: false,
+            },
+            grammar: {
+              status: "evaluated",
+              source: "acme_grammar",
+              provider: null,
+              model_version: null,
+              is_synthetic: true,
+            },
+          },
+          unmapped: {
+            pronunciation: 1,
+            grammar: 0,
+          },
+          legacy_synthetic_impact: null,
+        },
+      },
+      {
+        apply_seq: 9002,
+        event_type: "pronunciation_observation",
+        session_id: sessionId,
+        analysis_job_id: jobId,
+        pronunciation_assessment_id: pronunciationId,
+        grammar_error_id: null,
+        skill_id: "th_sounds",
+        source_ordinal: 0,
+        observation_correct: false,
+        observation_code: "th_substitution",
+        source: "acme_pronunciation",
+        provider: "acme",
+        model_version: "acme-phoneme-v1",
+        confidence: 0.91,
+        is_synthetic: false,
+        algorithm_version: null,
+        algorithm_params: null,
+        p_mastery_snapshot: null,
+        cutover_revision: null,
+        occurred_at: "2026-11-13T04:10:00Z",
+        recorded_at: "2026-11-13T04:10:04Z",
+        details: {
+          schema_version: 1,
+          coverage: null,
+          unmapped: null,
+          legacy_synthetic_impact: null,
+        },
+      },
+      {
+        apply_seq: 9003,
+        event_type: "grammar_observation",
+        session_id: sessionId,
+        analysis_job_id: jobId,
+        pronunciation_assessment_id: null,
+        grammar_error_id: grammarId,
+        skill_id: "verb_tense_past",
+        source_ordinal: 0,
+        observation_correct: false,
+        observation_code: "verb_tense_past",
+        source: "acme_grammar",
+        provider: null,
+        model_version: null,
+        confidence: 0.63,
+        is_synthetic: true,
+        algorithm_version: null,
+        algorithm_params: null,
+        p_mastery_snapshot: null,
+        cutover_revision: null,
+        occurred_at: "2026-11-13T04:10:00Z",
+        recorded_at: "2026-11-13T04:10:05Z",
+        details: {
+          schema_version: 1,
+          coverage: null,
+          unmapped: null,
+          legacy_synthetic_impact: null,
+        },
+      },
+      {
+        apply_seq: 9004,
+        event_type: "baseline_snapshot",
+        session_id: null,
+        analysis_job_id: null,
+        pronunciation_assessment_id: null,
+        grammar_error_id: null,
+        skill_id: "article_usage",
+        source_ordinal: null,
+        observation_correct: null,
+        observation_code: null,
+        source: "legacy_unknown",
+        provider: null,
+        model_version: null,
+        confidence: null,
+        is_synthetic: null,
+        algorithm_version: null,
+        algorithm_params: null,
+        p_mastery_snapshot: 0.42,
+        cutover_revision: "b1-4-fake-export-v1",
+        occurred_at: "2026-11-12T23:59:00Z",
+        recorded_at: "2026-11-13T04:10:06Z",
+        details: {
+          schema_version: 1,
+          coverage: null,
+          unmapped: null,
+          legacy_synthetic_impact: "unknown",
+        },
+      },
+    ],
+    knowledge_states: [
+      {
+        skill_id: "article_usage",
+        p_mastery: 0.42,
+        updated_at: "2026-11-13T04:10:06Z",
+      },
+    ],
+  };
 }
 
 async function readJson(request) {
@@ -133,7 +374,158 @@ function createSession(mode) {
   };
 }
 
+const PILOT_GOALS = {
+  mat_biz_greet_b1: [
+    {
+      goal_id: "mat_biz_greet_b1:introduce_name_and_role",
+      goal_version: 1,
+      description_en: "Introduce your name and your job or role.",
+      description_zh: "介绍自己的姓名及工作/角色。",
+      criteria: ["State your name.", "State your job or role."],
+      evidence_types: ["transcript"],
+    },
+    {
+      goal_id: "mat_biz_greet_b1:ask_other_work_question",
+      goal_version: 1,
+      description_en: "Ask the other person a question about their work.",
+      description_zh: "向对方提出一个与其工作相关的问题。",
+      criteria: ["Ask the other person a question about their work."],
+      evidence_types: ["transcript"],
+    },
+  ],
+  mat_hotel_checkin_b1: [
+    {
+      goal_id: "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      goal_version: 1,
+      description_en: "Express a check-in request and state whether you have a reservation.",
+      description_zh: "表达入住需求并说明有无预订。",
+      criteria: ["Express a check-in request.", "State whether you have a reservation."],
+      evidence_types: ["transcript"],
+    },
+    {
+      goal_id: "mat_hotel_checkin_b1:ask_checkout_time",
+      goal_version: 1,
+      description_en: "Ask for the checkout time.",
+      description_zh: "询问退房时间。",
+      criteria: ["Ask for the checkout time."],
+      evidence_types: ["transcript"],
+    },
+  ],
+  mat_restaurant_b1: [
+    {
+      goal_id: "mat_restaurant_b1:order_one_dish_or_drink",
+      goal_version: 1,
+      description_en: "Clearly order one dish or drink.",
+      description_zh: "明确点一道菜或饮品。",
+      criteria: ["Order one dish or drink clearly."],
+      evidence_types: ["transcript"],
+    },
+    {
+      goal_id: "mat_restaurant_b1:state_preference_or_no_requirements",
+      goal_version: 1,
+      description_en:
+        "State one preference or restriction, or clearly say that you have no special requirements.",
+      description_zh: "说明一项偏好或限制，或明确表示没有特殊要求。",
+      criteria: [
+        "State a preference or restriction, or explicitly say that there are no special requirements.",
+      ],
+      evidence_types: ["transcript"],
+    },
+  ],
+};
+
+function curriculumGoalBinding(materialId, materialVersion) {
+  return {
+    material_id: materialId,
+    material_version: materialVersion,
+    goals: PILOT_GOALS[materialId],
+  };
+}
+
+function curriculumRecommendations(includeGoals) {
+  if (!includeGoals) {
+    return [
+      {
+        scenario_name: "travel_planning",
+        difficulty_cefr: "B1",
+        category: "conversation",
+        focus_skills: ["grammar_past_tense"],
+        system_prompt_template: "Practice planning a trip.",
+      },
+    ];
+  }
+  const recommendations = [
+    {
+      scenario_name: "business_meeting_greetings",
+      difficulty_cefr: "B1",
+      category: "conversation",
+      focus_skills: ["word_stress", "linking_sounds"],
+      system_prompt_template: "Practice introducing yourself and making professional small talk.",
+      material_id: "mat_biz_greet_b1",
+    },
+    {
+      scenario_name: "th_minimal_pairs",
+      difficulty_cefr: "A2",
+      category: "pronunciation",
+      focus_skills: ["th_sounds", "consonant_clusters"],
+      system_prompt_template: "Practice distinguishing TH minimal pairs.",
+      material_id: "mat_th_minimal_a2",
+    },
+    {
+      scenario_name: "hotel_checkin_roleplay",
+      difficulty_cefr: "B1",
+      category: "conversation",
+      focus_skills: ["preposition", "linking_sounds"],
+      system_prompt_template: "Practice a polite hotel check-in conversation.",
+      material_id: "mat_hotel_checkin_b1",
+    },
+  ];
+  return recommendations.map(({ material_id, ...recommendation }) => ({
+    ...recommendation,
+    ...(includeGoals && PILOT_GOALS[material_id]
+      ? { goal_binding: curriculumGoalBinding(material_id, 1) }
+      : {}),
+  }));
+}
+
+function validateSessionGoalBinding(body) {
+  if (body.goal_binding === undefined || body.goal_binding === null) {
+    return null;
+  }
+  const topLevelKeys = Object.keys(body);
+  if (topLevelKeys.some((key) => !["mode", "doc_context", "goal_binding"].includes(key))) {
+    return { error: "goal_binding requests reject extra top-level fields" };
+  }
+  if (body.mode !== "scenario") {
+    return { error: "goal_binding is only valid for mode=scenario" };
+  }
+  const binding = body.goal_binding;
+  if (typeof binding !== "object" || binding === null || Array.isArray(binding)) {
+    return { error: "goal_binding must be an object" };
+  }
+  if (
+    Object.keys(binding).length !== 2 ||
+    !Object.hasOwn(binding, "material_id") ||
+    !Object.hasOwn(binding, "material_version")
+  ) {
+    return { error: "goal_binding accepts only material_id and material_version" };
+  }
+  if (
+    typeof binding.material_id !== "string" ||
+    binding.material_version !== 1 ||
+    !Object.hasOwn(PILOT_GOALS, binding.material_id)
+  ) {
+    return { error: "goal_binding does not match a current goal catalog version" };
+  }
+  return {
+    material_id: binding.material_id,
+    material_version: binding.material_version,
+  };
+}
+
 const VALID_STATUSES = new Set(["active", "completed", "cancelled"]);
+const TRUE_QUERY_BOOLEANS = new Set(["1", "on", "t", "true", "y", "yes"]);
+const FALSE_QUERY_BOOLEANS = new Set(["0", "off", "f", "false", "n", "no"]);
 const FAKE_USER_ID = "00000000-0000-0000-0000-000000000001";
 const REQUIRED_CURSOR_KEYS = ["v", "u", "ep", "st", "s", "e", "t", "id"];
 const WEEKLY_GRAMMAR_TAGS = new Set([
@@ -174,6 +566,44 @@ function weeklyFixtures(name) {
       make(104, "2026-11-02T05:00:00Z"),
       make(105, "2026-11-01T04:00:00Z", "active"),
       make(106, "2026-11-01T04:00:00Z", "completed", "00000000-0000-0000-0000-000000000002"),
+    ];
+  }
+  if (name === "duration") {
+    const withEnd = (
+      index,
+      started_at,
+      ended_at,
+      status = "completed",
+      user_id = FAKE_USER_ID,
+    ) => ({
+      ...make(index, started_at, status, user_id),
+      ended_at,
+    });
+    return [
+      withEnd(201, "2026-10-28T01:00:00.000Z", "2026-10-29T11:59:11.992Z"),
+      withEnd(202, "2026-10-29T01:00:00.000Z", "2026-10-29T01:00:00.004Z"),
+      withEnd(203, "2026-10-29T02:00:00.000Z", null),
+      withEnd(204, "2026-10-30T01:00:00.000Z", "2026-10-30T01:00:00.001Z"),
+      withEnd(205, "2026-10-31T01:00:00.000Z", "2026-10-31T01:00:00.001Z"),
+      withEnd(206, "2026-11-01T01:00:00.000Z", "2026-11-01T01:00:00.001Z"),
+      withEnd(207, "2026-11-01T02:00:00.000Z", "2026-11-01T01:59:59.999Z"),
+      withEnd(208, "2026-11-02T01:00:00.000Z", "2026-11-02T01:00:00.000Z"),
+      withEnd(209, "2026-11-03T01:00:00.000Z", "2026-11-03T01:00:00.000Z"),
+      ...Array.from({ length: 54 }, (_, index) =>
+        withEnd(
+          210 + index,
+          new Date(Date.parse("2026-11-03T01:00:00.000Z") + (index + 1) * 60_000).toISOString(),
+          new Date(Date.parse("2026-11-03T01:00:00.000Z") + (index + 1) * 60_000).toISOString(),
+        ),
+      ),
+      withEnd(290, "2026-11-03T03:00:00.000Z", "2026-11-03T04:00:00.000Z", "active"),
+      withEnd(
+        291,
+        "2026-11-03T03:00:00.000Z",
+        "2026-11-03T04:00:00.000Z",
+        "completed",
+        "00000000-0000-0000-0000-000000000002",
+      ),
     ];
   }
   return [];
@@ -463,12 +893,18 @@ const server = createServer(async (request, response) => {
   const method = request.method ?? "GET";
   const pathname = new URL(request.url ?? "/", `http://${host}:${port}`).pathname;
 
-  if (pathname !== "/api/health" && request.headers.authorization !== "Bearer e2e-dev-token") {
+  const publicHealthPath = pathname === "/api/health" || pathname === "/api/health/system-ready";
+  if (!publicHealthPath && request.headers.authorization !== "Bearer e2e-dev-token") {
     sendJson(response, 401, { detail: "Authentication required." });
     return;
   }
 
   // Per-request fixtures avoid global mutable state across browser workers.
+  if (method === "GET" && pathname === "/api/health/system-ready") {
+    sendJson(response, 200, { status: "ready" });
+    return;
+  }
+
   if (method === "GET" && pathname === "/api/health/ready") {
     const fixture = request.headers["x-e2e-readiness"];
     const codes = new Set([
@@ -544,20 +980,45 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (method === "DELETE" && pathname === "/api/user/account") {
+    sessions.clear();
+    analysisJobs.clear();
+    sessionIdempotency.clear();
+    sessionGoalBindings.clear();
+    accountDeleted = true;
+    sendJson(response, 200, { status: "deleted" });
+    return;
+  }
+
+  if (method === "GET" && pathname === "/api/user/data-export") {
+    sendJson(response, 200, userDataExportFixture(), {
+      "Content-Disposition": 'attachment; filename="echotalk-user-data-export.json"',
+      "X-Content-Type-Options": "nosniff",
+    });
+    return;
+  }
+
   if (method === "GET" && pathname === "/api/curriculum/next") {
+    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+    const rawIncludeGoals = url.searchParams.get("include_goals");
+    const normalizedIncludeGoals = rawIncludeGoals?.toLowerCase();
+    const includeGoals =
+      rawIncludeGoals === null
+        ? false
+        : TRUE_QUERY_BOOLEANS.has(normalizedIncludeGoals)
+          ? true
+          : FALSE_QUERY_BOOLEANS.has(normalizedIncludeGoals)
+            ? false
+            : undefined;
+    if (includeGoals === undefined) {
+      sendJson(response, 422, { detail: "include_goals must be a boolean" });
+      return;
+    }
     sendJson(response, 200, {
       weakest_skill: "grammar_past_tense",
       weakest_skill_mastery: 0.4,
       target_level: "B1",
-      recommendations: [
-        {
-          scenario_name: "travel_planning",
-          difficulty_cefr: "B1",
-          category: "conversation",
-          focus_skills: ["grammar_past_tense"],
-          system_prompt_template: "Practice planning a trip.",
-        },
-      ],
+      recommendations: curriculumRecommendations(includeGoals),
     });
     return;
   }
@@ -574,8 +1035,43 @@ const server = createServer(async (request, response) => {
 
   if (method === "POST" && pathname === "/api/sessions") {
     const body = await readJson(request);
+    const goalBinding = validateSessionGoalBinding(body);
+    if (goalBinding?.error) {
+      sendJson(response, 422, { detail: goalBinding.error });
+      return;
+    }
+
+    const idempotencyKey = request.headers["idempotency-key"];
+    const fingerprint = JSON.stringify({
+      mode: body.mode,
+      goal_binding: goalBinding,
+    });
+    if (typeof idempotencyKey === "string" && sessionIdempotency.has(idempotencyKey)) {
+      const existingRequest = sessionIdempotency.get(idempotencyKey);
+      if (existingRequest.fingerprint !== fingerprint) {
+        sendJson(response, 409, {
+          detail: "Idempotency-Key has already been used with different parameters",
+        });
+        return;
+      }
+      sendJson(response, 200, sessions.get(existingRequest.sessionId));
+      return;
+    }
+
     const session = createSession(typeof body.mode === "string" ? body.mode : "scenario");
     sessions.set(session.id, session);
+    if (goalBinding) {
+      sessionGoalBindings.set(session.id, {
+        material_id: goalBinding.material_id,
+        material_version: goalBinding.material_version,
+      });
+    }
+    if (typeof idempotencyKey === "string") {
+      sessionIdempotency.set(idempotencyKey, {
+        fingerprint,
+        sessionId: session.id,
+      });
+    }
     sendJson(response, 200, session);
     return;
   }
@@ -630,18 +1126,50 @@ const server = createServer(async (request, response) => {
   if (method === "GET" && pathname === "/api/sessions/weekly-progress") {
     const url = new URL(request.url ?? "/", `http://${host}:${port}`);
     try {
+      const rawIncludeRecordedDuration = url.searchParams.get("include_recorded_duration");
+      const normalizedIncludeRecordedDuration = rawIncludeRecordedDuration?.toLowerCase();
+      const includeRecordedDuration =
+        rawIncludeRecordedDuration === null
+          ? false
+          : TRUE_QUERY_BOOLEANS.has(normalizedIncludeRecordedDuration)
+            ? true
+            : FALSE_QUERY_BOOLEANS.has(normalizedIncludeRecordedDuration)
+              ? false
+              : undefined;
+      if (includeRecordedDuration === undefined) {
+        sendJson(response, 422, { detail: "include_recorded_duration must be a boolean" });
+        return;
+      }
       const days = weeklyWindows(
         url.searchParams.get("end_date"),
         url.searchParams.get("timezone"),
-      ).map((day) => ({
-        ...day,
-        completed_sessions: userSessions.filter(
+      ).map((day) => {
+        const completedSessions = userSessions.filter(
           (session) =>
             session.status === "completed" &&
             Date.parse(session.started_at) >= Date.parse(day.start) &&
             Date.parse(session.started_at) < Date.parse(day.end),
-        ).length,
-      }));
+        );
+        const result = { ...day, completed_sessions: completedSessions.length };
+        if (!includeRecordedDuration) return result;
+
+        let recordedDurationMs = 0;
+        let durationUnavailableCount = 0;
+        for (const session of completedSessions) {
+          const startedAt = Date.parse(session.started_at);
+          const endedAt = session.ended_at === null ? null : Date.parse(session.ended_at);
+          if (endedAt === null || !Number.isFinite(endedAt) || endedAt < startedAt) {
+            durationUnavailableCount += 1;
+          } else {
+            recordedDurationMs += endedAt - startedAt;
+          }
+        }
+        return {
+          ...result,
+          recorded_duration_ms: recordedDurationMs,
+          duration_unavailable_count: durationUnavailableCount,
+        };
+      });
       sendJson(response, 200, { days });
     } catch {
       sendJson(response, 422, { detail: "Invalid weekly window" });
@@ -793,6 +1321,51 @@ const server = createServer(async (request, response) => {
       return;
     }
     sendJson(response, 200, res);
+    return;
+  }
+
+  const sessionGoalsMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/goals$/);
+  if (method === "GET" && sessionGoalsMatch) {
+    const sessionId = sessionGoalsMatch[1];
+    if (!sessions.has(sessionId)) {
+      sendJson(response, 404, { detail: "Session not found" });
+      return;
+    }
+
+    const binding = sessionGoalBindings.get(sessionId);
+    if (!binding) {
+      sendJson(response, 200, {
+        session_id: sessionId,
+        configured: false,
+        material_id: null,
+        material_version: null,
+        goals: [],
+        execution: null,
+        summary: null,
+      });
+      return;
+    }
+
+    const goals = PILOT_GOALS[binding.material_id].map((goal) => ({
+      ...goal,
+      result: "not_assessed",
+    }));
+    sendJson(response, 200, {
+      session_id: sessionId,
+      configured: true,
+      material_id: binding.material_id,
+      material_version: binding.material_version,
+      goals,
+      execution: null,
+      summary: {
+        total: goals.length,
+        achieved: 0,
+        not_achieved: 0,
+        assessed: 0,
+        unknown: 0,
+        not_assessed: goals.length,
+      },
+    });
     return;
   }
 

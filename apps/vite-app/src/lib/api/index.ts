@@ -49,6 +49,7 @@ export type {
   TokenResponse,
   DocContext,
   CreateSessionBody,
+  CreateSessionOptions,
   SessionListItem,
   SessionListResponse,
   DailyProgressResponse,
@@ -75,12 +76,25 @@ export type {
   GrammarErrorResponse,
   KnowledgeStateResponse,
   SkillResponse,
+  CurriculumGoalDefinition,
+  CurriculumGoalBinding,
   CurriculumRecommendation,
   CurriculumNextResponse,
   WeeklyGrammarSummary,
   WeeklyGrammarItem,
   WeeklyGrammarSkillTag,
 } from "./assessments";
+
+export { parseSessionGoalsResponse, getSessionGoals } from "./goals";
+export type {
+  SessionGoalBindingInput,
+  SessionGoalResultStatus,
+  SessionGoalExecutionStatus,
+  SessionGoalViewEntry,
+  SessionGoalExecution,
+  SessionGoalSummary,
+  SessionGoalsResponse,
+} from "./goals";
 
 export { getUserSettings, updateUserSettings } from "./settings";
 export type { UserSettingsResponse, UserSettingsUpdate } from "./settings";

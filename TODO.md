@@ -4,6 +4,17 @@
 > 当前唯一待办清单，只保留未完成事项。新增待办需写明验收条件；完成后勾选并移入
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
+>
+> 本次文档合并以 main `da37683` 的待办骨架为基线，保留 B1 `46ef954` 的完成事实与未验边界。
+> B1 的完整历史正文、原数字和逐卡回执集中在
+> [B1 实施历史快照](./docs/history/b1-implementation-2026-11-16.md)，不在本页重新累积。
+>
+> 最终文档收口核对：2026-11-17。目录和历史档日期仍为 2026-11-16；截至本回执，合并工作树的
+> quality、Vitest、backend、目标 87、独立 22 与完整双浏览器 322 项均已通过。12 行为门禁全 0；
+> 四文档落盘后由主控执行 format 作为第 13 项门禁，本文不自批该项已完成。合成 PG 已停止且自动移除，
+> 未有保留的活动 PG。
+> 当前数字、失败历史和未验收边界统一见
+> [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md#本次合并集成验证2026-11-17)。
 
 ## 架构演进工作包（第二批：F / G / H / I）
 
@@ -20,11 +31,46 @@
 
 ### 需要用户先决定，不要自行开工
 
-- [ ] **B2 学习事件表实施**：等 [LEARNING_EVENTS_DESIGN.md](./docs/LEARNING_EVENTS_DESIGN.md) §9 的五个问题
-      （基线切换方式、旧 pending/failed Job、保留策略 A/B/C、是否允许重新分析、是否冻结 `bkt-v1`）。
-      决策准备见 [NEXT_PHASE_DECISIONS.md](./docs/NEXT_PHASE_DECISIONS.md) §3（待用户确认）。
-      历史数据无法补录，本项有时效性。验收：用户逐条确认后，另行拆出建表、写入、重算校验的实施工作包。
+- [ ] **B2 生产切换与真实数据验收（不实施）**：用户已于 2026-11-12 在
+      [LEARNING_EVENTS_DESIGN.md](./docs/LEARNING_EVENTS_DESIGN.md) §9 确认全部七项业务口径；B1 `46ef954`
+      已本地完成相关四迁移、ledger、冻结 `bkt-v1`、隐私导出与整账号删除 API，并完成合成 PG 验证。本项不再等待
+      表/API 业务确认，只保留生产维护窗口/停写范围、真实 DDL/基线/门控/恢复流量、备份复活/法定保留和真实数据门禁。
+      历史数据无法补录，本项有时效性；生产与本轮均不实施。
 - [ ] **阶段 C 预发布环境**：需要账号、密钥与费用决定（规划 §3.6）。验收：用户确认范围与资源后另行拆工作包。决策准备见 [NEXT_PHASE_DECISIONS.md](./docs/NEXT_PHASE_DECISIONS.md) §5（待用户确认）。
+
+## B1 合入完成事实与历史索引（原时点 2026-11-16）
+
+这些条目只说明 B1 已交付的技术行为与仍未验收的边界；详细正文、原测试数字与 PG 资源快照见
+[B1 实施历史快照](./docs/history/b1-implementation-2026-11-16.md)。
+
+- **goals RC1 技术返修完成，父项仍未完成：** G-CONTRACT/GOAL-DATA/G-WIRE/G-EVAL/G-VIEW 已形成版本化
+  目录、同事务 catalog/snapshot、append-only run/results、精确 transcript evidence 顺序/digest、确定性
+  四终态、curriculum opt-in 预览、owner-scoped GET、受控 pending/running 轮询与无百分比汇总。PR #197
+  RC1 修复两个 bot 报告的真实判定问题并将 evaluator 升为 `deterministic-goal-v2`：目标 87 项
+  （67 纯规则 + 20 持久化 worker）与独立 22 项本地测试已通过。旧 pending v1 保留 header/evidence，
+  由既有版本 guard 判 `not_assessed`；旧成功 v1 不重判。v2 通过不等于人工 gold、真实教学质量、
+  外部或生产验收完成，场景 `goals[]` 复选框保持未勾。
+- **周报时长本范围完成，完整周报未完成：** 设计、后端 opt-in 聚合和前端三态显示已归档；“已记录会话时长”
+  只表示会话经过时长，不等于有效说话时长；掌握度环比、发音趋势、下周重点等仍需决策或实施。
+- **SGEC/CI：** SGEC-OFF 已随 PR194 合入 main `d33f236`；RF04E 保存三条历史 main push、iOS failure
+  传播反证与 required-check 未核边界。真实 Provider/BKT/gold 与分支保护 required-check 仍待。
+- **iOS CI 预下载有限重试仍未验：** `5c28e1b` 的 `test-ios-build` 因 GitHub 资产单次 504 且
+  `--retry 0` 失败，之后已改为 curl 原生有限重试 3 次、`--retry-max-time 240`，其余校验不变；
+  只有对应分支 CI 的 `test-ios-build` 实际通过后才能核销，不能由历史 workflow 静态结构或后续无关 main
+  run 代替。
+- **前端/组合验证：** R2-10、R2-12、R2-13、R2-UI、R2-LIVE、R2-11 本地子卡、WD-DESIGN/WD-API/WD-UI、
+  WDI、CP04E、CP04I、CP05D、CP05K、CP05L、CP02I、CF20、WG20 与 A18P2/A19 P2 的原时点事实已归档；
+  真实 IdP、LiveKit、设备媒体、Keychain、签名与生产不因这些本地子卡完成而勾选。
+- **合并/数据边界：** HHTTP-CLOSE 只核销旧 host-gateway 合成拓扑；DEC-A/RDOC/TDOC 只修正历史口径；
+  A3-A6/A5、A82C、A84C、RF04E 与 B1/WPH 的证据仍分别绑定原提交。B2 事件业务政策及本地合成实现已完成；
+  生产切换、真实数据与真实学习质量仍未完成。
+- **本次集成本地验证：** 截至 2026-11-17，quality 0、Vitest 1429/73、Fake 141、build 47、API 类型
+  10、backend 1351/3 warnings/0 skip、目标 87/87、独立 22/22 与完整 E2E 322/322 已通过。
+  E2E 为 Chromium 161 + WebKit 161，每项单一 passed result、retry 0、0 skip/flaky/unexpected；
+  quality 诊断多重集为 132 warning/0 error/0 新增，与 80df 基线完全一致。合成 PG `stop 0`、
+  `auto_removed=true`。12 行为门禁全 0，四文档后主控 formatter 为第 13 项及最终
+  format/Review/提交/推送/新 head CI/合并以主控同卡回执为准；本文不自批 Independent Review，
+  不预填远端 CI 通过，也不代表真实依赖、生产或用户验收完成。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -36,21 +82,20 @@
       平台名判断改为读取适配器能力；删除 `src/utils/env.ts`。验收：`auth.test.ts`、`VoiceInterface.test.tsx`
       零改动通过；`src/` 中 `platform/` 之外不再出现 `=== "ios"` 这类平台名比较；不新增依赖。
       原生实现不在本项范围。
-- [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：覆盖 LiveKit 容器背景为主题色、增加
-      场景名与计时页头、手机上字幕优先、`thinking` 使用独立文案。验收：模块桩布局 E2E 覆盖 390 与 1280；
-      真实 LiveKit 下的人工验收单列，未做不得勾选整项。
-- [ ] **R2-12 macOS 构建产物与同步脚本**（P-2，P2；壳工程受 CP-03 阻断）：`build.mjs` 支持
-      `--platform macos` 产出 `dist/macos/<mode>` 与 manifest；新增 `sync-macos.mjs` 的校验逻辑与 `node:test`。
-      验收：`test:build` 新增 macOS 用例通过；拿到 web/ios 产物或 mode 不符时在调用外部工具前失败。
-      不创建 `src-tauri/`。
-- [ ] **R2-13 其余组件目录按页面边界归位**（P-3，P2；`Dashboard` 抽取已单独完成并归档）：按 §2.4 P-3 的目标结构
-      `git mv` 归位 dashboard 之外的组件目录。用户已裁定本轮仅做既有 `Dashboard` 函数体跨文件搬运例外，
-      其余目录随以后分层迁移顺带归位，不扩大 rename。验收：`git diff --stat -M` 全部为 rename 或纯 import
-      路径修改；三测试树计数不变。
-- [ ] **R2-14 剩余整栈/迁移服务实证（实现和静态已归档）**（A-1 的 P1-3、P1-5，P2）：方案 B 实现 + 静态契约验证
-      （API 公开 `/api/health` + 专用一次性迁移成功作为启动依赖、`echotalk-web` `condition: service_healthy`、
-      保留用户级 ready 认证 `backend/routers/health.py:25–29` 的 ready 端点 `Depends(get_current_user)`）已归档；
-      剩余整栈/迁移服务实证（真实迁移服务容器与整栈启动顺序）需要 `.env` 与外部依赖，仍未验证；不实际迁移/整栈/部署。
+- [ ] **R2-11 会话中界面**（U-3，P1；真实媒体验收受外部条件阻断）：本地模块桩子卡已完成（LiveKit 容器背景、
+      场景名与墙钟页头、手机字幕优先、`thinking` 独立文案、单实例回答推荐）。剩余验收：真实 LiveKit 下的人工
+      媒体与 390/1280 设备证据；未做不得勾选整项。
+- [x] **R2-12 macOS 构建产物与同步脚本**（纯脚本实施/本地验收完成；用户 Review 待）：`build.mjs --platform
+macos` 产出 `dist/macos/<mode>` 与 manifest；`sync-macos.mjs` 在外部工具前校验来源产物与 mode。正式客户端、
+      壳、Tauri 选型、签名与真机仍待。
+- [x] **R2-13 其余组件目录按页面边界归位**（纯目录归位与 `Dashboard` 抽取完成；独立代码 Review APPROVED，
+      用户 Review 待）：按页面边界移动组件文件，三测试树计数保持；正式桌面能力仍受 CP-03 阻断。
+- [ ] **R2-14 合并后的 Compose 探针与真实整栈实证**（A-1 的 P1-3、P1-5，P2）：R2-14 公开
+      `GET /api/health/system-ready` 合同已由用户确认，旧 `/api/health/ready` 的用户认证/配置语义保持。
+      最终 Compose 合同是 `service_healthy` 单次请求 system-ready，不叠加双 HTTP 请求；同时保留 main 显式
+      role/optional dotenv/一次性迁移 DAG，以及 B1 无代理 opener、HTTP timeout 4s、容器 timeout 5s、
+      start_period 30s、retries 12。真实迁移容器、整栈启动、生产与外部依赖仍未验证；静态单次探针合同不得外推为真实环境就绪，
+      本项也不包含实际迁移、整栈启动或部署。
 
 ## 2026-11-06 候选任务（无 Provider Key 前提，未开工）
 
@@ -60,15 +105,21 @@
 
 **无需 Key，仍需明确指标口径：**
 
-- [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长
-      ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。口径建议见 [NEXT_PHASE_DECISIONS.md](./docs/NEXT_PHASE_DECISIONS.md) §4（待用户确认）。
+- [ ] **周报剩余指标**：会话次数、语法 Top3 与“已记录会话时长”的名称和技术实现均已确认；该时长仍只表示
+      会话经过时长，≠ 有效说话时长。有效时长、`p_mastery` 历史快照/对比窗口、发音/焦虑/语速趋势与下周重点
+      仍待确认或实施，C-1 也补不出历史；建议见 [NEXT_PHASE_DECISIONS.md](./docs/NEXT_PHASE_DECISIONS.md) §4。
 
 **被 Key 或外部条件阻断：**
 
-- [ ] 语法 LLM SGEC（方案 C-2）：可先在 Mock 下做结构化输出、`skill_tag` 校验与离线评测集；
-      真实 Provider 验收需 LLM Key，BKT 接线等 C-1。纯离线子项（validator/CLI/测试/合成 fixture）已实施并独立验收（代码 APPROVED R1，未发布），见
-      [SGEC_OFFLINE_DESIGN.md](./docs/SGEC_OFFLINE_DESIGN.md) 与 [实施记录](./docs/history/2026-11-16-sgec-offline-implementation.md)；真实 Provider/BKT 接线仍待。
-- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：先由用户裁定产品口径。
+- [ ] 语法 LLM SGEC（方案 C-2）：纯离线 validator/CLI/测试/合成 fixture 已随 PR194 合入 main `d33f236`，
+      见 [SGEC_OFFLINE_DESIGN.md](./docs/SGEC_OFFLINE_DESIGN.md) 与
+      [实施记录](./docs/history/2026-11-16-sgec-offline-implementation.md)。真实 Provider、BKT 接线、人工 gold
+      与教学质量仍未验收。
+- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：四卡技术实现与合成验收已闭环，PR #197 RC1
+      将 evaluator 升至 v2 并修复两个 bot 报告的真实判定问题；目标 87 项
+      （67 纯规则 + 20 持久化 worker）与独立 22 项本地测试已通过。旧 pending v1 保留 header/evidence
+      并由既有版本 guard 判 `not_assessed`，旧成功 v1 不重判。完整 E2E 322/322 已通过；父项保持未勾，
+      只待最终 format/Review/交付回执、用户 Review、人工 gold、真实教学质量、外部与生产验收。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。

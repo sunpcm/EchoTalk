@@ -207,7 +207,7 @@ for (const theme of THEMES) {
   test(`settings drawer meets AA contrast (${theme})`, async ({ page }) => {
     await openWithTheme(page, theme);
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
-    await page.getByRole("button", { name: "自定义模型设置" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("dialog").getByRole("switch").click();
     await waitForThemeReady(page, theme);

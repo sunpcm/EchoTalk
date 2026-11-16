@@ -9,7 +9,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   test("opens named modal dialog, sets initial focus safely, and verifies 44x44 touch targets", async ({
     page,
   }) => {
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await expect(settingsBtn).toBeVisible();
     await settingsBtn.click();
 
@@ -62,7 +62,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   });
 
   test("traps focus bidirectionally and reaches Save with custom mode OFF", async ({ page }) => {
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -130,7 +130,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   });
 
   test("traps focus bidirectionally and reaches Save with custom mode ON", async ({ page }) => {
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -170,7 +170,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   test("closes when clicking backdrop, but does not close when clicking inside dialog", async ({
     page,
   }) => {
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -197,7 +197,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   test("preserves draft inputs and focus across store updates without reset or close", async ({
     page,
   }) => {
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -229,7 +229,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
       }
     });
 
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -297,7 +297,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   }) => {
     await page.setViewportSize({ width: 320, height: 568 });
 
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -318,7 +318,7 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   }) => {
     await page.setViewportSize({ width: 667, height: 320 });
 
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });

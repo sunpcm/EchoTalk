@@ -1,5 +1,8 @@
 import { detectPlatform, isNativePlatform } from "./detection";
 import { type ApiBaseUrlOptions, type LiveKitUrlOptions, PlatformConfigError } from "./types";
+import { zhCN } from "@/i18n/zh-CN";
+
+const platformConfigErrors = zhCN.platformConfigErrors;
 
 /**
  * 校验并规范化 API URL。
@@ -14,40 +17,40 @@ export function validateAndNormalizeApiUrl(
 ): string {
   const trimmed = rawUrl.trim();
   if (!trimmed) {
-    throw new PlatformConfigError("[EchoTalk] API 地址不能为空");
+    throw new PlatformConfigError(platformConfigErrors.apiEmpty);
   }
 
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
   } catch {
-    throw new PlatformConfigError("[EchoTalk] 非法的 API 地址");
+    throw new PlatformConfigError(platformConfigErrors.apiInvalid);
   }
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new PlatformConfigError("[EchoTalk] API 地址仅支持 HTTP/HTTPS 协议");
+    throw new PlatformConfigError(platformConfigErrors.apiProtocol);
   }
 
   if (parsed.username !== "" || parsed.password !== "") {
-    throw new PlatformConfigError("[EchoTalk] API 地址禁止包含用户名或密码");
+    throw new PlatformConfigError(platformConfigErrors.apiCredentials);
   }
 
   if (parsed.search !== "") {
-    throw new PlatformConfigError("[EchoTalk] API 地址禁止包含 Query 参数");
+    throw new PlatformConfigError(platformConfigErrors.apiQuery);
   }
 
   if (parsed.hash !== "") {
-    throw new PlatformConfigError("[EchoTalk] API 地址禁止包含 Hash 片段");
+    throw new PlatformConfigError(platformConfigErrors.apiHash);
   }
 
   // 统一去除 pathname 末尾斜杠后进行路径范围校验
   const normalizedPath = parsed.pathname.replace(/\/+$/, "");
   if (normalizedPath !== "" && normalizedPath !== "/api") {
-    throw new PlatformConfigError("[EchoTalk] API 地址仅支持根路径或 /api 前缀，不支持其他路径");
+    throw new PlatformConfigError(platformConfigErrors.apiPath);
   }
 
   if (isNative && !isDev && parsed.protocol !== "https:") {
-    throw new PlatformConfigError("[EchoTalk] 生产原生环境仅允许 HTTPS API 地址");
+    throw new PlatformConfigError(platformConfigErrors.apiNativeHttps);
   }
 
   return `${parsed.origin}/api`;
@@ -86,7 +89,7 @@ export function resolveApiBaseUrl(options?: ApiBaseUrlOptions): string {
     if (devHost !== null) {
       const trimmed = devHost.trim();
       if (!trimmed) {
-        throw new PlatformConfigError("[EchoTalk] dev_server_host 覆盖配置不能为空");
+        throw new PlatformConfigError(platformConfigErrors.devHostEmpty);
       }
       return validateAndNormalizeApiUrl(trimmed, isNative, true);
     }
@@ -105,14 +108,14 @@ export function resolveApiBaseUrl(options?: ApiBaseUrlOptions): string {
     }
     // 显式配置存在但为空字符串
     if (isNative) {
-      throw new PlatformConfigError("[EchoTalk] 原生环境未配置有效的 VITE_API_BASE_URL");
+      throw new PlatformConfigError(platformConfigErrors.nativeApiMissing);
     }
-    throw new PlatformConfigError("[EchoTalk] 显式配置的 VITE_API_BASE_URL 不能为空");
+    throw new PlatformConfigError(platformConfigErrors.apiExplicitEmpty);
   }
 
   // 3. 原生无配置时 Fail-Fast 报错
   if (isNative) {
-    throw new PlatformConfigError("[EchoTalk] 原生环境未配置有效的 VITE_API_BASE_URL");
+    throw new PlatformConfigError(platformConfigErrors.nativeApiMissing);
   }
 
   // 4. Web 缺省相对路径 /api
@@ -136,30 +139,30 @@ export function validateAndNormalizeWsUrl(
 ): string {
   const trimmed = rawUrl.trim();
   if (!trimmed) {
-    throw new PlatformConfigError("[EchoTalk] LiveKit WebSocket 地址不能为空");
+    throw new PlatformConfigError(platformConfigErrors.liveKitEmpty);
   }
 
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
   } catch {
-    throw new PlatformConfigError("[EchoTalk] 非法的 LiveKit WebSocket 地址");
+    throw new PlatformConfigError(platformConfigErrors.liveKitInvalid);
   }
 
   if (parsed.protocol !== "ws:" && parsed.protocol !== "wss:") {
-    throw new PlatformConfigError("[EchoTalk] LiveKit 仅允许 ws:// 或 wss:// 协议");
+    throw new PlatformConfigError(platformConfigErrors.liveKitProtocol);
   }
 
   if (parsed.username !== "" || parsed.password !== "") {
-    throw new PlatformConfigError("[EchoTalk] LiveKit 地址禁止包含用户名或密码");
+    throw new PlatformConfigError(platformConfigErrors.liveKitCredentials);
   }
 
   if (parsed.hash !== "") {
-    throw new PlatformConfigError("[EchoTalk] LiveKit 地址禁止包含 Hash 片段");
+    throw new PlatformConfigError(platformConfigErrors.liveKitHash);
   }
 
   if (isNative && !isDev && parsed.protocol !== "wss:") {
-    throw new PlatformConfigError("[EchoTalk] 生产原生环境仅允许使用 wss:// 协议连接 LiveKit");
+    throw new PlatformConfigError(platformConfigErrors.liveKitNativeWss);
   }
 
   return `${parsed.protocol}//${parsed.host}${parsed.pathname}${parsed.search}`;
@@ -197,7 +200,7 @@ export function resolveLiveKitUrl(options?: LiveKitUrlOptions): string {
     if (direct) {
       candidate = tokenWsUrl || envLiveKitUrl || null;
       if (!candidate) {
-        throw new PlatformConfigError("[EchoTalk] Web 直连模式未配置有效的 LiveKit 地址");
+        throw new PlatformConfigError(platformConfigErrors.liveKitWebDirectMissing);
       }
     } else {
       const pageLocation =
@@ -207,7 +210,7 @@ export function resolveLiveKitUrl(options?: LiveKitUrlOptions): string {
             ? window.location
             : null;
       if (!pageLocation?.host) {
-        throw new PlatformConfigError("[EchoTalk] 无法获取当前页面 location 构造代理地址");
+        throw new PlatformConfigError(platformConfigErrors.liveKitLocationMissing);
       }
       const wsProtocol = pageLocation.protocol === "https:" ? "wss:" : "ws:";
       candidate = `${wsProtocol}//${pageLocation.host}/livekit-ws`;
@@ -225,7 +228,7 @@ export function resolveLiveKitUrl(options?: LiveKitUrlOptions): string {
     } else {
       candidate = tokenWsUrl || envLiveKitUrl || null;
       if (!candidate) {
-        throw new PlatformConfigError("[EchoTalk] 原生直连模式未配置有效的 LiveKit 地址");
+        throw new PlatformConfigError(platformConfigErrors.liveKitNativeDirectMissing);
       }
     }
   }

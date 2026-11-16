@@ -1,5 +1,5 @@
 /**
- * 跨平台构建脚本 (Web / iOS)
+ * 跨平台构建脚本 (Web / iOS / macOS)
  * 遵守 docs/CROSS_PLATFORM_ARCHITECTURE.md §8.2 契约
  */
 

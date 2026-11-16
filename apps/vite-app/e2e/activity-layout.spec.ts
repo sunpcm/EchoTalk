@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const FIXTURE_SESSION_A = {
   id: "38752299-15c9-4423-8920-dea740cc4801",
@@ -145,24 +145,26 @@ test.describe("Activity Sessions Responsive Layout & Touch Targets", () => {
       );
       expect(isOverflowing).toBe(false);
 
-      // 验证列表内 ID 宽度 > 0 且可辨
-      const idElem = page.getByTestId(`session-id-${FIXTURE_SESSION_A.id}`);
-      await expect(idElem).toBeVisible();
-      const idBox = await idElem.boundingBox();
-      expect(idBox).not.toBeNull();
-      expect(idBox!.width).toBeGreaterThan(0);
+      // 验证目标行只展示模式与开始时间，完整 UUID 不进入可见正文
+      const sessionItem = page.getByTestId(`active-session-item-${FIXTURE_SESSION_A.id}`);
+      const modeElem = page.getByTestId(`session-mode-${FIXTURE_SESSION_A.id}`);
+      const startedAtElem = page.getByTestId(`session-started-at-${FIXTURE_SESSION_A.id}`);
+      await expect(sessionItem).toBeVisible();
+      await expect(modeElem).toBeVisible();
+      await expect(startedAtElem).toBeVisible();
+      await expect(sessionItem).not.toContainText(FIXTURE_SESSION_A.id);
+      const modeText = await modeElem.innerText();
+      const startedAtText = await startedAtElem.innerText();
 
-      // 验证模式和时间完全可见
-      await expect(page.getByTestId(`session-mode-${FIXTURE_SESSION_A.id}`)).toBeVisible();
-      await expect(page.getByTestId(`session-started-at-${FIXTURE_SESSION_A.id}`)).toBeVisible();
-
-      // 打开结束确认面板并验证无溢出、完整 UUID 可视换行
+      // 打开结束确认面板并验证无溢出、目标模式与开始时间可见
       await page.getByTestId(`end-session-button-${FIXTURE_SESSION_A.id}`).click();
       const endPanel = page.getByTestId(`end-confirm-panel-${FIXTURE_SESSION_A.id}`);
       await expect(endPanel).toBeVisible();
 
-      const confirmId = page.getByTestId(`confirm-session-id-${FIXTURE_SESSION_A.id}`);
-      await expect(confirmId).toHaveText(FIXTURE_SESSION_A.id);
+      const confirmTarget = page.getByTestId(`confirm-session-id-${FIXTURE_SESSION_A.id}`);
+      await expect(confirmTarget).toContainText(modeText);
+      await expect(confirmTarget).toContainText(startedAtText);
+      await expect(confirmTarget).not.toContainText(FIXTURE_SESSION_A.id);
 
       const panelOverflowing = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,
@@ -173,7 +175,7 @@ test.describe("Activity Sessions Responsive Layout & Touch Targets", () => {
     });
   }
 
-  test("renders safely under 320px portrait with 200% root font size without clipping UUID or pushing buttons off-screen", async ({
+  test("renders safely under 320px portrait with 200% root font size without clipping labels or pushing buttons off-screen", async ({
     page,
   }, testInfo) => {
     await page.setViewportSize({ width: 320, height: 568 });
@@ -187,11 +189,14 @@ test.describe("Activity Sessions Responsive Layout & Touch Targets", () => {
     const sessionItem = page.getByTestId(`active-session-item-${FIXTURE_SESSION_A.id}`);
     await expect(sessionItem).toBeVisible();
 
-    // 验证卡片内 ID 宽度 > 0
-    const idElem = page.getByTestId(`session-id-${FIXTURE_SESSION_A.id}`);
-    const idBox = await idElem.boundingBox();
-    expect(idBox).not.toBeNull();
-    expect(idBox!.width).toBeGreaterThan(0);
+    // 验证卡片只展示模式与开始时间，完整 UUID 不进入可见正文
+    const modeElem = page.getByTestId(`session-mode-${FIXTURE_SESSION_A.id}`);
+    const startedAtElem = page.getByTestId(`session-started-at-${FIXTURE_SESSION_A.id}`);
+    await expect(modeElem).toBeVisible();
+    await expect(startedAtElem).toBeVisible();
+    await expect(sessionItem).not.toContainText(FIXTURE_SESSION_A.id);
+    const modeText = await modeElem.innerText();
+    const startedAtText = await startedAtElem.innerText();
 
     // 验证恢复和结束按钮均可见且处于视口水平范围内
     const resumeBtn = page.getByTestId(`resume-session-button-${FIXTURE_SESSION_A.id}`);
@@ -211,9 +216,11 @@ test.describe("Activity Sessions Responsive Layout & Touch Targets", () => {
     const resumePanel = page.getByTestId(`resume-confirm-panel-${FIXTURE_SESSION_A.id}`);
     await expect(resumePanel).toBeVisible();
 
-    // 完整 UUID 可视核对且文本无截断丢失
-    const confirmId = page.getByTestId(`confirm-resume-session-id-${FIXTURE_SESSION_A.id}`);
-    await expect(confirmId).toHaveText(FIXTURE_SESSION_A.id);
+    // 目标模式与开始时间可见且完整 UUID 不进入展示
+    const confirmTarget = page.getByTestId(`confirm-resume-session-id-${FIXTURE_SESSION_A.id}`);
+    await expect(confirmTarget).toContainText(modeText);
+    await expect(confirmTarget).toContainText(startedAtText);
+    await expect(confirmTarget).not.toContainText(FIXTURE_SESSION_A.id);
 
     // 确认面板按钮均在视口水平范围内，纵向滚动可达
     const confirmBtn = page.getByTestId(`confirm-resume-button-${FIXTURE_SESSION_A.id}`);

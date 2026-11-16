@@ -18,7 +18,7 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import DateTime, delete, or_, select
+from sqlalchemy import DateTime, delete, or_, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from auth import CurrentUser
@@ -26,16 +26,18 @@ from config import settings
 from database import get_db
 from dependencies import get_current_user
 from main import app
-from models.analysis import AnalysisJob
+from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.call_lease import CallLease
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
+from models.learning_event import LearningEvent
 from models.session import (
     Session,
     SessionContext,
     SessionMode,
     SessionStatus,
     Transcript,
+    TranscriptRole,
 )
 from models.user import User, UserSettings
 from schemas.assessment import (
@@ -50,7 +52,8 @@ from schemas.session import (
     SessionResponse,
 )
 from schemas.time import UtcDatetime
-from services.analysis_service import update_knowledge
+from services import analysis_jobs
+from tests.learning_event_gate_helper import open_learning_event_gate
 from time_utils import utc_now
 
 # ---------------------------------------------------------------------------
@@ -404,6 +407,12 @@ async def pg_env():
 
                 if sess_list:
                     await db.execute(
+                        LearningEvent.__table__.delete().where(
+                            (LearningEvent.user_id.in_(created_users))
+                            | (LearningEvent.session_id.in_(sess_list))
+                        )
+                    )
+                    await db.execute(
                         GrammarError.__table__.delete().where(
                             GrammarError.session_id.in_(sess_list)
                         )
@@ -467,6 +476,7 @@ async def pg_env():
                     await db.execute(
                         User.__table__.delete().where(User.id.in_(created_users))
                     )
+                await db.execute(text("DELETE FROM learning_event_cutover"))
 
                 # 清空追踪列表以支持重复安全调用
                 created_users.clear()
@@ -477,6 +487,10 @@ async def pg_env():
                 created_knowledge_states.clear()
 
     ctx = PgContext()
+    await open_learning_event_gate(
+        session_factory,
+        revision="test-fixture-utc-timestamps",
+    )
     try:
         yield ctx
     finally:
@@ -772,10 +786,11 @@ async def test_http_session_create_and_end_utc_paths(pg_env):
 
 @pytest.mark.asyncio
 async def test_update_knowledge_writes_explicit_zero_offset_utc(pg_env):
-    """验证 update_knowledge 服务路径写入 KnowledgeState 时明确具有零偏移 (timedelta(0))。"""
+    """验证事件事务路径写入 KnowledgeState 时明确具有零偏移 (timedelta(0))。"""
     u_id = pg_env.track_user(uuid.uuid4())
     s_id = pg_env.track_session(uuid.uuid4())
     skill_id = pg_env.track_skill(f"test_sk_{uuid.uuid4().hex[:8]}")
+    job_id = uuid.uuid4()
 
     async with pg_env.session_factory() as db, db.begin():
         user = User(
@@ -790,8 +805,24 @@ async def test_update_knowledge_writes_explicit_zero_offset_utc(pg_env):
             user_id=u_id,
             mode=SessionMode.free_talk,
             status=SessionStatus.completed,
+            ended_at=utc_now(),
         )
         db.add(session)
+        db.add(
+            Transcript(
+                session_id=s_id,
+                role=TranscriptRole.user,
+                content="I go yesterday.",
+                timestamp_ms=1,
+            )
+        )
+        db.add(
+            AnalysisJob(
+                id=job_id,
+                session_id=s_id,
+                status=AnalysisJobStatus.pending,
+            )
+        )
         skill = Skill(id=skill_id, name="UTC Test Skill", category="grammar")
         db.add(skill)
 
@@ -809,9 +840,9 @@ async def test_update_knowledge_writes_explicit_zero_offset_utc(pg_env):
         db.add(ge)
 
     t_before = datetime.now(timezone.utc)
-    async with pg_env.session_factory() as db:
-        await update_knowledge(s_id, u_id, db)
-        await db.commit()
+    async with pg_env.session_factory() as db, db.begin():
+        assert await analysis_jobs.claim_next_job(db) == job_id
+        await analysis_jobs.execute_claimed_job(job_id, db)
     t_after = datetime.now(timezone.utc)
 
     async with pg_env.session_factory() as db:
@@ -847,6 +878,7 @@ async def test_teardown_cleans_unregistered_knowledge_state_without_fk_error(
     u_id = pg_env.track_user(uuid.uuid4())
     s_id = pg_env.track_session(uuid.uuid4())
     skill_id = pg_env.track_skill(f"test_reg_sk_{uuid.uuid4().hex[:8]}")
+    job_id = uuid.uuid4()
 
     # 模拟其它测试或共享的数据（未被当前 pg_env 跟踪）
     other_u_id = uuid.uuid4()
@@ -879,8 +911,24 @@ async def test_teardown_cleans_unregistered_knowledge_state_without_fk_error(
             user_id=u_id,
             mode=SessionMode.free_talk,
             status=SessionStatus.completed,
+            ended_at=utc_now(),
         )
         db.add(session)
+        db.add(
+            Transcript(
+                session_id=s_id,
+                role=TranscriptRole.user,
+                content="I go yesterday.",
+                timestamp_ms=1,
+            )
+        )
+        db.add(
+            AnalysisJob(
+                id=job_id,
+                session_id=s_id,
+                status=AnalysisJobStatus.pending,
+            )
+        )
         skill = Skill(id=skill_id, name="Regression Skill", category="grammar")
         db.add(skill)
         ge = GrammarError(
@@ -896,10 +944,10 @@ async def test_teardown_cleans_unregistered_knowledge_state_without_fk_error(
         db.add(ge)
 
     try:
-        # 提交知识更新，生成 KnowledgeState，但故意模拟未执行 track_knowledge_state
-        async with pg_env.session_factory() as db:
-            await update_knowledge(s_id, u_id, db)
-            await db.commit()
+        # 提交事件事务，生成 KnowledgeState，但故意模拟未执行 track_knowledge_state
+        async with pg_env.session_factory() as db, db.begin():
+            assert await analysis_jobs.claim_next_job(db) == job_id
+            await analysis_jobs.execute_claimed_job(job_id, db)
 
         # 执行清理：必须成功且不产生 FK IntegrityError
         await pg_env.cleanup()

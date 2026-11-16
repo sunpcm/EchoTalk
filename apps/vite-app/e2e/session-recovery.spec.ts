@@ -40,6 +40,11 @@ test.describe("Session Recovery and Auth Boundary Gates", () => {
     await page.goto("/");
     const sessionItem = page.getByTestId(`active-session-item-${targetId}`);
     await expect(sessionItem).toBeVisible();
+    const modeElem = page.getByTestId(`session-mode-${targetId}`);
+    const startedAtElem = page.getByTestId(`session-started-at-${targetId}`);
+    const modeText = await modeElem.innerText();
+    const startedAtText = await startedAtElem.innerText();
+    await expect(sessionItem).not.toContainText(targetId);
 
     // 确认在点击前：列表请求合法发生，零 capabilities/detail/token/create/dispatch/end/lease 请求
     expect(pageRequests.some((r) => r.pathname === "/api/sessions/active")).toBe(true);
@@ -58,10 +63,13 @@ test.describe("Session Recovery and Auth Boundary Gates", () => {
     await expect(resumeButton).toBeVisible();
     await resumeButton.click();
 
-    // 弹出确认面板，展示该 ID 及采音说明
+    // 弹出确认面板，展示原记录的模式、开始时间及采音说明
     const confirmPanel = page.getByTestId(`resume-confirm-panel-${targetId}`);
     await expect(confirmPanel).toBeVisible();
-    await expect(page.getByTestId(`confirm-resume-session-id-${targetId}`)).toHaveText(targetId);
+    const confirmTarget = page.getByTestId(`confirm-resume-session-id-${targetId}`);
+    await expect(confirmTarget).toContainText(modeText);
+    await expect(confirmTarget).toContainText(startedAtText);
+    await expect(confirmTarget).not.toContainText(targetId);
     await expect(confirmPanel).toContainText("恢复后将连接语音服务并请求麦克风权限");
 
     // 点击取消

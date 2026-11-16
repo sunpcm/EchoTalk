@@ -1,7 +1,10 @@
 # EchoTalk 系统架构
 
-> 最后核对：2026-11-10，`main@22eaf82`。§2 与 §7 的每一行都按当日代码和测试重新核对，
-> 证据见 [2026-11 云端评审](./reviews/2026-11-cloud-review.md) §2.1。
+> 最后核对：2026-11-17。本文以 main `da37683` 的模块化 API 与可观测性架构为基线，并入 B1
+> `46ef954` 的系统就绪/迁移合同。本轮前置质量、单元、backend、定向与完整 E2E 证据已形成；
+> 13门禁及最终Review/提交/PR/合并/CI见主控同卡回执，本文不自批或预填远端 CI 通过。已有证据见
+> [2026-11 云端评审](./reviews/2026-11-cloud-review.md)、[CPB 历史记录](./history/2026-11-15-compose-startup-gates.md)
+> 和 [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。
 >
 > 本文描述当前实现和仍然成立的风险。最初的 2026-09-20 审计（`main@1f9a1b0`）由 Git 历史保存；
 > 逐轮实施记录见 [PROJECT_STATUS.md](./PROJECT_STATUS.md)，待办见 [TODO.md](../TODO.md)，
@@ -49,13 +52,14 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 | macOS           | 仅探针           | `tools/macos-m1-native-probe` 是独立 Tauri 2 探测工程，未接入 `apps/vite-app`；正式桌面工程等 CP-03 设备证据                         |
 | Android/Windows | 未实现           | 已明确后置，仓库没有对应工程                                                                                                         |
 | API             | 已实现           | FastAPI + async SQLAlchemy，统一挂载在 `/api`                                                                                        |
+| 启动门禁        | 合并合同已定义   | 一次性 Alembic 迁移；公开 PG system-ready 探针；依赖主进程和 Web 的 DAG 门控。真实整栈/生产启动未验收                                |
 | 实时语音        | 已实现           | LiveKit Cloud + 独立 Agent；依赖外部 STT/LLM/TTS Provider，真实语音质量不由 CI 证明                                                  |
 | 鉴权            | 已实现           | `AUTH_MODE=dev` 用显式 `DEV_AUTH_TOKEN`；`oidc` 校验 issuer/audience/JWKS 签名并按 `(issuer, subject)` 隔离用户；真实 IdP 联调未验收 |
 | BYOK            | 已实现           | Key 用 Fernet 加密入库；密钥来自独立的版本化 `CREDENTIAL_ENCRYPTION_KEYS`，与认证材料无关，支持多版本读取与惰性重加密                |
 | 评估 / BKT      | 已实现           | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态；合成结果不更新真实知识状态；语法仍为 demo 规则                   |
 | 课程检索        | 已实现           | 推荐读取版本化 JSON，按 CEFR、技能、priority 与 id 确定性排序                                                                        |
 | 单端通话占用    | 协议已实现，关闭 | `CALL_LEASE_MODE` 默认 `disabled`；Cloud 模式的客户端接管 UI 与真实媒体撤销未验收                                                    |
-| 周报            | 部分实现         | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3 已上线；练习时长、掌握度环比等指标未实现                       |
+| 周报            | 部分实现         | completed 会话次数、按日只读历史、语法错误 Top 3 与 opt-in“已记录会话时长”已实现；后者只算会话经过时长，不等于有效练习时长           |
 
 ## 3. 运行时与职责
 
@@ -88,17 +92,22 @@ native pending 必须等 `whenReady` 后重新读取 snapshot 与能力，并按
 
 FastAPI 保持模块化单体边界，路由只做鉴权、输入输出和流程编排：
 
-| 模块     | 路径                               | 职责                                                                                 |
-| -------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
-| 健康检查 | `/api/health`, `/api/health/ready` | 进程存活；就绪检查需认证并返回稳定原因码                                             |
-| 通话能力 | `/api/call-capabilities`           | 单端占用协议能力发现                                                                 |
-| 会话     | `/api/sessions...`                 | 会话生命周期、列表与活动发现、每日/七天聚合、LiveKit Token、Agent dispatch、通话占用 |
-| 对话     | `/api/conversation/chat`           | 非实时文本对话                                                                       |
-| 评估     | `/api/assessments...`              | 发音、语法、BKT 状态查询、七天语法汇总                                               |
-| 课程     | `/api/curriculum/next`             | 最弱技能 + 离线目录确定性推荐                                                        |
-| 用户设置 | `/api/user/settings`               | 双轨模式、Provider 与加密 Key 的读写/拨测                                            |
+| 模块     | 路径                                                           | 职责                                                                                 |
+| -------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 健康检查 | `/api/health`, `/api/health/ready`, `/api/health/system-ready` | liveness；认证的用户配置 readiness；公开的共享 PG 系统 readiness                     |
+| 通话能力 | `/api/call-capabilities`                                       | 单端占用协议能力发现                                                                 |
+| 会话     | `/api/sessions...`                                             | 会话生命周期、列表与活动发现、每日/七天聚合、LiveKit Token、Agent dispatch、通话占用 |
+| 对话     | `/api/conversation/chat`                                       | 非实时文本对话                                                                       |
+| 评估     | `/api/assessments...`                                          | 发音、语法、BKT 状态查询、七天语法汇总                                               |
+| 课程     | `/api/curriculum/next`                                         | 最弱技能 + 离线目录确定性推荐                                                        |
+| 用户设置 | `/api/user/settings`                                           | 双轨模式、Provider 与加密 Key 的读写/拨测                                            |
 
 `database.get_db()` 在请求成功后提交、异常时回滚。业务服务复用同一个 `AsyncSession`，因此单请求内的关系数据库写入仍处于同一事务边界。
+
+三个健康端点分工固定：`/api/health` 只表示 API liveness；`/api/health/ready` 保留既有用户认证与配置
+readiness；`/api/health/system-ready` 公开且只检查共享 PostgreSQL，执行有界只读 `SELECT 1`，连接释放后返回
+typed `200/503`。最终 Compose 合同由 Web 的 `service_healthy` 单次请求 system-ready，不为兼容静态字符串
+断言的旧实现刻意叠加第二个 HTTP 请求。
 
 ### 3.3 LiveKit Agent
 
@@ -136,7 +145,7 @@ adapter 来源；该验证不改生产源码或 tracked 生成 JSON。
 
 ## 4. 核心数据与所有权
 
-PostgreSQL 当前包含 12 张业务表（Alembic head `c06_transcript_events`）：
+main `da37683` 的 PostgreSQL 基线包含 12 张业务表（Alembic head `c06_transcript_events`）：
 
 ```text
 users
@@ -151,6 +160,10 @@ users
 │   └── grammar_errors
 └── knowledge_states       1:N ── N:1 skills
 ```
+
+B1 `46ef954` 的四迁移链在 main 基线上增加 `learning_events`、`learning_event_cutover`、
+`goal_catalog_versions`、`session_goal_snapshots`、`goal_runs` 与 `goal_results`，合并源码的 head 为
+`b1_goal_evaluation`。这些定义只在本地与合成 PG 验证；本次合并没有对真实库执行 DDL 或生产切换。
 
 - PostgreSQL 是用户、会话、设置、转录与学习状态的事实源。
 - `backend/data/teaching_materials.json` 是受 Git 管理的教学语料事实源，不拥有用户事务数据。
@@ -200,6 +213,7 @@ POST /sessions/{id}/end
 | 服务                       | 数量/命令          | 持久化或依赖                      |
 | -------------------------- | ------------------ | --------------------------------- |
 | `echotalk-web`             | Nginx 1 个         | 静态文件；反代 API 与 LiveKit WSS |
+| `echotalk-migrate`         | 一次性 Alembic     | PostgreSQL；成功后退出 0          |
 | `echotalk-api`             | Uvicorn 4 workers  | PostgreSQL                        |
 | `echotalk-agent`           | LiveKit Agent 1 个 | PostgreSQL、外部 Provider         |
 | `echotalk-analysis-worker` | Python 1 个        | PostgreSQL Job                    |
@@ -219,9 +233,16 @@ lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死�
 `bcrypt` extra 子树，七个 LiveKit exact SDK pins 不变。该结果不代表真实 Linux/Docker
 镜像、Compose 服务、远端 CI、Provider/LiveKit、设备或部署已验收。
 
-部署前必须单独执行 `alembic upgrade head`；课程语料由镜像内的版本化 JSON 提供，可用
-`python -m scripts.seed_corpus` 校验。Compose 只暴露 HTTP `3000`，没有 TLS 终止、备份、
-资源限制、集中日志或多副本协调，因此 README 不应把它称为生产环境推荐方案。
+本地 Compose 的合同是：PostgreSQL healthy 后运行一次性 `echotalk-migrate`；API、Agent 与
+analysis-worker 等迁移成功，Web 等 API healthy。main 的显式 `BACKEND_ROLE`、optional dotenv 与一次性
+迁移依赖图保留；最终 API healthcheck 使用 B1 无代理探针、镜像已有 Python 标准库和显式
+`ProxyHandler({})`，单次请求 PG system-ready，HTTP timeout 4 秒、容器 timeout 5 秒、`start_period`
+30 秒、retries 12。不要为兼容旧 AST 字符串断言设计双 HTTP 请求。
+
+`alembic upgrade head` 只升级 schema，不执行 B1 `prepare`、`baseline` 或 `traffic_resumed`，也不恢复旧
+worker。独立容器重启不保证重新编排完整 DAG，API 在旧 schema 上启动的时序风险仍需真实整栈验证。
+课程语料由镜像内的版本化 JSON 提供，可用 `python -m scripts.seed_corpus` 校验。Compose 只暴露 HTTP
+`3000`，没有 TLS 终止、备份、资源限制、集中日志或多副本协调，因此 README 不应把它称为生产推荐方案。
 
 ## 7. 架构风险
 
@@ -239,17 +260,15 @@ lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死�
 1. **分析可观测性不足**（仍存在）：持久化 Job 已具备重试、超时恢复与幂等；基础 JSON 结构化日志
    （领取/成功/可重试失败/耗尽/陈旧恢复，提交后输出）与队列积压、最老 pending 等待时长的 UTC 只读
    查询已落地，但生产日志采集、集中告警与延迟失败率仍未验证。
-2. **迁移与启动未编排**（部分解决）：CI 已验证从空库升级到 head；Compose 已静态落地一次性迁移服务
-   `echotalk-migrate`（`alembic upgrade head`），并以 `service_completed_successfully` 作为 API/Agent/Worker 的
-   DAG 启动门禁（CPB 方案 B，见 docker-compose.yml），但真实整栈启动与迁移未验证，初次启动依赖不保证独立容器
-   重启顺序，API 在旧 Schema 上启动的时序风险仅被静态门禁约束。
+2. **迁移与启动编排仍待整栈验收**（部分解决）：CI 已验证从空库升级到 head；merge 合同保留一次性
+   `echotalk-migrate`、API/Agent/Worker 的 `service_completed_successfully` 依赖及 Web 的 `service_healthy`
+   依赖。真实整栈启动、镜像与 `.env` 未验；初次启动依赖不保证独立容器重启顺序。
 3. **外部服务单点**（部分解决）：LLM 客户端与 LiveKit 连接的超时/重试策略已显式化并有测试
    （`test_llm_client_policy.py`、`test_session_connect_policy.py`）；LiveKit Cloud、STT、LLM、TTS
    任一不可用仍会中断语音链路，缺少熔断指标和降级说明。
-4. **Compose 就绪门禁不足**（部分解决）：PostgreSQL 有 `pg_isready` healthcheck；Web 等待 API `service_healthy`
-   （API 暴露 `/api/health`，仅作 liveness，非迁移状态）；迁移成功由独立的 `echotalk-migrate` 一次性服务以
-   `service_completed_successfully` 作 DAG 门禁，并非 CPB 新公开端点。但 liveness 不覆盖运行中 DB 持续 readiness，
-   独立容器重启时 DAG 依赖不保证重新编排，真实整栈未验证。
+4. **Compose 就绪探针合同已定义、整栈仍未验**（部分解决）：`/api/health` 保持 liveness；最终 Compose
+   `service_healthy` 由单次 system-ready 检查共享 PG，认证的用户配置 ready 继续保留。静态合同已落地；
+   真实代理环境、运行中 DB 连续 readiness、整栈启动与独立容器重启仍未验收。
 5. **原生认证未适配**（仍存在）：前端认证只面向浏览器，iOS/macOS 的系统认证会话回跳、Keychain 存储
    与续期均未实现，属于 CP-04 门禁。
 
@@ -274,7 +293,8 @@ lock/export 中全部存活记录与全局 metadata 保持，唯一删除为死�
 
 ## 8. 推荐演进顺序
 
-1. **补齐生产入口**：HTTPS/WSS 终止、一次性迁移 Job、API healthcheck 与 Compose 就绪门禁。
+1. **补齐生产入口**：HTTPS/WSS 终止和生产 rollout；一次性迁移、API healthcheck 与 Compose 就绪门禁的
+   本地合同已定义，实际整栈与生产验收仍待执行。
 2. **补齐分析任务可观测性**：生产日志采集、集中告警与延迟/失败率监控（基础 JSON 日志与 UTC 只读
    查询已落地）。
 3. **完成真实环境验收**：真实 IdP 登录与续期、LiveKit/Provider 全链路、iOS 真机闭环；

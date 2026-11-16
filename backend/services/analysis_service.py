@@ -8,7 +8,7 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field, replace
-from typing import Literal
+from typing import Any, Literal, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,17 @@ from services.knowledge.skill_updater import phoneme_error_to_skill
 from time_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+# Frozen BKT version and its four parameters.  These are the only values used
+# for derived ``knowledge_states`` updates and are recorded verbatim on the
+# completed event so the version fact cannot drift from the computation.
+FROZEN_BKT_VERSION = "bkt-v1"
+FROZEN_BKT_PARAMS = {
+    "p_init": 0.1,
+    "p_transit": 0.2,
+    "p_slip": 0.1,
+    "p_guess": 0.2,
+}
 
 
 class AnalysisServiceError(RuntimeError):
@@ -82,10 +93,33 @@ class AnalysisCoverage:
 
 @dataclass(frozen=True)
 class SessionAnalysisResult:
-    """Result of session analysis when user transcripts exist."""
+    """Result of session analysis when user transcripts exist.
+
+    ``coverage`` is the rich computation snapshot consumed by provider and
+    observability callers. ``ledger_coverage`` is the stable JSON-shaped fact
+    set consumed by the learning-event writer. A legacy B1 caller may still
+    pass a dict through ``coverage``; it is isolated into ``ledger_coverage``
+    so it cannot be mistaken for the rich snapshot or trigger a second BKT
+    update. ``bkt_assessment`` carries the source that may contribute knowledge
+    observations independently of whether the current run called a provider.
+    """
 
     assessment: PronunciationAssessment | None = None
     coverage: AnalysisCoverage | None = None
+    grammar_errors: list[GrammarError] = field(default_factory=list)
+    ledger_coverage: dict[str, Any] = field(default_factory=dict)
+    bkt_assessment: PronunciationAssessment | None = None
+
+    def __post_init__(self) -> None:
+        if isinstance(self.coverage, dict):
+            if self.ledger_coverage:
+                raise ValueError(
+                    "coverage dict cannot be combined with ledger_coverage"
+                )
+            object.__setattr__(self, "ledger_coverage", self.coverage)
+            object.__setattr__(self, "coverage", None)
+        if self.bkt_assessment is None and self.assessment is not None:
+            object.__setattr__(self, "bkt_assessment", self.assessment)
 
     @property
     def id(self) -> uuid.UUID | None:
@@ -185,6 +219,7 @@ async def analyze_session(
 
         full_text = " ".join(t.content for t in transcripts)
         assessment: PronunciationAssessment | None = None
+        bkt_assessment: PronunciationAssessment | None = None
         progress.direction = "pronunciation"
         if settings.USE_MOCK_ELSA:
             existing_result = await db.execute(
@@ -196,6 +231,7 @@ async def analyze_session(
             if existing is not None:
                 logger.info("会话 %s 已有发音评估，跳过重复写入", session_id)
                 assessment = existing
+                bkt_assessment = existing
                 progress.pronunciation = DirectionCoverage(
                     "not_called",
                     reason="existing_result",
@@ -243,6 +279,7 @@ async def analyze_session(
                     provider_response_ref=None,
                     elsa_response=None,
                 )
+                bkt_assessment = assessment
                 db.add(assessment)
                 await db.flush()
                 logger.info(
@@ -252,16 +289,30 @@ async def analyze_session(
                     len(evaluation.phoneme_alignment),
                 )
         else:
+            existing_result = await db.execute(
+                select(PronunciationAssessment).where(
+                    PronunciationAssessment.session_id == session_id
+                )
+            )
+            bkt_assessment = existing_result.scalar_one_or_none()
             progress.pronunciation = DirectionCoverage("not_called", reason="disabled")
             _publish_coverage(progress.snapshot("running"))
             logger.info("会话 %s 未启用发音评估服务，跳过发音评估", session_id)
 
-        await _detect_grammar_errors(session_id, full_text, db, progress=progress)
+        grammar_errors = await _detect_grammar_errors(
+            session_id, full_text, db, progress=progress
+        )
         progress.phase = "orchestration"
         progress.direction = None
         coverage = progress.snapshot("completed")
         _publish_coverage(coverage)
-        return SessionAnalysisResult(assessment=assessment, coverage=coverage)
+        return SessionAnalysisResult(
+            assessment=assessment,
+            coverage=coverage,
+            grammar_errors=grammar_errors,
+            ledger_coverage=_build_ledger_coverage(assessment, grammar_errors),
+            bkt_assessment=bkt_assessment,
+        )
     except asyncio.CancelledError:
         progress.mark_unreached(
             "upstream_cancelled"
@@ -280,22 +331,64 @@ async def analyze_session(
         raise
 
 
+def _build_ledger_coverage(
+    assessment: PronunciationAssessment | None,
+    grammar_errors: Sequence[GrammarError],
+) -> dict[str, Any]:
+    """Return per-direction coverage facts for the completed event details."""
+    first_grammar = grammar_errors[0] if grammar_errors else None
+    return {
+        "pronunciation": {
+            "status": "evaluated" if assessment is not None else "not_called",
+            "source": assessment.source if assessment is not None else None,
+            "provider": assessment.provider if assessment is not None else None,
+            "model_version": assessment.model_version
+            if assessment is not None
+            else None,
+            "is_synthetic": assessment.is_synthetic if assessment is not None else None,
+        },
+        "grammar": {
+            "status": "evaluated",
+            "source": first_grammar.source if first_grammar is not None else None,
+            "provider": first_grammar.provider if first_grammar is not None else None,
+            "model_version": first_grammar.model_version
+            if first_grammar is not None
+            else None,
+            "is_synthetic": first_grammar.is_synthetic
+            if first_grammar is not None
+            else None,
+        },
+    }
+
+
 async def _detect_grammar_errors(
-    session_id: uuid.UUID, text: str, db: AsyncSession, *, progress: _CoverageProgress
-) -> None:
+    session_id: uuid.UUID,
+    text: str,
+    db: AsyncSession,
+    *,
+    progress: _CoverageProgress,
+) -> list[GrammarError]:
     """Preserve independent grammar existence and nonempty flush boundaries."""
     progress.phase = "orchestration"
     progress.direction = "grammar"
-    existing_result = await db.execute(
-        select(GrammarError.id).where(GrammarError.session_id == session_id).limit(1)
+    existing = (
+        (
+            await db.execute(
+                select(GrammarError)
+                .where(GrammarError.session_id == session_id)
+                .order_by(GrammarError.skill_tag, GrammarError.error_type)
+            )
+        )
+        .scalars()
+        .all()
     )
-    if existing_result.scalar_one_or_none() is not None:
+    if existing:
         logger.info("会话 %s 已有语法错误记录，跳过重复写入", session_id)
         progress.grammar = DirectionCoverage(
             "not_called", reason="existing_result", reused=True
         )
         _publish_coverage(progress.snapshot("running"))
-        return
+        return list(existing)
 
     provider = _select_grammar_provider()
     metadata = provider.metadata
@@ -318,6 +411,7 @@ async def _detect_grammar_errors(
     )
     _publish_coverage(progress.snapshot("running"))
     progress.phase = "persistence"
+    created: list[GrammarError] = []
     for finding in evaluation.findings:
         error = GrammarError(
             id=uuid.uuid4(),
@@ -333,6 +427,7 @@ async def _detect_grammar_errors(
             confidence=finding.metadata.confidence,
         )
         db.add(error)
+        created.append(error)
     if evaluation.findings:
         await db.flush()
         logger.info(
@@ -340,9 +435,7 @@ async def _detect_grammar_errors(
             session_id,
             len(evaluation.findings),
         )
-
-
-# ───── BKT 知识状态更新 ─────
+    return created
 
 
 async def update_knowledge(
@@ -358,7 +451,6 @@ async def update_knowledge(
     3. 调用 BKT update_mastery 更新掌握概率
     4. 写入 KnowledgeState
     """
-    # 1. 读取评估数据
     stmt = select(PronunciationAssessment).where(
         PronunciationAssessment.session_id == session_id
     )
@@ -369,7 +461,6 @@ async def update_knowledge(
     result = await db.execute(stmt)
     grammar_errors = result.scalars().all()
 
-    # 2. 按来源门控收集非合成技能观察数据 {skill_id: [correct/incorrect, ...]}
     observations: dict[str, list[bool]] = {}
 
     if (
@@ -390,7 +481,6 @@ async def update_knowledge(
         logger.info("会话 %s 无可更新的技能", session_id)
         return
 
-    # 3. 验证所有 skill_id 存在于 skills 表
     all_skill_ids = list(observations.keys())
     stmt = select(Skill.id).where(Skill.id.in_(all_skill_ids))
     result = await db.execute(stmt)
@@ -400,7 +490,6 @@ async def update_knowledge(
         logger.info("会话 %s 无有效技能需更新", session_id)
         return
 
-    # 4. 批量查询用户在 valid_skills 中的现有 KnowledgeState，避免 N+1 查询
     stmt = select(KnowledgeState).where(
         KnowledgeState.user_id == user_id,
         KnowledgeState.skill_id.in_(valid_skills),
@@ -409,11 +498,9 @@ async def update_knowledge(
     existing_states = {state.skill_id: state for state in result.scalars().all()}
 
     params = BKTParams()
-
     for skill_id, obs_list in observations.items():
         if skill_id not in valid_skills:
             continue
-
         state = existing_states.get(skill_id)
         if state is None:
             state = KnowledgeState(
@@ -425,7 +512,6 @@ async def update_knowledge(
             db.add(state)
             existing_states[skill_id] = state
 
-        # 逐条观察更新
         for correct in obs_list:
             state.p_mastery = update_mastery(state.p_mastery, correct, params)
         state.updated_at = utc_now()
@@ -436,3 +522,57 @@ async def update_knowledge(
         session_id,
         list(observations.keys()),
     )
+
+
+# ───── BKT 知识状态更新 ─────
+
+
+async def _apply_bkt_updates(
+    *,
+    user_id: uuid.UUID,
+    observations: Sequence[dict[str, Any]],
+    db: AsyncSession,
+) -> None:
+    """Apply frozen ``bkt-v1`` updates for already-validated observations.
+
+    ``observations`` are the newly inserted non-synthetic observations in
+    ``apply_seq`` order.  This helper only writes ``knowledge_states``; it must
+    not re-read source tables or decide which direction was evaluated.
+    """
+    real = [obs for obs in observations if obs.get("is_synthetic") is not True]
+    if not real:
+        return
+
+    skill_ids = list({obs["skill_id"] for obs in real})
+    result = await db.execute(select(Skill.id).where(Skill.id.in_(skill_ids)))
+    valid_skills = {row[0] for row in result.all()}
+    if not valid_skills:
+        return
+
+    result = await db.execute(
+        select(KnowledgeState).where(
+            KnowledgeState.user_id == user_id,
+            KnowledgeState.skill_id.in_(valid_skills),
+        )
+    )
+    states = {state.skill_id: state for state in result.scalars().all()}
+
+    params = BKTParams(**FROZEN_BKT_PARAMS)
+    for obs in real:
+        skill_id = obs["skill_id"]
+        if skill_id not in valid_skills:
+            continue
+        state = states.get(skill_id)
+        if state is None:
+            state = KnowledgeState(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                skill_id=skill_id,
+                p_mastery=params.p_init,
+            )
+            db.add(state)
+            states[skill_id] = state
+        state.p_mastery = update_mastery(state.p_mastery, obs["correct"], params)
+        state.updated_at = utc_now()
+
+    await db.flush()

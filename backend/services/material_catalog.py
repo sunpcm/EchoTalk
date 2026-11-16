@@ -8,6 +8,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
+from schemas.scenario_goals import GoalDefinition
+
 CEFR_TO_NUM = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}
 NUM_TO_CEFR = {value: key for key, value in CEFR_TO_NUM.items()}
 
@@ -45,6 +49,8 @@ class CatalogMaterial:
     primary_skill: str
     skill_tags: tuple[str, ...]
     priority: int
+    goals: tuple[GoalDefinition, ...] = ()
+    material_version: int | None = None
 
 
 def _require_text(record: dict[str, Any], key: str, location: str) -> str:
@@ -111,6 +117,44 @@ def _validate_record(record: Any, location: str) -> CatalogMaterial:
     if type(priority) is not int or priority <= 0:
         raise MaterialCatalogError(f"{location}: priority must be a positive integer")
 
+    material_version = record.get("material_version")
+    if material_version is not None and (
+        type(material_version) is not int or material_version <= 0
+    ):
+        raise MaterialCatalogError(
+            f"{location}: material_version must be a positive integer"
+        )
+
+    raw_goals = record.get("goals", [])
+    if type(raw_goals) is not list:
+        raise MaterialCatalogError(f"{location}: goals must be an array")
+
+    goals: list[GoalDefinition] = []
+    seen_goal_ids: set[str] = set()
+    expected_goal_prefix = f"{material_id}:"
+    for goal_index, raw_goal in enumerate(raw_goals):
+        try:
+            goal = GoalDefinition.model_validate(raw_goal)
+        except ValidationError as exc:
+            raise MaterialCatalogError(
+                f"{location}: goals[{goal_index}] is invalid: {exc}"
+            ) from exc
+        if not goal.goal_id.startswith(expected_goal_prefix):
+            raise MaterialCatalogError(
+                f"{location}: goals[{goal_index}] material prefix does not match"
+            )
+        if goal.goal_id in seen_goal_ids:
+            raise MaterialCatalogError(
+                f"{location}: duplicate goal_id {goal.goal_id!r}"
+            )
+        seen_goal_ids.add(goal.goal_id)
+        goals.append(goal)
+
+    if goals and material_version is None:
+        raise MaterialCatalogError(
+            f"{location}: material_version is required when goals are present"
+        )
+
     return CatalogMaterial(
         id=material_id,
         document=document,
@@ -121,6 +165,8 @@ def _validate_record(record: Any, location: str) -> CatalogMaterial:
         primary_skill=primary_skill,
         skill_tags=tuple(skill_tags),
         priority=priority,
+        goals=tuple(goals),
+        material_version=material_version,
     )
 
 

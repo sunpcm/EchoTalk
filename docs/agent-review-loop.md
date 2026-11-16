@@ -119,6 +119,142 @@ CI 的临时 `localhost:5432/echotalk_test` 仅是 CI 契约，不能推断本�
 
 本节为单轮回执，原文已移至 [评审回执归档](./history/review-loop-receipts.md)；章节编号保留，供既有 prompt 引用。
 
+### §3.4 B1 专用合成 PostgreSQL 命名空间（2026-11-12）
+
+B1 后续数据库验证只使用独立合成资源，不借用 cp00、应用库或 CI 地址：
+
+| 项目                        | 固定值                      |
+| --------------------------- | --------------------------- |
+| container                   | `echotalk-b1-test-20261112` |
+| image                       | `postgres:15.19-alpine`     |
+| host port                   | `127.0.0.1:55433`           |
+| database                    | `echotalk_b1_test`          |
+| user                        | `echotalk_b1_test`          |
+| verified server_version_num | `150019`                    |
+
+合成密码只由主控在受保护运行环境中持有，不写入 prompt、报告、日志或 tracked 文档。实施节点不得
+读取、复制或猜测凭据，也不直接连接该库；数据库、完整受控门禁和需要 API schema 的 exporter/
+TypeScript 生成器由主控代跑。主控已在该合成库中重放现有迁移至 `c06_transcript_events`，并验证
+历史基线：Vitest 1206 passed/49 files、backend 809 passed/3 warnings/80.19%、Fake API 108
+passed、类型生成器 8 passed、构建脚本 21 passed 且相关命令均 exit 0；历史全量 E2E 为
+233 passed/1 failed、exit 1，唯一失败是历史 WebKit select `336×23 < 44`。这组数字只属于该历史
+时点，不与后续 B1 结果相加或替代。
+
+历史 B1-1（ORM/迁移/schema）已在专用合成 PostgreSQL 验证；历史 B1-2 已实现同事务事件写入、
+幂等、用户锁与 BKT 合成隔离，主控独立代码 Review APPROVED，目标套件
+116 passed/0 skip/exit 0，完整 backend 844 passed/3 warnings/0 skip/80.82%。历史 B1-3 的该轮代码/
+测试 Review 为 APPROVED：目标套件 `147 passed / 0 failed / 0 skip / exit 0`，完整 backend
+`878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`，Vitest 保持 1206 passed/49 files，前端未改。
+除 E2E 外所列完整门禁 exit 0；lint 为 132 warning/0 error/0 new warning。B1-3 迁移
+`b1_learning_event_cutover` 的 upgrade/downgrade/reupgrade/roundtrip、ORM compare 与独立 PG 探针
+均已留证。
+
+E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`，失败为 WebKit Provider select
+几何与 readiness 引导 textarea 超时；DocTalk 定向为 `3 passed / 0 failed / 0 skip / 0 retry /
+exit 0`；再次全量为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过但仍有同一
+WebKit Provider select 实测失败。首轮失败和定向结果都保留；仅 DocTalk 首轮失败原因未确认，不能
+归因于环境、历史基线或回归，也不能称全树全绿。
+
+历史 B1-4 已实现本人数据结构化 JSON 导出。主控独立代码/测试 Review 为 APPROVED，产品返修使用 `1/2`，
+用户 Review 仍待。主控代跑的目标套件为 `20 passed / 0 skip / exit 0`，完整 backend 为
+`898 passed / 3 warnings / 0 skip / 80.86% / exit 0`；Vitest 1206 passed/49 files、Fake API
+110 passed/0 skip、构建脚本 21、API 类型测试 8 均 exit 0。format、lint、typecheck、build、
+backend Ruff、OpenAPI schema、provider metadata 与 TS 漂移检查均 exit 0；lint 为 132
+warnings/0 errors，warning 行清单与 B1-3 相同。20 项目标属于 898 项完整 backend 的子集。
+
+B1-4 的完整双浏览器 E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`。唯一失败是
+`[webkit] e2e/a11y-focus-touch.spec.ts:94:5`：设置抽屉三个 Provider select 为
+`336x23 < 44px`，断言位于第 127 行；对应 UI/样式、E2E 用例/配置相对父提交未改，按同名范围外遗留
+保留。不能称全树全绿，也不能未经证据归因环境。`run-gates.py` 会容忍 `e2e=1` 返回 0，聚合 exit 0
+不能覆盖真实 E2E exit 1。
+
+切换期间，实际 Job 领取函数 `claim_next_job` 本身没有 gate；全部新旧 worker 必须保持停止到
+`traffic_resumed`。部署切换代码不会启动进程，显式停写声明、数据库锁和表锁都不能证明未知旧进程
+已经退出。维护 CLI 只接受已批准的合成库白名单，不隐式读取 `.env`，结果码/用法按 0/1/2 区分；
+baseline 默认 preview 零写，只有显式确认参数才写。零语法错误没有持久来源行，只能校验 coverage
+结构与类型，并在来源存在时比对事实，不能独证“零错误”或虚构 Provider 事实。
+
+历史 B1-5（当时）已完成本地实施与主控独立代码/测试 Review。`DELETE /api/user/account` 先验 Bearer 身份，再取
+learning-event control `FOR UPDATE` gate，最后复用同一已验证身份完成本地 User 映射/flush；匿名或
+错误 Bearer 不执行业务 SQL、不等待 gate。服务在调用方同一事务显式删除本人 12 类业务数据，成功只在
+commit 完成后返回固定 `200 {"status":"deleted"}`，失败整体 rollback 并返回通用 500。坏 baseline/
+跨归属失败关闭；合法删除后按剩余真实 `baseline_snapshot` 更新全局控制数量/摘要，保留 singleton、
+revision、cutover_at、phase 和既有 gate。无 control 时用 SREX 表锁并重读封闭 prepare 窗口，不删除
+单例或重新锚定。旧 Job、stale recovery、worker 和晚到写入不能复活数据。
+
+历史 B1-5 目标套件为 `36 passed / 0 skip / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，目标是完整树子集，不能相加。Vitest
+`1206 passed / 49 files`、Fake API `113 passed / 0 skip / exit 0`、build-script 21、API 类型 8、
+iOS 脚本 Node runner 37 均 exit 0；lint 为 `132 warning / 0 error`，warning 行清单与 B1-4 逐行
+相同。独立合成 PG 正常探针覆盖 12 表删除/他人逐值保留、坏 baseline、跨 user lease、双删除、首次
+cutover、真实 Bearer、未链接旧 User 与 worker 锁序；两项运行时变异被真实 count/死锁断言杀死。
+临时 PG 已停止并自动移除。
+
+历史 B1-5 完整双浏览器 E2E 保留 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
+`[webkit] e2e/a11y-focus-touch.spec.ts:94:5` 的设置抽屉三 Provider select `336x23 < 44px`，
+断言位于第 127 行；UI/样式/E2E 未改，不能写全树全绿。第一次完整 format 返回 exit 1，唯一问题是
+Node Fake 测试文件；该文件与六份收口 MD 已按现有 Prettier 纯格式化，最终完整 format 以主控补跑
+回执为准。OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schema 逐值未变；
+18 份既有迁移字节未变，无新 DDL、依赖、UI 或 workflow。
+
+独立 WPH 随后只修共享 Provider select 的样式：显式 44px 高度、移除 `outline-none`、恢复既有
+accent 主题 2px 可见焦点轮廓，并保留原生 `appearance:auto` 与箭头。真实 RED 为 Chromium 7
+passed、WebKit 7 failed，定向 GREEN 为 14 passed。**该轮历史快照**的完整双浏览器 E2E 为
+`246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
+`934 passed / 3 warnings / 0 skip / 81.45% / exit 0`，Fake API 为 `113 passed / 0 skip`，全部
+13 项完整门禁及聚合均 `exit 0`。Chromium/WebKit 最终均为三控件 `336x44`、`appearance:auto`、
+2px solid outline。主控代码/测试与真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修
+`0/2`。整卡 Review 与提交/推送以同卡最终回执为准；用户 Review 待。上述数字只属于 WPH 当时
+快照。最新状态见
+[PROJECT_STATUS 的 R2-14 小节](./PROJECT_STATUS.md) 与
+[`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
+
+历史 B1-4 的 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计已同卡完成；A3
+固定 missing/unmodeled/deviation 清单逐字未改。更新 canonical OpenAPI 和 TypeScript 类型只属于
+必要生成步骤，不能代替 Fake API 真实成功响应验证。B1-5 已按同一门禁完成 `DELETE
+/api/user/account` 的真实 HTTP 成功 fixture、Session/Job 删除后失效、重复删除幂等、导出六业务
+数组为空的 Node 断言与 A3 operation 审计，固定 missing/unmodeled/deviation 清单未扩大；合法空
+响应仍需按实际状态码审阅。B1-4/B1-5 都没有新增产品 UI 或真实依赖。
+
+仓库 CI 只在 `main`/`master` push 或 PR 上触发；任务分支 push 不触发远端 CI，远端 CI 未执行。
+不得修改工作流触发条件。证据口径为主控本地完整门禁加本 §3.4 的合成 PostgreSQL。
+
+### §3.4.1 R2-14 Compose 就绪与一次性迁移（2026-11-13）
+
+R2-14 本文编写时的本地验证记录为：在 `b744e63` 父提交上完成本地合成实施、完整门禁和主控独立
+代码 Review；最终 Review/发布见同卡回执，用户 Review 待。公开 `GET /api/health/system-ready`
+不依赖用户身份，只用共享 PostgreSQL 执行 `SELECT 1`，连接完整释放后返回 typed `200/503`。
+数据库操作预算为 `0.5s`，为当前 asyncpg 约 `2s` graceful close 留余量，完整响应目标 `<3s`；
+未修改全局 engine/driver，也未使用后台清理。Compose 新增 API 角色的一次性 `echotalk-migrate`，
+`restart: "no"`，先等
+PostgreSQL `service_healthy`，后端再等迁移 `service_completed_successfully`，Web 等 API
+`service_healthy`。API probe 用镜像内 Python 标准库和 `ProxyHandler({})` 绕过环境代理，HTTP
+timeout `4`、容器 timeout `5s`。完整合同见
+[COMPOSE_STARTUP_CONTRACT.md](./COMPOSE_STARTUP_CONTRACT.md)。
+
+当前完整 13 项门禁及聚合 `exit 0`：backend `941 passed / 3 warnings / 0 skip / 81.57% raw Total
+coverage`，Vitest `1206 passed / 49 files`，Fake API `116 passed / 0 skip`，双浏览器
+`246 passed / 0 failed / 0 skip / 0 retry / exit 0`（`--retries=0 --workers=1`），build-script
+`21`、API 类型 runner `8`、非 native iOS 脚本 runner `37` 均 `exit 0`；lint 为
+`132 warning / 0 error`，逐诊断与父基线一致。Compose 原生 config 和迁移依赖图 `exit 0`，未解析
+`env_file`、镜像或启动原整栈。健康探针实际 Python 命令五类符合预期：ready `exit 0`，
+unready/wrong-body/timeout 为 `exit 1`，`HTTP_PROXY` trap 被绕过且代理收到 0 请求。
+
+主控 R0 真实自有 PG pause 在 4.5s 外层请求超时且未返回 `503`，是有效产品失败证据；R1 新增的
+约 2s-cleanup 模拟用例在 3.5s 硬期限命中，是模拟回归 RED。随后 R1 真实自有 PG pause 得到
+`503 / 2.518465s / checkedout 0`；unpause 后为 `200`，用户数不变；真实连接释放后再注入异常仍为
+`503`。真实路由无 Bearer/错误 Bearer 均 `200`，旧 ready 错误 Bearer 为 `401`；18 份旧迁移 SHA
+未变，新增 migration 为 0。R1 同一正式返修轮确认并修复两个 P1：总预算必须包含 asyncpg 约 2 秒
+取消清理，因此服务预算缩为 `0.5s`；loopback healthcheck 仅在本探针用 `ProxyHandler({})` 绕过
+环境代理。FastAPI 延迟 `IncludedRouter` 导致的 `StopIteration` 是另一项夹具修正，改为枚举公开
+`routers.health.router` 相对 route，未改产品断言。两个 P1 同属 R1，正式产品返修仍使用 `1/2`。
+
+源码 10 文件与主控 `R214-R1-code-frozen-sha256.json` 逐项一致；最终 Review/发布见主控同卡
+回执。缺 route 的初始 backend `6 failed / 0 skip / exit 1` 是功能实施前的有效 TDD RED（当时新
+功能尚未实现，尚未进入真实 PG 故障验证）；`ModuleNotFound` 导入错误、延迟 `IncludedRouter` 的
+route 枚举及 format 问题属于夹具/格式。原 Compose 整栈、真实 `.env`/镜像、生产切换、B1 人工
+切换、真实外部依赖与设备均未验收；全部新旧 worker 仍须保持停止到 `traffic_resumed`。
+
 ## §4 生成产物及验证
 
 | 产物                        | 源                             | 原生检查/边界                                                         |

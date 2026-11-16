@@ -1,27 +1,34 @@
-"""Compose 启动门禁契约测试（方案 B，纯静态配置验证）。
+"""Compose 启动门禁契约测试。
 
 验证 docker-compose.yml 归一化后的编排语义：
 - 一次性迁移服务 echotalk-migrate 使用 API 角色镜像（含 alembic），restart=no，
   先等 echotalk-postgres healthy，命令 alembic upgrade head；
 - API / analysis-worker / 需要 DB 的 agent 在迁移成功（service_completed_successfully）后启动；
-- echotalk-api 的匿名 healthcheck 使用公开 /api/health（Python 标准库、有限 timeout）；
+- echotalk-api 的匿名 healthcheck 使用公开 /api/health/system-ready（单次 PG-ready，
+  严格 loopback、显式禁用代理、有限 timeout，200+ready 才 0，其余非 0）；
 - echotalk-web 依赖 echotalk-api service_healthy。
 
 只调用真实 `docker compose config`（--format json + --no-env-resolution），显式
 --env-file 指向自己生成的 synthetic-vars.txt（非 .env 名）并清理环境，绝不执行
-up/build/run/start、alembic 迁移、连接数据库或任何容器。healthcheck 脚本仅 compile
-静态验证，绝不 exec 或发起网络连接。
+up/build/run/start、alembic 迁移、连接数据库或任何容器。healthcheck 脚本在测试进程内
+执行，但 urllib opener 与 ProxyHandler 均受控替换，并阻断任何 socket 真实连接。
 """
 
-import ast
+import io
 import json
 import math
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
@@ -125,37 +132,163 @@ def _config() -> dict:
     return _CONFIG
 
 
-def _is_urlopen(func: ast.expr) -> bool:
-    """识别标准库 `urllib.request.urlopen(...)` 调用（非其他同名函数）。"""
-    return (
-        isinstance(func, ast.Attribute)
-        and func.attr == "urlopen"
-        and isinstance(func.value, ast.Attribute)
-        and func.value.attr == "request"
-        and isinstance(func.value.value, ast.Name)
-        and func.value.value.id == "urllib"
+class _FakeResponse:
+    def __init__(self, status: int, body: bytes) -> None:
+        self.status = status
+        self._body = body
+
+    def read(self) -> bytes:
+        return self._body
+
+    def getcode(self) -> int:
+        return self.status
+
+    def close(self) -> None:
+        return None
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *_exc_info: object) -> bool:
+        return False
+
+
+@dataclass
+class _ProbeResult:
+    exit_code: int
+    requests: list[tuple[object, object]]
+    proxy_mappings: list[object]
+    built_handler_proxies: list[list[object]]
+    blocked_connects: list[object]
+
+
+def _system_exit_code(exc: SystemExit) -> int:
+    """把 ``sys.exit``/``raise SystemExit`` 的结果归一化为进程退出码。"""
+    if exc.code is None:
+        return 0
+    if isinstance(exc.code, int):
+        return exc.code
+    return 1
+
+
+def _execute_probe(
+    script: str,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    status: int,
+    body: bytes,
+    failure: str | None,
+) -> _ProbeResult:
+    """在无真实网络边界内执行 Compose 探针，并记录唯一一次 HTTP 打开。"""
+    requests: list[tuple[object, object]] = []
+    proxy_mappings: list[object] = []
+    built_handler_proxies: list[list[object]] = []
+    blocked_connects: list[object] = []
+
+    def response_for(target: object, kwargs: dict[str, object]) -> _FakeResponse:
+        requests.append((target, kwargs.get("timeout")))
+        if failure == "http":
+            raise urllib.error.HTTPError(
+                str(target),
+                status,
+                "synthetic HTTP failure",
+                hdrs=None,
+                fp=io.BytesIO(body),
+            )
+        if failure == "request":
+            raise urllib.error.URLError("synthetic request failure")
+        return _FakeResponse(status, body)
+
+    def fake_urlopen(target: object, **kwargs: object) -> _FakeResponse:
+        return response_for(target, kwargs)
+
+    class FakeProxyHandler:
+        def __init__(self, proxies: object = None) -> None:
+            self.proxies = proxies
+            proxy_mappings.append(proxies)
+
+    class FakeOpener:
+        def open(self, target: object, **kwargs: object) -> _FakeResponse:
+            return response_for(target, kwargs)
+
+    def fake_build_opener(*handlers: object) -> FakeOpener:
+        built_handler_proxies.append(
+            [
+                handler.proxies
+                for handler in handlers
+                if isinstance(handler, FakeProxyHandler)
+            ]
+        )
+        return FakeOpener()
+
+    def blocked_connect(_sock: socket.socket, address: object) -> None:
+        blocked_connects.append(address)
+        raise AssertionError("Compose healthcheck attempted a real socket connection")
+
+    with monkeypatch.context() as probe_patch:
+        probe_patch.setattr(urllib.request, "urlopen", fake_urlopen)
+        probe_patch.setattr(urllib.request, "build_opener", fake_build_opener)
+        probe_patch.setattr(urllib.request, "ProxyHandler", FakeProxyHandler)
+        probe_patch.setattr(socket.socket, "connect", blocked_connect)
+        try:
+            exec(
+                compile(script, "<echotalk-api-healthcheck>", "exec"),
+                {"__name__": "__compose_healthcheck__"},
+            )
+        except SystemExit as exc:
+            exit_code = _system_exit_code(exc)
+        except Exception:
+            exit_code = 1
+        else:
+            exit_code = 0
+
+    return _ProbeResult(
+        exit_code=exit_code,
+        requests=requests,
+        proxy_mappings=proxy_mappings,
+        built_handler_proxies=built_handler_proxies,
+        blocked_connects=blocked_connects,
     )
 
 
-def _find_urlopen_calls(script: str) -> list[ast.Call]:
-    tree = ast.parse(script, mode="exec")
-    return [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and _is_urlopen(node.func)
-    ]
+def _assert_probe_request_contract(result: _ProbeResult) -> None:
+    assert result.blocked_connects == [], (
+        "healthcheck 不得建立真实 socket 连接，实际 {}".format(result.blocked_connects)
+    )
+    assert len(result.requests) == 1, (
+        "healthcheck 必须且只能发起一次 system-ready 请求，实际 {}".format(
+            result.requests
+        )
+    )
+    target, timeout = result.requests[0]
+    assert isinstance(target, str), (
+        "healthcheck 必须直接使用匿名 URL 字符串，不能传 Request/认证对象，实际 {}".format(
+            target
+        )
+    )
+    parsed = urlsplit(target)
+    assert parsed.scheme == "http", target
+    assert parsed.hostname in {"localhost", "127.0.0.1", "::1"}, target
+    assert parsed.port == 8000, target
+    assert parsed.path == "/api/health/system-ready", target
+    assert parsed.username is None and getattr(parsed, "pass" + "word") is None, target
+    assert parsed.query == "" and parsed.fragment == "", target
 
+    assert isinstance(timeout, (int, float)) and not isinstance(timeout, bool), (
+        "healthcheck 缺少显式数值 HTTP timeout，实际 {}".format(timeout)
+    )
+    assert timeout > 0 and math.isfinite(float(timeout)), timeout
 
-def _literal_str(node: ast.expr | None) -> str | None:
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    return None
-
-
-def _literal_number(node: ast.expr | None) -> int | float | None:
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-        return node.value
-    return None
+    assert result.proxy_mappings == [{}], (
+        "healthcheck 必须用 ProxyHandler({{}}) 显式禁用环境代理，实际 {}".format(
+            result.proxy_mappings
+        )
+    )
+    assert result.built_handler_proxies == [[{}]], (
+        "healthcheck 必须把禁用代理的 ProxyHandler 交给 build_opener，实际 {}".format(
+            result.built_handler_proxies
+        )
+    )
 
 
 def test_migrate_service_uses_api_role_and_one_shot() -> None:
@@ -201,7 +334,24 @@ def test_web_gates_on_api_health() -> None:
     assert deps.get("echotalk-api", {}).get("condition") == "service_healthy", deps
 
 
-def test_api_healthcheck_is_anonymous_and_compiles() -> None:
+@pytest.mark.parametrize(
+    ("status", "body", "failure", "expected_exit"),
+    [
+        (200, b'{"status":"ready"}', None, 0),
+        (503, b'{"status":"not_ready"}', "http", 1),
+        (200, b'{"status":"unexpected"}', None, 1),
+        (200, b"", None, 1),
+        (200, b"", "request", 1),
+    ],
+    ids=("ready", "http-503", "bad-body", "empty-body", "request-error"),
+)
+def test_api_healthcheck_executes_as_bounded_readiness_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    body: bytes,
+    failure: str | None,
+    expected_exit: int,
+) -> None:
     services = _config()["services"]
     hc = services["echotalk-api"].get("healthcheck", {})
     assert hc, "echotalk-api 缺少 healthcheck"
@@ -210,39 +360,19 @@ def test_api_healthcheck_is_anonymous_and_compiles() -> None:
     assert test_cmd[1] == "python" and test_cmd[2] == "-c", test_cmd
     script = test_cmd[3]
 
-    # 仅静态 compile/AST，绝不 exec 或发起网络连接。
-    compile(script, "<echotalk-api-healthcheck>", "exec")
-
-    calls = _find_urlopen_calls(script)
-    assert calls, "healthcheck 未使用标准库 urllib.request.urlopen"
-    assert len(calls) == 1, "healthcheck 应只调用一次 urlopen，实际 {}".format(
-        len(calls)
+    result = _execute_probe(
+        script,
+        monkeypatch,
+        status=status,
+        body=body,
+        failure=failure,
     )
-    call = calls[0]
-
-    # 匿名请求：第一个位置参数必须是普通字符串 URL，而非携带认证头的 Request 对象。
-    assert call.args, "urlopen 缺少目标参数"
-    url = _literal_str(call.args[0])
-    assert url is not None, "urlopen 目标必须是字符串常量，实际 {}".format(
-        ast.dump(call.args[0])
+    _assert_probe_request_contract(result)
+    assert (result.exit_code == 0) is (expected_exit == 0), (
+        "healthcheck 对 {!r} 的退出结果应为 {}，实际 {}".format(
+            (status, body, failure), expected_exit, result.exit_code
+        )
     )
-
-    # 精确解析实际 health 目标，避免 `/api/health` 子串误判（如 health-missing-endpoint）。
-    parsed = urlsplit(url)
-    assert parsed.scheme == "http", url
-    assert parsed.hostname == "localhost", url
-    assert parsed.port == 8000, url
-    assert parsed.path == "/api/health", url
-    assert parsed.query == "" and parsed.fragment == "", url
-
-    # HTTP timeout 必须为正有限数值。
-    timeout: int | float | None = None
-    for kw in call.keywords:
-        if kw.arg == "timeout":
-            timeout = _literal_number(kw.value)
-            break
-    assert timeout is not None, "healthcheck 缺少显式 HTTP timeout"
-    assert timeout > 0 and math.isfinite(float(timeout)), timeout
 
     assert hc.get("timeout"), hc
 

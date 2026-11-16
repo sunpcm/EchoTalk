@@ -4,12 +4,13 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
+from models.learning_event import LearningEvent
 from models.session import (
     Session,
     SessionMode,
@@ -31,6 +32,7 @@ from services.analysis_jobs import (
     utc_now,
 )
 from services.analysis_service import AnalysisServiceError
+from tests.learning_event_gate_helper import open_learning_event_gate
 
 
 def test_open_typed_errors_and_generic_exception_keep_separate_public_codes():
@@ -183,6 +185,7 @@ async def postgres_job():
                 user_id=user_id,
                 mode=SessionMode.pronunciation,
                 status=SessionStatus.completed,
+                ended_at=utc_now(),
             )
         )
         db.add(
@@ -205,6 +208,12 @@ async def postgres_job():
                         category="pronunciation",
                     )
                 )
+    await open_learning_event_gate(
+        session_factory,
+        revision="test-fixture-analysis-jobs",
+    )
+
+    async with session_factory() as db, db.begin():
         db.add(
             AnalysisJob(
                 id=job_id,
@@ -217,6 +226,9 @@ async def postgres_job():
         yield session_factory, user_id, session_id, job_id
     finally:
         async with session_factory() as db, db.begin():
+            await db.execute(
+                delete(LearningEvent).where(LearningEvent.user_id == user_id)
+            )
             await db.execute(
                 delete(GrammarError).where(GrammarError.session_id == session_id)
             )
@@ -234,6 +246,7 @@ async def postgres_job():
             await db.execute(delete(AnalysisJob).where(AnalysisJob.id == job_id))
             await db.execute(delete(Session).where(Session.id == session_id))
             await db.execute(delete(User).where(User.id == user_id))
+            await db.execute(text("DELETE FROM learning_event_cutover"))
         await engine.dispose()
 
 

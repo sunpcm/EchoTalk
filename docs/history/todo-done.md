@@ -1,6 +1,737 @@
 # EchoTalk 已完成事项归档
 
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
+>
+> 本文各条数字和“未启动”“未来协调”等状态均绑定写入时的历史快照，后续完成不改写旧值；当前状态以
+> [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
+> 和 [TODO.md](../../TODO.md) 为准。
+
+## 2026-11-16 HHTTP-CLOSE 历史宿主 HTTP 待办核销（`FINAL_READY`）
+
+- [x] 补充轮历史宿主 HTTP 补验：后续 host-gateway 已通过，原 internal-only 限制保留。
+      原时点失败与后续独立 host-gateway 核销证据见
+      [2026-11 HHTTP-CLOSE 记录](./2026-11.md#2026-11-16-hhttp-close-历史宿主-http-待办核销final_ready)。
+- [x] 七天概览历史宿主 HTTP 补验：后续 host-gateway 已通过，原 internal-only 限制保留。
+      原时点失败与后续独立 host-gateway 核销证据见
+      [2026-11 HHTTP-CLOSE 记录](./2026-11.md#2026-11-16-hhttp-close-历史宿主-http-待办核销final_ready)。
+
+## 2026-11-16 WD-UI 周报“已记录会话时长”前端显示与浏览器验收（FINAL_READY）
+
+- **状态：`FINAL_READY`，正式返修 `1/2`**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，源码基线 HEAD
+  `917905057ff50c491ed7f69ba74efcd3fd57cdfc`。客户端固定发送
+  `include_recorded_duration=true`，服务端默认 `false` 的旧四字段/count-only 路径保持兼容。
+  产品、测试和四份文档已停写；最终 Review、commit 与当前分支 push 以主控同卡回执为准，用户
+  Review 待，本节不自批 `APPROVED`。
+- **实现锚点**：`apps/vite-app/src/lib/api.ts` 仅固定 weekly opt-in；
+  `apps/vite-app/src/lib/weekly-recorded-duration.ts` 与 `WeeklyProgress.tsx` 实现周总、选中日、
+  “可用 / 暂无可用 / 未知”三态、可信计数与安全整数校验；`i18n/zh-CN.ts` 只补本卡文案。
+  Fake 新增请求局部 `duration` 合成记录；默认/false 继续返回 count-only 数据，只有 opt-in 响应
+  新增两个时长扩展字段。普通 bool 参数与后端一样接受 `1/true` 并拒绝 `not-a-boolean`。parser、
+  requestAbort、baseURL、controller、次数图、认证、分页、生成类型与迁移均不改。
+- **R1 与测试时序**：主控有效 RED 精确命中全部不可计算仍显示周总 0、七桶全缺失仍显示“已知
+  0”两个目标边界；产品修复后全部通过。测试前过程纠正 `1`、TDD oracle 修正 `2`，提前 Fake WIP
+  与原产品字节恢复、有效 RED 证据均保留。最终 React act 告警通过测试内既有 `await flush()` 收口，
+  断言和 fixture 不变。
+- **最终验收**：主控实跑门禁全部 `exit 0`，私有变异各由选中 case 的具体断言杀死，未选用例
+  不计覆盖；恢复默认源后目标回归全过。完整数字、联合子集口径、保护 SHA、Fake/浏览器真实性
+  边界、截图和 PG 清理只集中在
+  [PROJECT_STATUS 的 WD-UI 小节](../PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
+- **收口边界**：宽屏与窄屏实际浏览器截图已由主控亲审，可读且无新增截断/溢出。浏览器用例走
+  真实 Fake HTTP，后端使用真实 PostgreSQL 引擎上的自建合成库；两者分别实跑，不冒充浏览器直连
+  后端合成 PG 的整链路。本批自有 PG 已按精确身份核验后清理，其他资源未动。本卡
+  只核销“已记录会话时长”三卡范围；完整周报、CP-05、三端、真实外部环境和真实学习质量不连带
+  完成。合同见
+  [周报“已记录会话时长”合同](../WEEKLY_RECORDED_DURATION_CONTRACT.md)。
+
+<a id="2026-11-16-wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_ready"></a>
+
+## 2026-11-16 WD-API 周报“已记录会话时长”opt-in 聚合与兼容解析（历史快照；后续 `APPROVED@9179050`）
+
+- **状态：`FINAL_READY`，正式返修 `1/2`，TDD 中间修正 `1`**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `9d3ab32da3469d87b29340d35106cfa0cd126128`。本轮从主控提供的真实 RED 继续；PG 目标文件为
+  `35 pass / 10 fail`，新 frontend 文件为 `7 pass / 15 fail`，失败均命中尚未实现的目标行为。
+  中间修正只纠正两个测试 oracle，分别绑定逐条 floor 后的 `2ms` 与 Singapore 跨午夜开始日。
+- **实现锚点**：`backend/schemas/session.py` 为日桶增加两个 optional/nullable 非负整数字段；
+  `backend/services/session_queries.py` 仅在显式 opt-in 时增加一次有界三聚合 SQL；
+  `backend/routers/sessions.py` 仅本路由接收 flag 并排除默认 null；`apps/vite-app/src/lib/api.ts`
+  只在 weekly parser 中接受两个明确扩展键，非法关系同时降级未知。
+- **兼容与请求边界**：省略/false 仍返回顶层及日桶旧形状，SQL 不读取 `ended_at`；true 的七个
+  固定桶显式返回 `0/0` 或整数聚合。单条合法时长先 floor 到毫秒再求和，缺失/负结束只增加不可计算
+  计数。原 API 收口时点，`getWeeklyProgress` 仍不发送 `include_recorded_duration`，WD-UI 尚未实施。
+- **R1 与最终验收**：首轮 quality 的 5 个不同 TS `unknown` 收窄诊断为 `exit 2`，build 重复同一组
+  问题；R1 以两个 const 原始值捕获和现有类型守卫修正后，quality、完整 Vitest 与全量 E2E 均
+  重新执行并 `exit 0`。主控最终 13 项门禁全部 `exit 0`，OpenAPI/types 已原生生成，新目标
+  PG/前端/独立混合 PG 验证为 GREEN；三个私有加载变异均被原具体断言杀死。完整数字和保护、
+  AST、编排诊断记录只集中在
+  [PROJECT_STATUS 的 WD-API 小节](../PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)，
+  不在此重复或改写原始证据。
+- **终态边界**：本节 HEAD 与内部“WD-UI 未实施”等状态绑定原 API 收口时点；后续该卡已独立
+  Review `APPROVED` 并随 `9179050` 推送。实施节点没有自跑测试、服务、数据库、构建或生成。最终格式、Review、正常
+  commit/当前分支 push 以主控同卡回执为准，用户 Review 待，本文件不自批 APPROVED；真实外部
+  链路未验收。原时点本批合成 PG 仍活动供 WD-UI 验证，当时尚未清理；时长父项与 WD-UI 状态均绑定
+  原 API 收口时点，后续已完成并见本文件顶部。
+
+## 2026-11-15 WD-DESIGN 周报“已记录会话时长”设计合同（历史快照；后续 APPROVED@9d3ab32）
+
+- **状态：原时点设计合同 `FINAL_READY`，正式返修 `0/2`，已停写**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `caa409a9f36f8e4b28c221800930c1f3ec94cef2`，开工 clean。用户已确认业务方案 A，不再等待时长
+  业务口径裁定。
+- **确认口径**：API 继续接受既有任意合法 `end_date`，返回截至该日并包含该日的最近七个本地自然日；
+  历史日期请求可处理，不宣称任意合法 `end_date` 都含今天。UI 默认以本地今天作为 `end_date`，默认
+  视图因此含今天。现有 completed 会话按 `started_at` 归日，沿用 IANA 时区和 UTC 半开窗口。时长取
+  `ended_at - started_at`，单条先截去不足 1 毫秒再求和；跨日整段归开始日，等待、静音与暂停均
+  包含。UI 只称“已记录会话时长”，不称有效说话或成功练习。
+- **兼容性 r1**：接口新增 `include_recorded_duration: bool = false`。省略/false 保持顶层恰 `days`、
+  每桶恰四字段、count-only SQL 且默认路径继续禁止读取 `ended_at`；路由
+  `response_model_exclude_none` 避免默认响应出现扩展 null。仅 true 才返回
+  `recorded_duration_ms` 与 `duration_unavailable_count` 并读取 `ended_at`。
+- **客户端跨版本**：WD-API 扩展 `parseWeeklyProgressResponse` 和测试，允许并保留两个明确扩展键，
+  四基础键严格校验、其他未知键继续拒绝；扩展缺失/null/非法只降级未知，不伪 0，尚不请求 flag。
+  WD-UI 才固定传 true；旧服务忽略未知 query 返回四字段时，新客户端降级未知。
+- **缺失与完整性语义**：ended 缺失或为负的 completed 会话另计不可计算，不伪 0。令
+  `computable_count = completed - unavailable`；两个扩展都可信且 `unavailable <= completed` 才可显示
+  时长。有 completed 但 `computable_count = 0` 时显示“暂无可用时长”，不显示 0；
+  `computable_count > 0` 且时长为 0 才显示合法 0；`computable_count = 0` 与时长为正同时出现时按关系
+  不一致处理。parser 可独立保留合法扩展，但任一桶缺扩展信息或关系不完整时周总未知；不新增顶层
+  字段。
+- **实施与验收边界**：本卡只新增设计合同并更新 `TODO.md`、`docs/PROJECT_STATUS.md` 与本文件；
+  产品源码、测试、OpenAPI、生成类型、依赖和迁移未改。实施节点未自跑测试、服务或 PG；主控已独立
+  完成本卡三测试树、13 项门禁和合成 PG 新建/迁移核验；详细机器数字、保护文件/旧迁移状态与
+  PG 保留状态只集中在
+  [PROJECT_STATUS](../PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
+  原设计收口时点，WD-API 与 WD-UI 尚未实施；时长父项、完整周报、三端和真实学习质量当时均不提前
+  勾选。后续两卡均已实施，当前条目见本文件顶部。
+- **后续三卡**：WD-API 随后完成并进入 `FINAL_READY`，之后独立 Review `APPROVED` 并随
+  `9179050` 推送；WD-UI 随后也达到 `FINAL_READY`，当前条目见本文件顶部。
+  WD-DESIGN 的后续独立 Review 已 `APPROVED`，并随 `9d3ab32` 推送；上方旧条目中的等待状态只描述
+  原时点，当前以本说明和 PROJECT_STATUS 为准。
+  合同全文见[周报“已记录会话时长”合同](../WEEKLY_RECORDED_DURATION_CONTRACT.md)。
+
+## 2026-11-15 CP04E 认证退出与活动 Room 组合补验（FINAL_READY）
+
+- **状态：`FINAL_READY`（主控最终验收完成，CP-04 父项不勾）**：唯一实施工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `a75223aa38419c07b3786465ea3fade9c930469f`。新增
+  `apps/vite-app/src/components/session/auth-exit.integration.test.tsx` 并更新四份文档；
+  产品、旧测试、helper、配置、依赖和迁移未改。
+- **独立覆盖**：只新增活动 Room 中真实 logout 与当前请求经真实 `api.ts` 收到 401 两条组合
+  场景，不重复 CP04I 的 Dashboard 换号与迟到响应三例。两场景共用同一终态断言：真实
+  `AuthGate → App → VoiceInterface → RoomSession/RoomContextSync` 卸载、owned track 由产品
+  `stopRoomLocalTracks()` 实际停止、conversation/settings/assessment 用户数据清理，并验证无
+  业务写、无 401 重放、无媒体获取与无 Room 重建。
+- **真假边界**：离线 OIDC、LiveKit 组件/Room/Track、严格 fetch/Response 与必要 OS 为测试
+  边界；真实认证状态机、用户 store、API 401 失效、Room 清理调用与默认 Web 平台适配保留。
+  SDK mock 不主动停止 track，不代替产品清理逻辑。
+- **R1 夹具修正**：Room 由 render 次数改按真实挂载/卸载 effect 周期计数，并在退出前合法
+  rerender 后断言仍单挂载、track 仍 live 且未 stop；严格 fetch 在来源、认证和路由拒绝前记录
+  全部尝试，最终断言拒绝为空、尝试数等于允许记录数，保留 logout 零新增与 401 只一次且不重放。
+- **R1 检查与 R2 修正**：R0 的 target `2/2`、完整 Vitest `1270/58`、E2E `272/0 retry` 与
+  backend `1044 passed / 3 warnings / 0 skip` 均为历史事实；R1 target `2/2` 与完整 Vitest
+  `1270/58` 也通过，外部两探针正确翻转。但 quality/build/typecheck 因 TS18047 为 `exit 2`，
+  且同一 React 元素引用 rerender 可 bail out。R2 改用稳定非空局部 render 结果和 fresh
+  elements 同一树工厂，准备期断言 render 调用数严格增加但不设固定上限，Room 挂载仍 `1`、
+  卸载仍 `0`，同一 Room/track 仍 live 且未 stop。
+- **最终验收**：主控独立核验目标 `2/2`、target-final `2/2`；停轨 disabled 与 user-clear
+  disabled 两项核心负对照均命中具体断言。严格请求探针拒绝未知尝试，fresh-tree 重渲染通过，
+  独立观察者确认发布用例真的 rerender 且未重挂载。最终 13 项同源字节门禁全 `exit 0`，正式
+  实施返修 `2/2`。详细数字与证据复用边界统一见
+  [PROJECT_STATUS](../PROJECT_STATUS.md#cp04e-认证退出与活动-room-组合补验final_ready)。
+- **收口边界**：代码与测试停写，1268 个旧测试身份保留、新增 2 例，715 个保护文件字节未变。
+  SDK 均为模拟，本地断言证明产品调用 stop、卸载与清空，不宣称真实 `MediaStreamTrack` 或 SDK
+  网络断开已验；真实外部、原生/设备、CI 与生产未验。此次 next-local 新批合成 PG 已清理：
+  `CP04E-stop-pg` `exit0`，在精确 ID、双 owner、loopback 与合成库身份核验后 `stop0`、
+  `auto_removed=true`，名称和 ID 均不存在，其他资源未动；本批清理与旧批独立。
+  Review/commit/push 见主控同卡回执，用户 Review 待，本文不自批 APPROVED。
+
+## 2026-11-15 CP04I 真实入口换号与迟到响应组合（FINAL_READY）
+
+- **状态：`FINAL_READY`（本地子卡完成，CP-04 父项不勾）**：唯一实施工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，基线
+  `dacf7b3337b3e4640b040ad6ce048c8ee7f9a92e`。新增
+  `apps/vite-app/src/App.identity-integration.test.tsx`；产品、旧测试、helper、配置、依赖和
+  迁移未改。
+- **真实接线与覆盖**：保留真实 `auth.ts`、根 `AuthGate`、`App`、四类 Dashboard 消费者、
+  `SettingsDrawer`、store 与 `api.ts`；认证边界使用真实 `oidc-client-ts` 的离线
+  `UserManager`/`User`，注入合成用户、metadata、Storage，不连接真实 SSO。覆盖换号后的旧树
+  清理、迟到成功/失败隔离，以及同 principal token/revision 续期保活。
+- **最终验收与历史**：主控最终 target、13 门禁和两个私有负对照均通过，本次合成 PG 已精确
+  清理；R0 的夹具/类型/格式失败历史未抹除，正式实施返修 `1/2`。精确机器数字、逐项断言、
+  R0/R1 修正和 PG 清理细节统一见
+  [PROJECT_STATUS](../PROJECT_STATUS.md#cp04i-真实入口换号与迟到响应组合final_ready)，
+  本节不重复大段计数。
+- **边界**：真实 SSO/IdP、Keychain、设备、媒体、Provider、LiveKit、外部依赖与生产未验。
+  Review/commit/push 以主控最终同卡回执为准，用户 Review 待，本文不写 APPROVED。
+
+## 2026-11-15 CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）
+
+- **状态：`FINAL_READY`（本地子卡完成归档）**：唯一实施工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，冻结 HEAD
+  `9a7ec847e36b3187f03076eb280f6b0bc78c7a4e`。新增真实 Dashboard 的四类消费者组合测试与
+  验证说明；认证、Capacitor App 外部状态及 fake `fetch`/`Response` 仅为测试隔离，产品源码、
+  默认工厂、四组件、query/hook 与 `api.ts` 均未 mock 或修改。正式实施返修 `1/2`。
+  测试停写后的 SHA-256 为
+  `4f46f3ecba0529df2fa99390989bf0fcd3504de59a6971890237f819bfa51a35`。
+- **覆盖差集**：iOS pending→active；Web 真实 `online`→`pageshow` 的 AS/WP/WG ignore、DP
+  override、旧响应丢弃和 WeeklyProgress 选日；整页 unmount 后迟到事件零新增请求、零业务写、
+  零采音。iOS active 后首波为 5 条受管 GET；周概览 settle 默认选日另发 1 条 history，手动
+  选日再增 1 条，不能混写为一次首波。
+- **请求基址**：iOS 通过 `vi.stubEnv` 使用安全合成绝对 `VITE_API_BASE_URL` 并恢复，完整经过
+  真实 `getApiBaseUrl()` 与 API 封装；Web 场景只证明生命周期组合接线，Web 默认 `/api` 与
+  native fail-fast 的独立证据仍由既有 URL/API 测试承担；`api.ts` 的首个基址缓存限制如实
+  保留。
+- **最终机器验收**：R0 target `3/3 exit 0`，恢复默认源后的 target-final 亦为 `3/3 exit 0`，
+  R1 后最终 13 门禁全部 `exit 0`。1262 个旧测试身份逐条保持，713 个保护文件字节不变。其余
+  完整机器数字集中在
+  [PROJECT_STATUS 的 CP05L 小节](../PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
+- **负对照与返修**：WG 与 DP 两项有效私有加载期负对照均命中各自目标断言，均非通用超时；
+  每项仅选中的一个 failure 可计负对照，各另有 2 个未选用例不计通过。精确 expected/actual
+  集中在 PROJECT_STATUS。R1 仅在第一例 finally 的 unmount 后幂等释放 `getStateDeferred`，
+  其余断言、事件、计数与超时不变。
+- **边界**：三个 UI 场景本身不连接 PG；本批真实合成 PG 已实际承载 backend 全量测试。真实
+  OS、真机 iOS 网络/恢复、SSO、Cloud、LiveKit、媒体与生产未验。本批三卡共用 PG 已按精确
+  container ID、双 owner、`127.0.0.1` 与合成身份核验后
+  `stop_exit0`、`auto_removed=true`。最终 format、独立 Review、正常 commit/当前分支 push
+  以主控同卡回执为准，用户 Review 待，本归档不写 APPROVED。
+
+## 2026-11-15 CP02I 通话占用本地组合补验（FINAL_READY）
+
+- **状态：`FINAL_READY`（主控最终验收全过）**：
+  新增 stdio 传输桥、
+  6 场景组合 spec 与专用 vitest config，补齐真实 controller + 实际 `api.ts` 封装 +
+  stdio fetch 薄桥 + 真实 ASGI + 真实合成 PG 的覆盖差集；Cloud 撤销仅经
+  `LiveKitAPI.room` 显式模拟。
+- **安全闭环**：桥在导入 backend 前完成 strict DATABASE_URL/`ECHOTALK_CALL_LEASE_LOCAL_PG=1`
+  校验（精确 `127.0.0.1:55433`、`echotalk_b1_test` 用户/库、非空密码、无 query/fragment、
+  `postgresql+asyncpg://` 接纳并归一）与进程级出站硬拦截（仅放行该 PG 连接）；HTTP 身份取
+  请求 Bearer 合成 UUID 且限 owned 用户；仅接受本地相对 `/api/` 路径；内部失败发
+  `bridge_error`，不伪造服务端响应、不回显敏感错误。
+- **确定性晚到门**：请求先真实 commit，桥再 hold 响应；测试经 PG 确认后按 invalidate 与
+  authRevision 两个独立 case 放行迟到成功，均不覆盖、不自动回写，全程无 sleep。
+- **边界**：主 checkout 与其他 lane 只读；唯一写集为
+  `apps/vite-app/integration/call-lease/`（3 文件）、`apps/vite-app/package.json`、
+  `apps/vite-app/vitest.config.ts`、`docs/verification/cross-platform/CP-02-LOCAL-COMBINATION.md`、
+  `TODO.md`、`docs/PROJECT_STATUS.md` 与本文件。本卡未自跑测试/服务/构建；最终数字与
+  返修历史集中在
+  [PROJECT_STATUS 的 CP02I 小节](../PROJECT_STATUS.md#cp02i-通话占用本地组合补验final_ready)，
+  正式实施返修 `2/2`（产品源码未改）。完整事实见
+  [CP-02 本地组合补验](../verification/cross-platform/CP-02-LOCAL-COMBINATION.md)。
+
+## 2026-11-15 CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY）
+
+- **状态：`FINAL_READY`（本地子卡完成归档）**：新增 5 个浏览器 E2E 场景，补齐固定
+  390/1280 静态矩阵未覆盖的跨断点、200% 根字号、键盘激活、缩放后焦点/展开状态保持和动态交互
+  零 API 写。本卡是覆盖补证，无需产品修复，未制造 RED，正式产品返修 `0/2`；产品、旧测试和
+  夹具未改，新 E2E SHA-256 保持
+  `f46318553488ee3f0f2ed5f935398db6c0383b68b409ad9cad7fbc578e8a2d51`。
+- **最终机器验收**：12 行为门禁及 iOS 仅 Node `37` 项均 `exit 0`。Vitest
+  `1262 passed / 55 files`；E2E `272 = Chromium 136 + WebKit 136`，single passed，
+  `retry / skip / flaky` 均为 `0`；backend `1044 passed / 3 warnings / 0 skip`，raw coverage
+  `81.85846835618335%`；build `47`、Fake API `116`、API 类型 `8`；quality `0`。
+- **重复补验**：`200 passed = 5 × Chromium/WebKit × 各 20`；10 组每组 20 次，每次执行恰有
+  一个 passed result，retry/skip/flaky/unexpected 均为 `0`、`exit 0`。
+- **负对照与恢复**：移除 layout class 后几何 `toBeLessThanOrEqual` 目标断言失败 `1`；禁用
+  toggle 后 `aria-expanded` 目标断言失败 `1`。两项各 `exit 1`，变异未修改物理源码；恢复原响应
+  后的正向 200 次重复再次全部通过。初次私有配置 `cwd` 前置错误保留为非产品执行错误，不计
+  产品失败。
+- **数据库批次**：旧 CP05D 所属批次已完成 `stop_exit0`/`auto_removed=true`。该卡当时仍在
+  运行的 `cp05k-cp02i-cp05l-20261115` 三卡共用 PG，后续已在本批 CP05L 最终收口时按精确 ID
+  停止并核验移除；两个批次均已有各自完成回执。
+- **边界**：CP05D、R2-11 均为历史交付；原生 desktop 关闭会话、真实 Media/设备、Provider、
+  IdP、真实数据与生产未验。最终 format、独立 Review、commit 与 push 以主控同卡回执为准，
+  用户 Review 待，本归档不写 APPROVED。完整事实见
+  [PROJECT_STATUS 的 CP05K 小节](../PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)。
+
+## 2026-11-15 CP05D 设置抽屉动态可见性
+
+- **状态：`FINAL_READY`（本地子卡完成归档）**：设置抽屉已打开且输入聚焦后，普通 resize、
+  根字号 200% 后 resize 与聚焦后仅改字号三种动态空间场景，通过当前活动元素归属、单帧合并和
+  `nearest` 滚动保持输入可见，同时保留焦点、草稿和既有焦点语义。
+- **有效 RED**：单测先证明实际 Drawer 挂载后缺少 viewport reveal 资源；浏览器在严格初始
+  focus/value/完整可见成立后只改变 factor，目标场景仍出现不可见。静态布局通过；该静态矩阵未
+  复现固有尺寸裁切，本卡不修改布局或控件尺寸；早期未建立初始可见性的诊断不作为回归。精确失败
+  计数与 ratio 集中在 PROJECT_STATUS。
+- **实现边界**：`window.resize`、可用 `visualViewport.resize` 与特征守卫的滚动区
+  `ResizeObserver` 合并到一个 rAF；帧执行时只滚当前 connected 且归属滚动区的 active 元素。
+  不主动 focus、不改草稿/store、不发业务写，不改变既有 focus trap/Tab；关闭、卸载与 StrictMode
+  清理资源，特性缺失安全退化。
+- **最终验收**：quality、Vitest、backend、build、Fake API、API 类型与 iOS Node runner 已通过；
+  全量 E2E 为 Chromium/WebKit 各 `131`、共 `262`，全部 passed，skip/flaky/unexpected/retry 均为
+  `0`、`exit 0`。新增三场景双浏览器各重复 `20` 次、共 `120` 次，机器确认六组各 `20` 次，
+  每次执行恰有一个 passed result，skip/flaky/unexpected/retry 均为 `0`、`workers=1`、`exit 0`。三项有效私有 load 变异均
+  杀死目标断言，恢复后冻结目标测试为 `7 passed / 0 failed`；未选用例不计覆盖。其余精确机器计数
+  集中在 PROJECT_STATUS。
+- **收口边界**：两份测试完整行为 AST 与有效 RED 一致；Node22 Prettier 仅纯格式化新 E2E 与四份
+  仓内文档，产品与 unit 测试未改动，既有断言未改。**旧 CP05D 所属批次**的数据库验证已完成，
+  该旧批自有合成 PG 已 `stop_exit0`、`auto_removed=true`，精确 container ID、双 owner、
+  loopback 与合成身份均核验，其他资源未动；`cp05k-cp02i-cp05l-20261115` 新批三卡共用 PG
+  后续也已在同批 CP05L 最终收口时按精确 ID 完成 `stop_exit0`/`auto_removed=true`。独立
+  Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，本归档不写
+  APPROVED。真实 OS 键盘、非零 safe-area、设备、
+  Media/Provider、IdP、真实数据与生产未验；CP-05 手机动态视口/键盘/safe-area 父项继续保留
+  `[ ]`。
+- 完整机器数字集中在
+  [PROJECT_STATUS 的 CP05D 小节](../PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)，验证口径见
+  [CP-05 设置抽屉动态可见性](../verification/cross-platform/CP-05-SETTINGS-FOCUS-VIEWPORT.md)。
+  下方 R2-11/R2-10 等条目均为各自历史时点，与本卡不合并计数。
+
+## 2026-11-15 R2-11 会话中界面本地子卡（FINAL_READY）
+
+- [x] **R2-11 会话中界面本地子卡（FINAL_READY，本地实现）**：LiveKit 容器背景映射主题
+      token、场景名与墙钟计时页头、移动字幕优先、`thinking` 独立文案、单实例回答推荐展开与
+      `sessionPresentation` 内存展示对象（归属 `(sessionId, sessionGen)`，代际/失败/reset 清空）。
+      两份单测与 3 个 E2E 模块桩文件随卡交付；页头墙钟只是 `started_at` 到当前时间的经过时间，
+      不是有效说话/练习/周报/计费时长。
+- [x] **TDD 与历史失败保留**：有效 RED 为 unit `22 failed / 4 passed / 26 total` 与 browser 1 例
+      （旧 Listening 挂载后页头缺失）。R0 全量 Vitest `1254/1`、quality `2`（新测试非法
+      `AuthState`）、format `1`、E2E `252/4`（过早取 body 250ms 过渡中的主题色）均保留，不并入
+      产品回归。R1 修正 logout 用例接真实 `AuthGate` 清理链、字面量改合法 `anonymous`、背景比较
+      改 `expect.poll` 等待最终色，并移除 start 完成处误加的外壳补丁。
+- [x] **最终机器验收**：13 项门禁全部 `exit 0`，含 Vitest `1255 passed / 54 files / 0 skip`、
+      E2E `256 = Chromium 128 + WebKit 128`（single passed / retry 0 / 0 skip / flaky / unexpected）、
+      lint `132 warning / 0 error / 0 new` 与三项有效私有 load 变异均 killed。完整机器数字集中在
+      [PROJECT_STATUS 的 R2-11 小节](../PROJECT_STATUS.md#r2-11-会话中界面本地子卡final_ready)，
+      边界与口径见
+      [R2-11 验证说明](../verification/cross-platform/R2-11-SESSION-LAYOUT.md)。独立 Review 与
+      正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，不写 APPROVED。父项
+      R2-11 保持未勾：真实 LiveKit 人工媒体验收未做，SDK 模块桩不等于真实媒体。
+
+## 2026-11-15 R2-10 硬编码文案收口（FINAL_READY）
+
+- [x] **R2-10 硬编码文案收口（FINAL_READY，本地实现）**：父项原验收完整保留：store/lib/组件中
+      14 处中文字面量与 `goalReached` 英文迁入 `src/i18n/`；`Goal reached!` 按已确认文案改为
+      “已达成今日目标！”，其余既有文案内容不变；设置抽屉标题为“设置”；推荐卡片与语法提示复用
+      真实技能中文映射；扫描测试要求 `src/` 非 i18n、非测试文件无中文字符串字面量。
+- [x] **父项既有回执未被新工作覆盖**：设置入口/dialog 标题和活动行、结束/恢复确认面板去完整 UUID
+      已由 R2-UI 按方案 A 完成并留档；用户可见正文、`title` 与最终可访问名称均无 UUID，完整 ID
+      只保留内部 key、稳定定位、API 参数与精确目标归属。R2-10 承接该既有回执，没有重复实现或
+      改写其历史数字。
+- [x] **本卡新增收口**：10 个后端真实技能共用中文标签目录，推荐卡已知标签与语法提示扩展标签均
+      命中中文；未知标签分别维持原 `formatTitle` / 原 `skill_tag` 回退，原型属性使用 own-property
+      安全判断。`platform/url.ts` 的 20 条 `[EchoTalk]` 配置错误原文迁入语言包，21 处抛错原位保留，
+      异常类型、校验顺序与全部 URL 安全行为不变；中文扫描撤除该文件豁免。
+- [x] **TDD 与历史失败保留**：冻结测试先为
+      `3 failed / 18 passed / 21 total / 0 skip / exit 1`，三项有效失败对应推荐已知标签、语法提示
+      扩展标签和 URL 中文扫描。首轮 `toString -> To String` 是测试夹具对 `formatTitle` 的误判，
+      正确回退为 `ToString`，不混作产品回归。初始完整 format `exit 1`、R0/R1 两次 quality
+      `exit 2` 均保留；R2 只补齐生成类型要求的 `target_level` 与 `weakest_skill_mastery`，并格式化
+      同一测试，断言、API 类型和产品字节未改。
+- [x] **最终机器验收**：主控确认 13 项门禁全部 `exit 0`，R2 修正后的 quality、Vitest、E2E、
+      backend、format、build 与 lint 均全绿；全部私有加载变异均被目标断言杀死，独立 AST、URL
+      顺序/归一化 AST 与保护文件字节核对通过。完整机器数字集中在
+      [PROJECT_STATUS 的 R2-10 小节](../PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)。
+      独立 Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待；本归档不写
+      APPROVED。该历史时点，本批独占合成 PG 仍供 R2-10/R2-11/CP05 使用；**旧 CP05D 所属
+      批次**后已停止并确认自动移除，不涉及当前 `cp05k-cp02i-cp05l-20261115` 新批资源。
+
+## 2026-11-15 SGEC-OFF 严格离线校验与合成评测
+
+- [x] **SGEC-OFF 严格离线校验与合成评测（FINAL_READY，本地实现）**：新增纯模块
+      `services/sgec_offline.py`、CLI runner `scripts/evaluate_sgec_offline.py`、固定合成
+      `tests/fixtures/sgec_offline_cases.json` 与结构化单测 `tests/test_sgec_offline.py`。纯模块只做
+      五核心字段全批次严格结构校验、调用方合法 `skill_tag` 集合与受控合成元数据，`run_offline` 的
+      fixture 读取归位到 scripts runner，纯模块导入/调用/序列化零副作用。完整数字、5 有效变异、
+      纯模块冷进程边界、runner 真实 CLI 与边界见
+      [PROJECT_STATUS 的 SGEC-OFF 小节](../PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)，
+      本归档不重复抄录。SGEC 总项、真实 Provider、人工 gold、BKT/learning events 接线与生产未验，
+      不称准确率。精确合同见 [SGEC_OFFLINE_CONTRACT.md](../SGEC_OFFLINE_CONTRACT.md)。独立技术
+      Review、最终文档 format、正常 Husky commit/当前分支 API 发布以主控同卡回执为准，用户 Review
+      待，不写 APPROVED。
+
+## 2026-11-15 R2-UI 设置标题与活动记录去 UUID
+
+- [x] **R2-UI 设置标题与活动记录去 UUID（FINAL_READY，本地实现）**：设置入口/dialog 使用“设置”，
+      活动行与结束/恢复面板使用既有模式和开始时间，用户可见正文、`title` 与最终计算可访问名称均无完整
+      UUID；内部 key、稳定定位、API 目标与业务行为保持。阶段链由历史 `DRAFT_READY` 快照进入
+      `FINAL_READY`；首轮完整 Vitest 与 E2E 的失败来自旧显示定位迁移不全，不是产品、信令或行为回归。
+      31 处旧定位、两处既有 E2E 同类依赖、私有 overlay 变异、最终 `allowed=24 / protected=672`、截图边界
+      和最终门禁的完整事实见
+      [PROJECT_STATUS 的 R2-UI 小节](../PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
+      独立技术 Review、最终 format、commit/push 以主控同卡回执为准，用户 Review 待，不写 APPROVED。
+      生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收；SGEC-OFF 当时待实施（原时点），
+      本批独占合成 PG 当时待 SGEC 后清理，现已完成清理。
+
+## 2026-11-15 R2-LIVE 活动会话生命周期实时门禁
+
+- [x] **R2-LIVE 活动会话生命周期实时门禁（FINAL_READY，本地实现）**：生命周期事件现从同一
+      conversation store 实时读取启动状态并复用 `isStartingConversationSession`，移除了挂载快照
+      门禁与 hook 多余参数；未改 data/auth/store/platform 或旧测试。有效 TDD 链
+      `2 failed / 1 passed → 3 passed → 2 failed / 1 passed` 保留；`act` 安排修正后新 3 测试
+      `3 passed / exit 0` 且无警告，冻结 RED 的全部 26 个 `expect` 经 AST 核验保持。挂载快照与
+      render 快照两项私有变异均使两正向 DOM 失败、反向通过并 `exit 1`，未改跟踪源。
+      主控新鲜 13 门禁全部 `exit 0`；完整数字、保护文件与边界集中在
+      [PROJECT_STATUS 的 R2-LIVE 小节](../PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
+      本归档不重复抄录。
+      本轮 GO 只授权本地实现；生产、真实 Provider/IdP/LiveKit、设备与部署从未验收。独立技术
+      Review、最终文档 format、正常 Husky、提交和推送以主控同卡回执为准，用户 Review 待，不能
+      自行写成 APPROVED。R2-UI 与 SGEC-OFF 当时仍未实施（原时点）；本批独占合成 PG 当时留待后两卡
+      且尚未清理，现已完成清理。正式返修为 `0/2`。
+
+## 2026-11-15 DEC-A R2 与 SGEC 设计口径回写
+
+- [x] **DEC-A 设计确认回写与正式返修 1/2（FINAL_READY）**：按用户已确认的 R2 与 SGEC 推荐 A，新增
+      [R2 活动会话生命周期与显示合同](../R2_FOLLOWUP_CONTRACT.md)与
+      [SGEC 严格离线校验与合成评测合同](../SGEC_OFFLINE_CONTRACT.md)，并回写
+      [前端 Data 层合同](../FRONTEND_DATA_LAYER_CONTRACT.md) §8/§9、[TODO.md](../../TODO.md)、
+      [PROJECT_STATUS.md](../PROJECT_STATUS.md) 和本归档。R2 拆为 R2-LIVE 与 R2-UI 两张未勾实施卡；
+      活动行和结束/恢复确认面板均不得向用户显示完整 UUID。SGEC 总项仍未勾，只确认严格离线设计，
+      未产生真实质量或准确率结论。正式返修 1/2 已修正空 `errors`、标准 JSON fixture、旧挂载快照
+      持续抑制事实、共享设置标题来源及最终可访问名称边界。主控 12 项与附加脚本的已回传证据和细
+      数字集中记录在 [PROJECT_STATUS 的 DEC-A 小节](../PROJECT_STATUS.md#dec-a-r2-与-sgec-设计口径回写final_ready)，
+      本归档不重复抄录。
+      本卡为纯文档修改，没有改代码、测试、API、数据库、迁移、依赖或 CI；实施节点不跑测试、服务、
+      PG 或真实外部依赖，只允许对精确六文档执行现有 Prettier。最终 13 组合（含 format）、独立
+      Review、DEC-A 当时任务分支提交发布与用户 Review 状态以该卡主控同卡回执为准。DEC-A 写入时
+      R2-LIVE、R2-UI 和 SGEC-OFF 三张实施卡均未完成；R2-LIVE 后续已另行完成，R2-UI 和
+      SGEC-OFF 当时也均未完成（原时点），后续均已分别完成。
+
+## 2026-11-15 RDOC 路线图历史快照口径修正
+
+- [x] **RDOC 路线图历史快照口径修正（FINAL_READY）**：RDOC 当时只修正
+      [架构演进规划](../ARCHITECTURE_ROADMAP.md) §3.4 与 B1 实施顺序中的三处时点标签、当时的
+      验证索引和旧暂停边界。R2-14 的 `941 / 81.57% / 246` 等历史数字，B1/WPH 的失败与证据，
+      A18P2 细节，路线图架构、业务政策、范围及阶段退出条件均保持原样。RDOC 当时实现/验证指向
+      [PROJECT_STATUS 的当前验证基线](../PROJECT_STATUS.md#当前验证基线)；旧“停在此卡、不启动
+      下一卡”注明为历史暂停，RDOC 之后下一卡以其后用户授权与 [TODO.md](../../TODO.md) 为准。
+      本卡为纯文档修改，实施节点未跑测试、服务或 PG，未读取 runtime 或凭据。完整机器门禁数字、
+      技术 Review、最终 format、RDOC 当时任务分支提交发布与用户 Review 状态见
+      [PROJECT_STATUS 的 RDOC 小节](../PROJECT_STATUS.md#rdoc-路线图历史快照口径修正final_ready)。
+      本归档不复制细数字。
+
+## 2026-11-15 A18P2 启动/恢复生命周期减重与实例隔离
+
+- [x] **A18P2 启动/恢复生命周期减重与实例隔离（FINAL_READY）**：移除模块级 `currentStartupTracker`、
+      `testingLifecycleOptions` 与全局测试注入 `_setLifecycleOptionsForTesting`，`createConversationSlice`
+      工厂只拥有自己的 tracker/adapter/监听/计时器；start/resume 重复生命周期编排抽成实例内公共
+      `runStartupLifecycle`。R1 将 helper 由 async 改为同步返回（`awaitNativeReady` 仅 native 分支异步
+      等待 ready），恢复 Web 零额外 await，并修新 fixture 类型。新增
+      `conversationLifecycleIsolation.test.ts` 覆盖 start/start、start/resume、resume/start、
+      resume/resume 与 cancel/late 跨实例隔离，两旧测试文件迁移到局部 platform mock。最终 13 项门禁
+      组合均 `exit 0`，Vitest `1216 passed / 50 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。
+      A18P2 当时详细数字、TDD/R1 历史与证据边界见
+      [PROJECT_STATUS 的 A18P2 小节](../PROJECT_STATUS.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)和
+      [CP-05 原生启动与显式恢复](../../docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)。
+      A18P2 当时最终文档 format、独立 Review、当时任务分支提交和推送以该卡主控同卡回执为准，
+      用户 Review 待；不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
+
+## 2026-11-15 A19 P2 Room 快照与引用所有权
+
+- [x] **A19 P2 Room 快照与引用所有权（FINAL_READY）**：Room 初次 Web 门禁改为每次实际读取的
+      无订阅纯快照，hidden/offline 继续失败关闭，unknown/null 保持兼容；RoomContextSync 移除
+      无人消费的可选 `onRoom`/`roomRef`，只在已提交的 layout effect 中发布所需 Room，替换或卸载
+      时仍同步停止所属本地音轨。并发 render、SDK Room commit 替换、StrictMode 与健康重渲染已有
+      A19P2 行为回归。首轮 TESTS RED 为 `2 passed / 3 failed`；R1 只迁移既有 CON-04 的非断言
+      夹具 setup，所有旧 `expect` 保持不变。最终 13 项门禁组合均 `exit 0`，Vitest 为
+      `1211 passed / 49 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。详细当前数字、
+      TDD/首轮 GREEN/R1 历史与证据边界见
+      [PROJECT_STATUS 的 A19 P2 小节](../PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)和
+      [CP-05 Native Room](../../docs/verification/cross-platform/CP-05-NATIVE-ROOM.md)。A82 旧完整失败
+      因果仍未证明，A82C 历史计数不得复用。最终文档 format、独立 Review、当前任务分支提交和推送
+      以主控同卡回执为准，用户 Review 待；不开 PR、不合并、不部署，真实外部链路仍未验收。
+
+## 2026-11-15 A82C Native Room 本地夹具就绪
+
+- [x] **Native Room 回归夹具就绪（仅 A82 本地子项）**：当前两条 native/DOM 交叉异步用例先保存
+      当前 DOM 实例，再等待同一实例的 callback map 项及所需字段登记；目标断言仍在 native
+      callback 返回前验证本地轨同步停止。主控当前 13 项门禁分组均 `exit 0`，两条目标在 20 个
+      独立进程中按零重试执行并通过。详细计数、覆盖率、源码审计与边界见
+      [PROJECT_STATUS 的 A82C 小节](../PROJECT_STATUS.md)。
+      本归档仅关闭本地夹具就绪子项；旧 A82 的 15 份 main 回执 SHA 匹配只属于历史证据，且当前
+      两条目标与旧 A82 完整 callback 存在 6 处 typed store facade 标识差异，不能写成整段 AST
+      完全相同。旧失败完整因果、真实设备/Provider/IdP/LiveKit、远端 CI、部署与 RF 总项仍未关闭。
+      独立Review/提交发布见主控同卡回执，用户Review待。
+
+## 2026-11-14 A84C 文档收口（历史快照）
+
+- [x] **A84 历史状态校正**：旧 A84 r0 交付记录“待 Review”只是交付时点；后续旧快照已在
+      `42c251b3470aa5f7e9cfe5a1fb2655dc8f9b5aa9` 完成独立 APPROVED、7 个有效变异及
+      lane/main 15 项复验。该结论绑定 2026-11-01 的
+      `fc9b5f6d57fe15ae730b83c5f8b9a50f54a8c56d` 快照，不表示 A84C 的 `44cb125…` base
+      在当时已通过。A84C 于 2026-11-14 达到 `FINAL_READY`：该历史快照的 13 项门禁分组执行均为
+      `exit 0`，目标三文件 `29 passed`，专用 PG 迁移和两项入口变异完成，PG 已核验精确 ID/
+      双 owner/loopback 后 stop `exit 0` 并验证 auto-remove，SDK 实际版本为 `1.6.10`；旧
+      `1.4.3` 与旧 `37` 目标仍是更早历史，不与 A84C 快照结果混算。所有数字均不作为 A82C
+      当前结果。独立Review/提交发布见主控同卡回执，用户Review待。详细证据与外部未验边界见
+      [PROJECT_STATUS 的 A84C 小节](../PROJECT_STATUS.md)。
+
+## 2026-11-14 RF04E 已有远端 CI 证据核对
+
+- [x] **RF04E 已有远端 CI 证据核对**：完成 `42c61bb`、`6bda2cd`、`ef6cb53` 历史 main push
+      与 `5c28e1b` iOS failure/aggregate failure 的只读证据核对，完整 run/job/契约矩阵见
+      [CP-06 CI 质量门禁验证](../../docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。
+      本归档只表示证据文档子卡完成；RF-04 总项、iOS 有限重试、required check、真实链路和本轮核对
+      时的起始树 `4ec1a4d` 的 CI 仍未通过或未验。
+
+## 2026-11-14 CF20 Chromium 焦点就绪竞态回归
+
+- [x] **CF20 本地实现**：仅改原 Playwright spec，以共享 `weekly-progress` 就绪 helper 和
+      held/release 门控绑定原焦点断言；产品字节、原共享 `openDashboard` 与 Fake API 数据未改，
+      weekly-progress route gate 为明确新增回归。
+- [x] **CF20 定向验证**：删除 helper 唯一等待的私有 mutation 被 Chromium/WebKit 各 3 次杀死；
+      正式定向复验为 `80 passed / 0 failed / 0 skip / 0 flaky / 0 retry / exit 0`。详细门禁数字与
+      边界见 [PROJECT_STATUS 的 CF20 小节](../PROJECT_STATUS.md)。
+- [x] **RF04E 全量 E2E 焦点可达性**：CF20 历史快照 base
+      `c5f9c7274ac85f6fb77212b8944c97e6edae41df` 上的完整双浏览器 E2E 为
+      `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0；原焦点用例已在
+      这两个 project 中完成本地实现验证。
+- 本归档只表示本地实现与机器核验完成；最终完整门禁与 Review/提交/发布见主控同卡回执，
+  用户 Review 待。
+
+## 2026-11-13 WG20 WebKit 周语法补验
+
+- [x] **WG20 周语法 WebKit 重复稳定性补验**：主控实跑完整 13 项门禁及聚合均 `exit 0`；
+      WebKit 零重试重复补验达到当时门槛，完整数字与证据见
+      [PROJECT_STATUS 的 WG20 小节](../PROJECT_STATUS.md)。历史“无重试 5 次失败 1 次”保留；
+      旧“认证刷新耗掉唯一一次 503”假说仍未证实，该历史快照夹具为持续返回 503 直到测试显式放行。
+      该轮仅文档收口，无产品修改或源码修复。最终回执与用户 Review 待主控处理。
+
+## 2026-11-13 R2-13 组件目录按页面边界归位
+
+- [x] **R2-13 组件目录按页面边界归位**：抽出 `Dashboard` 并按页面边界 `git mv` 38 个文件，其中
+      29 个内容不变、9 个仅修改模块路径或目录注释，12 个测试文件随之移动；三测试树计数不变。
+      独立代码 Review 为 APPROVED，用户 Review 待。详细门禁和边界见
+      [PROJECT_STATUS](../PROJECT_STATUS.md)。
+
+## 2026-11-13 R2-12 macOS 构建产物与同步前校验
+
+- [x] **R2-12 macOS 构建产物与同步脚本**：完成共享 Vite 的 macOS 纯静态构建产物
+      `dist/macos/<mode>`、manifest、外部工具启动前的来源/平台/mode 校验，以及将 `ANALYZE`
+      纳入 Turbo 缓存输入的任务。独立代码 Review 为 APPROVED，本地验收完成，用户 Review 待；
+      正式壳、Tauri 选型、native 认证、真实设备、签名、公证与发布均未创建或验收。详细门禁和
+      边界见 [PROJECT_STATUS](../PROJECT_STATUS.md)。
+
+## 2026-11-13 R2-14 Compose 系统就绪与一次性迁移
+
+- [x] **R2-14 Compose 系统就绪与一次性迁移**：本文记录的本地验证为在 `b744e63` 父提交上完成
+      本地合成实施。新增公开、无用户身份的 `GET /api/health/system-ready`，只使用共享
+      PostgreSQL 连接执行 `SELECT 1`；成功返回 typed `200 {"status":"ready"}`，连接、查询、超时
+      或资源释放失败统一返回 typed `503 {"status":"not_ready"}`，不返回底层异常、地址或配置。
+      readiness 只在连接 Context 完整释放后响应；最终数据库操作预算为 `0.5s`，为当次快照中的 asyncpg
+      约 `2s` 的 shielded graceful close 留余量，完整响应目标 `<3s`。旧 `/api/health/ready` 的
+      函数、认证和用户配置判断未改；真实路由无 Bearer/错误 Bearer 均 `200`，旧 ready 错误
+      Bearer 仍 `401`。
+      Compose 新增使用 API 角色、同一 `DATABASE_URL` 和既有环境边界的一次性
+      `echotalk-migrate`，执行 `alembic upgrade head`，设置 `restart: "no"` 并依赖 PostgreSQL
+      `service_healthy`；API、Agent、analysis-worker 依赖迁移
+      `service_completed_successfully`，Web 依赖 API `service_healthy`。API healthcheck 使用镜像
+      已有 Python 标准库和 `ProxyHandler({})` 请求 loopback，显式绕过 `HTTP_PROXY` 等环境代理，
+      HTTP timeout 为 `4`、容器 timeout 为 `5s`，不嵌入用户 Token。合同见
+      [Compose 启动与系统就绪合同](../COMPOSE_STARTUP_CONTRACT.md)。18 份既有迁移 SHA 未变，
+      本卡新增 migration 为 0；B1 人工切换期间全部新旧 worker 仍须保持停止到
+      `traffic_resumed`，Compose schema 升级不代表生产数据切换。
+      验证结果：完整 13 项门禁及聚合 `exit 0`；backend
+      `941 passed / 3 warnings / 0 skip / 81.57% raw Total coverage`，Vitest
+      `1206 passed / 49 files`，Fake API
+      `116 passed / 0 skip`，双浏览器 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`
+      （`--retries=0 --workers=1`），build-script `21`、API 类型 runner `8`、非 native iOS 脚本
+      runner `37` 均 `exit 0`。lint 为 `132 warning / 0 error`，逐诊断与父基线相同。Compose
+      原生 `config` 与迁移依赖图 `exit 0`，未解析 `env_file`、镜像或启动原整栈。健康探针实际
+      Python 命令在自有 HTTP fixture 的 ready/unready/wrong-body/timeout/HTTP proxy trap 五类中
+      符合预期；ready `exit 0`；unready、wrong-body、timeout 各 `exit 1`；proxy trap 被绕过且代理
+      收到 0 请求。
+      主控 R0 真实自有 PG pause 在 4.5s 外层请求超时且未返回 `503`，是有效产品失败证据；R1 新增
+      的约 2s-cleanup 模拟用例在 3.5s 硬期限命中，是模拟回归 RED。随后 R1 真实自有 PG pause 返回
+      通用 `503`，耗时 `2.518465s`、checkedout 为 0；unpause 后返回 `200`，用户数不变。真实连接
+      释放后再注入异常仍返回 `503`。R1 同一正式返修轮确认并修复两个 P1：其一，等待查询预算再叠加
+      asyncpg 约 2 秒取消清理，导致 3.5 秒硬期限先命中，最终改为服务内 0.5 秒操作预算；其二，
+      环境代理会截获 loopback healthcheck，最终只在当次探针使用 `ProxyHandler({})`。FastAPI
+      延迟 `IncludedRouter` 曾使 OpenAPI 测试直接读取 `app.routes` 时 `StopIteration`，属另一项夹具
+      修正，改为从公开 `routers.health.router` 枚举相对 route，未改产品语义。两个 P1 同属 R1，
+      正式产品返修仍使用 `1/2`。
+      源码 10 文件与主控 `R214-R1-code-frozen-sha256.json` 逐项一致；缺 route 的初始 backend
+      `6 failed / 0 skip / exit 1` 是功能实施前的有效 TDD RED（当时新功能尚未实现，尚未进入真实
+      PG 故障验证）；`ModuleNotFound` 导入错误、延迟 `IncludedRouter` 的 route 枚举及 format
+      问题属于夹具/格式。主控独立代码 Review 为 APPROVED，正式返修 `1/2` 闭环；最终 Review/发布
+      见同卡回执，用户 Review 待。生产发布、原 Compose 整栈、真实 Provider/IdP/LiveKit、设备、
+      模式切换和未来卡均未勾选。
+
+## 2026-11-12 B1 学习事件实施（B1-1）
+
+- [x] **B1-1 模型、新增迁移与约束**（依赖 B1-0）：新增 `LearningEvent` ORM 并注册，新增以
+      `c06_transcript_events` 为父 revision 的 `b1_learning_events` 迁移，落实 identity
+      `apply_seq`、事件形状 CHECK、幂等键唯一、完成 Job 唯一、来源外键 `ON DELETE RESTRICT`
+      和四个查询索引；16 个旧迁移未改动。pronunciation/grammar observation 允许
+      `model_version=NULL`，兼容既有 `legacy_mock`/`legacy_rule` 回填与旧 pending 来源，不写伪版本。
+      主控 RED 实跑为 4 failed/0 skipped、exit 1，失败均对应缺失 ORM/迁移/表。实现节点未连接
+      PG、未执行迁移或测试。随后主控在本轮专用合成 PostgreSQL 完成空库 upgrade 至 b1、PG schema
+      GREEN `4 passed / 0 skip / exit 0`、current/downgrade 回 c06 后清除表/索引/identity、
+      reupgrade 至 b1 exit 0，以及独立真实 PG 与 ORM 元数据 compare 零差异 exit 0。ORM 的
+      `idempotency_key` 唯一约束与 migration 同名一致；`JSONB(none_as_null=True)` 将 Python
+      `None` 绑定为 SQL `NULL`。既有 worker PostgreSQL fixture 原固定 `c06_transcript_events`，
+      主控实跑得到 `1 error` RED 后，已改为读取仓库 Alembic 源码 `get_current_head()` 并严格比较
+      数据库 `alembic_version`；原 DB/user/PG15.19/DSN guard 不变。本轮最终门禁、backend 813、
+      本机 E2E `233 passed / 1 failed / exit 1` 及唯一既有 WebKit 失败见
+      [PROJECT_STATUS B1 小节](../../docs/PROJECT_STATUS.md)，不能称本机全树全绿。生产库未执行。
+      无业务写入、切换、导出、删除、依赖或 UI 变更。
+
+## 2026-11-12 B1 学习事件实施（B1-2）
+
+- [x] **B1-2 同事务事件写入、幂等、用户锁与 BKT 隔离**（依赖 B1-1）：成功 Job 在同一事务写
+      `analysis_completed`、mapped observation、评估结果、BKT 状态和 `succeeded`；用户行锁覆盖
+      幂等校验、事件插入、状态读取与更新。切换后旧 `pending` 和按现有重试规则可处理的 `failed`
+      Job 走同一新事务，成功旧 Job 不回填；`occurred_at=sessions.ended_at`，BKT 按 `apply_seq`。
+      验收覆盖重复/并发重试、跨用户/Session 来源交叉、全合成隔离、失败回滚和旧状态路由；并发
+      事务只产生一次观察和一次 BKT 更新，`bkt-v1` 四参数冻结；本版不开放成功后重新分析。失败
+      重试仍可用；只读重算的政策保留，工具由尚未实施的 B1-3 交付。
+      结果：专用合成 PostgreSQL 目标套件 `116 passed / 0 skip / exit 0`；完整 backend
+      `844 passed / 3 warnings / 0 skip`、覆盖率 `80.82%`。用户锁、实际 `apply_seq` 相反观察、
+      原始 ordinal、缺观察拒绝、未知模型 `NULL`、不复制 alignment、三类完成冲突，以及 10 条观察/
+      3 个技能/知识状态单次读取/unmapped 计数探针均 `exit 0`。15 项完整门禁中 14 项 `exit 0`，
+      E2E 为 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是与历史基线相同的
+      WebKit Provider select `336×23 < 44px`，DocTalk 通过，不能称本机全树全绿。独立代码 Review
+      结论为 APPROVED。当前停在 B1-2 Review（用户审阅待），提交/推送结果见本次交付回执；不创建
+      PR、不合并。
+
+## 2026-11-13 B1 学习事件实施（B1-3）
+
+- [x] **B1-3 基线切换工具与只读一致快照重算校验**（依赖 B1-1、B1-2）：为既有
+      `(user_id, skill_id)` 幂等写入 `baseline_snapshot(source=legacy_unknown)`，以数据库单例控制行
+      串行化五阶段切换，并要求维护人员从停旧 worker 起维持停写到 `traffic_resumed`。事件 writer 与
+      已领取 Job 的执行入口统一经过持久门控；实际领取函数 `claim_next_job` 本身没有 gate，因此全部
+      新旧 worker 必须保持停止到 `traffic_resumed`。旧历史趋势不可恢复。只读校验在单一
+      `REPEATABLE READ READ ONLY` 快照首查固定 `MAX(apply_seq)` watermark，按基线、observation、
+      冻结算法版本与参数重建状态，失败只报告而不修改产品状态。
+      结果：主控独立代码/测试 Review 为 APPROVED；目标套件为
+      `147 passed / 0 failed / 0 skip / exit 0`；完整 backend 为
+      `878 passed / 3 warnings / 0 skip`、覆盖率 `80.51%`、exit 0。
+      Vitest 保持 `1206 passed / 49 files`，Fake API `108`、构建脚本 `21`、API 类型测试 `8`，
+      lint 为 `132 warning / 0 error / 0 new warning`，前端自 `f6007a2` 未改。除 E2E 外的完整
+      门禁均为 exit 0。E2E 首轮为 `232 passed / 2 failed / 0 skip / 0 retry / exit 1`，失败为
+      WebKit Provider select 几何与 readiness 引导 textarea 超时；DocTalk 定向为
+      `3 passed / 0 failed / 0 skip / 0 retry / exit 0`；再次全量为
+      `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，DocTalk 通过、只剩同一 WebKit Provider
+      select 实测失败。首轮失败及 DocTalk 定向结果均保留；仅 DocTalk 首轮失败原因未确认，不能
+      归因于环境、历史基线或回归，也不能称全树全绿。
+      新增迁移 `b1_learning_event_cutover` 在专用合成 PostgreSQL upgrade、downgrade 回
+      `b1_learning_events`、reupgrade 与 roundtrip 均 exit 0，既有事件保留，ORM 与真实 PG schema
+      零差异；既有 17 份迁移与 18 份迁移 pin 未变。独立门控、整包快照、只读、CLI 导入隔离和八项
+      回归缺口探针退出符合预期，READ COMMITTED 反例 mutation 被杀死。
+      运维边界：实际 Job 领取函数 `claim_next_job` 本身没有 gate，全部新旧 worker 必须保持停止到
+      `traffic_resumed`。部署代码不会启动 worker；显式停写声明、数据库锁和表锁都不能证明未知旧进程
+      已退出。CLI 只接受已批准的合成库白名单，不隐式读取 `.env`；结果码/用法按 0/1/2 区分，
+      baseline 默认 preview 零写，只有显式确认参数才写。零语法错误没有持久来源行，校验只能检查
+      coverage 结构与类型，并在来源存在时比对事实，不能虚构 Provider 事实或独证“零错误”。
+      B1-5 未来必须协调合法删除本人 `baseline_snapshot` 事件后的全局控制数量/摘要，保留控制行
+      `learning_event_cutover.revision`、`learning_event_cutover.cutover_at` 和既有门控，不得删除
+      单例控制行或重新锚定；本卡不实现。
+      B1-4/B1-5 未启动。本卡停在 Review 等待用户审阅；提交/推送状态以同卡交付回执为准，不开 PR、
+      不合并。生产 DDL/切换/部署、真实数据、真实 Provider/LiveKit/IdP/设备均未执行；任务分支 push
+      不触发远端 CI，远端 CI 未执行。
+
+> **历史时点说明：** 上述 B1-5 未启动、未来协调口径属于 B1-3 当时快照；B1-5 后续完成记录见
+> [本平台整账号硬删除](#2026-11-13-b1-学习事件实施b1-5)。
+
+## 2026-11-13 B1 学习事件实施（B1-4）
+
+- [x] **B1-4 本人数据结构化 JSON 导出**（依赖 B1-1、B1-2）：新增只读
+      `GET /api/user/data-export`、13 个 schema、导出 service 和薄路由，返回固定
+      `schema_version=1` 的 JSON 附件。顶层仅含 `schema_version`、`exported_at`、sessions、
+      transcripts、pronunciation assessments、grammar assessments、learning events 与 knowledge
+      states；Session 只含解释子记录所需的最小元数据。各节采用显式白名单投影，排除 API Key、
+      认证身份、内部 prompt/文档、音频、Provider 完整原始响应/引用、幂等键及未列明字段。
+      独立导出会话使用单一 `REPEATABLE READ READ ONLY` 快照，不复用认证调用方事务，也不通过强制
+      提交 auth 事务解决首次用户映射；本人空导出返回空数组。查询后校验 Session/Event、
+      AnalysisJob/来源评估以及 Skill 关系，只读取本人数据；部分数据不补造，未知版本保留 `null`。
+      顺序固定且带稳定标识兜底；完整模型构造后整体缓冲序列化，成功响应仅带 JSON、`no-store`、
+      固定附件名和 `nosniff`，失败返回无成功/下载头的通用 500。全部同类 float 边界拒绝 NaN/±Inf，
+      合法 `None` 保留 `null`。Fake API 成功响应 fixture、Node 契约测试、A3 operation 审计、
+      OpenAPI 和 TypeScript 生成物均同卡完成，A3 固定 missing/unmodeled/deviation 清单逐字未改。
+      结果：主控独立代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；主控代跑初始 backend 基线
+      `878 passed / 3 warnings / 0 skip / 80.51% / exit 0`，首轮 RED backend
+      `10 failed / 0 skip / exit 1`、Fake API `106 passed / 4 failed / 0 skip / exit 1`，R1 非有限值
+      RED `9 failed / 11 passed / 0 skip / exit 1`。修后目标 `20 passed / 0 skip / exit 0`，完整
+      backend `898 passed / 3 warnings / 0 skip / 80.86% / exit 0`；20 项目标是 898 项的子集。
+      Vitest `1206 passed / 49 files`、Fake API `110 passed / 0 skip`、构建脚本 21、API 类型测试 8
+      均 exit 0；format、lint、typecheck、build、backend Ruff、OpenAPI schema、provider metadata
+      与 TS 漂移检查均 exit 0，lint 为 132 warnings/0 errors 且无新增。完整双浏览器 E2E 为
+      `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
+      `[webkit] e2e/a11y-focus-touch.spec.ts:94:5` 的设置抽屉三个 Provider select
+      `336x23 < 44px`，断言位于第 127 行；UI/样式/E2E/配置相对父提交未改，按同名范围外遗留保留，
+      不能称全树全绿。`run-gates.py` 聚合 exit 0 不覆盖真实 `e2e=1`。
+      专用合成 PostgreSQL 15.19 从空库重放 18 份既有迁移成功，迁移字节不变且无新增 DDL；旧
+      OpenAPI path/schema 逐值未变。独立探针确认六类跨归属失败关闭、真实 SQL 列白名单、服务端
+      只读事务拒写、事件与 knowledge state 同快照、后段失败无成功头、首次映射用户空导出及
+      NaN/±Inf 均为 500 且无下载头；READ COMMITTED mutation 被真实并发后提交事件泄漏断言杀死。
+      累计同步内存缓冲带来随账户数据增长的快照时长与内存风险，本卡不新增阈值、分页、异步任务、
+      UI、依赖或限额。用户 Review 待；文档收口时尚未提交/推送，最终状态以同卡回执为准；不开 PR、
+      不合并、不部署。生产/真实数据、Provider、LiveKit、IdP、设备与远端 CI 未执行；B1-5 未启动。
+
+> **历史时点说明：** 上述 B1-5 未启动为 B1-4 当时快照；后续完成记录见
+> [本平台整账号硬删除](#2026-11-13-b1-学习事件实施b1-5)。
+
+## 2026-11-13 B1 学习事件实施（B1-5）
+
+- [x] **B1-5 本平台整账号硬删除**（依赖 B1-1、B1-2、B1-4）：新增
+      `DELETE /api/user/account`、薄路由和专用 schema/service，仅使用经 Bearer 验证并映射的本人 ID。
+      路由先完成不读业务库的 Bearer 验签，再取得 learning-event control gate，最后复用同一已验证
+      身份完成本地 User 映射/flush；缺失或错误 Bearer 不执行业务 SQL，也不等待 control gate。服务在
+      调用方同一事务显式删除 `users`、`user_profiles`、`user_settings`（含加密 Key 副本）、
+      `sessions`、`transcripts`、`session_contexts`、`analysis_jobs`、`pronunciation_assessments`、
+      `grammar_errors`、`learning_events`、`knowledge_states` 和 `call_leases`，保留全局 `skills`、
+      control 行和他人数据。成功固定返回 `200 {"status":"deleted"}` 且只在 commit 完成后发送；
+      异常整体 rollback 并返回通用 500，重复删除幂等，旧 Job、stale recovery、worker 和晚到写入
+      不会复活数据。
+      删除前校验原控制数量/摘要、canonical baseline 和跨归属关系，坏 baseline 或跨 user lease 失败
+      关闭，不通过删除、`SET NULL` 或重算漂白坏数据。合法删除本人 `baseline_snapshot` 后按剩余真实
+      事件更新全局数量/摘要，保留 singleton、revision、cutover_at、phase 和既有 gate；无 control 时
+      用 SREX 表锁重读并封闭 prepare 窗口，不删除单例或重新锚定。实际 `claim_next_job` 仍无 gate，
+      全部新旧 worker 必须保持停止到 `traffic_resumed`；数据库锁和部署代码不能证明未知旧进程已退出。
+      Fake API 最小真实成功 fixture 与 Node 契约覆盖 Session/Job 删除后失效、重复删除幂等和随后导出
+      六业务数组为空；A3 固定 missing/unmodeled/deviation 清单未扩大。OpenAPI/TypeScript 只新增
+      DELETE path 和一个响应 schema，旧 path/schema 逐值未变；18 份既有迁移字节不变，无新 DDL、
+      依赖、产品 UI 或 workflow。
+      结果：fixture native 前置为 `1 passed / exit 0`；初始 RED backend 为
+      `32 failed / 1 passed / 0 skip / exit 1`，Fake API 为
+      `108 passed / 4 failed / 0 skip / exit 1`，删除语义增量 RED 为
+      `108 passed / 5 failed / 0 skip / exit 1`。R0 主控目标为 `34 passed`，但独立 Review
+      CHANGES REQUESTED，匿名/错误 Bearer 会在认证前取得全局 control `FOR UPDATE`；R1 新增真实
+      Bearer 回归 RED 为 `2 failed / 34 deselected / 0 skip / exit 1`，修复身份验证顺序后保留原 34
+      项并达到目标 `36 passed / 0 skip / exit 0`。完整 backend 为
+      `934 passed / 3 warnings / 0 skip / 81.64% / exit 0`，36 项是完整树子集；Vitest
+      `1206 passed / 49 files`、Fake API `113 passed / 0 skip / exit 0`、build-script 21、API 类型
+      8、iOS 脚本 Node runner 37 均 exit 0。lint 为 `132 warning / 0 error`，warning 行清单与
+      B1-4 逐行相同。
+      独立合成 PostgreSQL 正常探针全为 exit 0，覆盖 12 表本人数据无残留、他人数据逐值保留、两项
+      并发删除、坏 baseline、跨 user lease、双删除、首次 cutover、真实 Bearer、未链接旧 User 与
+      worker 锁序；两项运行时变异各被真实 count/死锁断言杀死 1 次。临时 PG 已停止并自动移除。
+      完整双浏览器 E2E 保留 `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是
+      `[webkit] e2e/a11y-focus-touch.spec.ts:94:5` 的设置抽屉三 Provider select
+      `336x23 < 44px`，断言位于第 127 行；本轮 UI/样式/E2E 未改，不能写成全树全绿或未经证据归因
+      环境。第一次完整 format 按实测 `exit 1` 保留，唯一问题是 Node `fake-api-test.mjs`；本卡随后以
+      现有 Prettier 对该 Node 文件和六份收口 MD 做纯格式化，最终完整 format 由主控补跑并以回执为准。
+      主控代码/测试 Review 为 APPROVED，产品返修使用 `1/2`；用户 Review 仍待。B1-0～B1-5 已完成
+      本地实施、主控代码/测试 Review 与完成项归档，当前停在 B1-5 用户 Review，不启动下一卡。提交/
+      推送尚未执行，最终状态以同卡交付回执为准，不预填 SHA；不开 PR、不合并、不部署。生产发布/
+      DDL/切换、真实数据、生产级不可恢复删除、真实 Provider/IdP/LiveKit、设备、原生 iOS、远端 CI、
+      生产备份及法定/特殊保留均未验收；外部身份后续可按原机制重新创建空账号，本卡无 tombstone。
+
+## 2026-11-13 B1 WPH WebKit 设置控件修复
+
+- [x] **WPH 恢复 Provider select 的 44px 触控高度与可见焦点**：仅调整
+      `SettingsProviderFields.tsx` 的共享 select 一行 class，使用显式 `44px` 高度、移除会压掉焦点
+      轮廓的 `outline-none`，并恢复既有 accent 主题的 2px focus outline；保留原生
+      `appearance:auto`、上下箭头、选项、值和 `onChange`，未改 `styles.css`、业务或其他生成物。
+      测试文件冻结为 SHA-256
+      `f7da11d15b608113ce7d5d94ee33a24c5ea7205e642442b30a36e01dd55b65c5`，产品最终文件为
+      `55762d586f8279bf316c4eaff135ab8d980f9fe897d348b9305a8e559361814d`。
+      主控真实 RED 为 Chromium `7 passed`、WebKit `7 failed / 0 skip / 0 retry / exit 1`，新增六个
+      用例均在高度 23 与可见焦点 false 处失败；定向 GREEN 为 `14 passed / exit 0`。修复后完整
+      Chromium/WebKit E2E 为 `246 passed / 0 failed / 0 skip / 0 retry / exit 0`，完整 backend 为
+      `934 passed / 3 warnings / 0 skip / 81.45% / exit 0`；Vitest 1206/49 files、Fake API 113、
+      build-script 21、API 类型 8、iOS 脚本 37 均 `exit 0`，全部 13 项完整门禁及聚合均 `exit 0`。
+      最终真实浏览器检查为 Chromium/WebKit 三控件各 `336x44`、`appearance:auto`、2px solid
+      outline，原生箭头与选中值保留。主控代码/测试 Review 与真实截图 Review 均 APPROVED，P0/P1
+      未关闭为 0，正式返修 `0/2`；文档收口时整卡 MD 终审与用户 Review 待，WPH 尚未 commit/push，
+      最终状态以同卡最终回执为准。生产、真实数据、Provider/IdP/LiveKit、设备、远端 CI 与部署未
+      执行。
 
 ## 2026-11-12 架构演进 A6（分层依赖 lint 规则）
 
@@ -401,6 +1132,17 @@ commit/push/pull/rebase/merge/部署，当前候选远端 CI、真实 Provider/I
 
 ### 后续候选（不阻断本轮）
 
+- [x] 在回归保护下减少 start/resume 重复生命周期逻辑及全局测试注入入口（A18P2 本地独立完成，见
+      [CP-05 原生启动与显式恢复](../../docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)）：
+      移除模块级 `currentStartupTracker`、`testingLifecycleOptions` 与全局测试注入
+      `_setLifecycleOptionsForTesting`，`createConversationSlice` 工厂只拥有自己的
+      tracker/adapter/监听/计时器，start/resume 复用实例内公共 `runStartupLifecycle`；新增
+      `conversationLifecycleIsolation.test.ts` 覆盖 start/start、start/resume、resume/start、
+      resume/resume 与 cancel/late 跨实例隔离，两旧测试文件迁移到局部 platform mock。公共动作签名/
+      返回值/状态机、原生 10 秒 deadline、同步重入/取消与请求顺序不变。R1 恢复 Web 同步 setup +
+      仅 native 等待 ready 并修新 fixture 类型。13 项门禁全 `exit 0`，Vitest `1216 passed / 50 files /
+0 skip`，三项有效私有行为变异均被对应断言杀死；详细门禁与变异计数见
+      [PROJECT_STATUS.md](../PROJECT_STATUS.md) A18P2 小节。
 - [x] 将回答推荐scope键的id/text直接拼接替换为无歧义元组编码，并覆盖分隔符外部ID（A33 本地独立完成，见 [回答推荐作用域编码验证](../../docs/verification/cross-platform/CP-05-ANSWER-SCOPE.md)）；消除冒号等外部ID边界碰撞。
 - [x] 强化 `SettingsDrawer`/`useSettingsForm` 的 LLM 模型水合回归：真实组件与 Hook 必须先
       断言初始缺省值，再覆盖 `llm_model: null` 到既有默认值、`null` 后切到合法自定义模型文本

@@ -19,7 +19,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     expect(bodyTransition.duration).toContain("0.25s");
 
     // 2. 打开设置抽屉并验证 slideInRight 动画
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await expect(settingsBtn).toBeVisible();
     await settingsBtn.click();
 
@@ -88,7 +88,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     ).toBe(true);
 
     // 3. 打开设置抽屉，验证无位移入场动画 (animationName 为 none)
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -149,7 +149,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     expect(bodyDuration).toContain("0.25s");
 
     // 打开抽屉
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
     const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
@@ -215,7 +215,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -263,7 +263,7 @@ test.describe("prefers-reduced-motion Accessibility & Behavior", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
 
     // 2. 打开抽屉
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
     const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();

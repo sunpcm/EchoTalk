@@ -7,7 +7,16 @@ from .analysis import AnalysisJob, AnalysisJobStatus
 from .base import Base
 from .call_lease import CallLease, CallLeaseState
 from .exercise import GrammarError, PronunciationAssessment
+from .goal_evaluation import (
+    GoalEvaluationResult,
+    GoalResult,
+    GoalRun,
+    GoalRunStatus,
+)
 from .knowledge import KnowledgeState, Skill
+from .learning_event import LearningEvent
+from .learning_event_cutover import LearningEventCutover
+from .scenario_goals import GoalCatalogVersion, SessionGoalSnapshot
 from .session import Session, SessionContext, Transcript
 from .user import (
     LLMProvider,
@@ -35,6 +44,14 @@ __all__ = [
     "Transcript",
     "Skill",
     "KnowledgeState",
+    "LearningEvent",
+    "LearningEventCutover",
+    "GoalCatalogVersion",
+    "SessionGoalSnapshot",
+    "GoalRun",
+    "GoalEvaluationResult",
+    "GoalRunStatus",
+    "GoalResult",
     "PronunciationAssessment",
     "GrammarError",
 ]

@@ -11,6 +11,11 @@ from config import settings
 from database import async_session_maker, engine
 from services.analysis_jobs import claim_next_job, process_job, recover_stale_jobs
 from services.analysis_observability import transaction_events
+from services.goal_evaluation import (
+    claim_next_goal_run,
+    process_goal_run,
+    recover_stale_goal_runs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,30 +78,43 @@ async def run_forever(
                     async with factory() as db, db.begin():
                         if stopping.is_set():
                             raise _StopBeforeCommit
-                        recovered = await recover_stale_jobs(db)
+                        recovered_analysis = await recover_stale_jobs(db)
                         if stopping.is_set():
                             raise _StopBeforeCommit
-                        job_id = await claim_next_job(db)
+                        analysis_job_id = await claim_next_job(db)
+                        if stopping.is_set():
+                            raise _StopBeforeCommit
+                        recovered_goal = await recover_stale_goal_runs(db)
+                        if stopping.is_set():
+                            raise _StopBeforeCommit
+                        goal_run_id = await claim_next_goal_run(db)
                         if stopping.is_set():
                             raise _StopBeforeCommit
             except _StopBeforeCommit:
                 return
 
             # A signal can cross a commit already acknowledged by PostgreSQL.
-            # Leave that durable running job for the existing stale recovery;
+            # Leave that durable running work for the existing stale recovery;
             # never start analysis or manufacture a retry after shutdown.
             if stopping.is_set():
                 return
-            if recovered:
-                logger.warning("Recovered %d stale analysis job(s)", recovered)
-            if job_id is None:
+            if recovered_analysis:
+                logger.warning("Recovered %d stale analysis job(s)", recovered_analysis)
+            if recovered_goal:
+                logger.warning("Recovered %d stale goal run(s)", recovered_goal)
+            if analysis_job_id is None and goal_run_id is None:
                 try:
                     await asyncio.wait_for(stopping.wait(), timeout=poll)
                 except TimeoutError:
                     pass
                 continue
             processing = True
-            await process_job(job_id, factory)
+            if analysis_job_id is not None:
+                await process_job(analysis_job_id, factory)
+            if stopping.is_set():
+                return
+            if goal_run_id is not None:
+                await process_goal_run(goal_run_id, factory)
 
     worker = asyncio.create_task(poll_jobs(), name="analysis-worker-loop")
     stop_waiter = asyncio.create_task(stopping.wait(), name="analysis-worker-stop")

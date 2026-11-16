@@ -50,6 +50,91 @@
   }
 }
 
+/* LiveKit 默认主题映射到 EchoTalk 主题 token，使音波与控制条使用主题前景/背景。 */
+.lk-room-container[data-lk-theme="default"] {
+  color-scheme: light;
+  --lk-bg: var(--bg);
+  --lk-bg2: var(--surface);
+  --lk-bg3: var(--surface-alt);
+  --lk-bg4: var(--accent-soft-bg);
+  --lk-bg5: var(--accent-soft-bg-strong);
+  --lk-fg: var(--text);
+  --lk-fg2: var(--text);
+  --lk-fg3: var(--text-muted);
+  --lk-fg4: var(--text-muted);
+  --lk-fg5: var(--text-muted);
+  --lk-border-color: var(--border);
+  --lk-accent-fg: var(--accent-contrast);
+  --lk-accent-bg: var(--accent);
+  --lk-accent2: var(--accent-hover);
+  --lk-accent3: var(--accent-hover);
+  --lk-accent4: var(--accent-soft-bg-strong);
+  --lk-danger-fg: var(--danger-contrast);
+  --lk-danger: var(--danger);
+  --lk-danger2: var(--danger-hover);
+  --lk-danger3: var(--danger-hover);
+  --lk-danger4: var(--danger-hover);
+  --lk-success-fg: var(--success-contrast);
+  --lk-success: var(--success);
+  --lk-control-fg: var(--text);
+  --lk-control-bg: var(--surface-alt);
+  --lk-control-hover-bg: var(--accent-soft-bg);
+  --lk-control-active-bg: var(--accent-soft-bg-strong);
+  --lk-control-active-hover-bg: var(--accent-soft-border);
+  --lk-connection-excellent: var(--success);
+  --lk-connection-good: var(--warning);
+  --lk-connection-poor: var(--danger);
+  --lk-va-bar-bg: var(--text-muted);
+  --lk-box-shadow: 0 0.5rem 1.5rem var(--card-shadow);
+  --lk-drop-shadow: 0 0 24px var(--card-shadow);
+}
+
+:root[data-theme="dark"] .lk-room-container[data-lk-theme="default"] {
+  color-scheme: dark;
+}
+
+/* 移动端保持状态卡 -> 字幕 -> 推荐的 DOM 与视觉顺序；桌面端只重排 Grid 区域。 */
+.session-layout {
+  display: grid;
+  grid-template-areas:
+    "status"
+    "subtitles"
+    "recommendations";
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.session-layout > * {
+  min-width: 0;
+}
+
+.session-layout__status {
+  grid-area: status;
+}
+
+.session-layout__subtitles {
+  grid-area: subtitles;
+  min-height: 50vh;
+}
+
+.session-layout__recommendations {
+  grid-area: recommendations;
+}
+
+@media (min-width: 64rem) {
+  .session-layout {
+    grid-template-areas:
+      "status subtitles"
+      "recommendations subtitles";
+    grid-template-columns: 20rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .session-layout__subtitles {
+    min-height: 60vh;
+  }
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;

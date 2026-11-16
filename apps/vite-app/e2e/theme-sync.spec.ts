@@ -55,7 +55,7 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
       };
     });
 
-    const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
     const dialog = page.getByRole("dialog", { name: "设置" });
@@ -185,7 +185,7 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
     await page1.goto("/");
     await expect(page1.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
-    await page1.getByRole("button", { name: "自定义模型设置" }).click();
+    await page1.getByRole("button", { name: "设置" }).click();
     const dialog1 = page1.getByRole("dialog", { name: "设置" });
     await expect(dialog1).toBeVisible();
 
@@ -215,7 +215,7 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
     expect(storedThemeInContext2).toBe("dark");
 
     // 测试后端写失败保持与再次选择恢复
-    await page2.getByRole("button", { name: "自定义模型设置" }).click();
+    await page2.getByRole("button", { name: "设置" }).click();
     const dialog2 = page2.getByRole("dialog", { name: "设置" });
     await expect(dialog2).toBeVisible();
 
@@ -308,7 +308,7 @@ test.describe("CP-05 / A28 主题持久化可靠性与稳定选择器 E2E", () =
         }, vp.scale);
       }
 
-      const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+      const settingsBtn = page.getByRole("button", { name: "设置" });
       await settingsBtn.click();
 
       const dialog = page.getByRole("dialog", { name: "设置" });

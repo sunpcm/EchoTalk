@@ -180,6 +180,35 @@
         "title": "AssessmentResponse",
         "type": "object"
       },
+      "BktAlgorithmParams": {
+        "description": "The frozen four-parameter BKT algorithm definition.",
+        "properties": {
+          "p_guess": {
+            "title": "P Guess",
+            "type": "number"
+          },
+          "p_init": {
+            "title": "P Init",
+            "type": "number"
+          },
+          "p_slip": {
+            "title": "P Slip",
+            "type": "number"
+          },
+          "p_transit": {
+            "title": "P Transit",
+            "type": "number"
+          }
+        },
+        "required": [
+          "p_init",
+          "p_transit",
+          "p_slip",
+          "p_guess"
+        ],
+        "title": "BktAlgorithmParams",
+        "type": "object"
+      },
       "CallCapabilitiesResponse": {
         "additionalProperties": false,
         "description": "通话协议能力响应模型，精确两字段，禁止额外字段。",
@@ -375,6 +404,102 @@
         "title": "ChatResponse",
         "type": "object"
       },
+      "CoverageDirection": {
+        "description": "One audited source direction from an analysis-completed event.",
+        "properties": {
+          "is_synthetic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Synthetic"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "status",
+          "source",
+          "provider",
+          "model_version",
+          "is_synthetic"
+        ],
+        "title": "CoverageDirection",
+        "type": "object"
+      },
+      "CurriculumGoalBinding": {
+        "description": "Explicit pilot goal preview for one immutable material version.",
+        "properties": {
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/GoalDefinition"
+            },
+            "title": "Goals",
+            "type": "array"
+          },
+          "material_id": {
+            "title": "Material Id",
+            "type": "string"
+          },
+          "material_version": {
+            "title": "Material Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "material_id",
+          "material_version",
+          "goals"
+        ],
+        "title": "CurriculumGoalBinding",
+        "type": "object"
+      },
       "CurriculumNextResponse": {
         "description": "GET /api/curriculum/next 响应体。",
         "properties": {
@@ -424,6 +549,16 @@
             },
             "title": "Focus Skills",
             "type": "array"
+          },
+          "goal_binding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurriculumGoalBinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scenario_name": {
             "title": "Scenario Name",
@@ -485,6 +620,625 @@
           "prompt"
         ],
         "title": "DocContext",
+        "type": "object"
+      },
+      "EventCoverage": {
+        "description": "Pronunciation and grammar coverage metadata.",
+        "properties": {
+          "grammar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverageDirection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pronunciation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverageDirection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pronunciation",
+          "grammar"
+        ],
+        "title": "EventCoverage",
+        "type": "object"
+      },
+      "EventUnmappedCounts": {
+        "description": "Counts of observations not mapped into the ledger.",
+        "properties": {
+          "grammar": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grammar"
+          },
+          "pronunciation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pronunciation"
+          }
+        },
+        "required": [
+          "pronunciation",
+          "grammar"
+        ],
+        "title": "EventUnmappedCounts",
+        "type": "object"
+      },
+      "GoalBindingRef": {
+        "additionalProperties": false,
+        "description": "Client-selected immutable goal catalog reference.",
+        "properties": {
+          "material_id": {
+            "pattern": "^mat_[a-z0-9_-]+$",
+            "title": "Material Id",
+            "type": "string"
+          },
+          "material_version": {
+            "exclusiveMinimum": 0.0,
+            "title": "Material Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "material_id",
+          "material_version"
+        ],
+        "title": "GoalBindingRef",
+        "type": "object"
+      },
+      "GoalDefinition": {
+        "additionalProperties": false,
+        "description": "One fully described goal in an immutable material version.",
+        "properties": {
+          "criteria": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Criteria",
+            "type": "array"
+          },
+          "description_en": {
+            "minLength": 1,
+            "title": "Description En",
+            "type": "string"
+          },
+          "description_zh": {
+            "minLength": 1,
+            "title": "Description Zh",
+            "type": "string"
+          },
+          "evidence_types": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Types",
+            "type": "array"
+          },
+          "goal_id": {
+            "pattern": "^mat_[a-z0-9_-]+:[a-z][a-z0-9_-]*$",
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "goal_version": {
+            "exclusiveMinimum": 0.0,
+            "title": "Goal Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "goal_id",
+          "goal_version",
+          "description_en",
+          "description_zh",
+          "criteria",
+          "evidence_types"
+        ],
+        "title": "GoalDefinition",
+        "type": "object"
+      },
+      "GoalEvidenceRef": {
+        "additionalProperties": false,
+        "description": "One frozen student transcript reference (id + digest, no body).",
+        "properties": {
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "transcript_id": {
+            "title": "Transcript Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transcript_id",
+          "sha256"
+        ],
+        "title": "GoalEvidenceRef",
+        "type": "object"
+      },
+      "GoalExecution": {
+        "additionalProperties": false,
+        "description": "Execution progress for the one active revision.",
+        "properties": {
+          "evaluator_version": {
+            "title": "Evaluator Version",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "revision",
+          "evaluator_version"
+        ],
+        "title": "GoalExecution",
+        "type": "object"
+      },
+      "GoalResultExport": {
+        "additionalProperties": false,
+        "description": "One append-only terminal result for a goal.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "goal_id": {
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "goal_version": {
+            "title": "Goal Version",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "goal_id",
+          "goal_version",
+          "result",
+          "created_at"
+        ],
+        "title": "GoalResultExport",
+        "type": "object"
+      },
+      "GoalRunExport": {
+        "additionalProperties": false,
+        "description": "One frozen evaluation run header with its evidence references.",
+        "properties": {
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evaluator_version": {
+            "title": "Evaluator Version",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/GoalEvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "next_retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Retry At"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "revision",
+          "status",
+          "evaluator_version",
+          "evidence",
+          "attempt_count",
+          "last_error_code",
+          "last_error",
+          "next_retry_at",
+          "started_at",
+          "finished_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GoalRunExport",
+        "type": "object"
+      },
+      "GoalSummary": {
+        "additionalProperties": false,
+        "description": "Terminal count invariants; ``0 <= achieved <= assessed <= total``.",
+        "properties": {
+          "achieved": {
+            "title": "Achieved",
+            "type": "integer"
+          },
+          "assessed": {
+            "title": "Assessed",
+            "type": "integer"
+          },
+          "not_achieved": {
+            "title": "Not Achieved",
+            "type": "integer"
+          },
+          "not_assessed": {
+            "title": "Not Assessed",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unknown": {
+            "title": "Unknown",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "achieved",
+          "not_achieved",
+          "assessed",
+          "unknown",
+          "not_assessed"
+        ],
+        "title": "GoalSummary",
+        "type": "object"
+      },
+      "GoalViewEntry": {
+        "additionalProperties": false,
+        "description": "One frozen goal definition plus its terminal result (or null).",
+        "properties": {
+          "criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "description_en": {
+            "title": "Description En",
+            "type": "string"
+          },
+          "description_zh": {
+            "title": "Description Zh",
+            "type": "string"
+          },
+          "evidence_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Types",
+            "type": "array"
+          },
+          "goal_id": {
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "goal_version": {
+            "title": "Goal Version",
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          }
+        },
+        "required": [
+          "goal_id",
+          "goal_version",
+          "description_en",
+          "description_zh",
+          "criteria",
+          "evidence_types",
+          "result"
+        ],
+        "title": "GoalViewEntry",
+        "type": "object"
+      },
+      "GoalViewResponse": {
+        "additionalProperties": false,
+        "description": "Stable owner-scoped read for one session's goals.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/GoalViewEntry"
+            },
+            "title": "Goals",
+            "type": "array"
+          },
+          "material_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Id"
+          },
+          "material_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Version"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "session_id",
+          "configured",
+          "material_id",
+          "material_version",
+          "goals",
+          "execution",
+          "summary"
+        ],
+        "title": "GoalViewResponse",
+        "type": "object"
+      },
+      "GrammarAssessmentExport": {
+        "description": "Grammar error and correction fields for the authenticated user.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "corrected": {
+            "title": "Corrected",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_type": {
+            "title": "Error Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "original": {
+            "title": "Original",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "skill_tag": {
+            "title": "Skill Tag",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "skill_tag",
+          "original",
+          "corrected",
+          "error_type",
+          "source",
+          "provider",
+          "model_version",
+          "is_synthetic",
+          "confidence",
+          "created_at"
+        ],
+        "title": "GrammarAssessmentExport",
         "type": "object"
       },
       "GrammarErrorResponse": {
@@ -609,6 +1363,31 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "KnowledgeStateExport": {
+        "description": "One user-owned BKT mastery state.",
+        "properties": {
+          "p_mastery": {
+            "title": "P Mastery",
+            "type": "number"
+          },
+          "skill_id": {
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill_id",
+          "p_mastery",
+          "updated_at"
+        ],
+        "title": "KnowledgeStateExport",
+        "type": "object"
+      },
       "KnowledgeStateResponse": {
         "description": "知识状态响应（含技能信息）。",
         "properties": {
@@ -654,6 +1433,344 @@
           "updated_at"
         ],
         "title": "KnowledgeStateResponse",
+        "type": "object"
+      },
+      "LearningEventDetails": {
+        "description": "Whitelisted nested event metadata.",
+        "properties": {
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "legacy_synthetic_impact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Synthetic Impact"
+          },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Version"
+          },
+          "unmapped": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventUnmappedCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "coverage",
+          "unmapped",
+          "legacy_synthetic_impact"
+        ],
+        "title": "LearningEventDetails",
+        "type": "object"
+      },
+      "LearningEventExport": {
+        "description": "One immutable learning event with safe nested JSON projections.",
+        "properties": {
+          "algorithm_params": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BktAlgorithmParams"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "algorithm_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithm Version"
+          },
+          "analysis_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Job Id"
+          },
+          "apply_seq": {
+            "title": "Apply Seq",
+            "type": "integer"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "cutover_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cutover Revision"
+          },
+          "details": {
+            "$ref": "#/components/schemas/LearningEventDetails"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "grammar_error_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grammar Error Id"
+          },
+          "is_synthetic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Synthetic"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "observation_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Code"
+          },
+          "observation_correct": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Correct"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "p_mastery_snapshot": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Mastery Snapshot"
+          },
+          "pronunciation_assessment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pronunciation Assessment Id"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_ordinal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ordinal"
+          }
+        },
+        "required": [
+          "apply_seq",
+          "event_type",
+          "session_id",
+          "analysis_job_id",
+          "pronunciation_assessment_id",
+          "grammar_error_id",
+          "skill_id",
+          "source_ordinal",
+          "observation_correct",
+          "observation_code",
+          "source",
+          "provider",
+          "model_version",
+          "confidence",
+          "is_synthetic",
+          "algorithm_version",
+          "algorithm_params",
+          "p_mastery_snapshot",
+          "cutover_revision",
+          "occurred_at",
+          "recorded_at",
+          "details"
+        ],
+        "title": "LearningEventExport",
+        "type": "object"
+      },
+      "PhonemeAlignmentExport": {
+        "description": "One explicitly projected phoneme-alignment item.",
+        "properties": {
+          "actual": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "phoneme": {
+            "title": "Phoneme",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "position",
+          "phoneme",
+          "expected",
+          "actual",
+          "type"
+        ],
+        "title": "PhonemeAlignmentExport",
         "type": "object"
       },
       "PhonemeAlignmentItem": {
@@ -704,6 +1821,92 @@
         "title": "PhonemeAlignmentItem",
         "type": "object"
       },
+      "PronunciationAssessmentExport": {
+        "description": "Pronunciation assessment fields without provider response internals.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "overall_score": {
+            "title": "Overall Score",
+            "type": "number"
+          },
+          "phoneme_alignment": {
+            "items": {
+              "$ref": "#/components/schemas/PhonemeAlignmentExport"
+            },
+            "title": "Phoneme Alignment",
+            "type": "array"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "overall_score",
+          "phoneme_alignment",
+          "source",
+          "provider",
+          "model_version",
+          "is_synthetic",
+          "confidence",
+          "created_at"
+        ],
+        "title": "PronunciationAssessmentExport",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "description": "深度就绪检查成功响应。",
         "properties": {
@@ -719,12 +1922,22 @@
         "type": "object"
       },
       "SessionCreate": {
-        "description": "创建会话请求体。",
+        "description": "创建会话请求体。\n\n未携带 binding 的 legacy 请求继续忽略顶层额外字段。只有显式非 null\nbinding 才启用严格顶层输入，避免改变旧客户端语义。",
         "properties": {
           "doc_context": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DocContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goal_binding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalBindingRef"
               },
               {
                 "type": "null"
@@ -740,6 +1953,83 @@
           "mode"
         ],
         "title": "SessionCreate",
+        "type": "object"
+      },
+      "SessionExport": {
+        "description": "Minimal session metadata needed to interpret exported child rows.",
+        "properties": {
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "mode",
+          "status",
+          "started_at",
+          "ended_at"
+        ],
+        "title": "SessionExport",
+        "type": "object"
+      },
+      "SessionGoalExport": {
+        "description": "One session snapshot with its complete immutable goal definitions.",
+        "properties": {
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/GoalDefinition"
+            },
+            "title": "Goals",
+            "type": "array"
+          },
+          "material_id": {
+            "title": "Material Id",
+            "type": "string"
+          },
+          "material_version": {
+            "title": "Material Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "material_id",
+          "material_version",
+          "goals"
+        ],
+        "title": "SessionGoalExport",
         "type": "object"
       },
       "SessionListItem": {
@@ -924,6 +2214,84 @@
         "title": "SkillResponse",
         "type": "object"
       },
+      "SystemReadinessResponse": {
+        "description": "Fixed success response after the shared database answers SELECT 1.",
+        "properties": {
+          "status": {
+            "const": "ready",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SystemReadinessResponse",
+        "type": "object"
+      },
+      "SystemReadinessUnavailableResponse": {
+        "description": "Fixed failure response that never exposes underlying readiness errors.",
+        "properties": {
+          "status": {
+            "const": "not_ready",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SystemReadinessUnavailableResponse",
+        "type": "object"
+      },
+      "TranscriptExport": {
+        "description": "Transcript fields safe and necessary for a user data export.",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "timestamp_ms": {
+            "title": "Timestamp Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "event_id",
+          "role",
+          "content",
+          "timestamp_ms"
+        ],
+        "title": "TranscriptExport",
+        "type": "object"
+      },
       "TranscriptResponse": {
         "description": "转录记录响应。",
         "properties": {
@@ -980,6 +2348,260 @@
           "timestamp_ms"
         ],
         "title": "TranscriptResponse",
+        "type": "object"
+      },
+      "UserAccountDeletionResponse": {
+        "description": "Fixed acknowledgement returned only after account deletion commits.",
+        "properties": {
+          "status": {
+            "const": "deleted",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "UserAccountDeletionResponse",
+        "type": "object"
+      },
+      "UserDataExport": {
+        "description": "Stable version-1 structured export returned as a JSON attachment.",
+        "properties": {
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "grammar_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/GrammarAssessmentExport"
+            },
+            "title": "Grammar Assessments",
+            "type": "array"
+          },
+          "knowledge_states": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeStateExport"
+            },
+            "title": "Knowledge States",
+            "type": "array"
+          },
+          "learning_events": {
+            "items": {
+              "$ref": "#/components/schemas/LearningEventExport"
+            },
+            "title": "Learning Events",
+            "type": "array"
+          },
+          "pronunciation_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/PronunciationAssessmentExport"
+            },
+            "title": "Pronunciation Assessments",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionExport"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptExport"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "sessions",
+          "transcripts",
+          "pronunciation_assessments",
+          "grammar_assessments",
+          "learning_events",
+          "knowledge_states"
+        ],
+        "title": "UserDataExport",
+        "type": "object"
+      },
+      "UserDataExportV2": {
+        "description": "Explicit opt-in version-2 export with effective session goals.",
+        "properties": {
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "grammar_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/GrammarAssessmentExport"
+            },
+            "title": "Grammar Assessments",
+            "type": "array"
+          },
+          "knowledge_states": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeStateExport"
+            },
+            "title": "Knowledge States",
+            "type": "array"
+          },
+          "learning_events": {
+            "items": {
+              "$ref": "#/components/schemas/LearningEventExport"
+            },
+            "title": "Learning Events",
+            "type": "array"
+          },
+          "pronunciation_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/PronunciationAssessmentExport"
+            },
+            "title": "Pronunciation Assessments",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 2,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session_goals": {
+            "items": {
+              "$ref": "#/components/schemas/SessionGoalExport"
+            },
+            "title": "Session Goals",
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionExport"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptExport"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "sessions",
+          "transcripts",
+          "pronunciation_assessments",
+          "grammar_assessments",
+          "learning_events",
+          "knowledge_states",
+          "session_goals"
+        ],
+        "title": "UserDataExportV2",
+        "type": "object"
+      },
+      "UserDataExportV3": {
+        "description": "Explicit opt-in version-3 export with goal runs/results references.",
+        "properties": {
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "goal_results": {
+            "items": {
+              "$ref": "#/components/schemas/GoalResultExport"
+            },
+            "title": "Goal Results",
+            "type": "array"
+          },
+          "goal_runs": {
+            "items": {
+              "$ref": "#/components/schemas/GoalRunExport"
+            },
+            "title": "Goal Runs",
+            "type": "array"
+          },
+          "grammar_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/GrammarAssessmentExport"
+            },
+            "title": "Grammar Assessments",
+            "type": "array"
+          },
+          "knowledge_states": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeStateExport"
+            },
+            "title": "Knowledge States",
+            "type": "array"
+          },
+          "learning_events": {
+            "items": {
+              "$ref": "#/components/schemas/LearningEventExport"
+            },
+            "title": "Learning Events",
+            "type": "array"
+          },
+          "pronunciation_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/PronunciationAssessmentExport"
+            },
+            "title": "Pronunciation Assessments",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 3,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session_goals": {
+            "items": {
+              "$ref": "#/components/schemas/SessionGoalExport"
+            },
+            "title": "Session Goals",
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionExport"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptExport"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "sessions",
+          "transcripts",
+          "pronunciation_assessments",
+          "grammar_assessments",
+          "learning_events",
+          "knowledge_states",
+          "session_goals",
+          "goal_runs",
+          "goal_results"
+        ],
+        "title": "UserDataExportV3",
         "type": "object"
       },
       "UserSettingsResponse": {
@@ -1329,7 +2951,7 @@
         "type": "object"
       },
       "WeeklyProgressDay": {
-        "description": "一个本地自然日对应的 UTC 半开窗口及已完成会话数。",
+        "description": "一个本地自然日对应的 UTC 半开窗口及可选的已记录会话时长。",
         "properties": {
           "completed_sessions": {
             "minimum": 0.0,
@@ -1341,10 +2963,34 @@
             "title": "Date",
             "type": "string"
           },
+          "duration_unavailable_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Unavailable Count"
+          },
           "end": {
             "format": "date-time",
             "title": "End",
             "type": "string"
+          },
+          "recorded_duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded Duration Ms"
           },
           "start": {
             "format": "date-time",
@@ -1808,6 +3454,16 @@
         "operationId": "get_next_curriculum_api_curriculum_next_get",
         "parameters": [
           {
+            "in": "query",
+            "name": "include_goals",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Goals",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -1919,6 +3575,38 @@
           }
         },
         "summary": "Readiness Check",
+        "tags": [
+          "健康检查"
+        ]
+      }
+    },
+    "/api/health/system-ready": {
+      "get": {
+        "description": "公开的系统就绪检查；仅验证共享 PostgreSQL，而不判断用户练习权限。",
+        "operationId": "system_readiness_check_api_health_system_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemReadinessUnavailableResponse"
+                }
+              }
+            },
+            "description": "Shared PostgreSQL is not ready."
+          }
+        },
+        "summary": "System Readiness Check",
         "tags": [
           "健康检查"
         ]
@@ -2310,7 +3998,7 @@
     },
     "/api/sessions/weekly-progress": {
       "get": {
-        "description": "返回截至 end_date 的七个本地自然日已完成会话数，含零桶。",
+        "description": "返回七个本地自然日已完成会话数，并可按显式请求聚合时长。",
         "operationId": "get_weekly_progress_api_sessions_weekly_progress_get",
         "parameters": [
           {
@@ -2332,6 +4020,16 @@
               "minLength": 1,
               "title": "Timezone",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_recorded_duration",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Recorded Duration",
+              "type": "boolean"
             }
           },
           {
@@ -2921,6 +4619,66 @@
         ]
       }
     },
+    "/api/sessions/{session_id}/goals": {
+      "get": {
+        "description": "Return the frozen goal definitions, execution and summary (read-only).\n\nUses one outer-join select for a consistent snapshot; it never issues\n``SET TRANSACTION`` so it stays safe on the shared authentication session.",
+        "operationId": "get_session_goals_api_sessions__session_id__goals_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalViewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Goals",
+        "tags": [
+          "会话管理"
+        ]
+      }
+    },
     "/api/sessions/{session_id}/token": {
       "get": {
         "description": "为指定会话生成加入房间的 LiveKit 令牌。并在签发前校验鉴权与连通状态。",
@@ -3010,6 +4768,129 @@
         "summary": "Get Session Token",
         "tags": [
           "会话管理"
+        ]
+      }
+    },
+    "/api/user/account": {
+      "delete": {
+        "description": "Permanently delete the authenticated account and all owned local data.",
+        "operationId": "delete_current_user_account_api_user_account_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAccountDeletionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Current User Account",
+        "tags": [
+          "用户设置"
+        ]
+      }
+    },
+    "/api/user/data-export": {
+      "get": {
+        "description": "Export the authenticated user's data as one complete JSON attachment.",
+        "operationId": "export_user_data_api_user_data_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "schema_version",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 3,
+              "minimum": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UserDataExport"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UserDataExportV2"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UserDataExportV3"
+                    }
+                  ],
+                  "title": "Response Export User Data Api User Data Export Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export User Data",
+        "tags": [
+          "用户设置"
         ]
       }
     },

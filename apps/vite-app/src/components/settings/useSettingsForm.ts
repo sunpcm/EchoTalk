@@ -36,6 +36,7 @@ const INITIAL_DRAFT: SettingsFormDraft = {
 interface UseSettingsFormOptions {
   open: boolean;
   settings: UserSettingsResponse | null;
+  settingsHydrationRevision?: number;
   updateSettings: (data: UserSettingsUpdate) => Promise<SettingsUpdateResult>;
 }
 
@@ -43,12 +44,18 @@ interface UseSettingsFormOptions {
  * 设置草稿、显式保存及本地提示的单一所有者。
  * 本地提示绑定真实打开周期与操作序号；旧异步结果只能静默退出。
  */
-export function useSettingsForm({ open, settings, updateSettings }: UseSettingsFormOptions) {
+export function useSettingsForm({
+  open,
+  settings,
+  settingsHydrationRevision,
+  updateSettings,
+}: UseSettingsFormOptions) {
   const [draft, setDraft] = useState<SettingsFormDraft>(INITIAL_DRAFT);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [toastError, setToastError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+  const hydratedSettingsRevisionRef = useRef<number | null>(null);
   const openCycleRef = useRef(0);
   const activeOpenCycleRef = useRef<number | null>(null);
   const operationSequenceRef = useRef(0);
@@ -96,9 +103,18 @@ export function useSettingsForm({ open, settings, updateSettings }: UseSettingsF
     };
   }, [clearNoticeTimer, open]);
 
-  // 只按后端 settings 对象引用水合；主题、open 或同引用重渲染不重置草稿。
+  // 未提供 revision 时保留原有对象引用语义；提供后只由权威快照 revision 驱动水合。
   useEffect(() => {
     if (!settings) return;
+    if (
+      settingsHydrationRevision !== undefined &&
+      hydratedSettingsRevisionRef.current === settingsHydrationRevision
+    ) {
+      return;
+    }
+    if (settingsHydrationRevision !== undefined) {
+      hydratedSettingsRevisionRef.current = settingsHydrationRevision;
+    }
 
     setDraft({
       isCustomMode: settings.is_custom_mode,
@@ -111,7 +127,7 @@ export function useSettingsForm({ open, settings, updateSettings }: UseSettingsF
       ttsKey: "",
     });
     setSaveSuccess(false);
-  }, [settings]);
+  }, [settings, settingsHydrationRevision]);
 
   const isCurrentOperation = useCallback((cycle: number | null, operation: number) => {
     return (

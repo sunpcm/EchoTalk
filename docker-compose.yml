@@ -23,7 +23,7 @@ services:
       context: ./backend
       args:
         BACKEND_ROLE: api
-    command: alembic upgrade head
+    command: ["alembic", "upgrade", "head"]
     restart: "no"
     env_file:
       - path: .env
@@ -46,18 +46,6 @@ services:
         BACKEND_ROLE: api
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
     restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=2)",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     env_file:
       - path: .env
         required: false
@@ -71,6 +59,33 @@ services:
         condition: service_healthy
       echotalk-migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request
+
+          try:
+              opener = urllib.request.build_opener(
+                  urllib.request.ProxyHandler({})
+              )
+              with opener.open(
+                  "http://127.0.0.1:8000/api/health/system-ready",
+                  timeout=4,
+              ) as response:
+                  ready = (
+                      response.status == 200
+                      and response.read() == b'{"status":"ready"}'
+                  )
+              raise SystemExit(0 if ready else 1)
+          except Exception:
+              raise SystemExit(1)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       - echotalk-net
 

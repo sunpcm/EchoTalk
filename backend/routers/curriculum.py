@@ -1,6 +1,8 @@
 """自适应课程推荐路由：基于 BKT 弱项和离线语料目录生成练习场景。"""
 
-from fastapi import APIRouter, Depends
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,13 +11,23 @@ from auth import CurrentUser
 from database import get_db
 from dependencies import get_current_user
 from models.knowledge import KnowledgeState, Skill
+from schemas.scenario_goals import GoalDefinition
 from services.knowledge.bkt_model import MASTERY_THRESHOLD
+from services.material_catalog import get_material_catalog
 from services.rag_service import retrieve_materials
 
 router = APIRouter()
 
 
 # ─── 响应模型 ──────────────────────────────────────────────────
+
+
+class CurriculumGoalBinding(BaseModel):
+    """Explicit pilot goal preview for one immutable material version."""
+
+    material_id: str
+    material_version: int
+    goals: list[GoalDefinition]
 
 
 class CurriculumRecommendation(BaseModel):
@@ -26,6 +38,7 @@ class CurriculumRecommendation(BaseModel):
     category: str
     focus_skills: list[str]
     system_prompt_template: str
+    goal_binding: CurriculumGoalBinding | None = None
 
 
 class CurriculumNextResponse(BaseModel):
@@ -43,8 +56,10 @@ class CurriculumNextResponse(BaseModel):
 @router.get(
     "/curriculum/next",
     response_model=CurriculumNextResponse,
+    response_model_exclude_none=True,
 )
 async def get_next_curriculum(
+    include_goals: Annotated[bool, Query()] = False,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -100,6 +115,11 @@ async def get_next_curriculum(
         target_level=target_level,
         top_k=3,
     )
+    catalog_by_id = (
+        {material.id: material for material in get_material_catalog()}
+        if include_goals
+        else {}
+    )
 
     # ── 4. 构建推荐列表 ─────────────────────────────────────
     recommendations = []
@@ -110,6 +130,18 @@ async def get_next_curriculum(
             difficulty=mat.difficulty_cefr,
             material_description=mat.document,
         )
+        goal_binding = None
+        catalog_material = catalog_by_id.get(mat.id)
+        if (
+            catalog_material is not None
+            and catalog_material.goals
+            and catalog_material.material_version is not None
+        ):
+            goal_binding = CurriculumGoalBinding(
+                material_id=catalog_material.id,
+                material_version=catalog_material.material_version,
+                goals=list(catalog_material.goals),
+            )
         recommendations.append(
             CurriculumRecommendation(
                 scenario_name=mat.scenario_name,
@@ -117,6 +149,7 @@ async def get_next_curriculum(
                 category=mat.category,
                 focus_skills=mat.skill_tags,
                 system_prompt_template=prompt_template,
+                goal_binding=goal_binding,
             )
         )
 

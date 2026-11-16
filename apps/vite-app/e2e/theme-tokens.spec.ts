@@ -96,7 +96,7 @@ test.describe("Theme Tokens Audit & Confirmation Panels Visual Regression (CP-05
       await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
       // 切换到目标主题
-      const settingsBtn = page.getByRole("button", { name: "自定义模型设置" });
+      const settingsBtn = page.getByRole("button", { name: "设置" });
       await settingsBtn.click();
       const dialog = page.getByRole("dialog", { name: "设置" });
       await expect(dialog).toBeVisible();

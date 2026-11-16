@@ -2,7 +2,9 @@
 
 import logging
 import uuid
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -20,7 +22,10 @@ from services.analysis_observability import record_event, transaction_events
 from services.analysis_service import (
     AnalysisServiceError,
     analyze_session,
-    update_knowledge,
+)
+from services.learning_event_cutover import (
+    CutoverError,
+    assert_learning_event_gate,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +48,30 @@ class AnalysisExecutionError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.retryable = retryable
+
+
+def _event_ledger_coverage(analysis_result: Any) -> dict[str, Any]:
+    """Select the serializable ledger facts and support legacy B1 mocks."""
+    ledger_coverage = getattr(analysis_result, "ledger_coverage", None)
+    if isinstance(ledger_coverage, Mapping):
+        return dict(ledger_coverage)
+
+    legacy_coverage = getattr(analysis_result, "coverage", None)
+    if isinstance(legacy_coverage, Mapping):
+        return dict(legacy_coverage)
+
+    raise AnalysisExecutionError(
+        KnownAnalysisErrorCode.ANALYSIS_FAILED.value,
+        "Analysis result is missing serializable ledger coverage",
+    )
+
+
+def _event_bkt_assessment(analysis_result: Any) -> Any:
+    """Select the source that may contribute observations to BKT."""
+    bkt_assessment = getattr(analysis_result, "bkt_assessment", None)
+    if bkt_assessment is not None:
+        return bkt_assessment
+    return getattr(analysis_result, "assessment", None)
 
 
 ALLOWED_TRANSITIONS: dict[AnalysisJobStatus, set[AnalysisJobStatus]] = {
@@ -178,6 +207,15 @@ async def recover_stale_jobs(
 
 async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
     """Execute a running job atomically with all analysis result writes."""
+    try:
+        await assert_learning_event_gate(db)
+    except CutoverError as exc:
+        raise AnalysisExecutionError(
+            exc.code,
+            str(exc),
+            retryable=True,
+        ) from exc
+
     stmt = select(AnalysisJob).where(AnalysisJob.id == job_id).with_for_update()
     job = (await db.execute(stmt)).scalar_one_or_none()
     if job is None or job.status != AnalysisJobStatus.running:
@@ -195,7 +233,18 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
             KnownAnalysisErrorCode.NO_USER_TRANSCRIPT.value,
             "Session has no user transcript to analyze",
         )
-    await update_knowledge(job.session_id, session.user_id, db)
+
+    from services.learning_events import write_learning_events
+
+    await write_learning_events(
+        job=job,
+        session=session,
+        user_id=session.user_id,
+        assessment=_event_bkt_assessment(analysis_result),
+        grammar_errors=analysis_result.grammar_errors,
+        coverage=_event_ledger_coverage(analysis_result),
+        db=db,
+    )
 
     transition_job(job, AnalysisJobStatus.succeeded)
     job.last_error_code = None

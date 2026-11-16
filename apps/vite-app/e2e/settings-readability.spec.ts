@@ -75,7 +75,7 @@ async function openDrawerWithTheme(page: Page, theme: Theme, rootFontSizeValue: 
   await page.evaluate((size) => {
     document.documentElement.style.fontSize = size;
   }, rootFontSizeValue);
-  await page.getByRole("button", { name: "自定义模型设置" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
   const dialog = page.getByRole("dialog", { name: "设置" });
   await expect(dialog).toBeVisible();
   // 真实水合就绪：等待后端主题回写与 html data-theme 终值。

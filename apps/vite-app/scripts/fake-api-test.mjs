@@ -102,6 +102,57 @@ describe("七天聚合 Fake API 真实独立子进程契约", { timeout: 30_000 
     );
   });
 
+  it("时长扩展在 true/1 时启用，默认/false 保持四字段并校验布尔、过滤与未知态", async () => {
+    const query = { end_date: "2026-11-03", timezone: "Asia/Singapore" };
+    for (const include_recorded_duration of [undefined, "false"]) {
+      const res = await get(
+        { ...query, ...(include_recorded_duration ? { include_recorded_duration } : {}) },
+        "duration",
+      );
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      body.days.forEach((day) => assert.equal(Object.keys(day).length, 4));
+    }
+
+    const optedInBodies = [];
+    for (const include_recorded_duration of ["true", "1"]) {
+      const optedIn = await get({ ...query, include_recorded_duration }, "duration");
+      assert.equal(optedIn.status, 200);
+      optedInBodies.push(await optedIn.json());
+    }
+    assert.deepEqual(optedInBodies[1], optedInBodies[0]);
+    const body = optedInBodies[0];
+    assert.deepEqual(
+      body.days.map((day) => day.completed_sessions),
+      [1, 2, 1, 1, 2, 1, 55],
+    );
+    assert.deepEqual(
+      body.days.map((day) => day.recorded_duration_ms),
+      [125_951_992, 4, 1, 1, 1, 0, 0],
+    );
+    assert.deepEqual(
+      body.days.map((day) => day.duration_unavailable_count),
+      [0, 1, 0, 0, 1, 0, 0],
+    );
+    body.days.forEach((day) => {
+      assert.deepEqual(Object.keys(day), [
+        "date",
+        "start",
+        "end",
+        "completed_sessions",
+        "recorded_duration_ms",
+        "duration_unavailable_count",
+      ]);
+      assert.ok(Number.isSafeInteger(day.recorded_duration_ms));
+      assert.ok(Number.isSafeInteger(day.duration_unavailable_count));
+      assert.ok(day.duration_unavailable_count <= day.completed_sessions);
+    });
+
+    const invalid = await get({ ...query, include_recorded_duration: "not-a-boolean" }, "duration");
+    assert.equal(invalid.status, 422);
+    await invalid.json();
+  });
+
   for (const [date, start, end, hours] of [
     ["2026-03-08", "2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z", 23],
     ["2026-11-01", "2026-11-01T04:00:00.000Z", "2026-11-02T05:00:00.000Z", 25],
@@ -542,6 +593,31 @@ describe("Fake API 契约与真实进程回归测试", () => {
       assert.strictEqual(res.headers.get("content-type"), "application/json; charset=utf-8");
       const json = await res.json();
       assert.deepStrictEqual(json, { status: "ok", service: "echotalk-e2e-fake" });
+    });
+
+    it("GET /api/health/system-ready 无 token 返回固定系统就绪契约", async () => {
+      const res = await timedFetch(`${serverInstance.baseUrl}/api/health/system-ready`);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.headers.get("content-type"), "application/json; charset=utf-8");
+      assert.deepStrictEqual(await res.json(), { status: "ready" });
+    });
+
+    it("GET /api/health/system-ready 忽略错误 Bearer 且不改变旧 ready 认证", async () => {
+      const systemReady = await timedFetch(`${serverInstance.baseUrl}/api/health/system-ready`, {
+        headers: { Authorization: "Bearer wrong-token-xyz" },
+      });
+      assert.strictEqual(systemReady.status, 200);
+      assert.deepStrictEqual(await systemReady.json(), { status: "ready" });
+
+      for (const headers of [undefined, { Authorization: "Bearer wrong-token-xyz" }]) {
+        const legacyReady = await timedFetch(`${serverInstance.baseUrl}/api/health/ready`, {
+          headers,
+        });
+        assert.strictEqual(legacyReady.status, 401);
+        assert.deepStrictEqual(await legacyReady.json(), {
+          detail: "Authentication required.",
+        });
+      }
     });
 
     it("GET /api/health/ready 缺少 token 时返回 401", async () => {
@@ -1298,11 +1374,41 @@ const EXPECTED_CONTRACT_DEVIATIONS = [
   },
 ];
 
+const BOUND_ACTIVE_NO_RUN_GOALS = [
+  {
+    goal_id: "mat_biz_greet_b1:introduce_name_and_role",
+    goal_version: 1,
+    description_en: "Introduce your name and your job or role.",
+    description_zh: "介绍自己的姓名及工作/角色。",
+    criteria: ["State your name.", "State your job or role."],
+    evidence_types: ["transcript"],
+    result: "not_assessed",
+  },
+  {
+    goal_id: "mat_biz_greet_b1:ask_other_work_question",
+    goal_version: 1,
+    description_en: "Ask the other person a question about their work.",
+    description_zh: "向对方提出一个与其工作相关的问题。",
+    criteria: ["Ask the other person a question about their work."],
+    evidence_types: ["transcript"],
+    result: "not_assessed",
+  },
+];
+
 const FAKE_SUCCESS_CASES = [
   {
     operation: "GET /api/health",
     expectedStatus: 200,
     buildRequest: () => ({ method: "GET", path: "/api/health", authenticated: false }),
+  },
+  {
+    operation: "GET /api/health/system-ready",
+    expectedStatus: 200,
+    buildRequest: () => ({
+      method: "GET",
+      path: "/api/health/system-ready",
+      authenticated: false,
+    }),
   },
   {
     operation: "GET /api/health/ready",
@@ -1322,6 +1428,11 @@ const FAKE_SUCCESS_CASES = [
     operation: "GET /api/user/settings",
     expectedStatus: 200,
     buildRequest: () => ({ method: "GET", path: "/api/user/settings" }),
+  },
+  {
+    operation: "GET /api/user/data-export",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "GET", path: "/api/user/data-export" }),
   },
   {
     operation: "GET /api/curriculum/next",
@@ -1409,6 +1520,14 @@ const FAKE_SUCCESS_CASES = [
     buildRequest: (context) => ({
       method: "GET",
       path: `/api/sessions/${context.sessionId}`,
+    }),
+  },
+  {
+    operation: "GET /api/sessions/{session_id}/goals",
+    expectedStatus: 200,
+    buildRequest: (context) => ({
+      method: "GET",
+      path: `/api/sessions/${context.sessionId}/goals`,
     }),
   },
   {
@@ -1514,6 +1633,11 @@ const FAKE_SUCCESS_CASES = [
       path: "/api/assessments/grammar-only-contract/grammar",
     }),
   },
+  {
+    operation: "DELETE /api/user/account",
+    expectedStatus: 200,
+    buildRequest: () => ({ method: "DELETE", path: "/api/user/account" }),
+  },
 ];
 
 function contractDeviationsForResult(result) {
@@ -1590,6 +1714,7 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
         operation: testCase.operation,
         status: response.status,
         body,
+        headers: Object.fromEntries(response.headers.entries()),
       });
     }
   });
@@ -1620,7 +1745,54 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
     );
   });
 
+  it("缺失 operation 由真实 fallback 验证，空 schema 清单固定且可输出", async () => {
+    const method = "POST";
+    const pathname = "/api/__b1_fake_fallback_probe";
+    const response = await timedFetch(`${serverInstance.baseUrl}${pathname}`, {
+      method,
+      headers: {
+        ...AUTH_HEADER,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+    assert.match(response.headers.get("content-type") ?? "", /^application\/json\b/i);
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), {
+      detail: `No fake route for ${method} ${pathname}`,
+    });
+
+    const classification = classifyOpenApiSuccessCoverage(
+      openApi,
+      FAKE_SUCCESS_CASES.map(({ operation }) => operation),
+    );
+    assert.deepEqual(classification.missingOperations, []);
+    assert.deepEqual(classification.unmodeledResponses, []);
+    console.log(
+      "[fake-api-contract]",
+      JSON.stringify({
+        missingOperations: [],
+        unmodeledResponses: [],
+      }),
+    );
+  });
+
   it("Fake 成功路由恰好覆盖 OpenAPI 中全部 operation", () => {
+    const classification = classifyOpenApiSuccessCoverage(
+      openApi,
+      FAKE_SUCCESS_CASES.map(({ operation }) => operation),
+    );
+    const expectedCovered = classification.operations
+      .map(({ key }) => key)
+      .filter((key) => !EXPECTED_MISSING_OPERATIONS.includes(key));
+    assert.deepEqual(
+      sortedOperationKeys(FAKE_SUCCESS_CASES.map(({ operation: key }) => key)),
+      sortedOperationKeys(expectedCovered),
+    );
+    assert.equal(results.size, expectedCovered.length);
+  });
+
+  it("Fake 成功路由恰好覆盖 OpenAPI 中除固定缺失项外的全部 operation", () => {
     const classification = classifyOpenApiSuccessCoverage(
       openApi,
       FAKE_SUCCESS_CASES.map(({ operation }) => operation),
@@ -1650,6 +1822,242 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
       );
     });
   }
+
+  it("GET /api/sessions/{session_id}/goals 对默认无绑定会话返回空未配置视图", () => {
+    const result = results.get("GET /api/sessions/{session_id}/goals");
+    assert.ok(result, "未取得 GET /api/sessions/{session_id}/goals 的真实 HTTP 响应");
+    assert.deepStrictEqual(result.body, {
+      session_id: context.sessionId,
+      configured: false,
+      material_id: null,
+      material_version: null,
+      goals: [],
+      execution: null,
+      summary: null,
+    });
+  });
+
+  it("GET /api/sessions/{session_id}/goals 对绑定 active/no-run 派生 not_assessed 且无副作用，未知会话404", async () => {
+    const isolated = await startFakeApiServer();
+    try {
+      const createdResponse = await timedFetch(`${isolated.baseUrl}/api/sessions`, {
+        method: "POST",
+        headers: {
+          ...AUTH_HEADER,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mode: "scenario",
+          goal_binding: {
+            material_id: "mat_biz_greet_b1",
+            material_version: 1,
+          },
+        }),
+      });
+      assert.equal(createdResponse.status, 200);
+      const session = await createdResponse.json();
+
+      const goalsUrl = `${isolated.baseUrl}/api/sessions/${session.id}/goals`;
+      const firstResponse = await timedFetch(goalsUrl, { headers: AUTH_HEADER });
+      assert.equal(firstResponse.status, 200);
+      const firstBody = await firstResponse.json();
+      assert.deepStrictEqual(firstBody, {
+        session_id: session.id,
+        configured: true,
+        material_id: "mat_biz_greet_b1",
+        material_version: 1,
+        goals: BOUND_ACTIVE_NO_RUN_GOALS,
+        execution: null,
+        summary: {
+          total: 2,
+          achieved: 0,
+          not_achieved: 0,
+          assessed: 0,
+          unknown: 0,
+          not_assessed: 2,
+        },
+      });
+
+      const secondResponse = await timedFetch(goalsUrl, { headers: AUTH_HEADER });
+      assert.equal(secondResponse.status, 200);
+      assert.deepStrictEqual(await secondResponse.json(), firstBody);
+
+      const sessionResponse = await timedFetch(`${isolated.baseUrl}/api/sessions/${session.id}`, {
+        headers: AUTH_HEADER,
+      });
+      assert.equal(sessionResponse.status, 200);
+      assert.equal((await sessionResponse.json()).status, "active");
+
+      const unknownResponse = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/00000000-0000-4000-8000-00000000dead/goals`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(unknownResponse.status, 404);
+      await unknownResponse.json();
+    } finally {
+      await terminateServer(isolated.child);
+    }
+  });
+
+  it("GET /api/user/data-export 返回可审计本人数据与固定安全头", async () => {
+    const result = results.get("GET /api/user/data-export");
+    assert.ok(result, "未取得 GET /api/user/data-export 的真实 HTTP 响应");
+    assert.equal(result.headers["cache-control"], "no-store");
+    assert.equal(
+      result.headers["content-disposition"],
+      'attachment; filename="echotalk-user-data-export.json"',
+    );
+    assert.equal(result.headers["x-content-type-options"], "nosniff");
+    assert.deepEqual(Object.keys(result.body), [
+      "schema_version",
+      "exported_at",
+      "sessions",
+      "transcripts",
+      "pronunciation_assessments",
+      "grammar_assessments",
+      "learning_events",
+      "knowledge_states",
+    ]);
+    assert.equal(result.body.schema_version, 1);
+    assert.equal(result.body.sessions.length, 1);
+    assert.equal(result.body.transcripts.length, 2);
+    assert.equal(result.body.pronunciation_assessments.length, 1);
+    assert.equal(result.body.grammar_assessments.length, 1);
+    assert.equal(result.body.learning_events.length, 4);
+    assert.equal(result.body.knowledge_states.length, 1);
+
+    const eventTypes = result.body.learning_events.map(({ event_type }) => event_type);
+    assert.deepEqual(eventTypes, [
+      "analysis_completed",
+      "pronunciation_observation",
+      "grammar_observation",
+      "baseline_snapshot",
+    ]);
+    assert.equal(result.body.pronunciation_assessments[0].model_version, "acme-phoneme-v1");
+    assert.equal(result.body.grammar_assessments[0].model_version, null);
+    assert.equal(result.body.learning_events[0].algorithm_version, "bkt-v1");
+    assert.equal(result.body.learning_events[3].source, "legacy_unknown");
+    assert.equal(result.body.learning_events[3].details.legacy_synthetic_impact, "unknown");
+
+    const forbiddenKeys = new Set([
+      "api_key",
+      "audio_url",
+      "auth_issuer",
+      "auth_subject",
+      "custom_prompt",
+      "document_content",
+      "elsa_response",
+      "encrypted_llm_key",
+      "encrypted_stt_key",
+      "encrypted_tts_key",
+      "idempotency_key",
+      "internal_prompt",
+      "password_hash",
+      "provider_raw_response",
+      "provider_response_ref",
+      "user_id",
+    ]);
+    const collectKeys = (value, keys = new Set()) => {
+      if (Array.isArray(value)) {
+        value.forEach((entry) => collectKeys(entry, keys));
+      } else if (value !== null && typeof value === "object") {
+        for (const [key, nested] of Object.entries(value)) {
+          keys.add(key);
+          collectKeys(nested, keys);
+        }
+      }
+      return keys;
+    };
+    const leakedKeys = [...collectKeys(result.body)].filter((key) => forbiddenKeys.has(key));
+    assert.deepEqual(leakedKeys, []);
+
+    const anonymous = await timedFetch(`${serverInstance.baseUrl}/api/user/data-export`);
+    assert.equal(anonymous.status, 401);
+    assert.equal((await anonymous.json()).detail, "Authentication required.");
+  });
+
+  it("DELETE /api/user/account 返回固定成功正文且仍要求认证", async () => {
+    const result = results.get("DELETE /api/user/account");
+    assert.ok(result, "未取得 DELETE /api/user/account 的真实 HTTP 响应");
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.body, { status: "deleted" });
+
+    const anonymous = await timedFetch(`${serverInstance.baseUrl}/api/user/account`, {
+      method: "DELETE",
+    });
+    assert.equal(anonymous.status, 401);
+    await anonymous.json();
+  });
+
+  it("删除后 Session 与 Job 失效，重复删除幂等且导出不返回固定历史", async () => {
+    const isolated = await startFakeApiServer();
+    try {
+      const createdResponse = await timedFetch(`${isolated.baseUrl}/api/sessions`, {
+        method: "POST",
+        headers: {
+          ...AUTH_HEADER,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mode: "scenario" }),
+      });
+      assert.equal(createdResponse.status, 200);
+      const session = await createdResponse.json();
+
+      const endedResponse = await timedFetch(`${isolated.baseUrl}/api/sessions/${session.id}/end`, {
+        method: "POST",
+        headers: AUTH_HEADER,
+      });
+      assert.equal(endedResponse.status, 200);
+      const jobResponse = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/${session.id}/analysis-status`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(jobResponse.status, 200);
+      assert.equal((await jobResponse.json()).status, "pending");
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const deletedResponse = await timedFetch(`${isolated.baseUrl}/api/user/account`, {
+          method: "DELETE",
+          headers: AUTH_HEADER,
+        });
+        assert.equal(deletedResponse.status, 200);
+        assert.deepEqual(await deletedResponse.json(), { status: "deleted" });
+      }
+
+      const sessionAfterDelete = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/${session.id}`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(sessionAfterDelete.status, 404);
+      await sessionAfterDelete.json();
+
+      const jobAfterDelete = await timedFetch(
+        `${isolated.baseUrl}/api/sessions/${session.id}/analysis-status`,
+        { headers: AUTH_HEADER },
+      );
+      assert.equal(jobAfterDelete.status, 404);
+      await jobAfterDelete.json();
+
+      const exportAfterDelete = await timedFetch(`${isolated.baseUrl}/api/user/data-export`, {
+        headers: AUTH_HEADER,
+      });
+      assert.equal(exportAfterDelete.status, 200);
+      const exportBody = await exportAfterDelete.json();
+      assert.equal(exportBody.schema_version, 1);
+      for (const section of [
+        "sessions",
+        "transcripts",
+        "pronunciation_assessments",
+        "grammar_assessments",
+        "learning_events",
+        "knowledge_states",
+      ]) {
+        assert.deepEqual(exportBody[section], [], section);
+      }
+    } finally {
+      await terminateServer(isolated.child);
+    }
+  });
 
   it("全部成功响应的状态与字段偏差恰为固定的具体清单", () => {
     const actual = normalizedDeviations(
@@ -1807,6 +2215,121 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
         ({ path, keyword }) => path === "$.protocol_version" && keyword === "const",
       ),
     );
+  });
+});
+
+describe("G-WIRE curriculum goals and session binding", { timeout: 30_000 }, () => {
+  let instance;
+  before(async () => {
+    instance = await startFakeApiServer();
+  });
+  after(async () => {
+    await terminateServer(instance?.child);
+  });
+
+  it("keeps legacy curriculum bytes by default and exposes only pilot goals on opt-in", async () => {
+    const legacyResponse = await timedFetch(instance.baseUrl + "/api/curriculum/next", {
+      headers: AUTH_HEADER,
+    });
+    assert.equal(legacyResponse.status, 200);
+    const legacy = await legacyResponse.json();
+    assert.deepEqual(legacy.recommendations, [
+      {
+        scenario_name: "travel_planning",
+        difficulty_cefr: "B1",
+        category: "conversation",
+        focus_skills: ["grammar_past_tense"],
+        system_prompt_template: "Practice planning a trip.",
+      },
+    ]);
+
+    const optedResponse = await timedFetch(
+      instance.baseUrl + "/api/curriculum/next?include_goals=true",
+      { headers: AUTH_HEADER },
+    );
+    assert.equal(optedResponse.status, 200);
+    const opted = await optedResponse.json();
+    assert.deepEqual(
+      opted.recommendations.map((item) => item.scenario_name),
+      ["business_meeting_greetings", "th_minimal_pairs", "hotel_checkin_roleplay"],
+    );
+    const business = opted.recommendations[0];
+    const th = opted.recommendations[1];
+    const hotel = opted.recommendations[2];
+    assert.equal(business.goal_binding.material_id, "mat_biz_greet_b1");
+    assert.equal(business.goal_binding.material_version, 1);
+    assert.equal(business.goal_binding.goals.length, 2);
+    assert.equal(
+      business.goal_binding.goals[1].goal_id,
+      "mat_biz_greet_b1:ask_other_work_question",
+    );
+    assert.equal(hotel.goal_binding.material_id, "mat_hotel_checkin_b1");
+    assert.equal(hotel.goal_binding.goals.length, 2);
+    assert.equal("goal_binding" in th, false);
+  });
+
+  it("uses the minimal binding in idempotency fingerprint and rejects forged goals", async () => {
+    const key = "2da3e936-bcb6-4e97-baf8-92749c7c0e2d";
+    const body = {
+      mode: "scenario",
+      goal_binding: {
+        material_id: "mat_biz_greet_b1",
+        material_version: 1,
+      },
+    };
+    const headers = {
+      ...AUTH_HEADER,
+      "Content-Type": "application/json",
+      "Idempotency-Key": key,
+    };
+
+    const first = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    assert.equal(first.status, 200);
+    const firstSession = await first.json();
+
+    const replay = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    assert.equal(replay.status, 200);
+    assert.equal((await replay.json()).id, firstSession.id);
+
+    const conflict = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        mode: "scenario",
+        goal_binding: {
+          material_id: "mat_hotel_checkin_b1",
+          material_version: 1,
+        },
+      }),
+    });
+    assert.equal(conflict.status, 409);
+    await conflict.json();
+
+    const forgedGoals = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers: {
+        ...AUTH_HEADER,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        mode: "scenario",
+        goal_binding: {
+          material_id: "mat_biz_greet_b1",
+          material_version: 1,
+          goals: [{ goal_id: "client-authored" }],
+        },
+      }),
+    });
+    assert.equal(forgedGoals.status, 422);
+    await forgedGoals.json();
   });
 });
 

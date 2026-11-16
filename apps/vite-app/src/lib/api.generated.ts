@@ -212,6 +212,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/health/system-ready": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * System Readiness Check
+     * @description 公开的系统就绪检查；仅验证共享 PostgreSQL，而不判断用户练习权限。
+     */
+    get: operations["system_readiness_check_api_health_system_ready_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions": {
     parameters: {
       query?: never;
@@ -291,7 +311,7 @@ export interface paths {
     };
     /**
      * Get Weekly Progress
-     * @description 返回截至 end_date 的七个本地自然日已完成会话数，含零桶。
+     * @description 返回七个本地自然日已完成会话数，并可按显式请求聚合时长。
      */
     get: operations["get_weekly_progress_api_sessions_weekly_progress_get"];
     put?: never;
@@ -462,6 +482,29 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/{session_id}/goals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Session Goals
+     * @description Return the frozen goal definitions, execution and summary (read-only).
+     *
+     *     Uses one outer-join select for a consistent snapshot; it never issues
+     *     ``SET TRANSACTION`` so it stays safe on the shared authentication session.
+     */
+    get: operations["get_session_goals_api_sessions__session_id__goals_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}/token": {
     parameters: {
       query?: never;
@@ -474,6 +517,46 @@ export interface paths {
      * @description 为指定会话生成加入房间的 LiveKit 令牌。并在签发前校验鉴权与连通状态。
      */
     get: operations["get_session_token_api_sessions__session_id__token_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/user/account": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Delete Current User Account
+     * @description Permanently delete the authenticated account and all owned local data.
+     */
+    delete: operations["delete_current_user_account_api_user_account_delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/user/data-export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Export User Data
+     * @description Export the authenticated user's data as one complete JSON attachment.
+     */
+    get: operations["export_user_data_api_user_data_export_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -582,6 +665,20 @@ export interface components {
       session_id: string;
       /** Source */
       source: string;
+    };
+    /**
+     * BktAlgorithmParams
+     * @description The frozen four-parameter BKT algorithm definition.
+     */
+    BktAlgorithmParams: {
+      /** P Guess */
+      p_guess: number;
+      /** P Init */
+      p_init: number;
+      /** P Slip */
+      p_slip: number;
+      /** P Transit */
+      p_transit: number;
     };
     /**
      * CallCapabilitiesResponse
@@ -709,6 +806,34 @@ export interface components {
       transcript_id: number;
     };
     /**
+     * CoverageDirection
+     * @description One audited source direction from an analysis-completed event.
+     */
+    CoverageDirection: {
+      /** Is Synthetic */
+      is_synthetic: boolean | null;
+      /** Model Version */
+      model_version: string | null;
+      /** Provider */
+      provider: string | null;
+      /** Source */
+      source: string | null;
+      /** Status */
+      status: string | null;
+    };
+    /**
+     * CurriculumGoalBinding
+     * @description Explicit pilot goal preview for one immutable material version.
+     */
+    CurriculumGoalBinding: {
+      /** Goals */
+      goals: components["schemas"]["GoalDefinition"][];
+      /** Material Id */
+      material_id: string;
+      /** Material Version */
+      material_version: number;
+    };
+    /**
      * CurriculumNextResponse
      * @description GET /api/curriculum/next 响应体。
      */
@@ -733,6 +858,7 @@ export interface components {
       difficulty_cefr: string;
       /** Focus Skills */
       focus_skills: string[];
+      goal_binding?: components["schemas"]["CurriculumGoalBinding"] | null;
       /** Scenario Name */
       scenario_name: string;
       /** System Prompt Template */
@@ -762,6 +888,245 @@ export interface components {
       prompt: string;
       /** Raw Text */
       raw_text: string;
+    };
+    /**
+     * EventCoverage
+     * @description Pronunciation and grammar coverage metadata.
+     */
+    EventCoverage: {
+      grammar: components["schemas"]["CoverageDirection"] | null;
+      pronunciation: components["schemas"]["CoverageDirection"] | null;
+    };
+    /**
+     * EventUnmappedCounts
+     * @description Counts of observations not mapped into the ledger.
+     */
+    EventUnmappedCounts: {
+      /** Grammar */
+      grammar: number | null;
+      /** Pronunciation */
+      pronunciation: number | null;
+    };
+    /**
+     * GoalBindingRef
+     * @description Client-selected immutable goal catalog reference.
+     */
+    GoalBindingRef: {
+      /** Material Id */
+      material_id: string;
+      /** Material Version */
+      material_version: number;
+    };
+    /**
+     * GoalDefinition
+     * @description One fully described goal in an immutable material version.
+     */
+    GoalDefinition: {
+      /** Criteria */
+      criteria: string[];
+      /** Description En */
+      description_en: string;
+      /** Description Zh */
+      description_zh: string;
+      /** Evidence Types */
+      evidence_types: string[];
+      /** Goal Id */
+      goal_id: string;
+      /** Goal Version */
+      goal_version: number;
+    };
+    /**
+     * GoalEvidenceRef
+     * @description One frozen student transcript reference (id + digest, no body).
+     */
+    GoalEvidenceRef: {
+      /** Sha256 */
+      sha256: string;
+      /** Transcript Id */
+      transcript_id: string;
+    };
+    /**
+     * GoalExecution
+     * @description Execution progress for the one active revision.
+     */
+    GoalExecution: {
+      /** Evaluator Version */
+      evaluator_version: string;
+      /** Revision */
+      revision: number;
+      /** Status */
+      status: string;
+    };
+    /**
+     * GoalResultExport
+     * @description One append-only terminal result for a goal.
+     */
+    GoalResultExport: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Goal Id */
+      goal_id: string;
+      /** Goal Version */
+      goal_version: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Result */
+      result: string;
+      /**
+       * Run Id
+       * Format: uuid
+       */
+      run_id: string;
+    };
+    /**
+     * GoalRunExport
+     * @description One frozen evaluation run header with its evidence references.
+     */
+    GoalRunExport: {
+      /** Attempt Count */
+      attempt_count: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Evaluator Version */
+      evaluator_version: string;
+      /** Evidence */
+      evidence: components["schemas"]["GoalEvidenceRef"][];
+      /** Finished At */
+      finished_at: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Last Error */
+      last_error: string | null;
+      /** Last Error Code */
+      last_error_code: string | null;
+      /** Next Retry At */
+      next_retry_at: string | null;
+      /** Revision */
+      revision: number;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Started At */
+      started_at: string | null;
+      /** Status */
+      status: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * GoalSummary
+     * @description Terminal count invariants; ``0 <= achieved <= assessed <= total``.
+     */
+    GoalSummary: {
+      /** Achieved */
+      achieved: number;
+      /** Assessed */
+      assessed: number;
+      /** Not Achieved */
+      not_achieved: number;
+      /** Not Assessed */
+      not_assessed: number;
+      /** Total */
+      total: number;
+      /** Unknown */
+      unknown: number;
+    };
+    /**
+     * GoalViewEntry
+     * @description One frozen goal definition plus its terminal result (or null).
+     */
+    GoalViewEntry: {
+      /** Criteria */
+      criteria: string[];
+      /** Description En */
+      description_en: string;
+      /** Description Zh */
+      description_zh: string;
+      /** Evidence Types */
+      evidence_types: string[];
+      /** Goal Id */
+      goal_id: string;
+      /** Goal Version */
+      goal_version: number;
+      /** Result */
+      result: string | null;
+    };
+    /**
+     * GoalViewResponse
+     * @description Stable owner-scoped read for one session's goals.
+     */
+    GoalViewResponse: {
+      /** Configured */
+      configured: boolean;
+      execution: components["schemas"]["GoalExecution"] | null;
+      /** Goals */
+      goals: components["schemas"]["GoalViewEntry"][];
+      /** Material Id */
+      material_id: string | null;
+      /** Material Version */
+      material_version: number | null;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      summary: components["schemas"]["GoalSummary"] | null;
+    };
+    /**
+     * GrammarAssessmentExport
+     * @description Grammar error and correction fields for the authenticated user.
+     */
+    GrammarAssessmentExport: {
+      /** Confidence */
+      confidence: number | null;
+      /** Corrected */
+      corrected: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Error Type */
+      error_type: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Is Synthetic */
+      is_synthetic: boolean;
+      /** Model Version */
+      model_version: string | null;
+      /** Original */
+      original: string;
+      /** Provider */
+      provider: string | null;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Skill Tag */
+      skill_tag: string;
+      /** Source */
+      source: string;
     };
     /**
      * GrammarErrorResponse
@@ -818,6 +1183,21 @@ export interface components {
       status: string;
     };
     /**
+     * KnowledgeStateExport
+     * @description One user-owned BKT mastery state.
+     */
+    KnowledgeStateExport: {
+      /** P Mastery */
+      p_mastery: number;
+      /** Skill Id */
+      skill_id: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
      * KnowledgeStateResponse
      * @description 知识状态响应（含技能信息）。
      */
@@ -847,6 +1227,88 @@ export interface components {
       user_id: string;
     };
     /**
+     * LearningEventDetails
+     * @description Whitelisted nested event metadata.
+     */
+    LearningEventDetails: {
+      coverage: components["schemas"]["EventCoverage"] | null;
+      /** Legacy Synthetic Impact */
+      legacy_synthetic_impact: string | null;
+      /** Schema Version */
+      schema_version: number | null;
+      unmapped: components["schemas"]["EventUnmappedCounts"] | null;
+    };
+    /**
+     * LearningEventExport
+     * @description One immutable learning event with safe nested JSON projections.
+     */
+    LearningEventExport: {
+      algorithm_params: components["schemas"]["BktAlgorithmParams"] | null;
+      /** Algorithm Version */
+      algorithm_version: string | null;
+      /** Analysis Job Id */
+      analysis_job_id: string | null;
+      /** Apply Seq */
+      apply_seq: number;
+      /** Confidence */
+      confidence: number | null;
+      /** Cutover Revision */
+      cutover_revision: string | null;
+      details: components["schemas"]["LearningEventDetails"];
+      /** Event Type */
+      event_type: string;
+      /** Grammar Error Id */
+      grammar_error_id: string | null;
+      /** Is Synthetic */
+      is_synthetic: boolean | null;
+      /** Model Version */
+      model_version: string | null;
+      /** Observation Code */
+      observation_code: string | null;
+      /** Observation Correct */
+      observation_correct: boolean | null;
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string;
+      /** P Mastery Snapshot */
+      p_mastery_snapshot: number | null;
+      /** Pronunciation Assessment Id */
+      pronunciation_assessment_id: string | null;
+      /** Provider */
+      provider: string | null;
+      /**
+       * Recorded At
+       * Format: date-time
+       */
+      recorded_at: string;
+      /** Session Id */
+      session_id: string | null;
+      /** Skill Id */
+      skill_id: string | null;
+      /** Source */
+      source: string;
+      /** Source Ordinal */
+      source_ordinal: number | null;
+    };
+    /**
+     * PhonemeAlignmentExport
+     * @description One explicitly projected phoneme-alignment item.
+     */
+    PhonemeAlignmentExport: {
+      /** Actual */
+      actual: string | null;
+      /** Expected */
+      expected: string | null;
+      /** Phoneme */
+      phoneme: string;
+      /** Position */
+      position: number;
+      /** Type */
+      type: string;
+    };
+    /**
      * PhonemeAlignmentItem
      * @description 音素对齐条目。
      */
@@ -863,6 +1325,41 @@ export interface components {
       type: string;
     };
     /**
+     * PronunciationAssessmentExport
+     * @description Pronunciation assessment fields without provider response internals.
+     */
+    PronunciationAssessmentExport: {
+      /** Confidence */
+      confidence: number | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Is Synthetic */
+      is_synthetic: boolean;
+      /** Model Version */
+      model_version: string | null;
+      /** Overall Score */
+      overall_score: number;
+      /** Phoneme Alignment */
+      phoneme_alignment: components["schemas"]["PhonemeAlignmentExport"][];
+      /** Provider */
+      provider: string | null;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Source */
+      source: string;
+    };
+    /**
      * ReadinessResponse
      * @description 深度就绪检查成功响应。
      */
@@ -873,11 +1370,54 @@ export interface components {
     /**
      * SessionCreate
      * @description 创建会话请求体。
+     *
+     *     未携带 binding 的 legacy 请求继续忽略顶层额外字段。只有显式非 null
+     *     binding 才启用严格顶层输入，避免改变旧客户端语义。
      */
     SessionCreate: {
       doc_context?: components["schemas"]["DocContext"] | null;
+      goal_binding?: components["schemas"]["GoalBindingRef"] | null;
       /** Mode */
       mode: string;
+    };
+    /**
+     * SessionExport
+     * @description Minimal session metadata needed to interpret exported child rows.
+     */
+    SessionExport: {
+      /** Ended At */
+      ended_at: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Mode */
+      mode: string;
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string;
+      /** Status */
+      status: string;
+    };
+    /**
+     * SessionGoalExport
+     * @description One session snapshot with its complete immutable goal definitions.
+     */
+    SessionGoalExport: {
+      /** Goals */
+      goals: components["schemas"]["GoalDefinition"][];
+      /** Material Id */
+      material_id: string;
+      /** Material Version */
+      material_version: number;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
     };
     /**
      * SessionListItem
@@ -968,6 +1508,49 @@ export interface components {
       name: string;
     };
     /**
+     * SystemReadinessResponse
+     * @description Fixed success response after the shared database answers SELECT 1.
+     */
+    SystemReadinessResponse: {
+      /**
+       * Status
+       * @constant
+       */
+      status: "ready";
+    };
+    /**
+     * SystemReadinessUnavailableResponse
+     * @description Fixed failure response that never exposes underlying readiness errors.
+     */
+    SystemReadinessUnavailableResponse: {
+      /**
+       * Status
+       * @constant
+       */
+      status: "not_ready";
+    };
+    /**
+     * TranscriptExport
+     * @description Transcript fields safe and necessary for a user data export.
+     */
+    TranscriptExport: {
+      /** Content */
+      content: string;
+      /** Event Id */
+      event_id: string | null;
+      /** Id */
+      id: number;
+      /** Role */
+      role: string;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Timestamp Ms */
+      timestamp_ms: number;
+    };
+    /**
      * TranscriptResponse
      * @description 转录记录响应。
      */
@@ -991,6 +1574,109 @@ export interface components {
       session_id: string;
       /** Timestamp Ms */
       timestamp_ms: number;
+    };
+    /**
+     * UserAccountDeletionResponse
+     * @description Fixed acknowledgement returned only after account deletion commits.
+     */
+    UserAccountDeletionResponse: {
+      /**
+       * Status
+       * @constant
+       */
+      status: "deleted";
+    };
+    /**
+     * UserDataExport
+     * @description Stable version-1 structured export returned as a JSON attachment.
+     */
+    UserDataExport: {
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Grammar Assessments */
+      grammar_assessments: components["schemas"]["GrammarAssessmentExport"][];
+      /** Knowledge States */
+      knowledge_states: components["schemas"]["KnowledgeStateExport"][];
+      /** Learning Events */
+      learning_events: components["schemas"]["LearningEventExport"][];
+      /** Pronunciation Assessments */
+      pronunciation_assessments: components["schemas"]["PronunciationAssessmentExport"][];
+      /**
+       * Schema Version
+       * @constant
+       */
+      schema_version: 1;
+      /** Sessions */
+      sessions: components["schemas"]["SessionExport"][];
+      /** Transcripts */
+      transcripts: components["schemas"]["TranscriptExport"][];
+    };
+    /**
+     * UserDataExportV2
+     * @description Explicit opt-in version-2 export with effective session goals.
+     */
+    UserDataExportV2: {
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Grammar Assessments */
+      grammar_assessments: components["schemas"]["GrammarAssessmentExport"][];
+      /** Knowledge States */
+      knowledge_states: components["schemas"]["KnowledgeStateExport"][];
+      /** Learning Events */
+      learning_events: components["schemas"]["LearningEventExport"][];
+      /** Pronunciation Assessments */
+      pronunciation_assessments: components["schemas"]["PronunciationAssessmentExport"][];
+      /**
+       * Schema Version
+       * @constant
+       */
+      schema_version: 2;
+      /** Session Goals */
+      session_goals: components["schemas"]["SessionGoalExport"][];
+      /** Sessions */
+      sessions: components["schemas"]["SessionExport"][];
+      /** Transcripts */
+      transcripts: components["schemas"]["TranscriptExport"][];
+    };
+    /**
+     * UserDataExportV3
+     * @description Explicit opt-in version-3 export with goal runs/results references.
+     */
+    UserDataExportV3: {
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Goal Results */
+      goal_results: components["schemas"]["GoalResultExport"][];
+      /** Goal Runs */
+      goal_runs: components["schemas"]["GoalRunExport"][];
+      /** Grammar Assessments */
+      grammar_assessments: components["schemas"]["GrammarAssessmentExport"][];
+      /** Knowledge States */
+      knowledge_states: components["schemas"]["KnowledgeStateExport"][];
+      /** Learning Events */
+      learning_events: components["schemas"]["LearningEventExport"][];
+      /** Pronunciation Assessments */
+      pronunciation_assessments: components["schemas"]["PronunciationAssessmentExport"][];
+      /**
+       * Schema Version
+       * @constant
+       */
+      schema_version: 3;
+      /** Session Goals */
+      session_goals: components["schemas"]["SessionGoalExport"][];
+      /** Sessions */
+      sessions: components["schemas"]["SessionExport"][];
+      /** Transcripts */
+      transcripts: components["schemas"]["TranscriptExport"][];
     };
     /**
      * UserSettingsResponse
@@ -1140,7 +1826,7 @@ export interface components {
     };
     /**
      * WeeklyProgressDay
-     * @description 一个本地自然日对应的 UTC 半开窗口及已完成会话数。
+     * @description 一个本地自然日对应的 UTC 半开窗口及可选的已记录会话时长。
      */
     WeeklyProgressDay: {
       /** Completed Sessions */
@@ -1150,11 +1836,15 @@ export interface components {
        * Format: date
        */
       date: string;
+      /** Duration Unavailable Count */
+      duration_unavailable_count?: number | null;
       /**
        * End
        * Format: date-time
        */
       end: string;
+      /** Recorded Duration Ms */
+      recorded_duration_ms?: number | null;
       /**
        * Start
        * Format: date-time
@@ -1408,7 +2098,9 @@ export interface operations {
   };
   get_next_curriculum_api_curriculum_next_get: {
     parameters: {
-      query?: never;
+      query?: {
+        include_goals?: boolean;
+      };
       header?: {
         authorization?: string | null;
       };
@@ -1484,6 +2176,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  system_readiness_check_api_health_system_ready_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SystemReadinessResponse"];
+        };
+      };
+      /** @description Shared PostgreSQL is not ready. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SystemReadinessUnavailableResponse"];
         };
       };
     };
@@ -1636,6 +2357,7 @@ export interface operations {
       query: {
         end_date: string;
         timezone: string;
+        include_recorded_duration?: boolean;
       };
       header?: {
         authorization?: string | null;
@@ -1943,6 +2665,39 @@ export interface operations {
       };
     };
   };
+  get_session_goals_api_sessions__session_id__goals_get: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GoalViewResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   get_session_token_api_sessions__session_id__token_get: {
     parameters: {
       query?: never;
@@ -1965,6 +2720,73 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SessionTokenResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_current_user_account_api_user_account_delete: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UserAccountDeletionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  export_user_data_api_user_data_export_get: {
+    parameters: {
+      query?: {
+        schema_version?: number;
+      };
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["UserDataExport"]
+            | components["schemas"]["UserDataExportV2"]
+            | components["schemas"]["UserDataExportV3"];
         };
       };
       /** @description Validation Error */

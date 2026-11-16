@@ -1,17 +1,40 @@
-"""用户设置路由：双轨制配置读写。"""
+"""用户设置与本人数据导出路由。"""
 
-from fastapi import APIRouter, Depends
+import logging
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from auth import CurrentUser
+from auth import AuthIdentity, CurrentUser
 from database import get_db
-from dependencies import get_current_user
+from dependencies import (
+    get_authenticated_identity,
+    get_current_user,
+    get_current_user_from_identity,
+)
 from models.user import (
     User,
     UserSettings,
 )
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
+from schemas.user_account_deletion import UserAccountDeletionResponse
+from schemas.user_data_export import (
+    UserDataExport,
+    UserDataExportV2,
+    UserDataExportV3,
+)
+from services.learning_event_cutover import lock_cutover_control_for_update
+from services.user_account_deletion import (
+    delete_user_account as delete_user_account_data,
+)
+from services.user_data_export import (
+    build_user_data_export,
+    get_user_data_export_session_factory,
+    serialize_user_data_export,
+)
 from services.user_settings_service import (
     UserSettingsService,
 )
@@ -22,6 +45,25 @@ from services.validation_service import (
 from utils.crypto import decrypt_api_key, encrypt_api_key
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+USER_ACCOUNT_DELETION_ERROR = "Unable to delete user account."
+USER_DATA_EXPORT_ERROR = "Unable to export user data."
+
+
+async def _lock_account_deletion_control(
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Serialize with event writers before mapping or locking the local user."""
+    await lock_cutover_control_for_update(db)
+
+
+async def _get_account_deletion_user(
+    _identity: AuthIdentity = Depends(get_authenticated_identity),
+    _control_lock: None = Depends(_lock_account_deletion_control),
+    current_user: CurrentUser = Depends(get_current_user_from_identity),
+) -> CurrentUser:
+    """Reject unauthenticated requests before waiting for the deletion gate."""
+    return current_user
 
 
 def get_key_status(has_key: bool, is_valid: bool | None) -> str:
@@ -89,6 +131,90 @@ def _apply_settings_update(
         tts_valid,
         encrypt_fn=encrypt_api_key,
     )
+
+
+@router.get(
+    "/user/data-export",
+    response_model=UserDataExport | UserDataExportV2 | UserDataExportV3,
+)
+async def export_user_data(
+    current_user: CurrentUser = Depends(get_current_user),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(
+        get_user_data_export_session_factory
+    ),
+    schema_version: Annotated[int, Query(ge=1, le=3)] = 1,
+) -> Response:
+    """Export the authenticated user's data as one complete JSON attachment."""
+    try:
+        if schema_version == 1:
+            export = await build_user_data_export(
+                session_factory=session_factory,
+                user_id=current_user.id,
+            )
+        elif schema_version == 2:
+            export = await build_user_data_export(
+                session_factory=session_factory,
+                user_id=current_user.id,
+                include_session_goals=True,
+            )
+        else:
+            export = await build_user_data_export(
+                session_factory=session_factory,
+                user_id=current_user.id,
+                include_session_goals=True,
+                include_goal_evaluations=True,
+            )
+        payload = serialize_user_data_export(export)
+    except Exception as exc:
+        logger.error(
+            "User data export failed with %s",
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": USER_DATA_EXPORT_ERROR},
+        )
+
+    return Response(
+        content=payload,
+        media_type="application/json",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": (
+                'attachment; filename="echotalk-user-data-export.json"'
+            ),
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.delete("/user/account", response_model=UserAccountDeletionResponse)
+async def delete_current_user_account(
+    current_user: CurrentUser = Depends(_get_account_deletion_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserAccountDeletionResponse | JSONResponse:
+    """Permanently delete the authenticated account and all owned local data."""
+    try:
+        await delete_user_account_data(db=db, user_id=current_user.id)
+        await db.commit()
+    except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception as rollback_exc:
+            logger.error(
+                "User account deletion rollback failed with %s",
+                type(rollback_exc).__name__,
+            )
+        logger.error(
+            "User account deletion failed with %s",
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": USER_ACCOUNT_DELETION_ERROR},
+        )
+
+    return UserAccountDeletionResponse(status="deleted")
 
 
 @router.get("/user/settings", response_model=UserSettingsResponse)

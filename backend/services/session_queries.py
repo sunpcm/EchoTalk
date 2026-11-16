@@ -364,23 +364,69 @@ async def query_weekly_progress(
     user_id: uuid.UUID,
     end_date: str,
     timezone_name: str,
+    include_recorded_duration: bool = False,
 ) -> WeeklyProgressResponse:
-    """单次有界 SQL 聚合七日会话数；不查询实体或关联表/正文。"""
+    """单次有界 SQL 聚合七日会话数及显式请求的已记录会话时长。"""
     days = weekly_day_windows(end_date, timezone_name)
+    count_expressions = [
+        func.count()
+        .filter(Session.started_at >= day.start, Session.started_at < day.end)
+        .label(f"day_{i}")
+        for i, day in enumerate(days)
+    ]
+    duration_expressions = []
+    unavailable_expressions = []
+    if include_recorded_duration:
+        duration_ms = func.floor(
+            func.extract("epoch", Session.ended_at - Session.started_at) * 1000
+        )
+        valid_duration = and_(
+            Session.ended_at.is_not(None),
+            Session.ended_at >= Session.started_at,
+        )
+        unavailable_duration = or_(
+            Session.ended_at.is_(None),
+            Session.ended_at < Session.started_at,
+        )
+        for i, day in enumerate(days):
+            in_day = and_(
+                Session.started_at >= day.start,
+                Session.started_at < day.end,
+            )
+            duration_expressions.append(
+                func.sum(duration_ms)
+                .filter(in_day, valid_duration)
+                .label(f"duration_day_{i}")
+            )
+            unavailable_expressions.append(
+                func.count()
+                .filter(in_day, unavailable_duration)
+                .label(f"unavailable_day_{i}")
+            )
+
     stmt = select(
-        *[
-            func.count()
-            .filter(Session.started_at >= day.start, Session.started_at < day.end)
-            .label(f"day_{i}")
-            for i, day in enumerate(days)
-        ]
+        *count_expressions,
+        *duration_expressions,
+        *unavailable_expressions,
     ).where(
         Session.user_id == user_id,
         Session.status == SessionStatus.completed,
         Session.started_at >= days[0].start,
         Session.started_at < days[-1].end,
     )
-    counts = (await db.execute(stmt)).one()
+    row = (await db.execute(stmt)).one()
+    counts = row[: len(days)]
     for day, count in zip(days, counts, strict=True):
         day.completed_sessions = int(count)
+    if include_recorded_duration:
+        durations = row[len(days) : len(days) * 2]
+        unavailable_counts = row[len(days) * 2 :]
+        for day, duration, unavailable_count in zip(
+            days,
+            durations,
+            unavailable_counts,
+            strict=True,
+        ):
+            day.recorded_duration_ms = int(duration or 0)
+            day.duration_unavailable_count = int(unavailable_count or 0)
     return WeeklyProgressResponse(days=days)

@@ -21,14 +21,33 @@ interface SettingsDrawerProps {
 }
 
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
-  const { settings, loading, saving, error, fetchSettings, updateSettings } = useSettingsStore();
+  const {
+    settings,
+    settingsHydrationRevision,
+    loading,
+    saving,
+    error,
+    fetchSettings,
+    updateSettings,
+  } = useSettingsStore();
   const theme = useSettingsStore((state) => state.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
 
   // 该 hook 必须在 open=false 时保持挂载，以保留既有草稿语义。
-  const form = useSettingsForm({ open, settings, updateSettings });
-  const { dialogRef, closeButtonRef, handleDialogClick, handleKeyDown, handleCancel } =
-    useSettingsDialog({ open, onClose });
+  const form = useSettingsForm({
+    open,
+    settings,
+    settingsHydrationRevision,
+    updateSettings,
+  });
+  const {
+    dialogRef,
+    closeButtonRef,
+    scrollContainerRef,
+    handleDialogClick,
+    handleKeyDown,
+    handleCancel,
+  } = useSettingsDialog({ open, onClose });
 
   useEffect(() => {
     if (open) {
@@ -90,7 +109,10 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
         </div>
       )}
 
-      <div className="flex-1 space-y-6 overflow-x-visible overflow-y-auto px-6 py-6">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 space-y-6 overflow-x-visible overflow-y-auto px-6 py-6"
+      >
         <SettingsAppearance theme={theme} onThemeChange={setTheme} />
 
         <hr className="border-border-default" />
