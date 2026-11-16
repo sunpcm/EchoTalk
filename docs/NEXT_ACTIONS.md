@@ -1,7 +1,7 @@
 # EchoTalk 下一步行动评估
 
 > 2026-11-16。本文件只做行动分层与执行状态，未完成待办以根目录 [TODO.md](../TODO.md) 为唯一来源；
-> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 A18 `0422c9e`（PR191，mainCI 43800300024
+> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 SGECD 设计 f70c681（PR193，mainCI 43810252932
 > 首五 success）；WGGC 有界调查完成、缺陷仍开放，未完成待办见 TODO。
 
 ## 执行状态
@@ -29,9 +29,8 @@
 
 ### ③ 可做 Mock 结构化输出 / 契约收敛（不接真实 Provider）
 
-- SGEC（方案 C-2，语法 LLM）：旧离线产出复用设计已交（[SGEC_OFFLINE_DESIGN.md](./SGEC_OFFLINE_DESIGN.md)），
-  待用户确认后再实施；不接真实 Provider、不接 BKT、不写实施代码。入口为 `backend/services/assessment_providers.py`
-  的 `GrammarProvider` 协议与 `validate_grammar_evaluation`；`backend/services/weekly_grammar_queries.py` 不作为注入点。
+- SGEC（方案 C-2，语法 LLM）：纯离线子项（validator/CLI/测试/合成 fixture）已实施并独立验收（代码 APPROVED R1，未发布），
+  见 [SGEC_OFFLINE_DESIGN.md](./SGEC_OFFLINE_DESIGN.md) 与 [实施记录](./history/2026-11-16-sgec-offline-implementation.md)；本包无接线（不接真实 Provider、不接 BKT，不接入 assessment_providers.py）。
 - 不把未经用户确认的新接口当"已批准"。
 
 ### ④ blocked（需用户裁定 / 设备 / 外部前置，本轮不做）
@@ -48,5 +47,5 @@
 
 ## 推荐顺序（仅建议，非授权）
 
-② 调查已完成；下一可做为 ③ 的 SGEC Mock 契约收敛；④ 全部等待对应裁定、设备或前置。
+② 调查已完成；③ SGEC 离线子项已完成（validator/CLI/测试/合成 fixture，代码 APPROVED R1 未发布），真实 Provider/BKT 接线等 ④ 裁定；④ 全部等待对应裁定、设备或前置。
 候选先审计收敛范围，再按用户已授范围进入单包实施/独立评审；仅出现新产品口径、契约/权限变化、迁移等才需裁定。

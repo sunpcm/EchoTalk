@@ -1039,3 +1039,11 @@ retry/skip/flaky0）；默认 trace/screenshot 策略受控对照负 2（trace2/
   做了只读取证与父 macOS 有界压力复现，corrected60 全 60 绿、全量 E2E 258 全绿、Vitest 1270/57、pytest 962/3w/80.63%，
   近期无复现；GC 因果与 weekly 5/1 根因仍未知。原缺陷不勾选、不归档，继续开放于根 TODO；详见
   [验收记录](./2026-11-16-weekly-gc-investigation.md)。
+
+## 2026-11-16 SGEC 纯离线契约实施（离线子项归档，源码 APPROVED R1）
+
+- [x] **SGEC 纯离线子项完成（SGEC-OFF）**：复用旧 commit 9a9d6c1 四候选，实现严格结构校验 + 固定合成 fixture CLI
+      （validator/CLI/测试/合成 fixture），不接真实 Provider/BKT/default 分析。R0 修 CLI 5000 位整数 ValueError →
+      固定安全 exit2；R1 补空 tag 直接契约保护。七项有效变异闭环，R1 完整 backend pytest 1068/3w/81.00%/54.27s。
+      源码独立 APPROVED R1，未发布；SGEC 总项仍 unchecked（真实 Provider/BKT 接线待）。详见
+      [验收记录](./2026-11-16-sgec-offline-implementation.md)。
