@@ -189,6 +189,7 @@ Fake API E2E 不代替真实 IdP、LiveKit/Provider、设备或生产验收；�
 
 ## 文档导航
 
+- [项目概览](docs/OVERVIEW.md)：技术架构、已实现功能与使用方法。
 - [文档总索引](docs/README.md) · [当前状态](docs/PROJECT_STATUS.md) · [唯一待办清单](TODO.md)
 - [跨平台架构](docs/CROSS_PLATFORM_ARCHITECTURE.md) · [MVP 重构方案](docs/MVP_REFACTORING_REMEDIATION_PLAN.md)
 - [macOS MVP 计划](docs/MACOS_MVP_DEVELOPMENT_PLAN.md) · [原生认证验证及未验边界](docs/verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)
