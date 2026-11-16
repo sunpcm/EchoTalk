@@ -1,8 +1,9 @@
 # EchoTalk 下一步行动评估
 
 > 2026-11-16。本文件只做行动分层与执行状态，未完成待办以根目录 [TODO.md](../TODO.md) 为唯一来源；
-> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 SGECD 设计 f70c681（PR193，mainCI 43810252932
+> 不授权任何新产品实现、重构或迁移。截至本次文档核对，当前已发布 main 为 Overview dac4d254（PR195，mainCI 43836513150
 > 首五 success）；WGGC 有界调查完成、缺陷仍开放，未完成待办见 TODO。
+> 下一阶段决策准备见 [NEXT_PHASE_DECISIONS.md](./NEXT_PHASE_DECISIONS.md)；B2/周报口径/真实环境前置均待用户确认。
 
 ## 执行状态
 
@@ -12,6 +13,8 @@
 - **A18 生命周期测试边界收窄**：已完成并已发布（PR191 merged main `0422c9e`，PR/Guard 首六、mainCI 43800300024 首五 success）。移除产品测试注入及
   start/resume 重复的测试选项 plumbing，测试平台假对象移入 test-only fixture。见
   [history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)。
+- **SGEC 纯离线契约（SGEC-OFF）**：已发布（PR194 merged main `d33f236`，mainCI 43818985856 首五 success）。纯离线结构校验 + 合成 fixture CLI，未接 default 分析/DB/API/BKT/events。见 [history](./history/2026-11-16-sgec-offline-implementation.md)。
+- **Overview 文档**：已发布（PR195 merged main `dac4d25`，mainCI 43836513150 首五 success）。新增技术架构/功能/使用方法导览。
 
 ## 行动分层
 
@@ -29,7 +32,7 @@
 
 ### ③ 可做 Mock 结构化输出 / 契约收敛（不接真实 Provider）
 
-- SGEC（方案 C-2，语法 LLM）：纯离线子项（validator/CLI/测试/合成 fixture）已实施并独立验收（代码 APPROVED R1，未发布），
+- SGEC（方案 C-2，语法 LLM）：纯离线子项（validator/CLI/测试/合成 fixture）已实施并发布（PR194 main `d33f236`），
   见 [SGEC_OFFLINE_DESIGN.md](./SGEC_OFFLINE_DESIGN.md) 与 [实施记录](./history/2026-11-16-sgec-offline-implementation.md)；本包无接线（不接真实 Provider、不接 BKT，不接入 assessment_providers.py）。
 - 不把未经用户确认的新接口当"已批准"。
 
@@ -47,5 +50,5 @@
 
 ## 推荐顺序（仅建议，非授权）
 
-② 调查已完成；③ SGEC 离线子项已完成（validator/CLI/测试/合成 fixture，代码 APPROVED R1 未发布），真实 Provider/BKT 接线等 ④ 裁定；④ 全部等待对应裁定、设备或前置。
+② 调查已完成；③ SGEC 离线子项已完成并发布（PR194 main `d33f236`，validator/CLI/测试/合成 fixture），真实 Provider/BKT 接线等 ④ 裁定；④ 全部等待对应裁定、设备或前置。
 候选先审计收敛范围，再按用户已授范围进入单包实施/独立评审；仅出现新产品口径、契约/权限变化、迁移等才需裁定。

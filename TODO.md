@@ -22,8 +22,9 @@
 
 - [ ] **B2 学习事件表实施**：等 [LEARNING_EVENTS_DESIGN.md](./docs/LEARNING_EVENTS_DESIGN.md) §9 的五个问题
       （基线切换方式、旧 pending/failed Job、保留策略 A/B/C、是否允许重新分析、是否冻结 `bkt-v1`）。
+      决策准备见 [NEXT_PHASE_DECISIONS.md](./docs/NEXT_PHASE_DECISIONS.md) §3（待用户确认）。
       历史数据无法补录，本项有时效性。验收：用户逐条确认后，另行拆出建表、写入、重算校验的实施工作包。
-- [ ] **阶段 C 预发布环境**：需要账号、密钥与费用决定（规划 §3.6）。验收：用户确认范围与资源后另行拆工作包。
+- [ ] **阶段 C 预发布环境**：需要账号、密钥与费用决定（规划 §3.6）。验收：用户确认范围与资源后另行拆工作包。决策准备见 [NEXT_PHASE_DECISIONS.md](./docs/NEXT_PHASE_DECISIONS.md) §5（待用户确认）。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -60,7 +61,7 @@
 **无需 Key，仍需明确指标口径：**
 
 - [ ] **周报剩余指标**：会话次数与语法 Top3 已完成（见 P1）；练习时长需先定口径（会话经过时长
-      ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。
+      ≠ 有效说话时长）；`p_mastery` 环比缺历史数据，需单独设计快照/事件，C-1 也补不出历史。口径建议见 [NEXT_PHASE_DECISIONS.md](./docs/NEXT_PHASE_DECISIONS.md) §4（待用户确认）。
 
 **被 Key 或外部条件阻断：**
 
