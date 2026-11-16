@@ -93,3 +93,11 @@ pnpm --filter vite-app test src/components/conversation/RoomSessionOwnership.tes
 - 未新增依赖、未改锁文件/数据库/生成物。
 
 停 Review；文档收口，不 commit / stage / push / merge。
+
+## 追加更正（2026-11-16 文档收口轮，不改旧前缀）
+
+- 上文「验收结果」E2E 行写「原配置 retries 2 保持」有误，现更正：作者原 R0 `configured_retries[0,0]` 正确；
+  Harness 误把辅助汇总显示的 list 长度 2 读成 retries 2，据此错误要求修改并使用了「虚构」词，该反馈撤销。
+- 事实：原生本机 JSON projects 为 `[0,0]`（CLI `--retries 0`），CI 为 `[2,2]`，实际执行 retry/skip/flaky 均为 0。
+- 旧记录与旧前缀保持不变，本更正仅尾追加；来源与责任准确，不把该误读归作者失误。
+- PR190 已公开更正并 fresh 回读同文，代码/测试/CI 结论不受影响。

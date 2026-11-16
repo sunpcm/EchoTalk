@@ -4,7 +4,6 @@ import * as auth from "@/lib/auth";
 import * as platform from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 import { useAppStore } from "./appStore";
-import { _setLifecycleOptionsForTesting } from "./conversation";
 import {
   createConversationStartup,
   type ActiveStartupTracker,
@@ -219,7 +218,6 @@ beforeEach(() => {
   useAppStore.getState().goHome();
   vi.clearAllMocks();
   authEvents.listeners.clear();
-  _setLifecycleOptionsForTesting(null);
   vi.mocked(auth.getAuthSnapshot).mockReturnValue({ state: "authenticated", principal });
   vi.mocked(auth.getAuthRevision).mockReturnValue(1);
   vi.mocked(api.getCallCapabilities).mockResolvedValue(disabled);
@@ -233,7 +231,6 @@ beforeEach(() => {
 afterEach(() => {
   useAppStore.getState().goHome();
   for (const cleanup of cleanups.splice(0)) cleanup();
-  _setLifecycleOptionsForTesting(null);
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -490,16 +487,15 @@ describe("createConversationStartup direct contract", () => {
 });
 
 describe("real appStore slice wiring through original barrels", () => {
-  it("reads options separately at adapter creation and iOS detection after the store already exists", async () => {
+  it("reads platform dynamically at iOS detection, not cached from adapter creation", async () => {
     const life = adapterFixture("hidden");
-    const webOptions: platform.LifecycleOptions = { platform: "web" };
-    _setLifecycleOptionsForTesting(webOptions);
+    const detectPlatform = vi.spyOn(platform, "detectPlatform").mockReturnValue("web");
     const createAdapter = vi.spyOn(platform, "createLifecycleAdapter").mockImplementation(() => {
-      _setLifecycleOptionsForTesting({ platform: "ios" });
+      detectPlatform.mockReturnValue("ios");
       return life.adapter;
     });
     const pending = useAppStore.getState().startSession("free_talk");
-    expect(createAdapter.mock.calls).toEqual([[webOptions]]);
+    expect(createAdapter.mock.calls).toEqual([[undefined]]);
     expect(life.adapter.whenReady).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().connectionState).toBe("checking_health");
     expect(api.getCallCapabilities).not.toHaveBeenCalled();

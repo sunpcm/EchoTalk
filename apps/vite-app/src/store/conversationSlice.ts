@@ -21,12 +21,7 @@ import {
   subscribeAuthSnapshot,
   type AuthPrincipal,
 } from "@/lib/auth";
-import {
-  createLifecycleAdapter,
-  detectPlatform,
-  type LifecycleAdapter,
-  type LifecycleOptions,
-} from "@/platform";
+import { createLifecycleAdapter, detectPlatform, type LifecycleAdapter } from "@/platform";
 import { zhCN } from "@/i18n/zh-CN";
 import {
   canStartConversationSession,
@@ -49,21 +44,8 @@ import { createConversationStartup, type ActiveStartupTracker } from "./conversa
 export type { ConnectionState } from "./conversationState";
 
 let currentStartupTracker: ActiveStartupTracker | null = null;
-let testingLifecycleOptions: LifecycleOptions | null = null;
-
-/** 测试注入生命周期选项（仅用于测试，生产为 null 使用真实环境） */
-export function _setLifecycleOptionsForTesting(options: LifecycleOptions | null): void {
-  testingLifecycleOptions = options;
-}
-
-function isNativeIos(options?: LifecycleOptions | null): boolean {
-  const resolved =
-    options?.platform ??
-    detectPlatform({
-      window: options?.webOptions?.window,
-      navigator: options?.webOptions?.navigator as { userAgent?: string } | undefined,
-    });
-  return resolved === "ios";
+function isNativeIos(): boolean {
+  return detectPlatform() === "ios";
 }
 
 function isValidOrigin(origin: unknown): origin is { principal: AuthPrincipal; revision: number } {
@@ -318,9 +300,9 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
       arePrincipalsEqual: (left, right) => arePrincipalsEqual(left, right),
       subscribeAuthSnapshot: (listener) => subscribeAuthSnapshot(listener),
     },
-    getLifecycleOptions: () => testingLifecycleOptions,
+    getLifecycleOptions: () => null,
     createLifecycleAdapter: (options) => createLifecycleAdapter(options),
-    isNativeIos: () => isNativeIos(testingLifecycleOptions),
+    isNativeIos: () => isNativeIos(),
     api: {
       getCallCapabilities: () => getCallCapabilities(),
       checkHealthReady: () => checkHealthReady(),
@@ -490,7 +472,7 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
 
       let lifecycleAdapter: LifecycleAdapter;
       try {
-        lifecycleAdapter = createLifecycleAdapter(testingLifecycleOptions ?? undefined);
+        lifecycleAdapter = createLifecycleAdapter();
       } catch {
         if (get().sessionGen === targetGen) {
           resetResume(zhCN.conversation.lifecycleUnavailable);
@@ -646,7 +628,7 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
         return false;
       }
 
-      if (isNativeIos(testingLifecycleOptions)) {
+      if (isNativeIos()) {
         // 原生环境：等待原生就绪门禁，最多 10 秒超时
         let timedOut = false;
         let readyFailed = false;

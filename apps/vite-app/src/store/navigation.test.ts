@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "./appStore";
 import { useNavigationStore } from "./appStore";
 import type { AppStore } from "./appStore";
-import { useConversationStore, _setLifecycleOptionsForTesting } from "./conversation";
+import { useConversationStore } from "./conversation";
 import type { ConversationStore } from "./conversation";
 import * as api from "@/lib/api";
 import * as auth from "@/lib/auth";
@@ -59,7 +59,6 @@ describe("navigation slice", () => {
   beforeEach(() => {
     useAppStore.getState().goHome();
     vi.clearAllMocks();
-    _setLifecycleOptionsForTesting(null);
     vi.mocked(auth.getAuthSnapshot).mockReturnValue({
       state: "authenticated",
       principal: { issuer: "https://auth.example.com", subject: "user-1" },
@@ -72,7 +71,6 @@ describe("navigation slice", () => {
   });
 
   afterEach(() => {
-    _setLifecycleOptionsForTesting(null);
     vi.restoreAllMocks();
   });
 
