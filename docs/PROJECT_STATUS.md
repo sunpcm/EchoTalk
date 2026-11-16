@@ -1,38 +1,35 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。PR177–187（LGR/TS/READ/ST/A11Y/READ2/ST2/ACT/DASH/CPB/EV）已按门禁逐包合并，最终已发布 main 为 EV main `bf4becd`（source `4c364cea` / CI merge `546090c6` / main 三者 tree `c2e7ddfa` 完全一致；PR CI 43737757005 首六 success、Guard 43737757038 success，最终 mainCI 43738720996 首五 success）。DOC 为纯 MD 收口，其提交/CI 仅在 PR 正文另给回执，不在本页堆叠，避免自身 SHA 循环。
+> 最后核对：2026-11-16。PR177–187（LGR/TS/READ/ST/A11Y/READ2/ST2/ACT/DASH/CPB/EV）已按门禁逐包合并（主代码终点 EV main `bf4becd`，PR CI 43737757005 / mainCI 43738720996）；DOC（PR188 纯 MD 收口）已发布 main `0a4b6fdf`（mainCI 43744058036）。截至本次文档核对，A19 RoomSession 所有权收窄为本机候选（源码独立 APPROVED R1，尚未发布），其发布与 CI 回执由 PR 正文另给，避免自引用。
 > 未完成工作只在根目录 [`TODO.md`](../TODO.md)；架构与风险见 [ARCHITECTURE.md](./ARCHITECTURE.md)；逐轮实施记录在 [`history/`](./history/)。
 
 ## 当前功能
 
-| 领域           | 当前实现                                                                                                            | 状态与边界                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                                     | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                         |
-| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                                   | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                |
-| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                                | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                               |
-| 启动编排（H1） | 原runStartup抽为延迟ports的factory；同步门禁、动态依赖与cleanup所有权保留，resume未合并                             | 已合并PR174、最终mainCI成功；旧测试零改、新15条同层测试及四项有效变异保留，真实依赖仍未验 |
-| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态；可替换评估提供方与内部coverage                     | 源码APPROVED R0；仍为文本demo规则，真实发音 Provider 未验收                               |
-| 契约同源（G3） | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试                   | 已合并PR172、最终mainCI首轮成功；重试与wire语义保留                                       |
-| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                                  | 已实现                                                                                    |
-| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                                 | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                  |
-| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                                  | 已实现；密钥轮换和 Provider 连通性需按环境验收                                            |
-| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                                                 | 已实现 Web 流程；原生端文件选择未验收                                                     |
-| 前端体验       | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标、设置抽屉标题"设置"、活动行可见 ID 前 8 位 | 设置可读性已发布（PR179）；装饰卡/全产品 AA、真实设备读屏未验                             |
-| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                                               | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现                            |
-| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                                             | 真机全链路、原生登录与发布未验收                                                          |
-| macOS          | 仅 `tools/macos-m1-native-probe` 探测工程                                                                           | **未实现**正式客户端，等待 CP-03 设备证据                                                 |
-| 数字人         | 只有待办                                                                                                            | **未实现**                                                                                |
+| 领域                   | 当前实现                                                                                                            | 状态与边界                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 认证与用户边界         | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                                     | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                         |
+| 实时对话               | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                                   | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                |
+| 会话生命周期           | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                                | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                               |
+| 启动编排（H1）         | 原runStartup抽为延迟ports的factory；同步门禁、动态依赖与cleanup所有权保留，resume未合并                             | 已合并PR174、最终mainCI成功；旧测试零改、新15条同层测试及四项有效变异保留，真实依赖仍未验 |
+| Room 所有权收窄（A19） | RoomContextSync 移除无用 onRoom/onRoomRef、roomRef 改必传，render 期绑定与 stop 语义保留                            | 源码独立 APPROVED R1；初始 Web 快照门禁经审计非泄漏保留；尚未发布                         |
+| 会话分析               | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态；可替换评估提供方与内部coverage                     | 源码APPROVED R0；仍为文本demo规则，真实发音 Provider 未验收                               |
+| 契约同源（G3）         | Python单源、离线JSON/TS及调用方引用；9码安全发送、开放接收、5码诊断、5项分析目录、3项人工不可重试                   | 已合并PR172、最终mainCI首轮成功；重试与wire语义保留                                       |
+| 结果可信度             | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                                  | 已实现                                                                                    |
+| 自适应课程             | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                                 | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                  |
+| BYOK                   | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                                  | 已实现；密钥轮换和 Provider 连通性需按环境验收                                            |
+| DocTalk                | 文档输入、Prompt 构建、文档会话入口                                                                                 | 已实现 Web 流程；原生端文件选择未验收                                                     |
+| 前端体验               | Dashboard、课程推荐、每日进度、评估反馈、三主题、键盘焦点、44px 触控目标、设置抽屉标题"设置"、活动行可见 ID 前 8 位 | 设置可读性已发布（PR179）；装饰卡/全产品 AA、真实设备读屏未验                             |
+| 周度学习               | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3                                               | **部分实现**：练习时长、掌握度环比、发音趋势、下周重点均未实现                            |
+| iOS                    | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                                             | 真机全链路、原生登录与发布未验收                                                          |
+| macOS                  | 仅 `tools/macos-m1-native-probe` 探测工程                                                                           | **未实现**正式客户端，等待 CP-03 设备证据                                                 |
+| 数字人                 | 只有待办                                                                                                            | **未实现**                                                                                |
 
 ## 当前验证基线
 
-最终代码冻结点为 EV main `bf4becd`（PR187，tree `c2e7ddfa`，与 source `4c364cea` / CI merge `546090c6` 完全一致）；
-PR CI 43737757005 首六 success、Guard 43737757038 success、最终 mainCI 43738720996 首五 success。PR 与 main 两份实际归档均
-MCP 实际下载核 SHA/CRC/原生 JSON/PNG（非只看日志元数据，不贴临时下载 URL）：PR artifact 14171327756（`60ae87e6…`，14725526 B，
-143 文件/142 PNG/trace0）、main artifact 14171881434（`45573d73a…`，14705831 B，143 文件/142 PNG/trace0）；
-两者均 143 文件 = 原生 results.json 1 + PNG 142、trace 0（两次真实 CI 全绿），原生 results.json 均 expected 258 / C129 / W129 / retry/skip/flaky0。PR CI 日志 E2E 5.7m、pytest
-962/3w/80.63%/61.36s；main CI 日志 E2E 5.4m、pytest 962/3w/80.63%/60.64s。下表 macOS 为父 Harness 亲跑（EV 源码）、
-Linux 为 CI 日志回读（CPB main `53d2a409`），分列；EV 最终 mainCI 43738720996 的 Linux 回读已列于上。相对 CPB source 仅
-EV 两配置差异，410 个 17 门禁 source manifest 同字节。
+最终代码冻结点为 EV main `bf4becd`（PR187，PR CI 43737757005 / mainCI 43738720996 首轮 success）；归档 SHA/CRC、
+原生 results.json、trace/retry 计数与 Linux CI 日志回读详见 [EV 首失败取证](./history/2026-11-16-e2e-first-failure-evidence.md)。
+下表 macOS 为父 Harness 亲跑（EV 源码）、Linux 为 CI 日志回读（CPB main `53d2a409`），分列；相对 CPB source 仅 EV 两配置差异，
+410 个 17 门禁 source manifest 同字节。
 
 | 测试树 / 门禁       | macOS 父 Harness 亲跑（EV 源码） | Linux CI 日志回读（CPB main 53d2a409）  |
 | ------------------- | -------------------------------- | --------------------------------------- |
@@ -42,6 +39,9 @@ EV 两配置差异，410 个 17 门禁 source manifest 同字节。
 | API 类型生成器      | 10 passed                        | 10 passed                               |
 | 构建脚本            | 21 passed                        | 21 passed                               |
 | 完整 backend pytest | 962 / 3 warnings / 80.63%        | 962 / 3 warnings / 80.63% / 50.50s      |
+
+A19 本机候选（父 Harness macOS 亲跑，17 门禁全 success，未跑 CI）：Vitest 1264/56、Fake 125、types 10、build 21、
+pytest 962/3w/80.63%、E2E 258 C129/W129 retry/skip/flaky0，详见 [history](./history/2026-11-16-a19-room-ownership-maintenance.md)。
 
 EV 默认 trace/screenshot 策略本机受控对照（未覆盖策略、retries0，负 2 trace2/PNG2/JSON 正 2 trace0/失败 PNG0，从未上传真实归档），
 705 源文件逐字节恢复；历史 GC60 自然未复现、根因未知，不宣称修复。已发布 ACT/DASH/ST2 计数见各自 history。
@@ -76,6 +76,7 @@ EV 默认 trace/screenshot 策略本机受控对照（未覆盖策略、retries0
 
 | 内容                                                                         | 位置                                                                                                                                                                                                |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Room 所有权收窄（A19，源码 APPROVED R1，尚未发布）                           | [验收记录](./history/2026-11-16-a19-room-ownership-maintenance.md)                                                                                                                                  |
 | CI 首失败取证（EV，源码 APPROVED；已发布 main bf4becd，mainCI 首五 success） | [验收记录](./history/2026-11-16-e2e-first-failure-evidence.md)                                                                                                                                      |
 | Compose 启动门禁方案 B（CPB，已发布 PR186/main 53d2a409）                    | [验收记录](./history/2026-11-15-compose-startup-gates.md)                                                                                                                                           |
 | Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）               | [验收记录](./history/2026-11-15-dashboard-extraction.md)                                                                                                                                            |

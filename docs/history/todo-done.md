@@ -1013,3 +1013,13 @@ retry/skip/flaky0）；默认 trace/screenshot 策略受控对照负 2（trace2/
       `6bda2cd`/`ef6cb53` 因 #118 回退无 iOS job（#128 起恢复 `test-ios-build`）的标注保留。
       required check 配置仍未核（GitHub 只读 403/INVALID_ARGUMENT，不证明设置不存在），单列于 RF-04 主卡，
       不因本归档捎带关闭 RF-04 整卡或真实链路。
+
+## 2026-11-16 A19 RoomSession 所有权收窄（源码 APPROVED R1）
+
+- [x] **在回归保护下简化 Room 初始 Web 快照与 RoomContextSync 引用所有权，移除多余可选回调并补并发渲染/SDK
+      身份变化测试（A19 P2）**：移除未调用的 `onRoom`/`onRoomRef` 可选回调、`roomRef` 改必传并删冗余守卫，
+      保留 ROOM-02 render 期同步绑定与 ROOM-03 稳定 effect 依赖/替换卸载 stop 语义；新增 4 条同层回归
+      （健康重渲染、StrictMode、SDK Room 身份替换、真实 startTransition+Suspense 并发挂起）。
+      审计保留部分：初始 Web 快照门禁的临时 adapter 仅在 `subscribe` 时挂监听、非泄漏，保留每次 render
+      即时读取 hidden/offline 语义，本轮未为整洁强改。源码独立 APPROVED R1，详见
+      [验收记录](./2026-11-16-a19-room-ownership-maintenance.md)；尚未发布。

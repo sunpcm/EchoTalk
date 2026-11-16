@@ -478,34 +478,20 @@ export function RoomSession({ sessionId, sessionGen, token, wsUrl }: RoomSession
 }
 
 /** 同步 Room 上下文引用，并在 Room 真正替换或退出时停止本地音轨。 */
-function RoomContextSync({
-  onRoom,
-  roomRef,
-}: {
-  onRoom?: (room: TrackHolderRoom | null) => void;
-  roomRef?: React.MutableRefObject<TrackHolderRoom | null>;
-}) {
+function RoomContextSync({ roomRef }: { roomRef: React.MutableRefObject<TrackHolderRoom | null> }) {
   const room = useRoomContext();
-  const onRoomRef = useRef(onRoom);
-  onRoomRef.current = onRoom;
 
   // ROOM-02: render 阶段同步绑定，消除 child 已提交但 passive effect 未运行的空窗
-  if (roomRef) {
-    roomRef.current = room;
-  }
+  roomRef.current = room;
 
   // ROOM-03: 只依赖稳定的 room/roomRef，正常 store 重渲染不得触发 cleanup
   useLayoutEffect(() => {
-    if (roomRef) {
-      roomRef.current = room;
-    }
-    onRoomRef.current?.(room);
+    roomRef.current = room;
     return () => {
       stopRoomLocalTracks(room);
-      if (roomRef && roomRef.current === room) {
+      if (roomRef.current === room) {
         roomRef.current = null;
       }
-      onRoomRef.current?.(null);
     };
   }, [room, roomRef]);
 
