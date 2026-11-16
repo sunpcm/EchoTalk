@@ -178,7 +178,7 @@ describe("G-WIRE conversation slice goal binding", () => {
     expect(vi.mocked(api.createSession).mock.calls[0]).toEqual(["free_talk", undefined]);
   });
 
-  it("legacy scenario without goal_binding keeps the two-argument call", async () => {
+  it("legacy scenario without goal_binding keeps the original two-argument contract", async () => {
     const store = createTestStore();
     store.getState().setSelectedScenario(makeScenario("Legacy scenario"));
 

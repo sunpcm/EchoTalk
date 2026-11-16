@@ -39,7 +39,10 @@ def _load_cases(fixture_path: str) -> list[dict[str, Any]]:
 
     try:
         payload = json.loads(text, parse_constant=_reject_nonstandard_constant)
-    except json.JSONDecodeError as exc:
+    except ValueError as exc:
+        # json.JSONDecodeError 是 ValueError 子类；此处在保留 Python int 位数限制的
+        # 前提下，把超长整数字面量的解码 ValueError 一并映射为固定安全「invalid json」
+        # 诊断（exit2，无原始 traceback），不增大 sys.int_max_str_digits、不接收/截断/修补输入。
         raise SGECFixtureError("fixture: invalid json") from exc
 
     if not isinstance(payload, dict) or not isinstance(payload.get("cases"), list):

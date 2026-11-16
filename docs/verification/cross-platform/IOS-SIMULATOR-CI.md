@@ -1,5 +1,8 @@
 # iOS Simulator 无签名编译门禁
 
+> 历史正文保留 2026-11-03 本地验证记录与当时「远端 GitHub Actions 未执行/未 push」的冻结状态；
+> 当前永久远端 CI 回执见文末「当前永久 CI 回执」节。
+
 本轮为 CP-06 增加独立 `test-ios-build` job：普通 PR 在不提供发布密钥的情况下，
 构建共享 React 前端、显式同步 Capacitor，然后真实编译 arm64 iOS Simulator `.app`。
 只有退出成功且新包通过静态产物验证，才输出 `ios-simulator-built-not-run`。
@@ -238,3 +241,12 @@ Package.swift、Package.resolved、pnpm 锁、版本/SDK、隔离 checkout/Deriv
 这些替身不证明真实下载/SPM/原生编译成功。主控独立 scratch 真实 SPM 探针在 git clone
 阶段 120 秒超时，尚未进入 ZIP；属于本机网络阻断，不是本候选 prepare 通过。
 最终必须验远端 prepare + compile 和原生产物；不因 API 两次下载成功而宣布 CI 已通过。
+
+## 当前永久 CI 回执（main76d9d6ba）
+
+I1 实施 [PR176](https://github.com/sunpcm/EchoTalk/pull/176) 已发布 main
+[76d9d6ba](https://github.com/sunpcm/EchoTalk/commit/76d9d6ba8c3ad72cf2c0671344ff48b617faea0f)。
+mainCI [43686992533](https://github.com/sunpcm/EchoTalk/actions/runs/43686992533) 的
+`test-ios-build` job 132729437984 首轮 success，聚合 `CI` 五 jobs 全绿。iOS 无签名 arm64
+Simulator 编译（生产 Web build + sync + SPM 预下载有限重试）已通过远端 CI；
+App 仍未启动，真实 IdP/Provider/LiveKit、设备、签名/发布仍未验。

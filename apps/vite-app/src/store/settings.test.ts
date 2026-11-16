@@ -23,12 +23,43 @@ const DEFAULT_AUTH_SNAPSHOT: auth.AuthSnapshot = {
   principal: { issuer: "urn:echotalk:auth:dev", subject: "dev-user" },
 };
 
+const BASE_USER_SETTINGS: api.UserSettingsResponse = {
+  is_custom_mode: true,
+  is_custom_verified: true,
+  subscription_tier: "vip",
+  theme: "warm",
+  stt_provider: "deepgram",
+  llm_provider: "siliconflow",
+  llm_model: "backend/model",
+  tts_provider: "cartesia",
+  has_stt_key: true,
+  has_llm_key: true,
+  has_tts_key: true,
+  stt_status: "verified",
+  llm_status: "verified",
+  tts_status: "verified",
+};
+
+function makeUserSettings(
+  overrides: Partial<api.UserSettingsResponse> = {},
+): api.UserSettingsResponse {
+  return { ...BASE_USER_SETTINGS, ...overrides };
+}
+
+async function flushSettingsPromises(): Promise<void> {
+  for (let index = 0; index < 5; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 describe("settings store & theme helpers", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
-    vi.mocked(auth.getAuthSnapshot).mockReturnValue({ ...DEFAULT_AUTH_SNAPSHOT });
+    vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+      ...DEFAULT_AUTH_SNAPSHOT,
+    });
     vi.mocked(auth.getAuthRevision).mockReturnValue(1);
     useSettingsStore.getState().reset();
     useSettingsStore.setState({ theme: "warm" });
@@ -485,10 +516,150 @@ describe("settings store & theme helpers", () => {
     });
   });
 
+  describe("settings hydration revision", () => {
+    function deferred<T>() {
+      let resolve!: (value: T | PromiseLike<T>) => void;
+      let reject!: (reason?: unknown) => void;
+      const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+      });
+      return { promise, resolve, reject };
+    }
+
+    it("keeps authoritative custom and key state after a deferred theme-only response settles", async () => {
+      useSettingsStore.setState({
+        settings: makeUserSettings(),
+        theme: "warm",
+      });
+      const revisionBefore = useSettingsStore.getState().settingsHydrationRevision;
+      expect(revisionBefore).toEqual(expect.any(Number));
+
+      const pending = deferred<api.UserSettingsResponse>();
+      vi.mocked(api.updateUserSettings).mockReturnValueOnce(pending.promise);
+
+      useSettingsStore.getState().setTheme("dark");
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(api.updateUserSettings).toHaveBeenCalledWith({ theme: "dark" });
+
+      pending.resolve(
+        makeUserSettings({
+          is_custom_mode: false,
+          is_custom_verified: false,
+          theme: "dark",
+          stt_provider: null,
+          llm_provider: null,
+          llm_model: null,
+          tts_provider: null,
+          has_stt_key: false,
+          has_llm_key: false,
+          has_tts_key: false,
+          stt_status: "unconfigured",
+          llm_status: "unconfigured",
+          tts_status: "unconfigured",
+        }),
+      );
+      await pending.promise;
+      await flushSettingsPromises();
+
+      const state = useSettingsStore.getState();
+      expect(state.theme).toBe("dark");
+      expect(state.settings).toMatchObject({
+        is_custom_mode: true,
+        is_custom_verified: true,
+        stt_provider: "deepgram",
+        llm_provider: "siliconflow",
+        tts_provider: "cartesia",
+        has_stt_key: true,
+        has_llm_key: true,
+        has_tts_key: true,
+        stt_status: "verified",
+        llm_status: "verified",
+        tts_status: "verified",
+      });
+      expect(state.settingsHydrationRevision).toBe(revisionBefore);
+    });
+
+    it("advances the hydration revision when an authenticated GET snapshot is accepted", async () => {
+      const revisionBefore = useSettingsStore.getState().settingsHydrationRevision;
+      expect(revisionBefore).toEqual(expect.any(Number));
+      vi.mocked(api.getUserSettings).mockResolvedValueOnce(makeUserSettings({ theme: "cool" }));
+
+      await useSettingsStore.getState().fetchSettings();
+
+      const state = useSettingsStore.getState();
+      expect(state.settings).toMatchObject({ theme: "cool" });
+      expect(state.settingsHydrationRevision).toBeGreaterThan(revisionBefore);
+    });
+
+    it("advances the hydration revision when a general settings PUT succeeds", async () => {
+      const revisionBefore = useSettingsStore.getState().settingsHydrationRevision;
+      expect(revisionBefore).toEqual(expect.any(Number));
+      const response = makeUserSettings({
+        is_custom_mode: false,
+        llm_provider: "openrouter",
+        llm_model: "custom/model",
+      });
+      vi.mocked(api.updateUserSettings).mockResolvedValueOnce(response);
+
+      await expect(
+        useSettingsStore.getState().updateSettings({ is_custom_mode: false }),
+      ).resolves.toEqual({ success: true });
+
+      const state = useSettingsStore.getState();
+      expect(state.settings).toEqual(response);
+      expect(state.settingsHydrationRevision).toBeGreaterThan(revisionBefore);
+    });
+
+    it("advances the hydration revision for an accepted HTTP-success validation response", async () => {
+      const revisionBefore = useSettingsStore.getState().settingsHydrationRevision;
+      expect(revisionBefore).toEqual(expect.any(Number));
+      const response = makeUserSettings({
+        is_custom_mode: true,
+        is_custom_verified: false,
+        llm_status: "error",
+      });
+      vi.mocked(api.updateUserSettings).mockResolvedValueOnce(response);
+
+      await expect(
+        useSettingsStore.getState().updateSettings({
+          is_custom_mode: true,
+          llm_key: "rejected-value",
+        }),
+      ).resolves.toEqual({
+        success: false,
+        error: "密钥验证未通过，请检查提供的 API Key 是否有效。",
+      });
+
+      const state = useSettingsStore.getState();
+      expect(state.settings).toEqual(response);
+      expect(state.settingsHydrationRevision).toBeGreaterThan(revisionBefore);
+    });
+
+    it("does not reuse a pre-reset hydration revision for a new authoritative source", async () => {
+      vi.mocked(api.getUserSettings).mockResolvedValueOnce(makeUserSettings({ theme: "cool" }));
+      await useSettingsStore.getState().fetchSettings();
+      const revisionBeforeReset = useSettingsStore.getState().settingsHydrationRevision;
+      expect(revisionBeforeReset).toEqual(expect.any(Number));
+
+      useSettingsStore.getState().reset();
+      vi.mocked(api.getUserSettings).mockResolvedValueOnce(makeUserSettings({ theme: "dark" }));
+      await useSettingsStore.getState().fetchSettings();
+
+      const state = useSettingsStore.getState();
+      expect(state.settings).toMatchObject({ theme: "dark" });
+      expect(state.settingsHydrationRevision).toBeGreaterThan(revisionBeforeReset);
+    });
+  });
+
   describe("Phase 8 / A28 认证绑定、单在途合并与水合竞争防护回归", () => {
     it("anonymous / loading / misconfigured 状态仅保留本地偏好，不向后端发出写请求", () => {
       // 1. anonymous
-      vi.mocked(auth.getAuthSnapshot).mockReturnValue({ state: "anonymous", principal: null });
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "anonymous",
+        principal: null,
+      });
       useSettingsStore.getState().setTheme("dark");
       expect(useSettingsStore.getState().theme).toBe("dark");
       expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
@@ -497,14 +668,20 @@ describe("settings store & theme helpers", () => {
       expect(api.updateUserSettings).not.toHaveBeenCalled();
 
       // 2. loading
-      vi.mocked(auth.getAuthSnapshot).mockReturnValue({ state: "loading", principal: null });
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "loading",
+        principal: null,
+      });
       useSettingsStore.getState().setTheme("cool");
       expect(useSettingsStore.getState().theme).toBe("cool");
       vi.advanceTimersByTime(300);
       expect(api.updateUserSettings).not.toHaveBeenCalled();
 
       // 3. misconfigured
-      vi.mocked(auth.getAuthSnapshot).mockReturnValue({ state: "misconfigured", principal: null });
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        state: "misconfigured",
+        principal: null,
+      });
       useSettingsStore.getState().setTheme("warm");
       expect(useSettingsStore.getState().theme).toBe("warm");
       vi.advanceTimersByTime(300);
@@ -571,7 +748,9 @@ describe("settings store & theme helpers", () => {
       useSettingsStore.getState().setTheme("cool");
       vi.advanceTimersByTime(300);
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "cool" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "cool",
+      });
 
       // 在第一个 PUT 在途期间，用户再次连续切换 cool -> dark
       useSettingsStore.getState().setTheme("dark");
@@ -602,7 +781,9 @@ describe("settings store & theme helpers", () => {
 
       // 第一个完成后，最新待发意图 dark 串行发出！
       expect(api.updateUserSettings).toHaveBeenCalledTimes(2);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "dark",
+      });
 
       resolveSecondPut({
         is_custom_mode: false,
@@ -632,7 +813,9 @@ describe("settings store & theme helpers", () => {
       useSettingsStore.getState().setTheme("cool");
       vi.advanceTimersByTime(300);
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "cool" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "cool",
+      });
 
       // 用户 A 退出/切换，触发 reset
       useSettingsStore.getState().reset();
@@ -665,7 +848,9 @@ describe("settings store & theme helpers", () => {
 
       // 用户 B 的操作正常推进发出，未被用户 A 挂起的旧请求死锁！
       expect(api.updateUserSettings).toHaveBeenCalledTimes(2);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "dark",
+      });
     });
 
     it("旧 theme-only 响应绝不能回写覆盖更新的通用设置保存结果", async () => {
@@ -898,7 +1083,9 @@ describe("settings store & theme helpers", () => {
       useSettingsStore.getState().setTheme("dark");
       vi.advanceTimersByTime(300);
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "dark",
+      });
 
       // 2. 在 dark PUT 挂起期间，启动 fetchSettings
       const fetchPromise = useSettingsStore.getState().fetchSettings();
@@ -1055,7 +1242,9 @@ describe("settings store & theme helpers", () => {
       useSettingsStore.getState().setTheme("dark");
       vi.advanceTimersByTime(300);
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "dark",
+      });
 
       // 2. 在途期间，用户点击 cool（cool 启动自身 300ms timer）
       useSettingsStore.getState().setTheme("cool");
@@ -1105,7 +1294,9 @@ describe("settings store & theme helpers", () => {
       }
 
       expect(api.updateUserSettings).toHaveBeenCalledTimes(2);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "cool" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "cool",
+      });
     });
 
     it("TH-07: fetchSettings 同步订阅内切换 principal/revision，直接在副作用前取消且零网络请求", async () => {
@@ -1221,7 +1412,9 @@ describe("settings store & theme helpers", () => {
       }
 
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "dark",
+      });
     });
 
     it("TH-08: 用户 A 旧 PUT 挂起永不返回时，新身份用户 B 的有效 GET 正常水合且后续操作不被锁住", async () => {
@@ -1231,7 +1424,9 @@ describe("settings store & theme helpers", () => {
       useSettingsStore.getState().setTheme("dark");
       vi.advanceTimersByTime(300);
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "dark",
+      });
 
       // 认证切换为用户 B（未调用 reset）
       vi.mocked(auth.getAuthSnapshot).mockReturnValue({
@@ -1285,15 +1480,24 @@ describe("settings store & theme helpers", () => {
       }
 
       expect(api.updateUserSettings).toHaveBeenCalledTimes(2);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "warm" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "warm",
+      });
     });
 
     it("TH-10: fetchSettings 与 updateSettings 在 anonymous/loading/misconfigured 下失败关闭，零网络请求且保留本地 theme", async () => {
       const authStates: auth.AuthState[] = ["anonymous", "loading", "misconfigured"];
 
       for (const st of authStates) {
-        vi.mocked(auth.getAuthSnapshot).mockReturnValue({ state: st, principal: null });
-        useSettingsStore.setState({ theme: "dark", loading: false, saving: false });
+        vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+          state: st,
+          principal: null,
+        });
+        useSettingsStore.setState({
+          theme: "dark",
+          loading: false,
+          saving: false,
+        });
         vi.clearAllMocks();
 
         // 1. fetchSettings
@@ -1317,7 +1521,10 @@ describe("settings store & theme helpers", () => {
       const unsubFetch = useSettingsStore.subscribe((state) => {
         if (state.loading && !switchedFetch) {
           switchedFetch = true;
-          vi.mocked(auth.getAuthSnapshot).mockReturnValue({ state: "anonymous", principal: null });
+          vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+            state: "anonymous",
+            principal: null,
+          });
         }
       });
       await useSettingsStore.getState().fetchSettings();
@@ -1326,7 +1533,9 @@ describe("settings store & theme helpers", () => {
       unsubFetch();
 
       // 恢复认证状态
-      vi.mocked(auth.getAuthSnapshot).mockReturnValue({ ...DEFAULT_AUTH_SNAPSHOT });
+      vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+        ...DEFAULT_AUTH_SNAPSHOT,
+      });
       vi.mocked(auth.getAuthRevision).mockReturnValue(1);
 
       // 2. updateSettings 在同步通知内变为 anonymous
@@ -1334,7 +1543,10 @@ describe("settings store & theme helpers", () => {
       const unsubUpdate = useSettingsStore.subscribe((state) => {
         if (state.saving && !switchedUpdate) {
           switchedUpdate = true;
-          vi.mocked(auth.getAuthSnapshot).mockReturnValue({ state: "anonymous", principal: null });
+          vi.mocked(auth.getAuthSnapshot).mockReturnValue({
+            state: "anonymous",
+            principal: null,
+          });
         }
       });
       const res = await useSettingsStore.getState().updateSettings({ is_custom_mode: true });
@@ -1684,7 +1896,9 @@ describe("settings store & theme helpers", () => {
       useSettingsStore.getState().setTheme("dark");
       vi.advanceTimersByTime(300);
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "dark",
+      });
 
       // 2. 同账号 token 刷新，revision 从 1 变为 2（principal 与代际均不变）
       vi.mocked(auth.getAuthRevision).mockReturnValue(2);
@@ -1721,7 +1935,9 @@ describe("settings store & theme helpers", () => {
 
       // 5. 旧在途释放后，末值 cool 自动串行发出！
       expect(api.updateUserSettings).toHaveBeenCalledTimes(2);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "cool" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "cool",
+      });
 
       // 6. 第二个 PUT 完成
       resolveSecondPut({
@@ -1784,7 +2000,9 @@ describe("settings store & theme helpers", () => {
 
       // 释放后末值 cool 发出
       expect(api.updateUserSettings).toHaveBeenCalledTimes(2);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "cool" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "cool",
+      });
 
       resolveSecondPut({
         is_custom_mode: false,
@@ -1851,7 +2069,9 @@ describe("settings store & theme helpers", () => {
 
       // 核心断言：用户 B 的 PUT 必须成功发出恰好 1 次，payload 为 cool，绝无 outer A 的 dark！
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "cool" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "cool",
+      });
 
       unsubscribe();
     });
@@ -1891,7 +2111,9 @@ describe("settings store & theme helpers", () => {
 
       // reset 后的 cool 正常发出
       expect(api.updateUserSettings).toHaveBeenCalledTimes(1);
-      expect(api.updateUserSettings).toHaveBeenLastCalledWith({ theme: "cool" });
+      expect(api.updateUserSettings).toHaveBeenLastCalledWith({
+        theme: "cool",
+      });
 
       unsubscribe();
     });

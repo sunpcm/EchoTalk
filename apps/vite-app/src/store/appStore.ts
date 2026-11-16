@@ -59,7 +59,7 @@ const setStateWithSessionProjection = (
     rawSetState((state) => {
       const replacement = (typeof partial === "function" ? partial(state) : partial) as AppStore;
       const normalized = normalizeConversationSessionPatch(state, replacement) as AppStore;
-      // 窄 façade 只携带会话切片字段；replace 时补回外壳/导航键，
+      // 窄 façade 只携带会话切片字段；replace 时补回外壳/导航键与内部协调动作，
       // 除非调用者显式提供它们（保留 AppStore 完整 replacement 语义）。
       if (normalized === state) {
         return normalized;
@@ -69,6 +69,9 @@ const setStateWithSessionProjection = (
       if (!hasOwn(withShell, "goHome")) withShell.goHome = state.goHome;
       if (!hasOwn(withShell, "openDocChatSetup")) {
         withShell.openDocChatSetup = state.openDocChatSetup;
+      }
+      if (!hasOwn(withShell, "resetWithShellCoordination")) {
+        withShell.resetWithShellCoordination = state.resetWithShellCoordination;
       }
       return withShell;
     }, true);

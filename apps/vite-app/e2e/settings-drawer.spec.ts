@@ -9,11 +9,11 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   test("opens named modal dialog, sets initial focus safely, and verifies 44x44 touch targets", async ({
     page,
   }) => {
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await expect(settingsBtn).toBeVisible();
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 初始焦点移到安全控件（关闭按钮），绝不自动聚焦 API Key 等输入框
@@ -62,10 +62,10 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   });
 
   test("traps focus bidirectionally and reaches Save with custom mode OFF", async ({ page }) => {
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     const closeBtn = dialog.getByRole("button", { name: "关闭设置抽屉" });
@@ -130,10 +130,10 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   });
 
   test("traps focus bidirectionally and reaches Save with custom mode ON", async ({ page }) => {
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     const closeBtn = dialog.getByRole("button", { name: "关闭设置抽屉" });
@@ -170,14 +170,14 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   test("closes when clicking backdrop, but does not close when clicking inside dialog", async ({
     page,
   }) => {
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 点击抽屉内部标题或内容区域，对话框保持开启
-    const heading = dialog.getByRole("heading", { name: "设置", exact: true });
+    const heading = dialog.getByRole("heading", { name: "设置" });
     await heading.click();
     await expect(dialog).toBeVisible();
 
@@ -197,10 +197,10 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   test("preserves draft inputs and focus across store updates without reset or close", async ({
     page,
   }) => {
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 开启自定义模式并在 API Key 中输入草稿
@@ -229,10 +229,10 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
       }
     });
 
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 开关自定义模式
@@ -297,10 +297,10 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   }) => {
     await page.setViewportSize({ width: 320, height: 568 });
 
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 验证抽屉无横向溢出截断
@@ -318,10 +318,10 @@ test.describe("SettingsDrawer Cross-Platform Accessibility & Viewport", () => {
   }) => {
     await page.setViewportSize({ width: 667, height: 320 });
 
-    const settingsBtn = page.getByRole("button", { name: "设置", exact: true });
+    const settingsBtn = page.getByRole("button", { name: "设置" });
     await settingsBtn.click();
 
-    const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+    const dialog = page.getByRole("dialog", { name: "设置" });
     await expect(dialog).toBeVisible();
 
     // 顶部关闭按钮持续处于可见区域

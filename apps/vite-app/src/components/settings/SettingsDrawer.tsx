@@ -21,12 +21,25 @@ interface SettingsDrawerProps {
 }
 
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
-  const { settings, loading, saving, error, fetchSettings, updateSettings } = useSettingsStore();
+  const {
+    settings,
+    settingsHydrationRevision,
+    loading,
+    saving,
+    error,
+    fetchSettings,
+    updateSettings,
+  } = useSettingsStore();
   const theme = useSettingsStore((state) => state.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
 
   // 该 hook 必须在 open=false 时保持挂载，以保留既有草稿语义。
-  const form = useSettingsForm({ open, settings, updateSettings });
+  const form = useSettingsForm({
+    open,
+    settings,
+    settingsHydrationRevision,
+    updateSettings,
+  });
   const {
     dialogRef,
     closeButtonRef,
@@ -65,7 +78,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     >
       <div className="border-border-default bg-bg sticky top-0 z-20 flex shrink-0 items-center justify-between border-b px-6 py-3">
         <h2 id="settings-drawer-title" className="text-text-default text-lg font-semibold">
-          {t.title}
+          {t.drawerTitle}
         </h2>
         <button
           ref={closeButtonRef}
@@ -116,8 +129,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
         {!loading && (
           <>
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
                 <p className="text-text-default text-sm font-medium">{t.customModeLabel}</p>
                 <p className="text-text-muted text-xs">{t.customModeDesc}</p>
               </div>
@@ -127,7 +140,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 aria-checked={form.draft.isCustomMode}
                 aria-label={t.customModeLabel}
                 onClick={form.toggleCustomMode}
-                className="focus-visible:ring-accent relative inline-flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                className="focus-visible:ring-accent relative inline-flex min-h-[44px] min-w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 <span
                   className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${

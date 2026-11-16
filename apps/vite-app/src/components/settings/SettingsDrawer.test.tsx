@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as api from "@/lib/api";
 import type { UserSettingsResponse } from "@/lib/api";
 import * as authModule from "@/lib/auth";
 import { zhCN } from "@/i18n/zh-CN";
@@ -7,6 +8,15 @@ import { useSettingsStore } from "@/store/settings";
 import { SettingsDrawer } from "./SettingsDrawer";
 import * as settingsPayloadModule from "./settingsPayload";
 import { clearDiagnosticBuffer, getDiagnosticSnapshot, logDiagnostic } from "@/lib/diagnostics";
+
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    getUserSettings: vi.fn(),
+    updateUserSettings: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/auth", () => ({
   beginLogout: vi.fn(async () => {}),
@@ -217,7 +227,7 @@ describe("SettingsDrawer Component", () => {
   it("renders the accessible native modal, locks scroll, and restores it on unmount", () => {
     const { unmount } = render(<SettingsDrawer open={true} onClose={vi.fn()} />);
 
-    const dialog = screen.getByRole("dialog", { name: t.title });
+    const dialog = screen.getByRole("dialog", { name: t.drawerTitle });
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(dialog).toHaveAttribute("aria-labelledby", "settings-drawer-title");
     expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalledTimes(1);
@@ -354,6 +364,7 @@ describe("SettingsDrawer Component", () => {
           llm_model: "custom/user-model",
           tts_provider: "cartesia",
         }),
+        settingsHydrationRevision: useSettingsStore.getState().settingsHydrationRevision + 1,
       });
     });
     rerender(<SettingsDrawer open={true} onClose={vi.fn()} />);
@@ -465,6 +476,72 @@ describe("SettingsDrawer Component", () => {
       vi.advanceTimersByTime(1);
     });
     expect(screen.queryByText(t.saveSuccess)).toBeNull();
+  });
+
+  it("preserves custom mode, provider controls and key draft after a deferred theme-only response settles", async () => {
+    vi.useFakeTimers();
+    vi.mocked(authModule.getAuthSnapshot).mockReturnValue({
+      state: "authenticated",
+      principal: { issuer: "urn:echotalk:auth:dev", subject: "settings-user" },
+    });
+    installStore(
+      makeSettings({
+        is_custom_mode: false,
+        stt_provider: "deepgram",
+        llm_provider: "siliconflow",
+        llm_model: "",
+        tts_provider: "cartesia",
+        has_llm_key: false,
+      }),
+    );
+    const pending = deferred<UserSettingsResponse>();
+    const updateUserSettings = vi
+      .mocked(api.updateUserSettings)
+      .mockReturnValueOnce(pending.promise);
+
+    render(<SettingsDrawer open={true} onClose={vi.fn()} />);
+
+    const customModeSwitch = screen.getByRole("switch", { name: t.customModeLabel });
+    fireEvent.click(customModeSwitch);
+    const llmKeyInput = screen.getByLabelText(t.apiKey, { selector: "#llm-key-input" });
+    fireEvent.change(llmKeyInput, { target: { value: "synthetic-draft-key" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: `${t.themeCool}${t.themeTitle}` }));
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(updateUserSettings).toHaveBeenCalledWith({ theme: "cool" });
+    const revisionBefore = useSettingsStore.getState().settingsHydrationRevision;
+
+    await act(async () => {
+      pending.resolve(
+        makeSettings({
+          is_custom_mode: false,
+          theme: "cool",
+          stt_provider: null,
+          llm_provider: null,
+          llm_model: null,
+          tts_provider: null,
+          has_stt_key: false,
+          has_llm_key: false,
+          has_tts_key: false,
+          stt_status: "unconfigured",
+          llm_status: "unconfigured",
+          tts_status: "unconfigured",
+        }),
+      );
+      await pending.promise;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(customModeSwitch).toBeChecked();
+    expect(llmKeyInput.closest("fieldset")).not.toBeDisabled();
+    expect(llmKeyInput).toHaveValue("synthetic-draft-key");
+    expect(useSettingsStore.getState().theme).toBe("cool");
+    expect(revisionBefore).toEqual(expect.any(Number));
+    expect(useSettingsStore.getState().settingsHydrationRevision).toBe(revisionBefore);
   });
 
   it.each([

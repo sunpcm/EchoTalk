@@ -246,6 +246,8 @@ export function applyThemeAttr(theme: ThemeName): void {
 interface SettingsStore {
   /** 当前用户设置（从后端获取） */
   settings: UserSettingsResponse | null;
+  /** 权威设置快照的单调水合版本 */
+  settingsHydrationRevision: number;
   /** 是否正在加载设置 */
   loading: boolean;
   /** 是否正在保存设置 */
@@ -268,6 +270,7 @@ interface SettingsStore {
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: null,
+  settingsHydrationRevision: 0,
   loading: false,
   saving: false,
   error: null,
@@ -436,7 +439,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         const backendTheme = settings.theme;
         applyThemeAttr(backendTheme);
         safeSetStoredTheme(backendTheme);
-        set({ settings, theme: backendTheme });
+        set({
+          settings,
+          theme: backendTheme,
+          settingsHydrationRevision: get().settingsHydrationRevision + 1,
+        });
       } else {
         const localTheme = get().theme;
         set({
@@ -444,6 +451,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
             ...settings,
             theme: localTheme,
           },
+          settingsHydrationRevision: get().settingsHydrationRevision + 1,
         });
       }
     } catch (err) {
@@ -527,14 +535,23 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         if (inFlightUpdate?.id === currentRequestId) {
           inFlightUpdate = null;
         }
-        set({ settings, saving: false, error: errorMsg });
+        set({
+          settings,
+          saving: false,
+          error: errorMsg,
+          settingsHydrationRevision: get().settingsHydrationRevision + 1,
+        });
         return { success: false, error: errorMsg };
       }
 
       if (inFlightUpdate?.id === currentRequestId) {
         inFlightUpdate = null;
       }
-      set({ settings, saving: false });
+      set({
+        settings,
+        saving: false,
+        settingsHydrationRevision: get().settingsHydrationRevision + 1,
+      });
       return { success: true };
     } catch (err) {
       if (inFlightUpdate?.id !== currentRequestId || !isContextValid(currentOwner)) {
@@ -560,12 +577,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   reset: () => {
     settingsGeneration += 1;
+    const nextSettingsHydrationRevision = get().settingsHydrationRevision + 1;
     cancelPendingThemeSyncTimer();
     inFlightSync = null;
     pendingIntent = null;
     inFlightFetch = null;
     inFlightUpdate = null;
     currentOwnerThemeTracker = null;
-    set({ settings: null, loading: false, saving: false, error: null });
+    set({
+      settings: null,
+      settingsHydrationRevision: nextSettingsHydrationRevision,
+      loading: false,
+      saving: false,
+      error: null,
+    });
   },
 }));

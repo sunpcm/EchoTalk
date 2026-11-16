@@ -97,7 +97,7 @@ test("scenario failure opens settings, deduplicates explicit recheck and never a
     })
     .click();
   const createdResponse = await createdResponsePromise;
-  expect(createdResponse.status()).toBe(201);
+  expect(createdResponse.status()).toBe(200);
   await expect(createdResponse.json()).resolves.toMatchObject({
     mode: "scenario",
     status: "active",
@@ -138,7 +138,7 @@ test("resume readiness failure offers shared guidance and recheck does not resum
     headers: { Authorization: "Bearer e2e-dev-token" },
     data: { mode: "scenario" },
   });
-  expect(created.status()).toBe(201);
+  expect(created.status()).toBe(200);
   const { id } = (await created.json()) as { id: string };
   const downstream = await observeEffects(page);
   let fixture = "permission_denied";

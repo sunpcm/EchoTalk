@@ -27,6 +27,7 @@ from livekit.agents import (
 )
 from sqlalchemy import select
 
+from agent_analysis_contract import KnownAgentErrorCode
 from livekit_agent.credential_resolver import CredentialResolver
 from livekit_agent.error_delivery import send_error_and_disconnect
 from livekit_agent.error_mapper import AgentErrorMapper
@@ -151,7 +152,7 @@ async def _send_error_and_disconnect(
     ctx: JobContext,
     code: str,
     message: str | None = None,
-    fallback_code: str = "ERR_SYSTEM_RUNTIME",
+    fallback_code: str = KnownAgentErrorCode.SYSTEM_RUNTIME.value,
 ) -> None:
     """
     通过 DataChannel 向客户端发送错误 JSON，然后断开房间连接。
@@ -308,8 +309,8 @@ async def entrypoint(ctx: JobContext):
             logger.error("查询用户配置失败: session_id=%s", safe_session_id)
             await _send_error_and_disconnect(
                 ctx,
-                "ERR_SESSION_NOT_FOUND",
-                fallback_code="ERR_SESSION_NOT_FOUND",
+                KnownAgentErrorCode.SESSION_NOT_FOUND.value,
+                fallback_code=KnownAgentErrorCode.SESSION_NOT_FOUND.value,
             )
             return None
 
@@ -318,8 +319,8 @@ async def entrypoint(ctx: JobContext):
             logger.error("未找到用户配置: session_id=%s", safe_session_id)
             await _send_error_and_disconnect(
                 ctx,
-                "ERR_SESSION_NOT_FOUND",
-                fallback_code="ERR_SESSION_NOT_FOUND",
+                KnownAgentErrorCode.SESSION_NOT_FOUND.value,
+                fallback_code=KnownAgentErrorCode.SESSION_NOT_FOUND.value,
             )
             return None
 
@@ -339,13 +340,13 @@ async def entrypoint(ctx: JobContext):
             except PluginInitError as e:
                 safe_code, _ = AgentErrorMapper.map_error(
                     e.code,
-                    fallback_code="ERR_CUSTOM_KEY_INVALID",
+                    fallback_code=KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 )
                 logger.error("自定义轨插件初始化失败: code=%s", safe_code)
                 await _send_error_and_disconnect(
                     ctx,
                     safe_code,
-                    fallback_code="ERR_CUSTOM_KEY_INVALID",
+                    fallback_code=KnownAgentErrorCode.CUSTOM_KEY_INVALID.value,
                 )
                 return None
         else:

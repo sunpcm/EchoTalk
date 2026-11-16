@@ -6,7 +6,8 @@ import { expect, test, type Page } from "@playwright/test";
 function trackSessionRequests(page: Page) {
   const calls: string[] = [];
   let sessionId: string | null = null;
-  page.on("response", async (res) => {
+  let sessionJson: Promise<void> = Promise.resolve();
+  page.on("response", (res) => {
     const req = res.request();
     const pathname = new URL(req.url()).pathname;
     if (!pathname.startsWith("/api/sessions") && pathname !== "/api/health/ready") return;
@@ -14,11 +15,19 @@ function trackSessionRequests(page: Page) {
       if (pathname !== "/api/health/ready") return;
     }
     calls.push(`${req.method()} ${pathname.replace(/[0-9a-f-]{36}/, ":id")}`);
-    if (req.method() === "POST" && pathname === "/api/sessions" && res.status() === 201) {
-      sessionId = ((await res.json()) as { id: string }).id;
+    if (req.method() === "POST" && pathname === "/api/sessions" && res.status() === 200) {
+      sessionJson = res.json().then((body) => {
+        sessionId = (body as { id: string }).id;
+      });
     }
   });
-  return { calls, getSessionId: () => sessionId };
+  return {
+    calls,
+    getSessionId: async () => {
+      await sessionJson;
+      return sessionId;
+    },
+  };
 }
 
 async function endSessionForCleanup(page: Page, sessionId: string | null) {
@@ -41,10 +50,21 @@ test("starting practice creates one session, fetches a token and shows the conne
   const tracker = trackSessionRequests(page);
 
   try {
+    // 先等待真实“创建会话”成功响应，确认前置健康门禁（call-capabilities / health-ready）
+    // 与创建完成后再断言 connecting，避免 5s UI 断言与前置 HTTP 耗时形成结构性竞态。
+    const sessionCreated = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        new URL(res.url()).pathname === "/api/sessions" &&
+        res.status() === 200,
+    );
+
     await page
       .getByRole("button", { name: /进入练习/ })
       .first()
       .click();
+
+    await sessionCreated;
 
     await expect(page.getByText("正在连接...")).toBeVisible();
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toHaveCount(0);
@@ -65,7 +85,7 @@ test("starting practice creates one session, fetches a token and shows the conne
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   } finally {
-    await endSessionForCleanup(page, tracker.getSessionId());
+    await endSessionForCleanup(page, await tracker.getSessionId());
   }
 });
 
@@ -94,16 +114,17 @@ test("a refused signaling connection stops at the connection-failed view and ret
 
     await page.getByRole("button", { name: "返回主页" }).click();
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
-    // 既有契约：记录保留在活动会话中，由用户显式恢复或结束
-    const sessionId = tracker.getSessionId() ?? "missing-session-id";
+    // 既有契约：记录保留在活动会话中，由用户显式恢复或结束；活动行可见 ID 仅展示前 8 位
+    const sessionId = (await tracker.getSessionId()) ?? "missing-session-id";
     const sessionRow = page.getByTestId(`active-session-item-${sessionId}`);
     await expect(sessionRow).toBeVisible();
     await expect(sessionRow.getByTestId(`session-mode-${sessionId}`)).toBeVisible();
     await expect(sessionRow.getByTestId(`session-started-at-${sessionId}`)).toBeVisible();
+    await expect(page.getByTestId(`session-id-${sessionId}`)).toHaveText(sessionId.slice(0, 8));
     await expect(sessionRow).not.toContainText(sessionId);
     expect(tracker.calls.filter((c) => c === "POST /api/sessions")).toHaveLength(1);
   } finally {
-    await endSessionForCleanup(page, tracker.getSessionId());
+    await endSessionForCleanup(page, await tracker.getSessionId());
   }
 });
 
@@ -116,10 +137,22 @@ test("a failed token request ends the just-created session and shows a generic m
   const tracker = trackSessionRequests(page);
 
   try {
+    // 先等待真实自动结束成功响应：产品在渲染 generic 文案前须先串行完成前置门禁
+    // 与 token(502) 后的自动 POST /api/sessions/:id/end（该 end 位于 generic UI error 之前），
+    // 避免 5s UI 断言与合法 10s 前置 HTTP 耗时形成结构性竞态。
+    const sessionEnded = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        /^\/api\/sessions\/[0-9a-f-]{36}\/end$/.test(new URL(res.url()).pathname) &&
+        res.status() === 200,
+    );
+
     await page
       .getByRole("button", { name: /进入练习/ })
       .first()
       .click();
+
+    await sessionEnded;
 
     await expect(page.getByText("暂时无法开始练习，请稍后重试。")).toBeVisible();
     await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
@@ -132,7 +165,7 @@ test("a failed token request ends the just-created session and shows a generic m
     expect(tracker.calls.some((c) => c.endsWith("/dispatch"))).toBe(false);
 
     // 服务端记录已结束，活动会话中不再出现这条记录
-    const sessionId = tracker.getSessionId();
+    const sessionId = await tracker.getSessionId();
     expect(sessionId).not.toBeNull();
     const detail = await page.request.get(`/api/sessions/${sessionId}`, {
       headers: { Authorization: "Bearer e2e-dev-token" },
@@ -140,6 +173,6 @@ test("a failed token request ends the just-created session and shows a generic m
     expect(await detail.json()).toMatchObject({ id: sessionId, status: "completed" });
     await expect(page.getByTestId(`active-session-item-${sessionId}`)).toHaveCount(0);
   } finally {
-    await endSessionForCleanup(page, tracker.getSessionId());
+    await endSessionForCleanup(page, await tracker.getSessionId());
   }
 });

@@ -2,13 +2,23 @@
 
 import logging
 import uuid
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agent_analysis_contract import (
+    NON_RETRYABLE_ERROR_CODES as NON_RETRYABLE_ERROR_CODES,
+)
+from agent_analysis_contract import (
+    AnalysisPublicErrorCode,
+    KnownAnalysisErrorCode,
+)
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.session import Session
+from services.analysis_observability import record_event, transaction_events
 from services.analysis_service import (
     AnalysisServiceError,
     analyze_session,
@@ -23,11 +33,6 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 RETRY_DELAYS_SECONDS = (5, 30)
 STALE_AFTER = timedelta(minutes=5)
-NON_RETRYABLE_ERROR_CODES = {
-    "analysis_unsupported",
-    "no_user_transcript",
-    "session_missing",
-}
 
 
 class InvalidAnalysisTransition(ValueError):
@@ -37,10 +42,36 @@ class InvalidAnalysisTransition(ValueError):
 class AnalysisExecutionError(RuntimeError):
     """An analysis failure with a stable, non-sensitive public error code."""
 
-    def __init__(self, code: str, message: str, *, retryable: bool = False):
+    def __init__(
+        self, code: AnalysisPublicErrorCode, message: str, *, retryable: bool = False
+    ):
         super().__init__(message)
         self.code = code
         self.retryable = retryable
+
+
+def _event_ledger_coverage(analysis_result: Any) -> dict[str, Any]:
+    """Select the serializable ledger facts and support legacy B1 mocks."""
+    ledger_coverage = getattr(analysis_result, "ledger_coverage", None)
+    if isinstance(ledger_coverage, Mapping):
+        return dict(ledger_coverage)
+
+    legacy_coverage = getattr(analysis_result, "coverage", None)
+    if isinstance(legacy_coverage, Mapping):
+        return dict(legacy_coverage)
+
+    raise AnalysisExecutionError(
+        KnownAnalysisErrorCode.ANALYSIS_FAILED.value,
+        "Analysis result is missing serializable ledger coverage",
+    )
+
+
+def _event_bkt_assessment(analysis_result: Any) -> Any:
+    """Select the source that may contribute observations to BKT."""
+    bkt_assessment = getattr(analysis_result, "bkt_assessment", None)
+    if bkt_assessment is not None:
+        return bkt_assessment
+    return getattr(analysis_result, "assessment", None)
 
 
 ALLOWED_TRANSITIONS: dict[AnalysisJobStatus, set[AnalysisJobStatus]] = {
@@ -123,6 +154,12 @@ async def claim_next_job(
 
     transition_job(job, AnalysisJobStatus.running, now=current_time)
     await db.flush()
+    record_event(
+        "analysis_job_claimed",
+        job_id=job.id,
+        session_id=job.session_id,
+        attempt_count=job.attempt_count,
+    )
     return job.id
 
 
@@ -147,13 +184,23 @@ async def recover_stale_jobs(
     for job in jobs:
         if job.attempt_count >= MAX_ATTEMPTS:
             transition_job(job, AnalysisJobStatus.failed, now=current_time)
-            job.last_error_code = "worker_timeout"
+            job.last_error_code = KnownAnalysisErrorCode.WORKER_TIMEOUT.value
             job.last_error = "Analysis worker stopped before completing the job"
+            outcome = "failed"
         else:
             transition_job(job, AnalysisJobStatus.pending, now=current_time)
             job.next_retry_at = current_time
-            job.last_error_code = "worker_timeout"
+            job.last_error_code = KnownAnalysisErrorCode.WORKER_TIMEOUT.value
             job.last_error = "Analysis worker stopped before completing the job"
+            outcome = "pending"
+        record_event(
+            "analysis_job_stale_recovered",
+            job_id=job.id,
+            session_id=job.session_id,
+            attempt_count=job.attempt_count,
+            error_code=KnownAnalysisErrorCode.WORKER_TIMEOUT.value,
+            outcome=outcome,
+        )
     await db.flush()
     return len(jobs)
 
@@ -176,12 +223,15 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
 
     session = await db.get(Session, job.session_id)
     if session is None:
-        raise AnalysisExecutionError("session_missing", "Session no longer exists")
+        raise AnalysisExecutionError(
+            KnownAnalysisErrorCode.SESSION_MISSING.value, "Session no longer exists"
+        )
 
     analysis_result = await analyze_session(job.session_id, db)
     if analysis_result is None:
         raise AnalysisExecutionError(
-            "no_user_transcript", "Session has no user transcript to analyze"
+            KnownAnalysisErrorCode.NO_USER_TRANSCRIPT.value,
+            "Session has no user transcript to analyze",
         )
 
     from services.learning_events import write_learning_events
@@ -190,9 +240,9 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
         job=job,
         session=session,
         user_id=session.user_id,
-        assessment=analysis_result.assessment,
+        assessment=_event_bkt_assessment(analysis_result),
         grammar_errors=analysis_result.grammar_errors,
-        coverage=analysis_result.coverage,
+        coverage=_event_ledger_coverage(analysis_result),
         db=db,
     )
 
@@ -200,6 +250,12 @@ async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
     job.last_error_code = None
     job.last_error = None
     await db.flush()
+    record_event(
+        "analysis_job_succeeded",
+        job_id=job.id,
+        session_id=job.session_id,
+        attempt_count=job.attempt_count,
+    )
 
 
 def _safe_error(exc: Exception) -> tuple[str, str]:
@@ -209,7 +265,10 @@ def _safe_error(exc: Exception) -> tuple[str, str]:
         return exc.code, str(exc)[:1000]
     # Provider exceptions may echo request headers or credentials. Persist only
     # the exception class; detailed provider diagnostics belong in redacted telemetry.
-    return "analysis_failed", f"Unexpected analysis failure ({type(exc).__name__})"
+    return (
+        KnownAnalysisErrorCode.ANALYSIS_FAILED.value,
+        f"Unexpected analysis failure ({type(exc).__name__})",
+    )
 
 
 async def record_job_failure(
@@ -233,12 +292,25 @@ async def record_job_failure(
     retryable = getattr(exc, "retryable", True)
     if job.attempt_count >= MAX_ATTEMPTS or not retryable:
         transition_job(job, AnalysisJobStatus.failed, now=current_time)
+        if not retryable:
+            event_name = "analysis_job_non_retryable_failure"
+        else:
+            event_name = "analysis_job_exhausted"
     else:
         transition_job(job, AnalysisJobStatus.pending, now=current_time)
         delay_index = min(job.attempt_count - 1, len(RETRY_DELAYS_SECONDS) - 1)
         job.next_retry_at = current_time + timedelta(
             seconds=RETRY_DELAYS_SECONDS[delay_index]
         )
+        event_name = "analysis_job_retryable_failure"
+    record_event(
+        event_name,
+        job_id=job.id,
+        session_id=job.session_id,
+        attempt_count=job.attempt_count,
+        error_code=code,
+        retryable=retryable,
+    )
     await db.flush()
     return job
 
@@ -249,12 +321,14 @@ async def process_job(
 ) -> None:
     """Run one claimed job, rolling back partial results before recording failure."""
     try:
-        async with session_factory() as db, db.begin():
-            await execute_claimed_job(job_id, db)
+        with transaction_events():
+            async with session_factory() as db, db.begin():
+                await execute_claimed_job(job_id, db)
     except Exception as exc:
         logger.error("Analysis job %s failed (%s)", job_id, type(exc).__name__)
-        async with session_factory() as db, db.begin():
-            await record_job_failure(job_id, exc, db)
+        with transaction_events():
+            async with session_factory() as db, db.begin():
+                await record_job_failure(job_id, exc, db)
 
 
 def retry_job(
@@ -289,3 +363,32 @@ def can_retry_job(
         and job.started_at is not None
         and job.started_at <= current_time - stale_after
     )
+
+
+async def queue_snapshot(
+    db: AsyncSession,
+    *,
+    now: datetime | None = None,
+) -> tuple[int, int]:
+    """Return ``(pending_count, oldest_pending_age_seconds)`` for observability.
+
+    ``pending_count`` counts every ``pending`` job, including delayed retries
+    (jobs whose ``next_retry_at`` is still in the future). ``oldest_pending_age_seconds``
+    is the whole number of seconds the oldest pending job has waited since its
+    ``created_at``, clamped to zero when the system clock is behind the stored
+    timestamp. An empty queue returns ``(0, 0)``.
+
+    This is a single aggregate SELECT with no row lock, flush, commit or add, and
+    never triggers an autoflush write.
+    """
+    current_time = now or utc_now()
+    stmt = select(func.count(), func.min(AnalysisJob.created_at)).where(
+        AnalysisJob.status == AnalysisJobStatus.pending
+    )
+    with db.no_autoflush:
+        row = (await db.execute(stmt)).one()
+    pending_count, oldest_created_at = row
+    if oldest_created_at is None:
+        return 0, 0
+    age_seconds = int(max(0.0, (current_time - oldest_created_at).total_seconds()))
+    return pending_count, age_seconds

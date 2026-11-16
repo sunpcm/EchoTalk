@@ -77,7 +77,7 @@ async function openSettingsWithVisibleDraft(
       new URL(response.url()).pathname === "/api/user/settings" &&
       response.request().method() === "GET",
   );
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: "设置" }).click();
   const response = await settingsResponse;
   await response.finished();
   await waitForTwoAnimationFrames(page);

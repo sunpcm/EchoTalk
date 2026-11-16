@@ -151,6 +151,22 @@ def test_empty_string_fields_allowed():
     assert result.accepted[0].error_type == ""
 
 
+def test_empty_skill_tag_allowed_when_explicitly_allowed():
+    allowed = ("article_usage", "")
+    result = validate_sgec_batch(_batch(_error(skill_tag="")), allowed)
+    assert result.ok is True
+    assert len(result.accepted) == 1
+    assert result.accepted[0].skill_tag == ""
+    assert result.issues == ()
+
+
+def test_empty_skill_tag_rejected_when_not_allowed():
+    result = validate_sgec_batch(_batch(_error(skill_tag="")), ALLOWED_TAGS)
+    assert result.ok is False
+    assert result.accepted == ()
+    assert result.issues[0].code == "unknown_skill_tag"
+
+
 def test_unknown_skill_tag_has_stable_error():
     result = validate_sgec_batch(_batch(_error(skill_tag="unknown_tag")), ALLOWED_TAGS)
     assert result.ok is False
@@ -481,6 +497,27 @@ def test_cli_non_standard_json_number_rejected(tmp_path, token):
     fixture = tmp_path / "nonstandard.json"
     fixture.write_text(
         '{"cases": [], "annotation": ' + token + "}",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.evaluate_sgec_offline", str(fixture)],
+        cwd=str(BACKEND_DIR),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "fixture: invalid json" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_giant_integer_is_safe_material_error(tmp_path):
+    # 5000 位整数超过 Python int 字符串转换位数限制（默认 4300），json.loads 抛 ValueError
+    # 而非 JSONDecodeError；须安全失败（exit2、无 traceback），不得 exit1 或回显原始异常。
+    fixture = tmp_path / "giant_int.json"
+    fixture.write_text(
+        '{"cases": [{"name": "giant", "allowed_skill_tags": [], "expect_accept": false, "payload": '
+        + ("1" * 5000)
+        + "}]}",
         encoding="utf-8",
     )
     result = subprocess.run(

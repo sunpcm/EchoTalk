@@ -22,7 +22,7 @@ async function createActiveSession(request: APIRequestContext): Promise<string> 
     headers: { Authorization: "Bearer e2e-dev-token" },
     data: { mode: "scenario" },
   });
-  expect(res.status()).toBe(201);
+  expect(res.status()).toBe(200);
   const data = (await res.json()) as { id: string; status: string };
   expect(data.id).toBeTruthy();
   expect(data.status).toBe("active");

@@ -1,3 +1,4 @@
+import { ANALYSIS_UNSUPPORTED } from "@/lib/agentAnalysisContract";
 import { useCallback } from "react";
 import { GoalResults } from "./GoalResults";
 import { PronunciationFeedback } from "./PronunciationFeedback";
@@ -160,7 +161,7 @@ function AssessmentErrorView({
     <div className="bg-danger-bg rounded-lg p-4 text-center">
       <p className="text-danger text-sm">
         {failed
-          ? errorCode === "analysis_unsupported"
+          ? errorCode === ANALYSIS_UNSUPPORTED
             ? tAssess.unsupported
             : tAssess.failed
           : tAssess.loadError}

@@ -37,6 +37,9 @@ jobs:
       - name: Check generated API types
         run: pnpm --filter vite-app check:api-types
 
+      - name: Check Agent and analysis generated types
+        run: pnpm --filter vite-app check:agent-analysis-types
+
       - name: Test API type generation
         run: pnpm --filter vite-app test:api-types
 
@@ -75,8 +78,21 @@ jobs:
         working-directory: apps/vite-app
 
       - name: E2E Test (Playwright)
-        run: pnpm exec playwright test
+        run: pnpm exec playwright test --reporter=list,json
         working-directory: apps/vite-app
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-report/results.json
+
+      - name: Upload E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/vite-app/playwright-report/results.json
+            apps/vite-app/test-results/
+          retention-days: 7
+          if-no-files-found: warn
 
   test-backend:
     # Keep the historical check name stable for existing branch protection.
@@ -131,6 +147,10 @@ jobs:
       - name: Check generated Provider display metadata
         working-directory: backend
         run: .venv/bin/python export_provider_metadata.py --check
+
+      - name: Check Agent and analysis contract
+        working-directory: backend
+        run: .venv/bin/python export_agent_analysis_contract.py --check
 
       - name: Ruff format
         working-directory: backend

@@ -89,6 +89,8 @@ store action 替身，不以 mock 新 hook 绕开实现。新增覆盖：
 
 ## 当前验证状态
 
+> 以下 A69/A70 记录是提交 `0936ea3` 的原验收快照；本次合并修正另见下一节，不回写旧数字。
+
 A69 lane 私有验证完成了 4 项独立真实组件/store 消费探针及两项有效通知变异；两项变异均被
 真实断言杀死，源码完整还原。main 未重跑这些私有探针或变异。
 
@@ -108,3 +110,25 @@ close/reopen 迟到失败和成功水合后 2 秒提示三个消费者行为未�
 真实 IdP、Provider、LiveKit、设备、远端 CI、部署与发布仍未验证。RF-11 整项在 A69 独立
 Review 通过后可按“本地代码验收完成”勾选；该状态不表示 UI 主动 abort 已接入全部 store，
 也不表示其余手写 domain 适配或真实服务验收已经完成。
+
+## 本次合并修正：权威快照水合来源（2026-11-17）
+
+合并后回归暴露了一个来源判定缺口：theme-only 后台响应会基于最新 settings 克隆一个新对象，而旧 Hook 只看对象引用，
+因此仅主题变化也会重置 Provider、custom mode 与本地 key 草稿。上述 `0936ea3` 快照仍代表原验收事实，本节只记录本次
+合并修正，不改变其历史数字。
+
+修正采用最小 `settingsHydrationRevision`：settings store 对真实 GET 得到的权威快照、通用设置 PUT 的已接受响应
+及 reset 单调推进 revision；theme-only 克隆不推进。`SettingsDrawer` 将 revision 传给 `useSettingsForm`，后者只在 revision
+变化时水合草稿；相同 revision 下对象引用变化不再触发水合。纯 Hook 调用方未传 revision 时继续保留原有“新 settings 对象
+即水合”合同，默认值与空值回退语义不变。
+
+本修正按行为 TDD 顺序补证：
+
+- 含新增 8 条回归的联合 92 项套件先得到 85 passed / 7 assertion failed 的受控 RED；
+- 首次 GREEN 为 90 passed / 2 failed；缺项分别是 deferred helper 尚未接好及旧权威源 fixture 未提供 revision；
+- 补齐 helper，并仅给旧权威源 fixture 增加真实 revision 后，该联合套件 92/92 通过；
+- 原 83 个旧 it 调用的断言 AST 保持（参数化运行时为 84 项）；除单个权威源 fixture 增加 revision 外，其余 AST 保持。
+
+三项额外有效变异分别被杀死：module tracker 5 项失败、Room render 1 项失败、theme guard 1 项失败。变异运行中未选中的测试不计覆盖。完整 E2E 已为 322 passed / exit 0，Chromium 与 WebKit 各 161，
+每项恰 1 passed result、retry 0，0 skip/flaky/unexpected。真实 IdP、Provider、LiveKit、设备、远端 CI、部署与发布仍未验证；本节是合并实施证据，
+13门禁及最终Review/提交/PR/合并/CI见主控同卡回执。

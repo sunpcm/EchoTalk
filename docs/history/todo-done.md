@@ -1167,3 +1167,625 @@ checkout 未提交的 TODO 候选或 `docs/triage/`。
 本轮只收口被误回退后已恢复的交付记录。主控在 `echotalk_restore_test` 上迁移到
 `c06_transcript_events` 后，backend pytest 为 794 passed、3 warnings、覆盖率
 78.84%，59% 门禁保持。资源身份和验收见 `docs/agent-review-loop.md` §19。
+
+## 架构演进工作包（第二批）F1
+
+- [x] **F1 data 层契约测试补齐**（P1；只加测试，不改生产代码，不改四个组件的既有测试）：在
+      `apps/vite-app/src/data/readonly-query*.test.ts` 增加契约用例，覆盖 (1) `settlementDrift:"discard"`
+      结算时只校验 seq、principal、revision，不因生命周期或上下文漂移丢弃，对照 `revalidate` 会丢弃；
+      (2) `clearCursorOnFirstPage` 首页刷新开始即清 cursor，刷新失败或被取消后 cursor 仍为空、`loadMore` 不发请求；
+      (3) `cancel()` 取消 more 后 cursor 保留并可用同一 cursor 重试，取消 primary 后保留 items，迟到结果不写回；
+      (4) DP profile 的 `concurrent:"override"` 最新覆盖与午夜定时为窗口结束 +100ms；(5) WP profile 去重大小写不敏感；
+      (6) AS 适配层 `queriedIdentity` 只在首屏成功时提交、取消后不提交。背景：复核时把这些逐一改坏，
+      既有 AS 116 项、DP 23 项与契约 45 项全部仍通过。验收：对每一项做一次受控变异，变异后新增用例失败、
+      恢复后通过，逐项列在报告里；既有 Vitest 用例不变且全部通过。
+
+      本地收口：新增 `apps/vite-app/src/data/readonly-query-f1.test.ts`（R1 为 703 行、18 项），
+      定向 18/18、全量 Vitest 1224/1224、typecheck、prettier 通过；受控变异实施者 18 组逐组真实推断
+      失败并恢复，Harness 独立 19 组（含补充第 19 项）逐字节恢复后 GREEN。R0（11 项/1217）经静态核验
+      标注 S0 后记 R0 CHANGES REQUESTED，R1 以单因素 primary/more 矩阵与真实日期窗口关闭。
+      **尚未 CI / PR / APPROVED**：本段本地计数不能挂在旧 A6 Linux CI 名下，仅代表本机自测，待
+      Harness 独立评审后合并。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）F2
+
+- [x] **F2 修复 E2E 偶发失败**（P2）：`apps/vite-app/e2e/session-start.spec.ts:13-20` 的 response 监听里
+      `await res.json()` 未被测试等待，偶发 `response.json: Test ended`（复核时冻结版本 80 次中 2 次、
+      基线 `196f2ba` 80 次中 1 次，非第一批回归）。改为 `page.waitForResponse` 或在断言前等待监听完成。
+      验收：该文件三个用例在 Chromium 与 WebKit 上 `--repeat-each 50`、retries 0 全过；断言语义不变。
+
+      本地收口：移除回调内浮空的 `await res.json()`，改为存 `sessionJson` promise 并由 async
+      `getSessionId` 在读取前等待，5 处调用点改为 `await tracker.getSessionId()`；27 个 expect 链归一
+      新增 await getter 与冗余括号后 AST 相同，三个用例断言语义不变。Harness 亲跑完整 300/300 通过
+      （Chromium/WebKit 各 150，3 用例各浏览器各 50，retries0/skip0/flaky0）；本机全量 E2E 首次 233/1
+      （唯一既有 a11y Provider 336×23）；Vitest 1224/50、pytest 809/3w/80.19%、108/8/21。未 commit/push，
+      待 Harness 独立评审后提交/PR/CI/squash。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）F3
+
+- [x] **F3 当前层文档瘦身**（P2；只改文档）：`docs/PROJECT_STATUS.md` 回到"当前功能 + 当前验证基线 +
+      已知限制 + 历史索引"，不超过 150 行，基线绑定最终 main 提交及其 CI；逐卡收口记录移入
+      `docs/history/2026-11.md`。`docs/FRONTEND_DATA_LAYER_CONTRACT.md` 开头的逐卡状态流水移入历史，
+      正文只留现行契约。验收：搬运部分逐行守恒；全仓 Markdown 相对链接与锚点检查无新增失效。
+
+      本地收口：`docs/PROJECT_STATUS.md` 瘦身为"当前功能 + 当前验证基线 + 已知限制 + 历史索引"四类
+      （73 行，≤150 达标），当前基线绑定 F2 最终 `main@38c4a69` 与其 Linux CI（CI `43366625704`、
+      Guard `43366625968` 六项 success，Vitest 1224/50、E2E 234、pytest 809/3w/80.19%、108/8/21）；
+      F2 本机 Harness/macOS 另记 E2E 233/1。`docs/FRONTEND_DATA_LAYER_CONTRACT.md` 开头的逐卡状态
+      流水（19 行）、`docs/PROJECT_STATUS.md` 的历史基线快照与逐卡收口（77 行）及文档职责与更新规则
+      （17 行）均逐行守恒移入 `docs/history/2026-11.md`，各块原文件/起止行/行数/SHA256 见实施报告
+      `moves-r0.json`。全仓 Markdown 相对链接与锚点由 Harness 用 Prettier Markdown AST 独立检查；
+      旧 `check-doc-links.py` 只查三文件目标存在性且不查 fragment，不作为本轮通过证据。未 commit/push，
+      待 Harness 独立评审后提交/PR/CI/squash。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）F4
+
+- [x] **F4 收窄会话切片的通用补丁入口**（P2）：`apps/vite-app/src/store/conversationSlice.ts` 的
+      `resetWithShellCoordination(patch: object)` 出现在 `ConversationSlice` 公共类型上，经窄 façade 可传入任意键。
+      改为不出现在窄 façade 的公共类型里，或把入参收窄为协调器声明的键。验收：`useConversationStore` 的类型上
+      不再能传入 `appView`；`navigation.test.ts` 与 `conversation.test.ts` 的行为断言不变；三测试树计数不降。
+
+      本地收口：`apps/vite-app/src/store/conversation.ts` 的 `ConversationStore` 改为
+      `Omit<ConversationSlice, "resetWithShellCoordination">`，`useConversationStore` 绑定收窄为
+      `StoreApi<ConversationStore>`；`apps/vite-app/src/store/appStore.ts` 在 `replace === true` 分支补回
+      `resetWithShellCoordination`（显式提供时不覆盖）。新增 `conversation-facade-f4.test.ts`（3 项 runtime 契约）
+      与 `conversation-facade.typecheck.ts`（type-only 编译期断言，覆盖 getState/selector/导出类型不暴露
+      `resetWithShellCoordination` 与 `appView`）。Harness/macOS Node 22 首轮 S1：Vitest 1226/1（唯一失败为
+      新增注释 `appView` 字面量触发 navigation.test.ts 断言）、lint 6err/132w；R1 改注释去字面量、6 断言改
+      `export type` 后 S2 Vitest 1227/51、lint 0err/132w、typecheck/build/format 全过；pytest 809/3w/80.19%、
+      本机 E2E 233/1（Chromium 117/0、WebKit 116/1，唯一既有 Provider 336×23）、Fake 108/类型 8/构建 21。
+      Harness 三组变异（M1 别名回退、M2 删保全分支、M3 无条件覆盖）均被目标断言捕获并逐字节恢复。未 commit/push，
+      F4 专属 CI/PR 尚未跑，本机计数不冒认 Linux CI。详见 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）G1
+
+- [x] **G1 后端为空 schema 的成功响应补响应模型**：`GET /api/health`、`GET /api/health/ready`、
+      `GET /api/sessions/{id}/token`、`POST /api/sessions/{id}/dispatch` 在 `backend/openapi.json` 中是空 schema。
+      新增 Pydantic 响应模型并重新导出 `openapi.json` 与前端生成类型。验收：运行时响应体不变（现有 pytest
+      零改动通过）；`export_openapi.py --check` 与 `check:api-types` 通过；Fake API 契约测试中的空 schema 清单
+      相应缩减并更新为精确清单。
+
+      本地收口：`backend/schemas/health.py` 新增 `HealthResponse`/`ReadinessResponse`，
+      `backend/schemas/session.py` 追加 `SessionTokenResponse`/`AgentDispatchResponse`，两个 router 仅加
+      `response_model`；重新导出 `openapi.json` 与前端生成类型；`fake-api-test.mjs` 的
+      `EXPECTED_UNMODELED_RESPONSES` 改为精确空清单 `[]`。新增 4 参数化契约测试保护公开 OpenAPI 字段必填/
+      基本类型。Harness/macOS 亲跑 Vitest 1227/51、Fake 108/类型 8/构建 21、pytest 813 passed/3 warnings/
+      80.23%（59% 门禁）、完整 E2E 233/1（唯一既有 Provider 336×23）、lint 0 error/132 warnings；
+      4 个针对 OpenAPI schema 字段 type 的 artifact 变异目标 RED 后逐字节恢复 4/4 GREEN。
+      未 commit/push/PR/merge，G1 专属 Linux CI 尚未运行，真实 Provider/LiveKit/IdP、设备、Docker 整栈、
+      部署未验。
+
+## 架构演进工作包（第二批）H2
+
+- [x] **H2 `lib/api.ts` 按资源拆文件**：约 1040 行拆为 `lib/api/{client,sessions,assessments,settings,callLease}.ts`，
+      由 `lib/api/index.ts` 原样再导出。验收：所有 `from "@/lib/api"` 的调用方零改动；`api.test.ts` 零改动通过；
+      分层 lint 零违规。
+
+      本地收口：删除 `apps/vite-app/src/lib/api.ts`，按资源拆为 `src/lib/api/{client,sessions,assessments,settings,callLease,index}.ts`，
+      `index.ts` 原样再导出原 71 个公开名字，公开导出集合不变；`request` 与 base URL 缓存唯一；所有
+      `from "@/lib/api"` 调用方零改动，`api.test.ts` 原 192 零改动通过，分层 lint 零违规。Harness/macOS 亲跑
+      S1：Vitest 1227/51、Fake 108/类型 8/构建 21、pytest 809 passed/3 warnings/80.19%、lint 0 error/132 warnings、
+      types/build/OpenAPI/providers/后端 ruff/format 全通过；S1 完整 E2E 225/9（新增 8 为 Vite 模块路径
+      `src/lib/api/sessions.ts`、`src/lib/api/assessments.ts` 被 E2E 夹具 `page.route` 正则误匹配返回 503，
+      另有 1 为既有 Provider 336×23）。R1 收紧两个 E2E 夹具的 matcher（`a11y-focus-touch.spec.ts`、
+      `theme-contrast.spec.ts`，改为路径后缀闭合的函数谓词，不触碰产品/API7）后 S2 完整 E2E 233/1
+      （Chromium 117/0、WebKit 116/1，retry/skip/flaky 0，唯一既有 Provider 336×23）；API 81 定义 AST/71 导出、
+      135 个原 test/fixture/config 字节不变、两个 E2E 除 matcher 外 AST 一致、26 边界样例正确。H2 Linux CI
+      尚未运行（待 PR），本机计数不冒认 Linux CI。详见实施报告与 `docs/history/2026-11.md`。
+
+## 架构演进工作包（第二批）I2
+
+- [x] **I2 分析任务最小可观测性**：为 Job 的领取、成功、可重试失败、耗尽、陈旧恢复输出结构化日志事件，
+      并提供队列积压与最老等待时长的只读查询（供健康检查或运维脚本使用）；不引入指标库或外部服务。
+      验收：pytest 覆盖各事件的字段与脱敏（不含转录正文、凭据）；现有用例零改动通过。
+
+      本地收口：新增 `backend/services/analysis_observability.py`（专属日志/事务缓冲，提交后输出，
+      异常/取消丢弃，不做通用事件总线），在真实事务 owner（`analysis_worker.py`、`analysis_jobs.py`）
+      接线，并为 `analysis_jobs.py` 增加 UTC 只读 `queue_snapshot`（单聚合 SELECT、无 autoflush，最老
+      pending 从 created_at 计等待秒数）；新增 `test_analysis_observability.py`、
+      `test_analysis_queue_snapshot.py` 覆盖六事件字段与脱敏、提交前无成功事件、取消/回滚无伪成功、
+      并发缓冲隔离、commit 失败无伪成功、handler 故障不改业务，以及队列空/混合/延迟 pending/未来时间/
+      不 autoflush。R1 补测阶段产品 3 路径字节冻结；本包前端/路由/schema/ORM/迁移/配置/锁零改动，
+      旧 59 pytest 零改动。
+      Harness/macOS 三阶段 15 项：E0 全 E2E 233/1（Chromium 117/0、WebKit 116/1，唯一既有 Provider
+      336×23）、U0 十一项（Vitest 1227/51、Fake 108、类型 8、构建 21、lint 0 error/132 旧 warnings、
+      typecheck/build/生成漂移/format 均过）、S1 Ruff 两项 + 全 pytest 841 passed/3 warnings/80.59%
+      （pytest 自身 67.89s）。7 项目标 AssertionError 变异全部 RED/逐字节恢复，新增 28 个契约用例 GREEN。
+      未 commit/push/PR/merge，I2 专属 Linux CI 尚未运行，本机计数不冒认 Linux CI。详见实施报告与
+      `docs/history/2026-11.md`。
+
+## 2026-11-14 D1 状态页最终 main/CI 回执
+
+- [x] **D1 状态页最终 main/CI 回执**：把 `docs/PROJECT_STATUS.md` 当前验证基线固定到最终产品 main
+      [`58254b98d8dcd6a81982ebe0436f6742fa4a974a`](https://github.com/sunpcm/EchoTalk/commit/58254b98d8dcd6a81982ebe0436f6742fa4a974a)
+      （tree `86f4d99880ca41bb0c497ce682efaec3e66e64c7`）与最终 main push CI
+      [`43441014970`](https://github.com/sunpcm/EchoTalk/actions/runs/43441014970)（五作业均成功），并
+      记录 I2 [PR #164](https://github.com/sunpcm/EchoTalk/pull/164)（source `dc4fb2602fa2aa9456087017c772647867128252`，
+      PR CI [`43439468324`](https://github.com/sunpcm/EchoTalk/actions/runs/43439468324)、Guard
+      [`43439468312`](https://github.com/sunpcm/EchoTalk/actions/runs/43439468312)）均已成功。最终 main
+      CI 数字：Vitest 1227/51、E2E 234（Chromium 117/WebKit 117，retry/skip/flaky 0，3.8m）、Fake API
+      108、API 类型生成器 8、构建脚本 21、backend pytest 841/3 warnings/80.59%（63.61s）。macOS Harness
+      fresh 完整 15 门禁：除 E2E 外 14 项全过，完整 E2E 首次 232 passed/2 failed（Chromium 117/0、
+      WebKit 115/2，retry/skip/flaky 0）：其一仍为既有 Provider 336×23，其二为
+      `weekly-progress.spec.ts:97` 概览失败安全提示 alert 未出现（根因未明）；`weekly-progress` 目标用例
+      双浏览器各 5 次定向重放 10/10 通过（Chromium 5/WebKit 5，19.1s），重放通过不追认为整树通过。
+      云端独立评审报告的 Linux E2E 233/1（WebKit 主题用例，1 worker 90/90 定向重放，来源为用户转交的
+      云端报告、非本轮亲跑，主题防抖根因待定位）保留为历史亲跑。只改文档，产品/测试/配置/锁/依赖/DB/
+      迁移零改动。
+
+## 2026-11-14 T1 主题防抖偶发失败时序修正
+
+- [x] **T1 主题防抖偶发失败时序修正**：F2 主题同步用例偶发失败，根因是两次主题点击间隔超过产品 300ms
+      防抖窗口，测试前提有误；本轮只修测试时序，产品 300ms/真实 UI/HTTP 与失败恢复不变。修复：
+      `apps/vite-app/e2e/theme-sync.spec.ts` 首用例新增 299/301 双侧边界断言，用页面时钟 + 页面内 fetch
+      旁路观测（计数后委托原 fetch）证明「前 299ms 不发、到 300ms 发」，响应监听先于推进时钟注册；原 26
+      断言语义全保留，后两用例 body 与其余 137 个 test/fixture/config 字节零改。产品 `src/store/settings.ts`
+      逐字节恢复原值（防抖时长 300ms、214 行；主题 197 行）。
+
+      本地收口：Harness/macOS R1 core 14/14 exit 0 —— Vitest 1227/51（23.51s）、Fake API 108/类型 8/
+      构建 21、pytest 841/3 warnings/80.59%（pytest 119.26s，与压力并行、勿据此比较性能）、lint 0 error/
+      132 warnings；source bytes 前后稳定。完整 E2E 首次 233/1（Chromium 117/0、WebKit 116/1，
+      retry/skip/flaky 0，56.261s），唯一失败 `a11y-focus-touch.spec:94`（127 断言 Provider 336×23）；
+      weekly-progress 本次通过，但 D1 首次 232/2 及 WP 10/10 重放根因未知历史仍保留。Harness 独立 scratch
+      300/300（3 用例 × 2 浏览器 × repeat50，Chromium 150/WebKit 150，4 workers，retry/skip/flaky 0，
+      341.862s）；三组变异（299→前299零发、301→300时计数1、pendingIntent.theme 强制 cool→原 body dark）
+      各双浏览器 2/2 被目标断言捕获，备份/finally 逐字节恢复。未 commit/push/PR/merge，T1 专属 Linux CI
+      尚未运行，本机计数不冒认 Linux CI。详见 `docs/history/2026-11.md` 与实施报告。
+
+## 2026-11-14 P1 Provider 触控目标修复（本地收口，文档待评审）
+
+- [x] **P1 Provider 原生 select 触控目标修复**：仅在共享 `SettingsProviderFields.tsx` 增加
+      `appearance-none`、右侧留白和装饰箭头，保留 44px 最小高度、原生 SELECT、全部选项/默认值、
+      可访问名称、键盘/焦点、保存与网络语义；无平台分支或自制下拉。冻结源码 SHA-256 为
+      `48275c4d1c94ac88a2425618cd031fec590773a68a74fce9334a1f9ca4a2c9c8`。
+      Harness 独立原 target WebKit 1 fail（原 spec127 抓到三 Provider 336×23），候选三主题 × 两字号 ×
+      双浏览器私有矩阵 12/12：普通高 44px、200% 高 66px，minHeight 44px、appearance none；标签/焦点/
+      选择/Tab、无裁切/横向溢出及截图箭头可见通过。Harness 自有副本移除 appearance-none 后原断言再次
+      RED，backup/finally 逐字节恢复，正式 lane 从未变异。
+
+      Harness/macOS 15 门禁全 exit 0：Vitest 1227/51（9.03s）、Fake 108/类型 8/构建 21、pytest
+      841/3 warnings/80.59%（自身 62.65s、命令 66.90s）、lint 132 warnings/0 errors；完整 E2E
+      234/0（Chromium 117/WebKit 117，retry/skip/flaky 0，Playwright 54.409s、命令 55.39s），source
+      前后稳定。所有正式测试字节保全，无新增测试计数；实施自测仅 format/lint/typecheck，首节点 EPERM
+      与 Harness 真正 RED/GREEN 分别记录。本机结果不冒认为新 PR/main CI，发布后由 Harness 补完整回执。
+      本条归档只指该范围本地实施/验证收口，文档仍待 Review；TODO 无对应 active 子卡，未改其他事项。
+      P2 大字号深色 Provider 文字可读性差在基线亦存在，本轮未修；真实设备、OS 弹窗与深色可读性未验收。
+      D1 首 232/2、T1 首 233/1、WP 10/10 与历史主题失败不抹去；W1 尚未实施，WP 根因未明。
+      未 commit/push/PR/merge/部署。详见 [本月历史](./2026-11.md) 与本地实施报告。
+
+本条同轮补充：当前 main CI 基线已按 Harness 实时日志回读更新为 `f19b6ae` / CI
+[43484069428](https://github.com/sunpcm/EchoTalk/actions/runs/43484069428) attempt1 五作业 success，
+frontend 1227/51、Node runner 8/21/108、E2E234（4.5m），backend841/3 warnings/80.59%/59.97s；
+旧 `58254b98`/D1 回执仍为历史，本轮 P1 本机数据不变。真实 ArrowDown/Enter 选择尚未验收：额外 Mac
+双浏览器私有探针未改变选项，原生 popup 操作前提仍待核对；focus/Tab/selectOption 已通过不等同于该项通过。
+正式产品、测试与断言标准不因此放宽。
+
+R1 同轮键盘边界补充：STT 单选项导致的首轮私有探针错误单列；修正后候选直接方向键、增加 Space 先打开
+均双浏览器 2 fail，基线完整原组件运行同一 Space/ArrowDown/Enter 探针也 2 fail（LLM 预期 openrouter、
+实际 siliconflow）。真实方向键选择仍未验证，无证据为本轮引入；副本恢复 receipt 的 restored_bytes 与
+formal_lane_unchanged 均 true。focus/Tab/selectOption 已通过，全部首失败保留，正式文件/测试标准未放宽。
+
+## 2026-11-14 W1 weekly-progress 初始生命周期响应顺序修正（本地已验收，文档待 Review）
+
+- [x] **W1 单次503夹具与初始pageshow竞争修正**：只在原目标用例登记真实初始pageshow并使首个503等待事件后
+      结算，保留原生resume/在途合并产品契约与真实UI/HTTP成功路径。原6断言及全文件48断言AST保全，prepare/
+      其他3body逐字节，其他672份已记录文件原字节；无产品改动、无私有hooks入正式、无sleep/retry/断言放宽。
+      冻结spec SHA-256：`46380a6a481b401536fe23eebf9abf2c566cc33bd532ea76d24dc962d37a242a`。
+
+      Harness原版自然100/100（53.792s）未复现；真实初始事件单变量对照2目标RED/2positive（18.3s）证明受控
+      时序的夹具脆弱前提，D1无trace历史不追认同因。候选目标全文配私有真实load屏障C/W 2/2（5.150296s），
+      native pageshow isTrusted=true/persisted=false后才结算503，原6语义完整通过；隐藏错误与空retry两个故障
+      变异各双浏览器2/2命中保留的spec109/spec114目标断言，backup/finally恢复，正式lane从未变异，恢复后
+      目标2/2 GREEN（4.7s）。
+
+      Harness/macOS最终15门禁全部exit0：Vitest1227/51（自身10.47s、命令12.16s），Fake108/类型8/构建21，
+      lint132warnings/0errors，pytest841/3warnings/80.59%（自身61.69s、命令65.89s）；完整E2E234/0，
+      C117/W117、retry/skip/flaky0，51.519538s/命令52.42s。全文件400/400（C200/W200，repeat50/workers4，
+      retry/skip/flaky0，216.198592s），source稳定、正式用例仍4/全局234。独立spec tsc通过不等于项目tsconfig
+      已覆盖e2e。浏览器/三树均Harness亲跑，实施者未跑浏览器；其自有真实/合成probe均未运行，首次TS2352保留。
+
+      已发布P1 main基线为6606107/tree9451ff0、PR167与mainCI43573445537，本轮不预告W1新PR/CI。
+      D1首232/2、T1首233/1、WP旧10/10与P1全部键盘首失败保留；Provider高度已修，深色可读性P2及真实方向键/
+      OS popup仍未验。TODO无对应active子卡、未改其他卡；本条为本地代码验收收口，文档待Review，未commit/
+      push/PR/merge/部署，不开始下一包。完整证据、来源与历史边界见 [本月历史](./2026-11.md)。
+
+## 2026-11-14 G2 Fake API 契约补齐（代码 APPROVED R1，文档待 Review）
+
+以下为开工时原卡，勾选后自 TODO 移入；后附已验收结果，不将原问题描述当作当前状态。
+
+- [x] **G2 Fake API 补齐缺失 operation 并消除 `POST /api/sessions` 状态码偏差**：缺失 5 个
+      （`POST /conversation/chat`、三个 call lease 接口、`PUT /user/settings`）；契约声明 200 而 Fake 返回 201，
+      且 `e2e/session-start.spec.ts` 依赖 201。开工前先核对真实后端实际返回的状态码；契约、后端、Fake 三者
+      不一致时停下列证据等用户裁定，不自行选边。验收：缺失清单为空或逐条说明保留原因；偏差清单只剩有说明的
+      条目；E2E 计数不降。
+
+      结果：用户批准统一200，补齐聊天、三个call lease及设置PUT；真实HTTP成功覆盖26/26、缺失[]，
+      保留两条有理由的具名assessment/grammar session_id UUID偏差，不放宽模型校验。Fake默认租约仍disabled/503，
+      Cloud租约及Provider验证成功仅显式合成fixture；无真实外部验证、撤销或设备验收。
+
+      Harness亲跑分阶段完成15门禁：R0 core14全exit0，Vitest1227/51、Fake125/125（新增17）、类型8/构建21，
+      pytest841/3warnings/80.59%（63.40s、命令67.61s）、lint132warnings/0errors；首次E2E214/20（C107/10、
+      W107/10，retry/skip/flaky0，55.734058s、命令57.04s）全是追加白名单前的旧201断言。R1仅另四spec五处
+      201→200，其余字节及R0三文件hash保全；完整E2E234/0（C117/W117，retry/skip/flaky0，52.301661s、
+      命令53.27s），format7.25s。代码独立APPROVED R1，source稳定；实施首监听EPERM/125cancelled单列保留，
+      实施者未跑浏览器或三树。
+
+      Harness独立HTTP4/4；四个私有直接变异均被原目标真断言捕获（spec704/1647/1893/2174），备份/finally
+      恢复后Fake125 GREEN，正式lane从未变异。首次secretLeak被spec2166一致性拦截，另加持久泄漏才由spec2174
+      直接脱敏断言捕获，不混为同一证据。最近已发布W1 main为c5b18fe/tree1d8e8ea、mainCI43579088158，
+      G2本机125与c5已发布108分列，G2发布验证另以对应PR/main运行核对。详见 [本月历史](./2026-11.md)。
+      本条仅G2范围收口，其他TODO卡未改；文档待Review，不commit/push/PR/merge/部署，不开始下个包。
+
+## 2026-11-14 G2 CI 收尾补充（主题对比度测试前提，本机已验收）
+
+- [x] **G2 CI 收尾：主题对比度测试的确定输入与就绪前提**：只改本spec，导航前reduce、本地与服务端主题一致，
+      使用真实store水合/目标DOM/媒体与computed样式屏障；18独立用例、21次AA调用及原扫描算法字节保全。
+      冻结spec SHA-256：`c8cd45e60496d26238375e310925245839b43a6fd5dfcab3099332534cabde3a`；代码独立APPROVED R0。
+      原G2卡已归档，本条仅追加收尾补充，不重加进行中的TODO卡。
+
+      Harness亲跑14非浏览器门禁全exit0：Vitest1227/51、Fake125、types8/build21、pytest841/3warnings/80.59%
+      （62.77s、命令67.08s）、format7.37s；全量E2E234（C117/W117，retry/skip/flaky0，54.884196s、命令55.83s），
+      目标18×2×10=360（C180/W180，retry/skip/flaky0，97.765687s）。两有效私有变异分别命中原AA spec204与
+      新就绪spec95，备份恢复后360/234 GREEN，正式代码前后稳定；实施方未跑浏览器或三树。
+
+      [PR169](https://github.com/sunpcm/EchoTalk/pull/169)已合并至b8a9bad，但
+      [mainCI43594803847](https://github.com/sunpcm/EchoTalk/actions/runs/43594803847)为failure：230pass/1flaky/3fail，
+      全为WebKit深色对比度；后端841/3warnings/80.59%/50.85s。历史根因未知、无trace，三格输入对照均原AA通过，
+      不能说已复现CI RED；本机GREEN不预报新PR/CI。产品配色、Provider深色P2、真实LiveKit/Provider/IdP/设备等边界
+      不因本条勾掉。完整过程、首失败与来源见[本轮记录](./2026-11-14-g2-theme-contrast-ci.md)。
+
+## 2026-11-14 G3 Agent DataChannel 与分析错误码契约设计（设计 APPROVED R0，待用户确认）
+
+以下原 G3 卡仅勾选后归档，卡文原样保留；完成的是设计轮，不表示机器契约已实施。
+根 TODO 保留用户确认及另拆实施/验收待办。
+
+- [x] **G3 Agent DataChannel 消息与分析错误码的机器可读契约**（先出设计，用户确认后实施）：`agent_error`
+      的 payload 由前端 `agentErrorMessage.ts` 手写收窄，后端 Agent 侧另有一套；分析 Job 的 `error_code` 是
+      字符串约定。设计需回答 schema 放在哪里、前后端如何共同引用、如何进 CI 漂移门禁，不新增运行时依赖优先。
+      验收（设计轮）：设计文档 + 现有消息与错误码的完整清单（逐条指到代码行）；本轮不改代码。
+
+设计产物为 [AGENT_AND_ANALYSIS_CONTRACT_DESIGN.md](../AGENT_AND_ANALYSIS_CONTRACT_DESIGN.md)，
+已独立评审 APPROVED R0，仍待用户确认、未实施。完整清单区分 Agent 九码发送/五码诊断/开放接收与分析四个生产码/
+五项已知策略；未来生成头需指向新入口，原默认输出字节/生成算法保全，仅补设计，不改脚本。
+
+Harness 转交本机15类门禁：14非浏览器全exit0，Vitest1227/51、Fake125、types8/build21，
+pytest841/3warnings/80.59071729957806%（70.61s、命令75.55s），lint132warnings/0errors、format8.74s。
+完整E2E首次233/1（WebKit theme-storage 冷启动SecurityError场景），限定一次完整重放234/0；首失败保留，
+根因未知、主题未修复，不据此证明稳定性。实施方只运行静态/四MD格式检查，未跑三树或服务。
+完整数字、命令来源、首失败、私有toy和未验证边界见[本轮记录](./2026-11-14-g3-contract-design.md)。
+
+本轮仅设计文档收口；实施方停Review、不commit/push。后续仅设计PR与CI收尾，暂不merge，不实施、不启动H1/I1。
+
+## 2026-11-15 G3同源契约实施与本机验证补齐（待最终Review，未发布）
+
+以下为先前文档草稿时的原卡，按本次授权勾选归档，仅调整归档后的相对链接；卡内“停机/未运行/待完整验收”属于补齐前时点，不是当前状态。完成的是实施及本机验证材料收口，不预告最终Review或发布CI结论。
+
+- [x] **G3 实施：已获用户确认，待完整验收**：设计已独立评审 APPROVED R0，用户已确认并授权实施，
+      见 [设计 §6 / §7](../AGENT_AND_ANALYSIS_CONTRACT_DESIGN.md)。兼容、生成器回归、契约测试及8项有效变异已分阶段验证；
+      完整 backend pytest 尚未运行：指定 PG 仍 exited，等待用户恢复或授权启动，不换库、不执行迁移。
+      保持未完成，待完整三树与独立最终 Review 后再收口归档；[实施验收草稿](./2026-11-15-g3-contract-implementation.md)。
+
+补齐后结果：用户已恢复专用库，Harness亲自核验 `postgres:15.19-alpine`、label `echotalk-a1-20261111`、loopback5432及身份 `echotalk_test|echotalk|150019|c06_transcript_events`，完整backend pytest collected895、895passed/3warnings、79.71%，pytest47.14s/命令53.90s，exit0，source前后稳定。不是实施方执行；59%门禁通过，较旧设计CI841/3warnings/80.59%下降0.88个百分点，原因未知，旧基线不改写。
+
+此前14门禁、R1 Vitest1234/52、Fake125、类型10/构建21、8项有效变异目标RED/恢复GREEN及全部恢复字节证据保留；R0 E2E234、C117/W117、实际retry/skip/flaky0、52.0237s/命令53.30s，生产/E2E在R1不变，不冒称此次重跑。本轮源码、测试、配置及生成物均冻结。
+
+实现PR及最终mainCI尚未发布，未预填编号/实现终点SHA或APPROVED；当前基线仍为设计合并main0e70680。真实Provider/LiveKit/IdP、设备、Docker整栈与部署未验，H1/I1/B2不因此开工。完整来源、历史草稿/首失败与补齐时序见[实施记录的最终本机测试补齐回执](./2026-11-15-g3-contract-implementation.md)。实施方仅文档检查，停Review，不commit/push。
+
+## 2026-11-15 H1会话启动编排抽取设计（R0交付，待Review与用户确认）
+
+以下为原H1卡，仅勾选归档设计交付；原实施验收继续保留在根TODO独立后续卡。设计尚待独立Review/用户确认，未创建启动编排候选代码，不以本卡勾选授权实施。
+
+- [x] **H1 会话切片的启动编排抽取**（先出设计，用户确认后实施）：`store/conversationSlice.ts` 约 1400 行，
+      同时承担状态机投影、启动编排（健康检查 → 创建 → 取 Token）、就绪检查与生命周期追踪。设计需给出拆分边界、
+      哪些是纯函数、对既有测试的影响。验收（设计轮）：设计文档，含"测试文件零改动是否可达"的明确判断及理由。
+      实施轮验收：`conversation.test.ts` 与 `VoiceInterface.test.tsx` 零改动通过；对启动路径做 3 处以上变异并列结果。
+
+产物见[CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](../CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)：推荐只抽runStartup，同步门禁与await时序保留；API/auth/platform/options延迟读取，tracker寄存器留slice、每次资源由原tracker清理，readiness常驻观察者与resume不顺手合并。注入ports的runStartup仍是副作用编排，不称纯函数。
+
+两原测试零改“有条件可达”，以原mock/export/setter/物理store身份、同步顺序与cleanup边界为条件；未来仍要新增同层契约测试并实际完成至少3处有效变异，本轮变异计划未运行。原conversation/Voice文件及全部源码/测试字节保全。
+
+Harness在本lane亲跑14门禁全部exit0、source稳定：Vitest1234/52、Fake125、types10/build21；E2E234（C117/W117、实际retry/skip/flaky0，55.247788s/命令56.58s）；完整pytest895/3warnings/79.71%（63.39s/命令68.16s，59%门禁通过）。Linux已发布G3 mainCI43670316486的895/3/79.71%为43.13s，两来源不混写；实施方只做MD格式/静态检查，Harness停写后最终format待验。
+
+源码事实基线为1f06b03/tree85982b7；不预填H1新PR/CI或设计APPROVED。H1具体实施仍需用户确认，I1/B2及其他卡不变。过程、首结果和未验边界见[本轮记录](./2026-11-15-h1-startup-design.md)。实施方停Review，不commit/push。
+
+## 2026-11-15 H1方案A启动编排实施（源码APPROVED R0，发布验证待回执）
+
+- [x] **H1 会话切片的启动编排抽取（方案A实施）**：用户已明确确认方案A并授权实施，只抽runStartup为延迟ports的factory；
+      同步门禁、动态依赖、cleanup所有权及原slice寄存器保留，resume和其他动作不合并。
+      两份旧测试conversation/VoiceInterface原字节通过120/86；新增15条同层契约含3条真实appStore接线，四项有效私有变异均目标RED/逐字节恢复后15 GREEN。
+      源码独立APPROVED R0、无代码返修；Linux实施CI/Guard与发布待对应实际回执，不按全部门禁通过归档。
+
+Harness亲跑macOS：Vitest1249/53、Fake125、types10/build21、lint132warnings/0errors，完整pytest895/3warnings/79.71%（67.10s，命令71.66s），基础14/15。
+完整E2E首次233/1（C117/W116+1，66.80375s）、唯一完整重放233/1（C116+1/W117，55.640223s），实际retry/skip/flaky均0，均theme-storage:24期望warm实收cool。
+两次不能合算234通过；此前G3设计同位失败仅为历史对照，根因未明、主题未修，不据源码机械等价判定无关。
+实施方首次新夹具219/1、typecheck两处TS2345及后续221/221原样保留；不是实施方亲跑三树或浏览器。
+
+已发布的是设计[PR173](https://github.com/sunpcm/EchoTalk/pull/173)与main650b3c7的[最终mainCI43673387467](https://github.com/sunpcm/EchoTalk/actions/runs/43673387467)：attempt1五作业success，Linux E2E234/0、pytest895/3warnings/79.71%/63.30s；设计PR首次a11y焦点233passed/1flaky、retry1也保留，不能替代H1实施发布验证。
+见[设计历史与当前确认状态](../CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)及[实施记录](./2026-11-15-h1-startup-implementation.md)。真实Provider/LiveKit/IdP、设备、整栈/部署及I1/B2边界不变；本次仅五MD收口，停Review，不commit/push。
+
+## 2026-11-15 I1评估提供方接口设计（R0交付，待Review与用户确认，未实施）
+
+以下原设计卡仅勾选归档设计交付，不表示I1源码、coverage、真实Provider或B2已实施；根TODO保留另行用户确认/实施验收待办。
+
+- [x] **I1 评估提供方接口设计**（先出设计，用户确认后实施）：把"发音评估""语法检测"定义为可替换的提供方，
+      每个声明 `source`、`provider`、`model_version`、`is_synthetic`、`confidence`（字段已在数据模型中），
+      现有 `demo_mock`、`demo_rule` 成为两个实现；与 [学习事件设计](../LEARNING_EVENTS_DESIGN.md) 的
+      coverage 状态（未调用 / 已评估零结果 / 评估失败）对齐。验收（设计轮）：设计文档；不改代码。
+
+产物见[ASSESSMENT_PROVIDER_DESIGN.md](../ASSESSMENT_PROVIDER_DESIGN.md)：推荐两个文本demo的窄Protocol与显式metadata/内部coverage，NULL原值、零结果/未调用/失败/复用区别、Job事务/重试/BKT原行为保留。真实发音仍缺音频来源/权限/保留与设备输入契约，不由文本Protocol自动覆盖；方案尚待用户确认，未来测试/变异均未运行。
+
+Harness在I1本轮冻结代码亲跑14源码门禁success、source前后稳定：Vitest1249/53、Fake125、types10/build21，pytest895/3warnings/79.71%（75.46s，命令80.30s）；E2E234、C117/W117、实际retry/skip/flaky0、80.394227s。实施方仅文档校验，最终五MD格式/Markdown/范围另由Harness验，不预报设计Review或新CI成功。
+
+已发布H1 PR174/main0f7a的mainCI43677877043首轮五success，Linux main覆盖率79.68%/52.49s，与PR/本机79.71%分开；0.03个百分点差异未知。H1历史两次233/1不能被本轮234抹去。来源、首结果、未实施范围见[本轮记录](./2026-11-15-i1-assessment-provider-design.md)。停Review，不commit/push，不实施I1/B2。
+
+## 2026-11-15 I1评估提供方方案A实施（源码APPROVED R0，发布验证待回执）
+
+以下原I1后续卡勾选归档实施交付，不表示实现PR已发布或mainCI已通过；根TODO不再保留I1实施待办，B2/阶段C/真实发音等边界保持不变。
+
+- [x] **I1 后续：用户确认评估提供方设计后另拆实施与验收**：用户已确认方案A并授权实施，
+      新增`assessment_providers.py`（两个窄async Protocol、标准库frozen DTO、两个文本demo及原计算辅助）与
+      `analysis_service.py`的原动态选择、独立幂等/持久映射/flush及调用级coverage；NULL元数据、独立幂等/flush、
+      异常/取消与Job/BKT原行为保持。真实音频来源/权限/保留须另批，不因Protocol可替换而自动获得接入能力。
+      补新能力直接契约、真实service/Job/PG接线和5项有效变异，15门禁全绿与源码APPROVED R0以实际实施回执验收；不落B2/DB/HTTP。
+
+源码独立APPROVED R0、代码返修0/2；Harness亲跑macOS候选15门禁全绿：Vitest1249/53、Fake125、types10/build21、
+lint132warnings/0errors，pytest957/3warnings/80.63%（80.83s，命令85.74s），E2E234、C117/W117、
+实际retry/skip/flaky0、61.89s。5项有效变异均目标RED、恢复62GREEN、逐字节恢复（变异结束、文档收口前：695文件均与冻结R0一致；当前最终docs已变、总696文件，四代码/测试始终原字节），逐项源码:行与目标断言行见
+[实施记录](./2026-11-15-i1-provider-implementation.md)；其中synthetic过滤变异只证目标测试定位，不表示本轮改了BKT，
+`update_knowledge`与旧逐行synthetic过滤保持原字节。
+
+实施方纯provider入口27→30、一条PytestCacheWarning，首次`ruff check` exit1为I001导入顺序；都不是产品断言失败。实施范围、
+15门禁与首失败见[实施记录](./2026-11-15-i1-provider-implementation.md)。
+
+真实Provider/LiveKit/IdP、音频来源/权限/保留、设备、整栈与部署仍未验；实现PR/mainCI未发布，不预填编号/终点SHA或APPROVED结论。
+已发布的是设计[PR175](https://github.com/sunpcm/EchoTalk/pull/175)与main312a8f8设计CI，不把设计CI冒成本次实施验证。
+实施方仅五MD收口，停Review，不commit/push。
+
+## 2026-11-15 I1 实施发布回执（追加）
+
+I1 实施 [PR176](https://github.com/sunpcm/EchoTalk/pull/176) 已发布 main
+[76d9d6ba](https://github.com/sunpcm/EchoTalk/commit/76d9d6ba8c3ad72cf2c0671344ff48b617faea0f)
+（source `7f272cdb8845822010ae6658c8e1fc3a3913ec22` / CImerge
+`5e5c1f8466649248428ded72db979f73eb2172c7`）。PR/Guard CI 首轮六 success
+（[43686352704](https://github.com/sunpcm/EchoTalk/actions/runs/43686352704) /
+[43686352698](https://github.com/sunpcm/EchoTalk/actions/runs/43686352698)），
+[mainCI 43686992533](https://github.com/sunpcm/EchoTalk/actions/runs/43686992533) 首轮五 success。
+Linux：Vitest 1249/53、Fake 125 / types 10 / build 21、E2E 234（C117/W117，retry/skip/flaky0，4.5m）、
+pytest 957/3warnings/80.63%（73.52s）。以上为发布后回执，附加在本节之后，不改写上文
+「发布验证待回执」的冻结历史措辞。
+
+## 2026-11-15 Native Room 回归夹具归档（LGR R2 追加）
+
+Native Room 回归夹具卡由「当前继承待核」转为归档（原文勾选 `[x]`，不删旧文）。A82 b/r0 只改现有异步等待用例，
+先保存当前 DOM 实例再等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；A83 b/r0 正式本地
+receipt 已核销 A82 Review APPROVED。R2 复核补当前继承/运行证据：parent 亲查当前 main76d9d6ba 两目标用例
+（保存 DOM 实例、等待该实例 callback 登记）与旧 A82 AST 条款完全一致（wait1/owner1），同步停轨 act 内原断言保全；
+fresh 当前 VoiceInterface 86 通过、全 Vitest 1249/53 通过（`native-current-inheritance.json`）。此证据不依赖
+`d8c9ff9` 祖先关系；非祖先事实（merge-base exit1、共同祖先 `c704925`）与更正仍保留。不追认历史完整因果，
+真实 Room/设备其他卡仍独立未勾。
+
+## 2026-11-15 已完成卡移入归档（LGR R2a 机械补件）
+
+以下两张已完成卡由根 TODO 移入归档，`[x]` 勾选与原正文逐字保留；根 TODO 不再保留这两张完成卡。
+
+- [x] **iOS CI 预下载有限重试**：`5c28e1b` 的 `test-ios-build` 因 GitHub 资产单次 504 且
+      `--retry 0` 失败；已改为 curl 原生有限重试（3 次、`--retry-max-time 240`），校验不变。
+      `ios-ci.mjs` 保留 `--retry 3`/`--retry-delay 5`/`--retry-max-time 240`（4xx 与校验失败仍 fail closed），
+      `ios-ci-test.mjs` 断言 `--retry=3`、`--retry-max-time=240`；mainCI 43686992533 的
+      `test-ios-build` 132729437984 首轮 success，验收满足，归档。
+
+- [x] Native Room 回归夹具就绪：A82 b/r0 已只改现有异步等待用例，先保存当前 DOM 实例再
+      等待其 callback 登记，保留 native callback 返回前同步停轨的原始断言；A83 b/r0 的
+      正式本地 receipt 已核销 A82 Review APPROVED、正常 hook 单提交、旧本地 main 精确
+      fast-forward（`d8c9ff9`）与完整 15 项门禁。该次失败已观察到的直接事实仅为 callback
+      map 未就绪，显式等待已新增；触发失败的完整因果尚未独立证明，有限次通过不构成因果或
+      概率证明。R2 复核补当前继承/运行证据后归档：parent 亲查当前 main76d9d6ba 两目标用例
+      （保存 DOM 实例、等待该实例 callback 登记）与旧 A82 AST 条款完全一致（wait1/owner1），
+      同步停轨 act 内原断言保全；fresh 当前 VoiceInterface 86 通过、全 Vitest 1249/53 通过
+      （`native-current-inheritance.json`）。此证据不依赖 `d8c9ff9` 祖先关系；非祖先事实与
+      更正仍保留（merge-base exit1、共同祖先 `c704925`），不追认历史完整因果，真实 Room/设备
+      其他卡仍独立未勾。见 [CP-06 Native Room 回归夹具就绪](../verification/cross-platform/CP-06-NATIVE-FIXTURE-READINESS.md)。
+
+## 2026-11-15 theme-storage 冷启动输入/水合时序（TS，归档）
+
+以下原「当前优先问题」的 (TS) 维护卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本次前提固化与零写保护，不追认历史 H1 完整因果。
+
+- [x] **(TS) theme-storage 冷启动输入/水合时序**：历史 H1 两次 233/1 warm/cool、原自然 100/100、
+      受控 GET cool 水合后原 warm 断言 4/4 失败、GET warm 同条件 4/4 通过，历史完整因果未证。
+      验收：确定冷启动本地 fallback 与远端水合各阶段、保留原 3 用例断言与真实 UI/HTTP；原文件双浏览器
+      repeat50 共 300 零重试、三树全跑；不加 sleep/重试、不放宽断言。实施另包。
+
+结果（本机 Harness，未发布）：17 门禁全 success——Vitest1249/53、Fake125、types10/build21、
+pytest957/3warnings/80.63%（80.63339413%）、完整E2E234（C117/W117、retry/skip/flaky0、61.84s）、
+目标全文件300（C150/W150、retry/skip/flaky0、263.375914s）。三私有变异 fallback/hydrate/badput 均目标 RED+恢复 GREEN，坏 PUT 由
+spec125 `expect(themePutCount).toBe(0)` 抓住。历史 H1 两次 233/1 与 weekly-grammar rootCause 未知项保留，
+不因本次 300/300 或原自然 100/100 证明因果；PR/CI 待建，不填编号。详见
+[theme-storage 验收记录](./2026-11-15-theme-storage-reliability.md)。
+
+## 2026-11-15 设置可读性（READ，归档）
+
+以下原「当前优先问题」的 (READ) 卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本轮功能输入边界/禁用文字可读性修复与本机验收，不追认全产品 AA 或真实设备已验。
+
+- [x] **(READ) 设置可读性**：深色 200% Provider disabled 组 opacity0.5、功能输入边框低对比、
+      手机 200% 说明文字/开关重叠。验收：三主题/390 和 1280/正常和 200% 字号/启用禁用前后计算样式与截图；
+      保留 44px/焦点/AA 旧断言；功能输入边界按 3:1 核验；禁用可读性是产品增强，纯装饰卡不自动套 WCAG 硬门禁。
+      见 [W3C non-text-contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html) 与
+      [W3C contrast-minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)。实施另包，
+      不写成产品已修或真实设备已验。
+
+结果（本机 Harness，未发布）见 [设置可读性验收记录](./2026-11-15-settings-readability.md)：17 门禁全 success、
+完整 E2E 258（C129/W129，retry/skip/flaky 0）、功能输入边界 1.148→3.646、禁用 select 文字 3.124→4.943；
+READ PR/CI 待建，不填编号或发布终点 SHA。
+
+## 2026-11-15 启动视图测试前提（ST，独立偶发审计，归档）
+
+ST 为独立偶发测试前提审计包（非根 TODO 既有 `[ ]` 卡），只改 `apps/vite-app/e2e/session-start.spec.ts` first case：
+click 前注册 `POST /api/sessions` 200 响应等待，响应到达后再保留全部原 UI/HTTP/order 断言；第二、三 case 与文件外代码
+逐字节保留。测试文件 blob 冻结 `cfac9c33`，PR/CI 待建，不预填编号或发布终点 SHA。
+
+结果（本机 Harness，受控，未发布）：受控 6s 延迟私有副本下旧 C/W 原断言 2 RED、新 2 GREEN；17 分阶段门禁全 success
+（首次 6 个后端步骤因父误在根目录准备 Python 未运行，修正 backend 后新系列 6 全 0，保留首环境错误）；Vitest1249/53、Fake125、
+types10/build21、pytest957/3warnings/80.63%（71.82s / 命令 79.07s）、完整 E2E258 C129/W129 0retry/skip/flaky
+（53.02s / 命令 53.97s）、压力 C/W 各 30 共 60、0retry、40.5s。历史根因未知，不写"历史根因已成立"或"不是环境偶发"；
+详见 [启动视图测试前提记录](./2026-11-15-session-start-test-barrier.md)。
+
+## 2026-11-15 键盘焦点遍历可靠性（A11Y，归档）
+
+以下原「当前优先问题」的 (A11Y) 维护卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本次受控反例补丁与本机验收，历史 CI 根因仍未知，不追认历史完整因果。
+
+- [x] **(A11Y) a11y-focus-touch 偶发失败（根因未知）**：READ 已发布 PR179 至 main `c9f3131a`；PR CI43711155517 / Guard43711155525 的 E2E `a11y-focus-touch.spec.ts:64`（Chromium 单用例）seen>=6 得 5、1 retry 通过（整轮 257 pass / 1 flaky）；根因未知，独立修复，本轮不并入 READ。
+      验收：受控反例验证并修复可证前提、保留原焦点/触控目标断言与首次失败；历史原因缺 trace 时继续标未知，不包装已确证。
+
+结果（本机 Harness，受控，未发布）：受控 weekly GET 6s 下旧 C/W seen5 目标 RED、R0 UI 5s 2 RED、R1 同输入 2 GREEN；
+17 门禁全 success（Vitest1249/53、Fake125、types10/build21、pytest957/3warnings/80.63%）、完整 E2E258（C129/W129、
+0retry/skip/flaky）、继承 ST 后再次完整 258（C129/W129、retry/skip/flaky0、Playwright 51.243352s/命令 52.29s）、首用例压力 60（C/W 各30、
+retry0）。历史 CI 根因未知，不猜编号；PR/CI 待建不填编号。详见
+[键盘焦点遍历可靠性记录](./2026-11-15-dashboard-focus-test-reliability.md)。
+
+## 2026-11-15 主题按钮大字号重排（READ2，归档）
+
+以下原「当前优先问题」的 (READ2) 维护卡勾选归档；`[x]` 勾选与原文逐字保留，根 TODO 不再保留该卡。
+本归档只落本次布局与几何断言实现与本机验收，不追认真实设备/OS 缩放已验，也不预填发布回执。
+
+- [x] **(READ2) 主题 radio 内容/色点在按钮内重排**：本机 READ 前后观察发现，主题选择 radio 内容与色点在 200% 根字号下于按钮内重排/溢出（390/1280、正常/200 字号；本轮 READ 不修仅记录待办，随后 READ2 实施并收口）。
+      验收：保留 44px、原颜色/角色/事件与业务，只修按钮内内容与色点重排；原生/OS 下拉边界归入未验/非范围，不在本卡新增设备门禁。
+
+结果（本机 Harness，未发布）见 [主题按钮大字号重排记录](./2026-11-15-theme-swatch-reflow.md)：17 门禁分阶段全 success、
+完整 E2E258 两轮 C129/W129 retry/skip/flaky0、私有恢复原 flex-1 令六项几何断言目标 RED 后恢复 24 GREEN；formal/private
+字节恢复。READ2 PR/CI 待建，不填编号或发布终点 SHA。
+
+## 2026-11-15 Token 失败自动清理测试前提（ST2，归档）
+
+以下 `[x]` 卡源于 ST 第三 case 前提审计（非根 TODO 既有 `[ ]` 卡，根 TODO 无旧卡可移）；只改
+`apps/vite-app/e2e/session-start.spec.ts` 第三 case `a failed token request ends the just-created session and shows a generic message`。
+本归档只落本次受控反例补丁与父 Harness 验收，历史 CI 根因仍未知，不追认历史完整因果，不预填 PR/发布终点 SHA。
+
+- [x] **(ST2) token 失败自动清理后 generic 文案 5s 断言与合法 10s 前置 HTTP 存在结构性竞态**：产品在 emit generic 文案前须
+      先串行完成 call-capabilities→health-ready→createSession→token(502)→自动 endSession（各默认 10s），自动 end 位于
+      generic UI error 之前；测试 click 后立即以默认 5s 断言该文案形成缺口。
+      验收：仅第三 case click 前注册真实自动 `POST /api/sessions/<id>/end` 200 响应屏障并 `await`，再保留全部原断言；
+      不加 timeout/retry/sleep、不放宽旧断言、不改产品/Fake/其他 case。
+
+结果（父 Harness，受控，未发布）见 [Token 失败自动清理测试前提记录](./2026-11-15-session-token-error-test-barrier.md)：
+受控 6s 下旧 C/W 4 目标 RED、新 R0 同 4 GREEN、702 个源文件逐字节恢复；17 门禁全 success、额外单文件 `tsc --strict` 真实 exit0；
+历史 CI 根因未知，不预填 PR/发布终点 SHA。
+
+## 2026-11-15 遗留产品润色（ACT，归档）
+
+以下两张已确认完成卡由根 TODO 移入归档：一张为「待用户裁定→已确认」三处产品修复合并卡，另一张为
+「R2-10 硬编码文案收口」剩余 UI 卡；`[x]` 勾选与原正文逐字保留（来源保留、相对链接按本目录调整），
+根 TODO 不再保留这两张完成卡。本归档只落本次三处产品修复与硬编码文案收口、本机验收与独立评审；
+真实 IdP/LiveKit、设备、整栈与部署仍未验，其他设备/媒体/B2/目录/Compose 卡保持未勾。
+
+- [x] **待用户裁定→已确认（2026-11-15）：活动会话订阅里的"启动在途"取值，以及两处界面文案**（来源：
+      [云端评审](../reviews/2026-11-cloud-review.md) §3.4）：
+      (1) `apps/vite-app/src/components/conversation/active-sessions/useActiveSessionsLifecycle.ts` 中，
+      生命周期事件判断"是否正在启动会话"用的是挂载时的 `isStarting`，订阅期间不更新（拆分前即如此，R2-07
+      按原样保留）；列表刷新本身读取 store 实时值，因此影响限于 resume/connectivity 事件是否触发刷新。
+      (2) 设置抽屉标题"自定义模型设置"是否改为"设置"；(3) 活动会话行是否不再展示完整 UUID。
+      用户已确认三处全部按推荐实施：(1) 改为实时 `isStarting`（订阅期更新），(2) 标题改为"设置"，
+      (3) UUID 仅展示行内前 8 位。实施待做、不先勾。验收：修复(1)须先写出能复现的回归用例
+      （挂载后启动态变化再触发 resume 事件），(2)(3)须同步更新相关 Vitest 与 E2E 断言；三测试树通过。
+
+- [x] **R2-10 硬编码文案收口**（2026-11-10 已完成文案迁移与扫描测试；剩余：设置抽屉标题改为"设置"、活动会话行不展示完整 UUID，已确认、实施待做）（U-6、F-3，P2）：把 store/lib/组件中 14 处中文字面量与 `goalReached` 英文
+      迁入 `src/i18n/`；设置抽屉标题改为"设置"；活动会话行不再展示完整 UUID；推荐卡片与语法提示的技能标签
+      复用已有中文映射。验收：新增扫描测试，`src/` 非 i18n、非测试文件中无中文字符串字面量。
+
+## 2026-11-15 Dashboard 抽取（DASH，归档）
+
+以下 `[x]` 卡由根 TODO R2-13 移入归档：`Dashboard` 抽取子项已按用户裁定（仅函数体跨文件搬运例外）完成并独立 APPROVED；
+原 R2-13 其余目录归位仍保留为未完成项（随以后分层迁移，不扩大 rename）。本归档只落本次 Dashboard 抽取与源码 APPROVED
+验收，真实 IdP/LiveKit、设备、整栈与部署仍未验，其余目录归位卡保持未勾。
+
+- [x] **R2-13 抽出 `Dashboard`（仅函数体跨文件搬运例外）**：把 `App.tsx` 内联模块级 `Dashboard`（约 140 行）原样移到
+      新增 `apps/vite-app/src/components/dashboard/Dashboard.tsx` 并 `export`，`App.tsx` 以 `import { Dashboard }` 接回；
+      props/函数名/函数体/JSX/hooks 副作用与依赖数组/文案引用原样保全，`App` 自身函数体逐字节不变。其余组件目录随以后
+      分层迁移顺带归位，不扩大 rename。验收：`git diff --stat -M` 全部为 rename 或纯 import 路径修改；三测试树计数不变。
+
+结果（父 Harness，源码独立 APPROVED）见 [Dashboard 抽取记录](./2026-11-15-dashboard-extraction.md)：
+三树计数相对 ACT 基线零变化（Vitest1260/55、E2E258 C129/W129 retry/skip/flaky0、pytest957/3warnings/80.63%），
+17 门禁全 success。ACT PR184 已发布（source `5e478b8`）、CI 运行中未合 main；DASH 不预填 PR/主线 SHA。
+
+## 2026-11-15 Compose 启动门禁方案 B（CPB，归档）
+
+以下 `[x]` 卡由根 TODO R2-14 移入归档：方案 B 实现 + 静态契约验证已完成并独立 APPROVED；整栈/实际迁移
+仍明确未验证、不记完成（`.env` 与外部依赖另列为未验证）。真实 Provider/LiveKit/IdP、设备、整栈与部署仍未验。
+
+- [x] **R2-14 Compose 就绪与迁移编排（方案 B 实现 + 静态契约验证）**（A-1 的 P1-3、P1-5，P2；用户已确认采用方案 B）：
+      API 公开 `/api/health` + 专用一次性迁移成功作为启动依赖，`echotalk-web` 改为 `condition: service_healthy`，
+      保留用户级 ready 认证（`backend/routers/health.py:25–29` 的 ready 端点 `Depends(get_current_user)`，
+      故不能用匿名 `/api/health/ready` 做匿名 healthcheck）。验收：云端可做 `docker compose config` 校验（静态契约已验）；
+      整栈启动验证需要 `.env` 与外部依赖，另列为未验证；不实际迁移/整栈/部署。
+
+结果（父 Harness，源码独立 APPROVED）见 [Compose 启动门禁记录](./2026-11-15-compose-startup-gates.md)：本机
+17 门禁全 success（Vitest 1260/55、Fake 125、types 10、build 21、pytest 962/3warnings/80.63%、组合 E2E 实测
+258/0 C129/W129 retry/skip/flaky0、命令 53.47s），相对 DASH 后端 +5（962 vs 957）其余 0；三处有效变异
+（wrong-path/barrier/web）目标 RED + 恢复 GREEN。整栈/实际迁移仍未验，liveness + 迁移门禁只约束 Compose 启动
+顺序，不保证运行中 DB 持续 ready 或独立容器重启依赖顺序；本机未运行迁移服务/整栈/本机库 alembic，父用已有
+专用 PG 容器亲跑 pytest；CI「Upgrade empty PostgreSQL database」对一次性合成库执行 `alembic upgrade head`
+（原流程未改），不声称所有环境零迁移或零容器运行。
+
+## 2026-11-16 CI 首失败取证（EV，归档）
+
+以下 `[x]` 卡为 EV（CI 首失败取证，轻量维护）新增归档：仅 E2E 证据保存实施，根 TODO 无旧卡可移
+（GC 与 weekly-grammar 历史根因仍开放，不在此勾选）。本归档只落证据保存配置与本机验收，不宣称修复 GC 根因。
+
+- [x] **（EV）CI 首失败取证证据保存**：`apps/vite-app/playwright.config.ts` `use.trace` 由 `on-first-retry` 改
+      `retain-on-failure`、新增 `use.screenshot: only-on-failure`；`.github/workflows/ci.yml` E2E 步骤 reporter 改
+      `list,json` + `env.PLAYWRIGHT_JSON_OUTPUT_NAME=playwright-report/results.json`，其后新增 always 上传 JSON 报告
+      与 test-results（7 天 retention、run_id/run_attempt 区分名，复用 actions/upload-artifact@v4）。不加 retry/timeout、
+      不弱断言、不宣称修复 GC。
+
+结果（父 Harness，源码独立 APPROVED）见 [CI 首失败取证记录](./2026-11-16-e2e-first-failure-evidence.md)：本机 17 门禁
+全 success（Vitest 1260/55、Fake 125、types 10、build 21、pytest 962/3warnings/80.63%、E2E 258 C129/W129
+retry/skip/flaky0）；默认 trace/screenshot 策略受控对照负 2（trace2/PNG2/JSON）正 2（trace0/失败 PNG0），705 源文件逐字节恢复。
+实际远端 artifact 上传待发布（EV PR/main CI 尚未创建）；历史 GC60 自然未复现、根因未知，不可据后续 main 绿结案。
+
+## 2026-11-16 最终遗留对账收口（DOC）
+
+以下 `[x]` 卡为最终 DOC 文档包归档：仅把 RF-04「远端证据核对」已满足的 CI 执行部分移出归档，required check
+权限仍单列于根 `TODO.md` RF-04 主卡（未核，不在此勾选）。不关闭 RF-04 整卡，不并入真实链路/设备/部署。
+
+- [x] **RF-04 远端证据核对（CI 执行部分）**：main CI 已实跑 OpenAPI schema 与 TypeScript 类型生成门禁并成功，
+      I1 实施 PR176 已发布 main `76d9d6ba`，mainCI 43686992533 首轮五 jobs 全绿；证据收口见
+      [CI 质量门禁验证 §6](../verification/cross-platform/CP-06-CI-QUALITY-GATES.md)。历史
+      `6bda2cd`/`ef6cb53` 因 #118 回退无 iOS job（#128 起恢复 `test-ios-build`）的标注保留。
+      required check 配置仍未核（GitHub 只读 403/INVALID_ARGUMENT，不证明设置不存在），单列于 RF-04 主卡，
+      不因本归档捎带关闭 RF-04 整卡或真实链路。
+
+## 2026-11-16 A19 RoomSession 所有权收窄（源码 APPROVED R1）
+
+- [x] **在回归保护下简化 Room 初始 Web 快照与 RoomContextSync 引用所有权，移除多余可选回调并补并发渲染/SDK
+      身份变化测试（A19 P2）**：移除未调用的 `onRoom`/`onRoomRef` 可选回调、`roomRef` 改必传并删冗余守卫，
+      保留 ROOM-02 render 期同步绑定与 ROOM-03 稳定 effect 依赖/替换卸载 stop 语义；新增 4 条同层回归
+      （健康重渲染、StrictMode、SDK Room 身份替换、真实 startTransition+Suspense 并发挂起）。
+      审计保留部分：初始 Web 快照门禁的临时 adapter 仅在 `subscribe` 时挂监听、非泄漏，保留每次 render
+      即时读取 hidden/offline 语义，本轮未为整洁强改。源码独立 APPROVED R1，详见
+      [验收记录](./2026-11-16-a19-room-ownership-maintenance.md)；尚未发布。
+
+## 2026-11-16 A18 生命周期测试边界收窄（源码 APPROVED R0）
+
+- [x] **在回归保护下减少 start/resume 重复生命周期逻辑及全局测试注入入口（A18）**：移除产品 store 的
+      `testingLifecycleOptions` 与 `_setLifecycleOptionsForTesting` 公开 setter，`getLifecycleOptions` 恒 null、
+      `createLifecycleAdapter()` / `isNativeIos()` 不再读测试选项，平台判定严格经 `detectPlatform()` 判 ios；
+      测试平台假对象移入 test-only fixture（spyOn 并委托真实 Native/Web adapter）。原生命周期业务差异与准备段重复
+      经审计保留，不声称完整统一 runner。源码独立 APPROVED R0，详见
+      [验收记录](./2026-11-16-a18-lifecycle-testing-boundary.md)。
+
+## 2026-11-16 WGGC weekly/GC 有界取证（纯调查完成，原缺陷不归档）
+
+- **有界调查完成（WGGC，纯调查零改）**：对 weekly-grammar 历史 5/1 与 READ2 session-flow `page.evaluate` Promise GC
+  做了只读取证与父 macOS 有界压力复现，corrected60 全 60 绿、全量 E2E 258 全绿、Vitest 1270/57、pytest 962/3w/80.63%，
+  近期无复现；GC 因果与 weekly 5/1 根因仍未知。原缺陷不勾选、不归档，继续开放于根 TODO；详见
+  [验收记录](./2026-11-16-weekly-gc-investigation.md)。
+
+## 2026-11-16 SGEC 纯离线契约实施（离线子项归档，源码 APPROVED R1）
+
+- [x] **SGEC 纯离线子项完成（SGEC-OFF）**：复用旧 commit 9a9d6c1 四候选，实现严格结构校验 + 固定合成 fixture CLI
+      （validator/CLI/测试/合成 fixture），不接真实 Provider/BKT/default 分析。R0 修 CLI 5000 位整数 ValueError →
+      固定安全 exit2；R1 补空 tag 直接契约保护。七项有效变异闭环，R1 完整 backend pytest 1068/3w/81.00%/54.27s。
+      源码独立 APPROVED R1，未发布；SGEC 总项仍 unchecked（真实 Provider/BKT 接线待）。详见
+      [验收记录](./2026-11-16-sgec-offline-implementation.md)。

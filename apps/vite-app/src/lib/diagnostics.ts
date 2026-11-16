@@ -9,6 +9,11 @@
  */
 
 import pkg from "../../package.json";
+import {
+  ALLOWED_AGENT_CODES,
+  DIAGNOSTIC_UNKNOWN_AGENT_CODE,
+  type AllowedAgentCode,
+} from "./agentAnalysisContract";
 import { detectPlatform } from "@/platform/detection";
 import type { PlatformType } from "@/platform/types";
 import { getAuthRevision, subscribeAuthSnapshot } from "@/lib/auth";
@@ -30,15 +35,7 @@ export const ALLOWED_DIAGNOSTIC_EVENTS = [
 
 export type DiagnosticEvent = (typeof ALLOWED_DIAGNOSTIC_EVENTS)[number];
 
-export const ALLOWED_AGENT_CODES = [
-  "ERR_CUSTOM_KEY_INVALID",
-  "ERR_SESSION_NOT_FOUND",
-  "ERR_CUSTOM_RUNTIME_AUTH",
-  "ERR_CUSTOM_RUNTIME",
-  "ERR_SYSTEM_RUNTIME",
-] as const;
-
-export type AllowedAgentCode = (typeof ALLOWED_AGENT_CODES)[number];
+export { ALLOWED_AGENT_CODES, type AllowedAgentCode } from "./agentAnalysisContract";
 
 const KNOWN_PLATFORMS: ReadonlySet<string> = new Set(["ios", "android", "macos", "windows", "web"]);
 
@@ -195,7 +192,7 @@ export function logDiagnostic(
       if (typeof c === "string" && ALLOWED_AGENT_CODES.includes(c as AllowedAgentCode)) {
         record.agent_code = c;
       } else {
-        record.agent_code = "unknown";
+        record.agent_code = DIAGNOSTIC_UNKNOWN_AGENT_CODE;
       }
     }
 

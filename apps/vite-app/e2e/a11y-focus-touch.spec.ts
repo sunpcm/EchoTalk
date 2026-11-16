@@ -185,7 +185,7 @@ test.describe("Provider native select touch geometry and interaction", () => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await openDashboard(page);
 
-        await page.getByRole("button", { name: "设置", exact: true }).click();
+        await page.getByRole("button", { name: "设置" }).click();
         const dialog = page.getByRole("dialog", { name: "设置", exact: true });
         await expect(dialog).toBeVisible();
 
@@ -281,7 +281,7 @@ test("interactive controls are at least 44x44 at 390px on the dashboard and in s
 
   expect(await undersized("main")).toEqual([]);
 
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   // 打开自定义模式以渲染全部 Provider 表单控件
   await page.getByRole("dialog").getByRole("switch").click();
@@ -300,8 +300,9 @@ test("every failed dashboard section keeps its title and offers a 44px retry but
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.route(/\/api\/(sessions|assessments|curriculum)/, (route) =>
-    route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
+  await page.route(
+    (url) => /^\/api\/(sessions|assessments|curriculum)(?:\/|$)/.test(url.pathname),
+    (route) => route.fulfill({ status: 503, json: { detail: "synthetic failure" } }),
   );
   await page.goto("/");
   await expect(page.getByText("七天语法记录加载失败，请重试")).toBeVisible();

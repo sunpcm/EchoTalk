@@ -1,31 +1,12 @@
 # 前端 Data 层契约设计（A4a）
 
-> 状态：**A4a PR #149、A4b PR #151 与 A4c PR #152 已合并**。A4b 最终 source
-> `7659808f34a9f0a26254eb21f13efafe9c6c8ace` 的 CI `43158276662` 与 PR Guard
-> `43158276685` 六项通过，原始日志为 Vitest 1206/49、Linux E2E 234（0 skip/retry）、pytest
-> 809/80.19%、Fake API 108、类型生成器 8、构建脚本 21；squash 后
-> `main@25988673a5cb5342d6ddde5c3c92b9e3b002399b` 与 source 整树一致。A4a 的 source
-> `250a582d562f68df30af0b6f81bbe7abce3bf2ba` 也经六项 CI 通过并合入
-> `main@3daa0a4c7de7a056f9cf768e0df0f7f0eca4fd5e`。最小只读查询控制器（`apps/vite-app/src/data/readonly-query.ts`）、
-> React hook（`apps/vite-app/src/data/use-readonly-query.ts`）与四份不依赖业务组件的契约测试
-> （`readonly-query.test.ts`、`use-readonly-query.test.tsx`、`readonly-query-regression.test.ts`、
-> `use-readonly-query-regression.test.tsx`，共 45 项）均已合并。A4b 只迁移 `WeeklyGrammar`。
-> A4c `WeeklyProgress` 使用两个 controller 组合。最终 source `d47c3aa` 的
-> CI `43162885071` 与 PR Guard `43162885101` 通过，原始日志为 Vitest 1206/49、Linux E2E
-> 234（117+117，0 skip/retry）、pytest 809/80.19%、Fake API 108、类型生成器 8、构建脚本
-> 21；squash 后 `main@5c7ab366dcb500b91f15d550673987d0664bbc7d` 与 source 整树一致。
-> A4d `DailyProgress` 代码 head `05e76fe`（PR #153）六项 CI 与原始日志已复核，
-> Vitest1206/49、Linux E2E234、pytest809/80.19%，四处原测试变异被捕获；已完成归档，
-> 已完成归档。A4e R1 代码 `fb47cf4`（PR #154）六CI确认1206/49、Linux234、
-> pytest809/80.19%、108/8/21；最终 `b69c527` 六CI通过并已真实合入。
-> 自动化结果不代替真实服务或设备验收。
-
 ## 1. 范围与前提
 
-本文档是 A4a（前端 data 层契约与契约测试）的前置设计产物，目标是把四个现有数据区块
+本文档是前端 data 层的现行只读契约，记录四个数据区块
 （`WeeklyGrammar`、`WeeklyProgress`、`DailyProgress`、`ActiveSessions`）的**实际行为**、
-拟议的**只读 data 层接口边界**与一组**不依赖具体组件的契约测试矩阵**写成可审阅草稿。
-任务以 [TODO.md](../TODO.md)「架构演进工作包（阶段 A / B）」为准；[PR #138](https://github.com/sunpcm/EchoTalk/pull/138) 是引入该规划的来源。
+已落地的**只读 data 层接口边界**与一组**不依赖具体组件的契约测试矩阵**。
+该契约经 A4a–A4e 落地并合入；未完成工作见 [TODO.md](../TODO.md)，已归档收口见
+[todo-done.md](./history/todo-done.md)。[PR #138](https://github.com/sunpcm/EchoTalk/pull/138) 是引入该规划的来源。
 
 - 语义以现有代码为准，逐条落到代码行；差异之处列明，并按用户已确认的方案 A 保留现状。
 - data 层的目标结构与"契约先于实现"原则见 [ARCHITECTURE_ROADMAP.md](../docs/ARCHITECTURE_ROADMAP.md#L35-L57) §3.1。

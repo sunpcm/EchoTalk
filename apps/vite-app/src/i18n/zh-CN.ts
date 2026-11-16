@@ -296,6 +296,7 @@ export const zhCN = {
   },
   settings: {
     title: "设置",
+    drawerTitle: "设置",
     vipOnlyNotice:
       "该功能仅限 VIP 用户使用（或引导升级）。由于您是普通用户，请继续使用自定义模式。",
     customModeLabel: "自定义模式",

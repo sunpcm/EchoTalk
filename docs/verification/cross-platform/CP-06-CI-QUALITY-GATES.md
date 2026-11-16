@@ -2,9 +2,8 @@
 
 契约来源：`TODO.md` RF-04 CI 真实性与 CP-06 完整质量门禁。
 
-> §1–§5 保留 A30 本地接线、A64 远端基础证据与 A67/A70 当时边界的冻结历史。§6 是
-> 2026-11-13 15:57:34 UTC 核对的 RF04E 当前追加段；各节数字继续绑定各自提交和运行，不能相加或
-> 互相替代。
+> §1–§4 保留 A30 本地接线与当时远端尚未运行的冻结历史。A64 远端基础证据及 A67
+> 新增门禁的未验边界见 §5；已发布实施 main76d9d6ba 的远端 CI 收口见 §6。
 
 ## §1 CI 门禁对齐与命令映射
 
@@ -86,7 +85,75 @@ frontend10/schema/Ruff/backend 复验，已由主 Agent 独立核实；这次 A7
 - 真实 IdP/Provider/LiveKit、设备与部署也未验。故 RF-04 继续未勾选，剩余门禁是当前远端树
   的完整 CI 运行与真实链路验收。
 
-## §6 RF04E 已有远端证据核对（2026-11-13 15:57:34 UTC）
+## §6 已发布实施 main76d9d6ba 的远端 CI 收口（2026-11-15）
+
+I1 实施 [PR176](https://github.com/sunpcm/EchoTalk/pull/176) 已发布 main
+[76d9d6ba](https://github.com/sunpcm/EchoTalk/commit/76d9d6ba8c3ad72cf2c0671344ff48b617faea0f)
+（source `7f272cdb8845822010ae6658c8e1fc3a3913ec22` / CImerge
+`5e5c1f8466649248428ded72db979f73eb2172c7`）。[mainCI 43686992533](https://github.com/sunpcm/EchoTalk/actions/runs/43686992533)
+首轮五 jobs 全 success，覆盖现存前端门禁（按现存命令列出，含 G3 两层字节漂移）、backend、macOS 探针、iOS 无签名编译与聚合 `CI`：
+
+- 前端（`test-frontend`，ubuntu）：Format、Lint、Typecheck、Vitest 1249 passed/53 files、
+  build-script 21、Fake API 125、API 类型生成器 10、两层类型漂移检查、Build、
+  Chromium+WebKit E2E 234（C117/W117，实际 retry/skip/flaky 0，4.5m）。
+- 后端（`test-backend`，ubuntu，专用 PostgreSQL 15.19 空库迁移）：keyfree 运行时守卫、
+  tracked OpenAPI schema `--check`、Provider 元数据 `--check`、Agent/分析契约 `--check`、
+  Ruff format/check、Alembic 至 head、pytest 957 passed/3 warnings/80.63%（73.52s）。
+- macOS 探针（`test-macos-probe`，macos-15）：固定 Node 22.13.1/arm64、Rust 1.93.1，
+  无签名 arm64 app。
+- iOS 无签名编译（`test-ios-build`，macos-15）：生产 Web build + 显式 sync +
+  真实 arm64 Simulator 编译与静态产物校验。
+- 聚合 `CI`：`needs` 上述四 job，逐项 `success` 才通过。
+
+G3 同源契约的两层漂移门禁（backend tracked schema `--check` 与 frontend schema→TypeScript
+字节漂移 + 生成器测试）已随本轮在 Linux CI 执行并通过；§5 所述「10 项前端门禁、schema 两层门禁、
+完整 backend 与聚合 job 在 GitHub 当前树上均未执行」在本 main76d9d6ba 起不再成立，§1–§5 历史冻结记录保留。
+
+前端现存门禁不以固定「10 项」计数（G3 新增的两层字节漂移已入列），本节按现存命令逐项列出。
+
+RF-04 的 CI 执行部分就此核销：远端 Linux CI 已在 main76d9d6ba 五 jobs 全绿。RF-04 原契约仅含 CI
+required check 与门禁；剩余边界仅为分支保护 required check 配置与 GitHub 管理权限（本轮只读核验为
+403/INVALID_ARGUMENT，不证明设置不存在，不归档）。真实 IdP/Provider/LiveKit、设备与部署属 CP-06
+三端真实链路独立卡，不并入 RF-04。
+
+## §7 当前主线质量门禁与证据留存（2026-11-16）
+
+§1–§6 历史冻结记录保留。自 main `76d9d6ba` 起，PR177–186 已按门禁逐包合并，最终主线为 CPB
+main `53d2a409`（tree `cec480de`，与 source `e0a6250`/CI merge 全等）。各包 PR CI/Guard/mainCI 均首轮
+全 success（无重跑），Linux 回读与 macOS 亲跑分列于
+[当前状态页](../../PROJECT_STATUS.md) 与各包 history，不在此重复堆积。
+
+- 前端现存门禁（`test-frontend`，ubuntu）：Format、Lint、Typecheck、Vitest、build-script、Fake API、
+  OpenAPI→TypeScript `check:api-types`、类型生成器 runner、Build、Chromium+WebKit Playwright；CPB main
+  Linux 回读 Vitest 1260/55、Fake 125、types 10、build 21、E2E 258 C129/W129（实际 retry/skip/flaky 0）。
+- 后端（`test-backend`，ubuntu，专用 PostgreSQL 15.19 空库迁移）：tracked OpenAPI schema `--check`、
+  Provider 元数据 `--check`、Agent/分析契约 `--check`、Ruff format/check、Alembic 至 head、
+  pytest（CPB main 962 passed/3 warnings/80.63%）。
+- macOS 探针 / iOS 无签名编译、聚合 `CI` 保持首轮 success。
+
+### §7.1 CI 首失败证据留存（EV）
+
+EV 已把 E2E 证据保存补上（`apps/vite-app/playwright.config.ts` 的 `use.trace` 改 `retain-on-failure`、
+新增 `use.screenshot: only-on-failure`；`.github/workflows/ci.yml` E2E reporter 改 `list,json`，其后 always
+上传 JSON 报告与 test-results，7 天 retention）。这只补证据保存，不修复也不宣称修复 session-flow GC 根因。
+EV PR187 已 squash 至 main `bf4becd`（source `4c364cea` / CI merge `546090c6` / main 三者 tree `c2e7ddfa` 完全一致），
+PR CI 43737757005 首六 success、Guard 43737757038 success，最终 mainCI 43738720996 首五 success。PR 与 main 两份
+实际归档均已 MCP 实际下载核 SHA/CRC/原生 JSON/PNG（非只看日志元数据，不贴临时下载 URL）：PR artifact 14171327756
+（SHA256 `60ae87e6…`，14725526 字节，143 文件/142 PNG/trace0）、main artifact 14171881434（SHA256
+`45573d73a…`，14705831 字节，143 文件/142 PNG/trace0 main 全绿）；两者原生 `playwright-report/results.json`
+均 expected 258 / C129 / W129 / retry0 / skip0 / flaky0，142 PNG（含 ACT 320px 200% 双浏览器截图），证明证据保留链路可用。
+
+### §7.2 required-check 未核边界
+
+RF-04 的 required check 配置（分支保护）仍未核：GitHub MCP managed App 对 branches/main/protection 返回 403、
+rules/labels endpoint 不在白名单返回 INVALID_ARGUMENT。这不证明设置不存在，也不因此归档 RF-04；
+需用户在仓库侧配置或授权核验，不通过外部查询绕 403。真实 IdP/LiveKit、设备与部署属 CP-06 三端真实链路独立卡，
+不并入 RF-04。
+
+## §8 RF04E 历史远端证据附录（原时点 2026-11-14）
+
+> 本节来自 B1 `46ef954` 的独立历史附录。三条 main push、iOS failure 传播反证与 required-check
+> 未核边界继续绑定各自提交和运行，不与 §6/§7 的数字相加，也不替代本次合并后的验证。
 
 本节按安全摘要 `RF04E-remote-evidence.json` 与五个 Git 树的原生 YAML 解析结果
 `RF04E-workflow-static-audit-r1.json` 追加。初版私有 regex 提取无效，已从证据链排除。
@@ -94,7 +161,7 @@ frontend10/schema/Ruff/backend 复验，已由主 Agent 独立核实；这次 A7
 E2E 失败、追加诊断与未证根因独立记录在 [PROJECT_STATUS 的 RF04E 小节](../../PROJECT_STATUS.md)，
 不能改写本节历史远端结果。
 
-### §6.1 三条 main push 正向证据
+### §8.1 三条 main push 正向证据
 
 | Git 树                                     | 触发与运行                                                                                             | 关键 job                                                                                          | 核对结果                                                                              |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -107,7 +174,7 @@ audit 同时记录 `ci_retry_policy_2=true`；这里的成功不能写成零重�
 `89 Chromium + 89 WebKit = 178 passed` 与两次 `80 Chromium + 80 WebKit = 160 passed`；不根据
 job 绿色补写未出现的 retry、skip 或测试语义。
 
-### §6.2 workflow 静态结构
+### §8.2 workflow 静态结构
 
 | Git 树    | workflow SHA256                                                    | jobs                   | aggregate needs    |
 | --------- | ------------------------------------------------------------------ | ---------------------- | ------------------ |
@@ -122,7 +189,7 @@ job 绿色补写未出现的 retry、skip 或测试语义。
 不能反推两次运行曾通过 iOS。`4ec1a4d` 作为本轮核对时的起始树，只有静态 workflow 结构证据，
 没有该树的远端 run。
 
-### §6.3 RF-04 契约逐项核对
+### §8.3 RF-04 契约逐项核对
 
 | 契约项                                                                      | 已有证据                                                                                                                                                                                                                               | 核对边界                                                                                                                                                                                         |
 | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -133,7 +200,7 @@ job 绿色补写未出现的 retry、skip 或测试语义。
 | macOS 与 iOS 构建                                                           | 三次 macOS job success；`42c61bb` 的 iOS job success 且日志含 `BUILD SUCCEEDED`                                                                                                                                                        | `42c61bb` 仅证明无签名模拟器编译；`6bda2cd`/`ef6cb53` 无 iOS job，不能写 iOS 通过                                                                                                                |
 | 聚合 `CI` 失败传播                                                          | `42c61bb` 四个 need success；`6bda2cd`/`ef6cb53` 三个 need success                                                                                                                                                                     | 证明当时各自 workflow 拓扑内的聚合成功；不能覆盖其树外的新增门禁或当前 required check                                                                                                            |
 
-### §6.4 iOS 恢复与历史失败反证
+### §8.4 iOS 恢复与历史失败反证
 
 PR #128 对应的 `5c28e1baa33a085738e341194595d9ccd7723598` 在 `main` push、attempt 1 的
 run [42473006604](https://github.com/sunpcm/EchoTalk/actions/runs/42473006604) 恢复四 job 聚合：
@@ -148,7 +215,7 @@ run [42473006604](https://github.com/sunpcm/EchoTalk/actions/runs/42473006604) �
 SPM 准备的失败根因，因此不主张网络、504、代码或环境归因，也不能把整个 run 改写成成功。iOS
 预下载有限重试仍需在对应分支 CI 通过后单独核销。
 
-### §6.5 尚未成立的范围
+### §8.5 尚未成立的范围
 
 - 三次正向运行都是 `main` push，不能替代 PR 运行，也不能证明当前 PR 的 fail-block enforcement。
 - 本轮未为格式、类型、迁移、E2E 等门禁逐类构造或读取失败负向 PR 运行；唯一已核负例是 #128 的

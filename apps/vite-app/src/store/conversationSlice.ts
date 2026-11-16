@@ -13,7 +13,7 @@ import {
   getCallCapabilities,
   isValidUuid,
 } from "@/lib/api";
-import type { CurriculumRecommendation, DocContext, SessionGoalBindingInput } from "@/lib/api";
+import type { CurriculumRecommendation, DocContext } from "@/lib/api";
 import {
   getAuthSnapshot,
   getAuthRevision,
@@ -26,7 +26,6 @@ import { zhCN } from "@/i18n/zh-CN";
 import {
   canStartConversationSession,
   conversationSessionStateFromProjection,
-  createCredentialsReadyConversationSessionState,
   createIdleConversationSessionState,
   hasRoomConnection,
   isConnectingOrActiveConversationSession,
@@ -40,17 +39,9 @@ import {
 } from "./conversationState";
 
 import { classifyPracticeReadiness, type PracticeReadinessIssue } from "@/lib/practiceReadiness";
+import { createConversationStartup, type ActiveStartupTracker } from "./conversationStartup";
 
 export type { ConnectionState } from "./conversationState";
-
-interface ActiveStartupTracker {
-  readonly gen: number;
-  readonly principal: AuthPrincipal;
-  readonly revision: number;
-  readonly adapter: LifecycleAdapter;
-  isDisposed: boolean;
-  cleanup: () => void;
-}
 
 function isNativeIos(): boolean {
   return detectPlatform() === "ios";
@@ -286,6 +277,8 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
   get: () => TState,
   coordinator: ConversationSliceCoordinator<TState>,
 ): ConversationSlice {
+  let currentStartupTracker: ActiveStartupTracker | null = null;
+
   const setSession = (
     event: ConversationSessionEvent,
     extra: (state: ConversationSlice) => object = () => ({}),
@@ -324,490 +317,56 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
     else unsubscribe();
   };
 
-  let currentStartupTracker: ActiveStartupTracker | null = null;
-
-  interface StartupLifecycle {
-    readonly tracker: ActiveStartupTracker;
-    readonly checkOrRelease: (customError?: string | null) => boolean;
-    readonly awaitNativeReady: (() => Promise<boolean>) | null;
-  }
-
-  const runStartupLifecycle = (
-    targetGen: number,
-    startPrincipal: AuthPrincipal,
-    startRevision: number,
-    resetOnFailure: (error: string | null) => void,
-  ): StartupLifecycle | null => {
-    // 清理本实例先前可能遗留的 tracker
-    if (currentStartupTracker) {
-      currentStartupTracker.cleanup();
-      currentStartupTracker = null;
-    }
-
-    let lifecycleAdapter: LifecycleAdapter;
-    try {
-      lifecycleAdapter = createLifecycleAdapter();
-    } catch {
-      if (get().sessionGen === targetGen) {
-        resetOnFailure(zhCN.conversation.lifecycleUnavailable);
-      }
-      return null;
-    }
-
-    // 复核在 createLifecycleAdapter / addListener 同步执行期间是否发生取消、换号或新意图
-    if (get().sessionGen !== targetGen) {
-      lifecycleAdapter.dispose();
-      return null;
-    }
-    const postAdapterSnap = getAuthSnapshot();
-    if (
-      postAdapterSnap.state !== "authenticated" ||
-      !postAdapterSnap.principal ||
-      !arePrincipalsEqual(postAdapterSnap.principal, startPrincipal) ||
-      getAuthRevision() !== startRevision
-    ) {
-      lifecycleAdapter.dispose();
-      resetOnFailure(null);
-      return null;
-    }
-
-    let isReady = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let unsubscribeAuth: () => void = () => {};
-    let unsubscribeLifecycle: () => void = () => {};
-
-    const tracker: ActiveStartupTracker = {
-      gen: targetGen,
-      principal: startPrincipal,
-      revision: startRevision,
-      adapter: lifecycleAdapter,
-      isDisposed: false,
-      cleanup: () => {
-        if (tracker.isDisposed) return;
-        tracker.isDisposed = true;
-        if (timeoutId !== null) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        unsubscribeAuth();
-        unsubscribeLifecycle();
-        try {
-          lifecycleAdapter.dispose();
-        } catch {
-          // swallow
-        }
-        if (currentStartupTracker === tracker) {
-          currentStartupTracker = null;
-        }
-      },
-    };
-    currentStartupTracker = tracker;
-
-    unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
-      if (get().sessionGen !== targetGen || tracker.isDisposed) {
-        tracker.cleanup();
-        return;
-      }
-      const state = get();
-      const isStarting = isStartingConversationSession(state._sessionState);
-      if (!isStarting) {
-        return;
-      }
-
-      const currentRev = getAuthRevision();
-      const isStillValid =
-        nextSnapshot.state === "authenticated" &&
-        nextSnapshot.principal !== null &&
-        arePrincipalsEqual(nextSnapshot.principal, startPrincipal) &&
-        currentRev === startRevision;
-
-      if (!isStillValid) {
-        tracker.cleanup();
-        if (get().sessionGen === targetGen) {
-          resetOnFailure(null);
-        }
-      }
-    });
-
-    unsubscribeLifecycle = lifecycleAdapter.subscribe((event) => {
-      if (get().sessionGen !== targetGen || tracker.isDisposed) {
-        tracker.cleanup();
-        return;
-      }
-      const state = get();
-      const isStarting = isStartingConversationSession(state._sessionState);
-      if (!isStarting) {
-        return;
-      }
-      const shouldCancel =
-        event.type === "suspend" ||
-        event.snapshot.online === false ||
-        (isReady && event.snapshot.visibility === "hidden");
-      if (shouldCancel) {
-        tracker.cleanup();
-        if (get().sessionGen === targetGen) {
-          resetOnFailure(null);
-        }
-      }
-    });
-
-    const isGenCurrent = (): boolean => get().sessionGen === targetGen && !tracker.isDisposed;
-    const isAuthCurrent = (): boolean => {
-      const currentSnap = getAuthSnapshot();
-      if (currentSnap.state !== "authenticated" || !currentSnap.principal) return false;
-      if (!arePrincipalsEqual(currentSnap.principal, startPrincipal)) return false;
-      if (getAuthRevision() !== startRevision) return false;
-      return true;
-    };
-    const isLifecycleCurrent = (): boolean => {
-      const lifeSnap = lifecycleAdapter.getSnapshot();
-      if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) return false;
-      return true;
-    };
-
-    const checkOrRelease = (customError?: string | null): boolean => {
-      if (!isGenCurrent()) {
-        tracker.cleanup();
-        return false;
-      }
-      if (!isAuthCurrent()) {
-        tracker.cleanup();
-        if (get().sessionGen === targetGen) {
-          resetOnFailure(customError !== undefined ? customError : null);
-        }
-        return false;
-      }
-      if (!isLifecycleCurrent()) {
-        tracker.cleanup();
-        if (get().sessionGen === targetGen) {
-          resetOnFailure(
-            customError !== undefined ? customError : zhCN.conversation.lifecycleUnavailable,
-          );
-        }
-        return false;
-      }
-      return true;
-    };
-
-    // 复核在订阅建立过程中是否有变动（原生环境在就绪前处于 pending，不得在此阶段按未就绪快照拒绝）
-    if (!isGenCurrent()) {
-      tracker.cleanup();
-      return null;
-    }
-    if (!isAuthCurrent()) {
-      tracker.cleanup();
-      if (get().sessionGen === targetGen) {
-        resetOnFailure(null);
-      }
-      return null;
-    }
-
-    if (isNativeIos()) {
-      // 原生环境：等待原生就绪门禁，最多 10 秒超时；就绪等待仅原生分支异步，Web 保持同步
-      const awaitNativeReady = async (): Promise<boolean> => {
-        let timedOut = false;
-        let readyFailed = false;
-        const timeoutPromise = new Promise<void>((_, reject) => {
-          timeoutId = setTimeout(() => {
-            timedOut = true;
-            reject(new Error("LIFECYCLE_TIMEOUT"));
-          }, 10000);
-        });
-
-        try {
-          await Promise.race([lifecycleAdapter.whenReady(), timeoutPromise]);
-        } catch {
-          // 超时或原生就绪抛错
-          readyFailed = true;
-        } finally {
-          if (timeoutId !== null) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-          }
-        }
-
-        if (!isGenCurrent()) {
-          tracker.cleanup();
-          return false;
-        }
-
-        if (!isAuthCurrent()) {
-          tracker.cleanup();
-          if (get().sessionGen === targetGen) {
-            resetOnFailure(null);
-          }
-          return false;
-        }
-
-        // 真正就绪后核验原生状态与在线提示
-        if (timedOut || readyFailed || !isLifecycleCurrent()) {
-          tracker.cleanup();
-          if (get().sessionGen === targetGen) {
-            resetOnFailure(zhCN.conversation.lifecycleUnavailable);
-          }
-          return false;
-        }
-        isReady = true;
-        return true;
+  const runStartup = createConversationStartup({
+    get,
+    readStartSelection: (mode) => {
+      const selectedScenario = get().selectedScenario;
+      return {
+        scenarioName:
+          mode === "scenario" && selectedScenario
+            ? selectedScenario.scenario_name.trim() || null
+            : null,
+        goalBinding:
+          mode === "scenario" && selectedScenario?.goal_binding
+            ? {
+                material_id: selectedScenario.goal_binding.material_id,
+                material_version: selectedScenario.goal_binding.material_version,
+              }
+            : null,
       };
-
-      return { tracker, checkOrRelease, awaitNativeReady };
-    }
-
-    // Web 环境：立即就绪，检查初始显式 hidden / offline（保持同步，零额外 await）
-    if (!isGenCurrent()) {
-      tracker.cleanup();
-      return null;
-    }
-    if (!isAuthCurrent()) {
-      tracker.cleanup();
-      if (get().sessionGen === targetGen) {
-        resetOnFailure(null);
-      }
-      return null;
-    }
-    if (!isLifecycleCurrent()) {
-      tracker.cleanup();
-      if (get().sessionGen === targetGen) {
-        resetOnFailure(zhCN.conversation.lifecycleUnavailable);
-      }
-      return null;
-    }
-    isReady = true;
-
-    return { tracker, checkOrRelease, awaitNativeReady: null };
-  };
-
-  const runStartup = async (mode: string, docContext?: DocContext, readinessOnly = false) => {
-    // 1. 防止重复调用（如双击或 StrictMode 双渲染），在途能力查询和启动去重
-    if (!canStartConversationSession(get()._sessionState)) return;
-
-    // 在任何 await 前冻结本次选择；后续 Dashboard 选择变化不得串入本会话。
-    const selectedScenario = get().selectedScenario;
-    const scenarioNameSnapshot =
-      mode === "scenario" && selectedScenario
-        ? selectedScenario.scenario_name.trim() || null
-        : null;
-    const goalBindingSnapshot: SessionGoalBindingInput | null =
-      mode === "scenario" && selectedScenario?.goal_binding
-        ? {
-            material_id: selectedScenario.goal_binding.material_id,
-            material_version: selectedScenario.goal_binding.material_version,
-          }
-        : null;
-    clearReadinessWatch();
-
-    // 2. 必须具备有效认证快照，否则不发起开始
-    const authSnapshot = getAuthSnapshot();
-    if (authSnapshot.state !== "authenticated" || !authSnapshot.principal) {
-      setSession({ type: "reset" }, () => ({
-        ...coordinator.startupClosedPatch(),
-        error: zhCN.conversation.notAuthenticated,
-        readinessIssue: null,
-        readinessNotice: false,
-        recheckingReadiness: false,
-      }));
-      return;
-    }
-    const startRevision = getAuthRevision();
-    const startPrincipal = authSnapshot.principal;
-
-    const targetGen = get().sessionGen + 1;
-    const resetStartup = (error: string | null): void => {
-      setSession({ type: "reset" }, () => ({
-        sessionGen: targetGen + 1,
-        ...coordinator.startupClosedPatch(),
-        error,
-        recheckingReadiness: false,
-      }));
-    };
-
-    // 3. 先保留共享去重槽位并递增代际，防双击/同步 store 订阅者重入或 addListener 同步重入创建两次
-    setSession({ type: "begin_checking" }, () => ({
-      sessionGen: targetGen,
-      error: null,
-      readinessIssue: null,
-      readinessNotice: false,
-      recheckingReadiness: readinessOnly,
-    }));
-
-    // 写后立即复核同步订阅者通知是否已取消或改变认证（START-01/02）
-    if (get().sessionGen !== targetGen) {
-      return;
-    }
-    const postSetSnap = getAuthSnapshot();
-    if (
-      postSetSnap.state !== "authenticated" ||
-      !postSetSnap.principal ||
-      !arePrincipalsEqual(postSetSnap.principal, startPrincipal) ||
-      getAuthRevision() !== startRevision
-    ) {
-      resetStartup(null);
-      return;
-    }
-
-    const lifecycle = runStartupLifecycle(targetGen, startPrincipal, startRevision, resetStartup);
-    if (!lifecycle) return;
-    const { tracker, checkOrRelease, awaitNativeReady } = lifecycle;
-    if (awaitNativeReady && !(await awaitNativeReady())) return;
-
-    // 5. 通话能力发现与门禁 (CP-02 §8)
-    if (!checkOrRelease()) return;
-    let capabilities;
-    try {
-      capabilities = await getCallCapabilities();
-    } catch {
-      if (!checkOrRelease()) return;
-      console.error("Call capabilities check failed:");
-      tracker.cleanup();
-      if (get().sessionGen === targetGen) {
-        setSession({ type: "reset" }, () => ({
-          ...coordinator.startupClosedPatch(),
-          error: zhCN.conversation.capabilitiesFailed,
-        }));
-      }
-      return;
-    }
-
-    if (!checkOrRelease()) return;
-
-    if (capabilities.call_lease_mode !== "disabled") {
-      tracker.cleanup();
-      if (get().sessionGen === targetGen) {
-        setSession({ type: "reset" }, () => ({
-          ...coordinator.startupClosedPatch(),
-          error: zhCN.conversation.capabilitiesUnsupported,
-        }));
-      }
-      return;
-    }
-
-    // 6. 健康检查
-    if (!checkOrRelease()) return;
-    try {
-      await checkHealthReady();
-    } catch (err) {
-      if (!checkOrRelease()) return;
-      tracker.cleanup();
-      if (get().sessionGen === targetGen) {
-        const issue = classifyPracticeReadiness(err);
-        setSession({ type: "reset" }, () => ({
-          ...coordinator.startupClosedPatch(),
-          error: issue.message,
-          readinessIssue: issue,
-          selectedScenario: null,
-          recheckingReadiness: false,
-        }));
-      }
-      watchReadinessAuth(startPrincipal, startRevision, targetGen);
-      return;
-    }
-
-    if (!checkOrRelease()) return;
-    if (readinessOnly) {
-      tracker.cleanup();
-      setSession({ type: "reset" }, () => ({
-        ...coordinator.startupClosedPatch(),
-        error: null,
-        readinessNotice: true,
-        recheckingReadiness: false,
-        selectedScenario: null,
-      }));
-      watchReadinessAuth(startPrincipal, startRevision, targetGen);
-      return;
-    }
-
-    // 7. 进入连接编排并创建实际会话；组合层补丁与状态事件同次提交
-    setSession({ type: "begin_connecting" }, () => ({
-      ...coordinator.beginConnectingPatch(),
-      error: null,
-    }));
-    if (!checkOrRelease()) return;
-
-    // 创建成功后记录 id：后续取 Token 失败时由客户端显式结束，避免留下孤儿活动记录
-    let createdSessionId: string | null = null;
-    const endOrphanedSession = async (): Promise<void> => {
-      const orphanId = createdSessionId;
-      createdSessionId = null;
-      if (orphanId === null) return;
-      try {
-        // end 幂等；失败时记录仍在活动会话中，由用户显式结束，不自动重试
-        await apiEndSession(orphanId);
-      } catch {
-        console.error("End orphaned session failed:");
-      }
-    };
-
-    try {
-      const session = goalBindingSnapshot
-        ? await createSession(mode, docContext, {
-            goalBinding: goalBindingSnapshot,
-          })
-        : await createSession(mode, docContext);
-      if (!checkOrRelease()) return;
-      if (typeof session.id !== "string" || session.id.trim() === "") {
-        throw new Error(zhCN.conversation.startFailed);
-      }
-      createdSessionId = session.id;
-
-      setSession({ type: "session_created", sessionId: session.id });
-      if (!checkOrRelease()) return;
-
-      const { token, ws_url } = await getSessionToken(session.id);
-      if (!checkOrRelease()) return;
-
-      const readyState = createCredentialsReadyConversationSessionState({
-        sessionId: session.id,
-        token,
-        wsUrl: ws_url,
-      });
-      if (!readyState) {
-        await endOrphanedSession();
-        if (!checkOrRelease()) return;
-        tracker.cleanup();
-        setSession({ type: "reset" }, () => ({
-          ...coordinator.startupClosedPatch(),
-          error: zhCN.conversation.startFailed,
-        }));
-        return;
-      }
-
-      createdSessionId = null;
-      const sessionMode = typeof session.mode === "string" ? session.mode : null;
-      const sessionStartedAt = typeof session.started_at === "string" ? session.started_at : null;
-      const scenarioName =
-        sessionMode === "scenario" && mode === "scenario" ? scenarioNameSnapshot : null;
-      tracker.cleanup();
-      setSession(
-        {
-          type: "credentials_ready",
-          sessionId: session.id,
-          token,
-          wsUrl: ws_url,
-        },
-        () => ({
-          sessionPresentation: {
-            sessionId: session.id,
-            sessionGen: targetGen,
-            startedAt: sessionStartedAt,
-            mode: sessionMode,
-            scenarioName,
-          },
-        }),
-      );
-    } catch (err) {
-      if (!checkOrRelease()) return;
-      await endOrphanedSession();
-      if (!checkOrRelease()) return;
-      tracker.cleanup();
-      if (get().sessionGen === targetGen) {
-        setSession({ type: "reset" }, () => ({
-          ...coordinator.startupClosedPatch(),
-          error: resolveStartErrorMessage(err),
-        }));
-      }
-    }
-  };
+    },
+    emit: (event, extra) => setSession(event, extra),
+    readTracker: () => currentStartupTracker,
+    writeTracker: (value) => {
+      currentStartupTracker = value;
+    },
+    clearReadinessWatch: () => clearReadinessWatch(),
+    watchReadinessAuth: (principal, revision, gen) => watchReadinessAuth(principal, revision, gen),
+    auth: {
+      getAuthSnapshot: () => getAuthSnapshot(),
+      getAuthRevision: () => getAuthRevision(),
+      arePrincipalsEqual: (left, right) => arePrincipalsEqual(left, right),
+      subscribeAuthSnapshot: (listener) => subscribeAuthSnapshot(listener),
+    },
+    getLifecycleOptions: () => null,
+    createLifecycleAdapter: (options) => createLifecycleAdapter(options),
+    isNativeIos: () => isNativeIos(),
+    api: {
+      getCallCapabilities: () => getCallCapabilities(),
+      checkHealthReady: () => checkHealthReady(),
+      createSession: (mode, docContext, options) =>
+        options === undefined
+          ? createSession(mode, docContext)
+          : createSession(mode, docContext, options),
+      getSessionToken: (sessionId) => getSessionToken(sessionId),
+      endSession: (sessionId) => apiEndSession(sessionId),
+    },
+    beginConnectingPatch: () => coordinator.beginConnectingPatch(),
+    startupClosedPatch: () => coordinator.startupClosedPatch(),
+    classifyPracticeReadiness: (error) => classifyPracticeReadiness(error),
+    resolveStartErrorMessage: (error) => resolveStartErrorMessage(error),
+    messages: () => zhCN.conversation,
+  });
 
   return {
     sessionGen: 0,
@@ -957,10 +516,237 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
         return false;
       }
 
-      const lifecycle = runStartupLifecycle(targetGen, startPrincipal, startRevision, resetResume);
-      if (!lifecycle) return false;
-      const { tracker, checkOrRelease, awaitNativeReady } = lifecycle;
-      if (awaitNativeReady && !(await awaitNativeReady())) return false;
+      // 清理先前可能遗留的 tracker
+      if (currentStartupTracker) {
+        currentStartupTracker.cleanup();
+        currentStartupTracker = null;
+      }
+
+      let lifecycleAdapter: LifecycleAdapter;
+      try {
+        lifecycleAdapter = createLifecycleAdapter();
+      } catch {
+        if (get().sessionGen === targetGen) {
+          resetResume(zhCN.conversation.lifecycleUnavailable);
+        }
+        return false;
+      }
+
+      // 复核在 createLifecycleAdapter / addListener 同步执行期间是否发生取消、换号或新意图
+      if (get().sessionGen !== targetGen) {
+        lifecycleAdapter.dispose();
+        return false;
+      }
+      const postAdapterSnap = getAuthSnapshot();
+      if (
+        postAdapterSnap.state !== "authenticated" ||
+        !postAdapterSnap.principal ||
+        !arePrincipalsEqual(postAdapterSnap.principal, startPrincipal) ||
+        getAuthRevision() !== startRevision
+      ) {
+        lifecycleAdapter.dispose();
+        resetResume(null);
+        return false;
+      }
+
+      let isReady = false;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let unsubscribeAuth: () => void = () => {};
+      let unsubscribeLifecycle: () => void = () => {};
+
+      const tracker: ActiveStartupTracker = {
+        gen: targetGen,
+        principal: startPrincipal,
+        revision: startRevision,
+        adapter: lifecycleAdapter,
+        isDisposed: false,
+        cleanup: () => {
+          if (tracker.isDisposed) return;
+          tracker.isDisposed = true;
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          unsubscribeAuth();
+          unsubscribeLifecycle();
+          try {
+            lifecycleAdapter.dispose();
+          } catch {
+            // swallow
+          }
+          if (currentStartupTracker === tracker) {
+            currentStartupTracker = null;
+          }
+        },
+      };
+      currentStartupTracker = tracker;
+
+      unsubscribeAuth = subscribeAuthSnapshot((nextSnapshot) => {
+        if (get().sessionGen !== targetGen || tracker.isDisposed) {
+          tracker.cleanup();
+          return;
+        }
+        const state = get();
+        const isStarting = isStartingConversationSession(state._sessionState);
+        if (!isStarting) {
+          return;
+        }
+
+        const currentRev = getAuthRevision();
+        const isStillValid =
+          nextSnapshot.state === "authenticated" &&
+          nextSnapshot.principal !== null &&
+          arePrincipalsEqual(nextSnapshot.principal, startPrincipal) &&
+          currentRev === startRevision;
+
+        if (!isStillValid) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(null);
+          }
+        }
+      });
+
+      unsubscribeLifecycle = lifecycleAdapter.subscribe((event) => {
+        if (get().sessionGen !== targetGen || tracker.isDisposed) {
+          tracker.cleanup();
+          return;
+        }
+        const state = get();
+        const isStarting = isStartingConversationSession(state._sessionState);
+        if (!isStarting) {
+          return;
+        }
+        const shouldCancel =
+          event.type === "suspend" ||
+          event.snapshot.online === false ||
+          (isReady && event.snapshot.visibility === "hidden");
+        if (shouldCancel) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(null);
+          }
+        }
+      });
+
+      const isGenCurrent = (): boolean => get().sessionGen === targetGen && !tracker.isDisposed;
+      const isAuthCurrent = (): boolean => {
+        const currentSnap = getAuthSnapshot();
+        if (currentSnap.state !== "authenticated" || !currentSnap.principal) return false;
+        if (!arePrincipalsEqual(currentSnap.principal, startPrincipal)) return false;
+        if (getAuthRevision() !== startRevision) return false;
+        return true;
+      };
+      const isLifecycleCurrent = (): boolean => {
+        const lifeSnap = lifecycleAdapter.getSnapshot();
+        if (lifeSnap.visibility === "hidden" || lifeSnap.online === false) return false;
+        return true;
+      };
+
+      const checkOrRelease = (customError?: string | null): boolean => {
+        if (!isGenCurrent()) {
+          tracker.cleanup();
+          return false;
+        }
+        if (!isAuthCurrent()) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(customError !== undefined ? customError : null);
+          }
+          return false;
+        }
+        if (!isLifecycleCurrent()) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(
+              customError !== undefined ? customError : zhCN.conversation.lifecycleUnavailable,
+            );
+          }
+          return false;
+        }
+        return true;
+      };
+
+      // 复核在订阅建立过程中是否有变动（原生环境在就绪前处于 pending，不得在此阶段按未就绪快照拒绝）
+      if (!isGenCurrent()) {
+        tracker.cleanup();
+        return false;
+      }
+      if (!isAuthCurrent()) {
+        tracker.cleanup();
+        if (get().sessionGen === targetGen) {
+          resetResume(null);
+        }
+        return false;
+      }
+
+      if (isNativeIos()) {
+        // 原生环境：等待原生就绪门禁，最多 10 秒超时
+        let timedOut = false;
+        let readyFailed = false;
+        const timeoutPromise = new Promise<void>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            timedOut = true;
+            reject(new Error("LIFECYCLE_TIMEOUT"));
+          }, 10000);
+        });
+
+        try {
+          await Promise.race([lifecycleAdapter.whenReady(), timeoutPromise]);
+        } catch {
+          // 超时或原生就绪抛错
+          readyFailed = true;
+        } finally {
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+        }
+
+        if (!isGenCurrent()) {
+          tracker.cleanup();
+          return false;
+        }
+
+        if (!isAuthCurrent()) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(null);
+          }
+          return false;
+        }
+
+        // 真正就绪后核验原生状态与在线提示
+        if (timedOut || readyFailed || !isLifecycleCurrent()) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(zhCN.conversation.lifecycleUnavailable);
+          }
+          return false;
+        }
+        isReady = true;
+      } else {
+        // Web 环境：立即就绪，检查初始显式 hidden / offline
+        if (!isGenCurrent()) {
+          tracker.cleanup();
+          return false;
+        }
+        if (!isAuthCurrent()) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(null);
+          }
+          return false;
+        }
+        if (!isLifecycleCurrent()) {
+          tracker.cleanup();
+          if (get().sessionGen === targetGen) {
+            resetResume(zhCN.conversation.lifecycleUnavailable);
+          }
+          return false;
+        }
+        isReady = true;
+      }
 
       // Step 1: getCallCapabilities
       if (!checkOrRelease()) return false;

@@ -42,11 +42,13 @@ from schemas.goal_evaluation import (
 )
 from schemas.scenario_goals import GoalDefinition
 from schemas.session import (
+    AgentDispatchResponse,
     AnalysisStatusResponse,
     DailyProgressResponse,
     SessionCreate,
     SessionListResponse,
     SessionResponse,
+    SessionTokenResponse,
     WeeklyProgressResponse,
 )
 from services.analysis_jobs import (
@@ -830,7 +832,7 @@ async def retry_analysis(
     return _analysis_status_response(job)
 
 
-@router.get("/sessions/{session_id}/token")
+@router.get("/sessions/{session_id}/token", response_model=SessionTokenResponse)
 async def get_session_token(
     session_id: uuid.UUID,
     device_id: str | None = Header(None, alias="X-Call-Device-Id"),
@@ -904,7 +906,7 @@ async def get_session_token(
     return {"token": token, "ws_url": settings.LIVEKIT_URL}
 
 
-@router.post("/sessions/{session_id}/dispatch")
+@router.post("/sessions/{session_id}/dispatch", response_model=AgentDispatchResponse)
 async def dispatch_agent(
     session_id: uuid.UUID,
     device_id: str | None = Header(None, alias="X-Call-Device-Id"),

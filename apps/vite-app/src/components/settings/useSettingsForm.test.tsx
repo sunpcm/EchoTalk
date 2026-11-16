@@ -31,6 +31,10 @@ interface OpenSettingsProps extends SettingsProps {
   open: boolean;
 }
 
+interface RevisionSettingsProps extends SettingsProps {
+  settingsHydrationRevision: number;
+}
+
 describe("useSettingsForm hydration", () => {
   afterEach(() => {
     cleanup();
@@ -166,6 +170,90 @@ describe("useSettingsForm hydration", () => {
       sttKey: "",
       llmKey: "",
       ttsKey: "",
+    });
+  });
+
+  it("preserves provider state and key drafts for a theme-only settings clone at the same revision", () => {
+    const updateSettings = vi.fn(async () => ({ success: true }));
+    const initialProps: RevisionSettingsProps = {
+      settings: makeSettings({
+        is_custom_mode: false,
+        theme: "warm",
+      }),
+      settingsHydrationRevision: 7,
+    };
+    const { result, rerender } = renderHook(
+      ({ settings, settingsHydrationRevision }: RevisionSettingsProps) =>
+        useSettingsForm({
+          open: true,
+          settings,
+          settingsHydrationRevision,
+          updateSettings,
+        }),
+      { initialProps },
+    );
+
+    act(() => {
+      result.current.toggleCustomMode();
+      result.current.setLlmProvider("openrouter");
+      result.current.setLlmKey("draft-value");
+    });
+
+    rerender({
+      settings: makeSettings({
+        is_custom_mode: false,
+        theme: "cool",
+      }),
+      settingsHydrationRevision: 7,
+    });
+
+    expect(result.current.draft).toMatchObject({
+      isCustomMode: true,
+      llmProvider: "openrouter",
+      llmKey: "draft-value",
+    });
+  });
+
+  it("rehydrates an authoritative settings snapshot when the hydration revision advances", () => {
+    const updateSettings = vi.fn(async () => ({ success: true }));
+    const initialProps: RevisionSettingsProps = {
+      settings: makeSettings({
+        is_custom_mode: false,
+        llm_provider: "siliconflow",
+        theme: "warm",
+      }),
+      settingsHydrationRevision: 11,
+    };
+    const { result, rerender } = renderHook(
+      ({ settings, settingsHydrationRevision }: RevisionSettingsProps) =>
+        useSettingsForm({
+          open: true,
+          settings,
+          settingsHydrationRevision,
+          updateSettings,
+        }),
+      { initialProps },
+    );
+
+    act(() => {
+      result.current.toggleCustomMode();
+      result.current.setLlmProvider("openrouter");
+      result.current.setLlmKey("draft-value");
+    });
+
+    rerender({
+      settings: makeSettings({
+        is_custom_mode: false,
+        llm_provider: "deepgram",
+        theme: "cool",
+      }),
+      settingsHydrationRevision: 12,
+    });
+
+    expect(result.current.draft).toMatchObject({
+      isCustomMode: false,
+      llmProvider: "deepgram",
+      llmKey: "",
     });
   });
 });

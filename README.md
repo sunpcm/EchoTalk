@@ -9,8 +9,8 @@ EchoTalk 用实时 AI 对话帮助练习英语口语：选择推荐场景或导�
 
 ## 当前状态
 
-文档核对的代码基线为 `e35d89b`（2026-11-01）。功能和验收事实见
-[当前状态与变更决策](docs/PROJECT_STATUS.md)，未完成工作只维护在 [TODO](TODO.md)。
+当前核验的代码冻结点与发布/CI 回执见[当前状态与变更决策](docs/PROJECT_STATUS.md)，
+未完成工作只维护在 [TODO](TODO.md)。历史阶段的固定基线不再在此重复维护。
 
 | 平台              | 当前边界                                                                                                               |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -33,13 +33,18 @@ macOS M1 的[离线 API/媒体接线](docs/verification/cross-platform/MACOS-M1-
 
 ```text
 apps/vite-app/                  React + TypeScript + Zustand，共享产品 UI
-  src/platform/                平台识别、地址与生命周期适配
+  src/                         产品源码入口：App/Dashboard、组件、数据、状态、hooks、i18n、lib、platform
+    components/dashboard/      从 App.tsx 原样抽取的 Dashboard 组件（PR185）
+    data/                      只读查询与数据访问 hooks（进度/语法/只读契约）
+    lib/api.generated.ts       由真实 OpenAPI 生成的 HTTP API 类型（禁止手改）
+    lib/agentAnalysis.generated.ts   G3 同源生成契约（Python 单源，见 agent-analysis.contract.generated.json）
+    platform/                  平台识别、地址与生命周期适配
   ios/                         Capacitor iOS 工程
 backend/                       FastAPI + SQLAlchemy / Alembic
   livekit_agent/               LiveKit Agent：STT → LLM → TTS
   workers/analysis_worker.py   PostgreSQL 持久化分析任务 Worker
   services/                   分析、BKT 知识追踪、课程与设置等业务
-  data/                       版本化离线教学语料
+  data/                       版本化离线教学语料（teaching_materials.json）
 packages/configs/              共享工具配置
 tools/macos-m1-native-probe/    可行性认证探针，非正式桌面工程
 docs/                         架构、契约与验收资料
@@ -184,6 +189,7 @@ Fake API E2E 不代替真实 IdP、LiveKit/Provider、设备或生产验收；�
 
 ## 文档导航
 
+- [项目概览](docs/OVERVIEW.md)：技术架构、已实现功能与使用方法。
 - [文档总索引](docs/README.md) · [当前状态](docs/PROJECT_STATUS.md) · [唯一待办清单](TODO.md)
 - [跨平台架构](docs/CROSS_PLATFORM_ARCHITECTURE.md) · [MVP 重构方案](docs/MVP_REFACTORING_REMEDIATION_PLAN.md)
 - [macOS MVP 计划](docs/MACOS_MVP_DEVELOPMENT_PLAN.md) · [原生认证验证及未验边界](docs/verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)

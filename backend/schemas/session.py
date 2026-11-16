@@ -13,6 +13,7 @@ from pydantic import (
     model_validator,
 )
 
+from agent_analysis_contract import AnalysisPublicErrorCode
 from schemas.scenario_goals import MATERIAL_ID_PATTERN
 from schemas.time import UtcDatetime
 
@@ -144,8 +145,21 @@ class AnalysisStatusResponse(BaseModel):
     session_id: UUID
     status: str
     attempt_count: int
-    error_code: str | None = None
+    error_code: AnalysisPublicErrorCode | None = None
     retryable: bool
     started_at: UtcDatetime | None = None
     finished_at: UtcDatetime | None = None
     updated_at: UtcDatetime
+
+
+class SessionTokenResponse(BaseModel):
+    """会话加入房间令牌成功响应。"""
+
+    token: str
+    ws_url: str
+
+
+class AgentDispatchResponse(BaseModel):
+    """Agent 调度成功响应。"""
+
+    dispatched: bool

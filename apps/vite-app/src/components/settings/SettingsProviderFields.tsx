@@ -48,7 +48,7 @@ export function SettingsProviderFields({
   onTtsKeyChange,
 }: SettingsProviderFieldsProps) {
   return (
-    <fieldset disabled={disabled} className={disabled ? "opacity-50" : ""}>
+    <fieldset disabled={disabled}>
       <div className="space-y-5">
         <ProviderGroup
           idPrefix="stt"
@@ -86,7 +86,7 @@ export function SettingsProviderFields({
               value={llmModel}
               onChange={(event) => onLlmModelChange(event.target.value)}
               placeholder={t.llmModelPlaceholder}
-              className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+              className="border-control-border bg-surface focus:ring-accent disabled:bg-surface-alt disabled:text-text-muted min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-2 disabled:cursor-not-allowed"
             />
           </div>
         </ProviderGroup>
@@ -177,12 +177,12 @@ function ProviderGroup({
         </label>
         <KeyStatusBadge status={status} />
       </div>
-      <div>
+      <div className="relative">
         <select
           id={selectId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="border-border-default bg-surface focus:border-accent-soft-border focus:outline-accent focus:ring-accent-soft-border h-[44px] min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors focus:ring-1 focus:outline-2"
+          className="border-control-border bg-surface focus:ring-accent disabled:bg-surface-alt disabled:text-text-muted min-h-[44px] w-full appearance-none rounded-md border px-3 py-1.5 pr-10 text-sm transition-colors outline-none focus:ring-2 disabled:cursor-not-allowed"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -190,6 +190,19 @@ function ProviderGroup({
             </option>
           ))}
         </select>
+        <svg
+          aria-hidden="true"
+          focusable="false"
+          className="text-text-muted pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m6 8 4 4 4-4" />
+        </svg>
       </div>
 
       {children}
@@ -206,7 +219,7 @@ function ProviderGroup({
           value={apiKey}
           onChange={(event) => onKeyChange(event.target.value)}
           placeholder={hasKey ? t.apiKeyConfiguredPlaceholder : t.apiKeyPlaceholder}
-          className="border-border-default focus:border-accent-soft-border focus:ring-accent-soft-border min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-1"
+          className="border-control-border bg-surface focus:ring-accent disabled:bg-surface-alt disabled:text-text-muted min-h-[44px] w-full rounded-md border px-3 py-1.5 text-sm transition-colors outline-none focus:ring-2 disabled:cursor-not-allowed"
         />
       </div>
     </div>

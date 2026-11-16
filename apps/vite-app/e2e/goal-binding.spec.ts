@@ -27,7 +27,7 @@ test("browser opts into goals and posts only the frozen binding reference", asyn
   await expect(page.getByRole("heading", { name: "AI 英语口语练习" })).toBeVisible();
 
   const result = await page.evaluate(async () => {
-    const api = await import("/src/lib/api.ts");
+    const api = await import("/src/lib/api/index.ts");
     const curriculum = (await api.getRecommendedCurriculum()) as {
       recommendations: Array<{
         goal_binding?: {

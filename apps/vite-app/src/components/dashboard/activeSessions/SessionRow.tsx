@@ -31,6 +31,8 @@ export function SessionRow({
   onEnd,
   children,
 }: SessionRowProps) {
+  const visibleSessionId = session.id.length > 8 ? session.id.slice(0, 8) : null;
+
   return (
     <li
       data-testid={`active-session-item-${session.id}`}
@@ -44,6 +46,12 @@ export function SessionRow({
               className="text-accent bg-accent-soft-bg shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
             >
               {resolveModeLabel(session.mode)}
+            </span>
+            <span
+              data-testid={`session-id-${session.id}`}
+              className="text-text-muted font-mono text-xs break-all"
+            >
+              {visibleSessionId}
             </span>
           </div>
           <time

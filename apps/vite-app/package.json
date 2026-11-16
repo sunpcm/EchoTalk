@@ -25,7 +25,9 @@
     "test:build": "node --test scripts/build-isolation-test.mjs scripts/macos-build-test.mjs",
     "test:fake-api": "node --test scripts/fake-api-test.mjs",
     "test:weekly-duration-local": "cross-env ECHOTALK_WDI_LOCAL_PG=1 playwright test --config=integration/weekly-duration/weekly-duration.local.config.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "generate:agent-analysis-types": "node scripts/generate-api-types.mjs --schema src/lib/agent-analysis.contract.generated.json --output src/lib/agentAnalysis.generated.ts --banner-source apps/vite-app/src/lib/agent-analysis.contract.generated.json --regenerate-command \"pnpm --filter vite-app generate:agent-analysis-types\"",
+    "check:agent-analysis-types": "node scripts/generate-api-types.mjs --schema src/lib/agent-analysis.contract.generated.json --output src/lib/agentAnalysis.generated.ts --banner-source apps/vite-app/src/lib/agent-analysis.contract.generated.json --regenerate-command \"pnpm --filter vite-app generate:agent-analysis-types\" --check"
   },
   "keywords": [],
   "author": "",

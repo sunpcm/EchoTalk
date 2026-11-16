@@ -13,6 +13,12 @@ import json
 import logging
 from typing import Any
 
+from agent_analysis_contract import (
+    AGENT_ERROR_RELIABLE,
+    AGENT_ERROR_TOPIC,
+    KnownAgentErrorCode,
+    build_agent_error_payload,
+)
 from livekit_agent.error_mapper import AgentErrorMapper
 
 logger = logging.getLogger("echotalk-agent")
@@ -22,7 +28,7 @@ async def send_error_and_disconnect(
     ctx: Any,
     code: str,
     message: str | None = None,
-    fallback_code: str = "ERR_SYSTEM_RUNTIME",
+    fallback_code: str = KnownAgentErrorCode.SYSTEM_RUNTIME.value,
 ) -> None:
     """
     通过 DataChannel 向客户端发送安全错误 JSON，然后断开房间连接。
@@ -35,11 +41,11 @@ async def send_error_and_disconnect(
 
     参数:
         ctx: LiveKit JobContext（已连接到房间）
-        code: 机器可读错误码，如 "ERR_CUSTOM_KEY_INVALID"
+        code: 机器可读错误码，如 KnownAgentErrorCode.CUSTOM_KEY_INVALID.value
         message: 传入描述（将通过 AgentErrorMapper 强制转换为安全静态描述）
         fallback_code: code 不在白名单时的兜底错误码
     """
-    safe_code, safe_message = AgentErrorMapper.map_error(
+    safe_code, _ = AgentErrorMapper.map_error(
         code, message, fallback_code=fallback_code
     )
     safe_session_id = AgentErrorMapper.sanitize_session_id(
@@ -47,14 +53,14 @@ async def send_error_and_disconnect(
     )
 
     payload = json.dumps(
-        {"type": "agent_error", "code": safe_code, "message": safe_message},
+        build_agent_error_payload(safe_code),
         ensure_ascii=False,
     )
     try:
         await ctx.room.local_participant.publish_data(
             payload=payload,
-            reliable=True,
-            topic="agent_error",
+            reliable=AGENT_ERROR_RELIABLE,
+            topic=AGENT_ERROR_TOPIC,
         )
         logger.info("已发送错误消息到客户端: code=%s", safe_code)
     except Exception:

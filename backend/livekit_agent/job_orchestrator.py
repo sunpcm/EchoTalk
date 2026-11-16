@@ -19,6 +19,7 @@ from livekit.agents import (
     JobContext,
 )
 
+from agent_analysis_contract import KnownAgentErrorCode
 from livekit_agent.error_delivery import send_error_and_disconnect
 from livekit_agent.error_mapper import AgentErrorMapper
 from livekit_agent.transcript_sink import TranscriptSink
@@ -30,7 +31,7 @@ async def _default_send_error(
     ctx: JobContext,
     code: str,
     message: str | None = None,
-    fallback_code: str = "ERR_SYSTEM_RUNTIME",
+    fallback_code: str = KnownAgentErrorCode.SYSTEM_RUNTIME.value,
 ) -> None:
     """默认安全错误通知与断连函数，委托给共享出口 send_error_and_disconnect。"""
     await send_error_and_disconnect(
@@ -102,7 +103,11 @@ class AgentJobOrchestrator:
 
     async def _on_sink_failure(self, reason: str | None = None) -> None:
         """TranscriptSink 故障回调：通知客户端并终止会话。"""
-        fallback_code = "ERR_CUSTOM_RUNTIME" if self.is_custom else "ERR_SYSTEM_RUNTIME"
+        fallback_code = (
+            KnownAgentErrorCode.CUSTOM_RUNTIME.value
+            if self.is_custom
+            else KnownAgentErrorCode.SYSTEM_RUNTIME.value
+        )
         logger.error(
             "转录Sink故障，终止会话: session=%s, code=%s",
             self.safe_session_id,
@@ -119,7 +124,7 @@ class AgentJobOrchestrator:
         await self._send_error_fn(
             self.ctx,
             code,
-            fallback_code="ERR_CUSTOM_RUNTIME",
+            fallback_code=KnownAgentErrorCode.CUSTOM_RUNTIME.value,
         )
 
     def _on_error_task_done(self, task: asyncio.Task[Any]) -> None:
@@ -410,7 +415,9 @@ class AgentJobOrchestrator:
                 self.started = True
             except Exception:
                 fallback_code = (
-                    "ERR_CUSTOM_RUNTIME" if self.is_custom else "ERR_SYSTEM_RUNTIME"
+                    KnownAgentErrorCode.CUSTOM_RUNTIME.value
+                    if self.is_custom
+                    else KnownAgentErrorCode.SYSTEM_RUNTIME.value
                 )
                 logger.error(
                     "语音管线启动失败: session=%s, is_custom=%s",
