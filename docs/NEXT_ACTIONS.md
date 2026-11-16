@@ -29,12 +29,10 @@
 
 ### ③ 可做 Mock 结构化输出 / 契约收敛（不接真实 Provider）
 
-- SGEC（方案 C-2，语法 LLM）：可先在 Mock 下做结构化输出、`skill_tag` 校验与离线评测集的设计和契约收敛。
-  确有依据的入口为 `backend/services/assessment_providers.py` 的 `GrammarProvider` 协议（:64，真实语法 provider 接入点）
-  与 `validate_grammar_evaluation`（:242，含 `GrammarFinding.skill_tag` :43 的结构化校验）；
-  `backend/services/weekly_grammar_queries.py` 是周度聚合查询，不作为 SGEC 注入点。Mock 结构化输出契约与离线评测集的
-  具体范围需另行设计确认。
-- 不接真实 Provider、不接 BKT；不把未经用户确认的新接口当"已批准"。
+- SGEC（方案 C-2，语法 LLM）：旧离线产出复用设计已交（[SGEC_OFFLINE_DESIGN.md](./SGEC_OFFLINE_DESIGN.md)），
+  待用户确认后再实施；不接真实 Provider、不接 BKT、不写实施代码。入口为 `backend/services/assessment_providers.py`
+  的 `GrammarProvider` 协议与 `validate_grammar_evaluation`；`backend/services/weekly_grammar_queries.py` 不作为注入点。
+- 不把未经用户确认的新接口当"已批准"。
 
 ### ④ blocked（需用户裁定 / 设备 / 外部前置，本轮不做）
 

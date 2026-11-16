@@ -1,7 +1,7 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。已发布 main 为 A18 `0422c9e`（PR191，PR/Guard 首六、mainCI 43800300024 首五 success）；
-> WGGC 有界调查完成（无复现、缺陷仍开放）；未完成工作只在根目录 [`TODO.md`](../TODO.md)。
+> 最后核对：2026-11-16。已发布 main 为 WGGC `9dbc7a8`（PR192，mainCI 43804969728 首五 success，PR CI 257pass/1flaky 首次保留）；
+> SGEC 旧离线产出复用设计待确认；未完成工作只在根目录 [`TODO.md`](../TODO.md)。
 
 ## 当前功能
 
@@ -27,21 +27,22 @@
 
 ## 当前验证基线
 
-最新已发布 main 为 A18 `0422c9e`（PR191，PR/Guard 首六、mainCI 43800300024 首五 success）。下表 Linux 为 CI 日志回读（A18 main0422）、
-macOS 为父 Harness 亲跑（WGGC 本机 fresh，未跑本轮 CI），分列；计数不替代真实 LiveKit/第三方 Provider/真实 IdP/iOS/macOS 设备或生产部署验收。
+最新已发布 main 为 WGGC `9dbc7a8`（PR192，mainCI 43804969728 首五 success，PR CI 257pass/1flaky 首次保留）。下表 Linux 为
+CI 日志回读（WGGC main）、macOS 为父 Harness 亲跑（SGECD 本包 fresh，未跑本轮 CI），分列；计数不替代真实 LiveKit/第三方
+Provider/真实 IdP/iOS/macOS 设备或生产部署验收。
 
-| 测试树 / 门禁       | macOS 父 Harness 亲跑（WGGC fresh）  | Linux CI 日志回读（A18 main0422）       |
+| 测试树 / 门禁       | macOS 父 Harness 亲跑（SGECD fresh） | Linux CI 日志回读（WGGC main）          |
 | ------------------- | ------------------------------------ | --------------------------------------- |
 | Vitest              | 1270 passed / 57 文件                | 1270 passed / 57 文件                   |
-| Playwright E2E      | 258，C129/W129，retry/skip/flaky0    | 258，C129/W129，retry/skip/flaky0，5.2m |
-| Fake API 契约       | 125 passed（A18 阶段，非本轮 fresh） | 125 passed                              |
-| API 类型生成器      | 10 passed（A18 阶段，非本轮 fresh）  | 10 passed                               |
-| 构建脚本            | 21 passed（A18 阶段，非本轮 fresh）  | 21 passed                               |
-| 完整 backend pytest | 962 / 3 warnings / 80.63% / 80.64s   | 962 / 3 warnings / 80.63% / 72.53s      |
+| Playwright E2E      | 258，C129/W129，retry/skip/flaky0    | 258，C129/W129，retry/skip/flaky0，5.5m |
+| Fake API 契约       | 125 passed（A18 阶段亲跑）           | 125 passed                              |
+| API 类型生成器      | 10 passed（A18 阶段亲跑）            | 10 passed                               |
+| 构建脚本            | 21 passed（A18 阶段亲跑）            | 21 passed                               |
+| 完整 backend pytest | 962 / 3 warnings / 80.63% / 80.00s   | 962 / 3 warnings / 80.63% / 51.16s      |
 
-A18 已发布（PR191 main `0422c9e`，本机 17 门禁分阶段过、旧断言 715/716 同文），见
-[history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)。WGGC 有界调查（纯调查零改）corrected60 全 60 绿、全量 E2E 258 全绿，
-weekly 5/1 与 Promise GC 近期无复现、根因未知继续开放，见 [history](./history/2026-11-16-weekly-gc-investigation.md)。
+A18 已发布（PR191 main `0422c9e`，本机 17 门禁分阶段过、旧断言 715/716 同文）；WGGC 已发布（PR192 main `9dbc7a8`，纯调查
+零改，corrected60 全 60 绿、全量 E2E 258 全绿，PR CI 257pass/1flaky 首次保留），见
+[history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)、[history](./history/2026-11-16-weekly-gc-investigation.md)。
 
 EV trace/screenshot 策略本机受控对照与历史 GC60 自然未复现见
 [EV 首失败取证](./history/2026-11-16-e2e-first-failure-evidence.md)；命令见 [Agent 评审手册 §2](./agent-review-loop.md)。
