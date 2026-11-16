@@ -92,10 +92,15 @@ def compute_session_fingerprint(body: SessionCreate) -> str:
             "raw_text": body.doc_context.raw_text,
         }
 
-    canonical_data = {
+    canonical_data: dict[str, Any] = {
         "doc_context": doc_ctx_dict,
         "mode": body.mode,
     }
+    if body.goal_binding is not None:
+        canonical_data["goal_binding"] = {
+            "material_id": body.goal_binding.material_id,
+            "material_version": body.goal_binding.material_version,
+        }
     canonical_json = json.dumps(
         canonical_data,
         sort_keys=True,

@@ -459,6 +459,33 @@
         "title": "CoverageDirection",
         "type": "object"
       },
+      "CurriculumGoalBinding": {
+        "description": "Explicit pilot goal preview for one immutable material version.",
+        "properties": {
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/GoalDefinition"
+            },
+            "title": "Goals",
+            "type": "array"
+          },
+          "material_id": {
+            "title": "Material Id",
+            "type": "string"
+          },
+          "material_version": {
+            "title": "Material Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "material_id",
+          "material_version",
+          "goals"
+        ],
+        "title": "CurriculumGoalBinding",
+        "type": "object"
+      },
       "CurriculumNextResponse": {
         "description": "GET /api/curriculum/next 响应体。",
         "properties": {
@@ -508,6 +535,16 @@
             },
             "title": "Focus Skills",
             "type": "array"
+          },
+          "goal_binding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurriculumGoalBinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scenario_name": {
             "title": "Scenario Name",
@@ -633,6 +670,28 @@
           "grammar"
         ],
         "title": "EventUnmappedCounts",
+        "type": "object"
+      },
+      "GoalBindingRef": {
+        "additionalProperties": false,
+        "description": "Client-selected immutable goal catalog reference.",
+        "properties": {
+          "material_id": {
+            "pattern": "^mat_[a-z0-9_-]+$",
+            "title": "Material Id",
+            "type": "string"
+          },
+          "material_version": {
+            "exclusiveMinimum": 0.0,
+            "title": "Material Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "material_id",
+          "material_version"
+        ],
+        "title": "GoalBindingRef",
         "type": "object"
       },
       "GoalDefinition": {
@@ -1430,12 +1489,22 @@
         "type": "object"
       },
       "SessionCreate": {
-        "description": "创建会话请求体。",
+        "description": "创建会话请求体。\n\n未携带 binding 的 legacy 请求继续忽略顶层额外字段。只有显式非 null\nbinding 才启用严格顶层输入，避免改变旧客户端语义。",
         "properties": {
           "doc_context": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DocContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goal_binding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalBindingRef"
               },
               {
                 "type": "null"
@@ -2839,6 +2908,16 @@
         "description": "获取下一步推荐练习场景。\n\n逻辑:\n1. 读取当前用户的 knowledge_states，找到 p_mastery < 0.95 的最弱技能\n2. 调用 RAG 服务，检索与弱技能相关的教学语料\n3. 为每条语料构建 system_prompt_template，返回推荐列表",
         "operationId": "get_next_curriculum_api_curriculum_next_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "include_goals",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Goals",
+              "type": "boolean"
+            }
+          },
           {
             "in": "header",
             "name": "authorization",

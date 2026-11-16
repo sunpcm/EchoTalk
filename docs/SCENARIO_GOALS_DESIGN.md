@@ -1,15 +1,15 @@
 # 场景 goals 与 Task Completion 设计（GOAL-DESIGN）
 
 > 状态分层：第 1–6、8–9 节保留 **GOAL-DESIGN / GOAL-DATA** 各自历史卡的时点、数字和边界；
-> §7 在保留原决策项的同时写明 `G-CONTRACT` 的当前确认状态；§10 是本轮当前实施合同。
-> GOAL-DATA 已由主控独立 Review `APPROVED`，并发布为当前基线
-> `codex/B1-learning-events-20261112@353e0c9f61693d0e1134843abd25da61bb7df1fa`，但它只覆盖
-> material/version 目录、session snapshot、v1/v2 导出、整账号删除配套和 synthetic PostgreSQL
-> 数据层，没有完成创建会话接线、自动判定、判定结果持久化或展示。`G-CONTRACT` 当前只写四份
-> 文档，作者交付已收口为 `FINAL_READY`；12 项现有行为门禁已完成，机器 behavior 核验全 `0`，
-> 完整数字集中在 `PROJECT_STATUS.md` 的当前小节。这不是最终 13 项全仓 format 门禁。技术
-> Review、最终全仓 format、commit/push 以主控同卡回执为准；用户 Review 待，本文件不自称
-> `APPROVED`。
+> §7 在保留原决策项的同时写明后续确认状态；§10 保留 `G-CONTRACT` 已发布的业务合同，并由当前
+> `G-WIRE` 实施结果更新落地状态。
+> GOAL-DATA 已由主控独立 Review `APPROVED` 并发布为
+> `codex/B1-learning-events-20261112@353e0c9f61693d0e1134843abd25da61bb7df1fa`；G-CONTRACT
+> 随后独立 Review `APPROVED` 并发布为 `882a1a9853f37235d0a1ef5f1521e8d01d422ada`。当前
+> G-WIRE 已完成首期 6 个版本化目标、创建会话 binding/snapshot 接线和前端冻结引用；真实 backend
+> 定向通过，完整 E2E 也已通过，详细数字只集中在 `PROJECT_STATUS.md` 的 G-WIRE 当前小节。四文档
+> 为 `FINAL_READY`，最终 13 项门禁、独立 Review、commit/push 仍待主控同卡回执。G-EVAL 自动判定/
+> 结果持久化和 G-VIEW 展示仍未实施。本文件不自称 `APPROVED`，用户 Review 待。
 
 ## 1. 原 GOAL-DESIGN 范围与非目标（历史）
 
@@ -200,14 +200,15 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 
 ### 10.1 状态与边界
 
-- 作者交付状态为 `FINAL_READY`；本节标题保留既有 `DRAFT_READY` 锚点。主控已完成 12 项现有
-  行为门禁，机器 behavior 核验全 `0`，完整数字集中在 `PROJECT_STATUS.md`；这不是最终 13 项全仓
-  format 门禁。
-- 当前文档卡只修改本文件、`TODO.md`、`PROJECT_STATUS.md` 与 `history/2026-11.md`。产品、测试、
-  依赖、迁移、锁文件和其他历史文件不改；实施节点不运行测试、服务或 PostgreSQL，也不执行 Git
-  写操作。
+- G-CONTRACT 合同已 `APPROVED` 并发布 `882a1a9`；本节标题保留既有 `DRAFT_READY` 锚点。当前
+  G-WIRE 文档收口只更新本文件、`TODO.md`、`PROJECT_STATUS.md` 与 `history/2026-11.md`，源、测试、
+  schema 和生成物已冻结，实施节点不运行测试、服务或 PostgreSQL，也不执行 Git 写操作。
+- G-WIRE 的产品与目标测试已落盘；完整数字集中在 `PROJECT_STATUS.md` 的 G-WIRE 当前小节。
+  `FINAL_READY` 表示作者已完成四文档收口，不表示最终 13 项门禁、技术 Review、commit/push 或用户
+  Review 已完成。
 - 用户已确认 goal A、首批目标内容、四终态与总体汇总口径。GOAL-DATA 的数据层已发布；创建会话
-  接线、判定结果持久化、自动判定和界面展示尚未完成。
+  binding/snapshot 与 curriculum API 目标预览字段已由 G-WIRE 实现；判定结果持久化、自动判定和界面
+  目标预览/展示仍由 G-EVAL / G-VIEW 负责，尚未完成。
 - 本文件只冻结业务合同、最小验收与拆卡边界。具体 API、表结构、触发位置、规则结构、文案键和
   组件接线由主控在后续卡中决定，不在本卡额外发明业务开关、分数或阈值。
 
@@ -228,8 +229,9 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 
 ### 10.3 G-WIRE 已核技术约束与计划验收
 
-以下约束已由主控核对，作为后续 `G-WIRE` 的实施计划；当前均未落地，具体代码接线仍由后续 task
-决定。
+以下约束原由主控核对，现由 G-WIRE 按原边界实现；标题保留既有计划锚点。R1 已修正 curriculum
+从检索投影误读目标字段的问题，改为仅在显式 opt-in 时按检索 `material.id` 关联受控
+`CatalogMaterial` 元数据。完整门禁仍待主控回执。
 
 - **旧请求兼容**：`POST /sessions` 不带目标时，请求语义和既有 `Idempotency-Key` fingerprint
   字节保持不变。旧客户端不得因目标能力上线而改变重放或错误行为。
@@ -238,13 +240,19 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
   传入 `goals`、判定结果或其他可伪造判定输入。
 - **目录读取与提交时序**：前端在 await 前冻结 `material_id/material_version`；只有
   `mode=scenario` 时才提交该引用。`GET curriculum` 可显式 opt-in 获得
-  `goal_binding`（ID/version 与目标预览），默认旧响应保持不变；其他 7 课返回无目标兼容结构。
+  `goal_binding`（ID/version 与 curriculum API 目标预览字段），默认旧响应保持不变；其他 7 课返回
+  无目标兼容结构。用户界面目标预览仍由 G-VIEW 负责。
 - **创建与幂等**：带目标创建时，必须先锁 User 再插入 Session，避免两个 Session 先各持 User
   FK key-share、再升级 `FOR UPDATE` 时形成死锁。已有 `Idempotency-Key` 重放必须先按原
   fingerprint 返回原 snapshot，即使目录随后发布新版本，也不得借重放改绑新版本。
 - **既有字段与内容**：`sessions.scenario_id` 的整数旧字段不填、不做 material ID 转换或双向
   映射。首期三课新增的 6 个版本化 goal 只改变目标元数据；原 material 文档、排序和技能标签
   保持不变。
+- **当前落地与验收**：首批 3 课 × 2 个中英文目标、默认 curriculum 兼容、显式 opt-in API 预览字段、
+  最小 binding 请求、服务端目录校验、同事务 catalog+snapshot、User→Session 锁序、旧 fingerprint
+  兼容和 scenario-only 提交均已实现；真实 backend 目标定向通过，仅使用主控合成 PostgreSQL 和
+  合成目标数据。R1 历史与完整数字见 `PROJECT_STATUS.md`。通过结果不证明真实外部 Provider、IdP、
+  LiveKit、媒体或教学效果，也不证明用户界面目标预览已完成。
 
 ### 10.4 判定生命周期与终态
 
@@ -274,8 +282,9 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 
 ### 10.6 G-EVAL 后续技术计划、未落地
 
-- completed 事务将独立 goal run 落为 `pending`。以下均为已授权业务内的技术实现计划，本卡尚未
-  实施。
+- G-EVAL 自动判定、结果持久化和 G-VIEW 展示仍未实施、未勾选。以下均为已授权业务内的技术实现
+  计划，不属于本次 G-WIRE 完成范围。
+- completed 事务将独立 goal run 落为 `pending`。
 - 启动评估时冻结精确 user transcript IDs、排序与 digest；证据不复制正文，也不能只保存 max id。
 - worker 在同一进程公平 poll，每轮最多处理 `1 goal + 1 analysis`；两者各自使用事务并隔离失败，
   保留既有停机 drain 语义。
@@ -291,7 +300,7 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 
 | 卡           | 最小目标与验收                                                                                                                                                                                                                                                                                              |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `G-CONTRACT` | 冻结本节的批准内容、状态含义、汇总不变量、四卡边界和文档状态。验收：只改指定四文档；历史数字仍绑定原时点；明确 GOAL-DATA 已发布而后续能力未实施；经固定 Prettier 格式化后停在 `FINAL_READY`，等待主控独立 Review。                                                                                          |
-| `G-WIRE`     | 写入 3 课 × 2 个中英文版本化 goal，其他 7 课保持兼容，并按 §10.3 把生效 material/version/snapshot 接到创建会话路径。验收还包括真实 PostgreSQL 实例（仅合成库/合成数据）的并发创建、回滚、跨账号隔离和原幂等兼容；旧客户端与历史会话仍可运行，不新增 scenario 映射或业务开关。                               |
+| `G-CONTRACT` | 已独立 Review `APPROVED` 并发布 `882a1a9853f37235d0a1ef5f1521e8d01d422ada`；冻结本节的批准内容、状态含义、汇总不变量、四卡边界和文档状态，作为历史合同保留。                                                                                                                                                |
+| `G-WIRE`     | 已实现 3 课 × 2 个中英文版本化 goal、其他 7 课兼容，以及 §10.3 的 material/version/snapshot 创建接线、curriculum API opt-in 预览字段、旧指纹兼容和真实 PostgreSQL 合成数据验收。真实 backend 与完整 E2E 已通过；四文档为 `FINAL_READY`，最终 13 项门禁和 Review 待主控回执。用户界面目标预览留给 G-VIEW。   |
 | `G-EVAL`     | 持久化 `pending / running` 与四终态、冻结版本和证据引用；completed 后按确定性规则执行，并提供离线人工 gold/复核与不可变 revision。验收：active/cancelled 不自动判定；只有学生发言可作证据；关键词未命中不直接失败；不可靠或执行失败为 `unknown`；成功 analysis Job 不重跑；新数据可导出且整账号同事务删除。 |
 | `G-VIEW`     | 展示执行中的“评估中”、四终态、`X / Y / Z`、独立 `unknown / not_assessed` 计数及“未配置”。验收：计数满足 `0 ≤ X ≤ Y ≤ Z`；部分结果不显示百分比；历史无 goal 不伪造行或 0/100%；不增加任意重跑入口、用户自评覆盖、业务开关、分数或阈值。                                                                      |

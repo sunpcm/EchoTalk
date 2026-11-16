@@ -791,6 +791,18 @@ export interface components {
       status: string | null;
     };
     /**
+     * CurriculumGoalBinding
+     * @description Explicit pilot goal preview for one immutable material version.
+     */
+    CurriculumGoalBinding: {
+      /** Goals */
+      goals: components["schemas"]["GoalDefinition"][];
+      /** Material Id */
+      material_id: string;
+      /** Material Version */
+      material_version: number;
+    };
+    /**
      * CurriculumNextResponse
      * @description GET /api/curriculum/next 响应体。
      */
@@ -815,6 +827,7 @@ export interface components {
       difficulty_cefr: string;
       /** Focus Skills */
       focus_skills: string[];
+      goal_binding?: components["schemas"]["CurriculumGoalBinding"] | null;
       /** Scenario Name */
       scenario_name: string;
       /** System Prompt Template */
@@ -862,6 +875,16 @@ export interface components {
       grammar: number | null;
       /** Pronunciation */
       pronunciation: number | null;
+    };
+    /**
+     * GoalBindingRef
+     * @description Client-selected immutable goal catalog reference.
+     */
+    GoalBindingRef: {
+      /** Material Id */
+      material_id: string;
+      /** Material Version */
+      material_version: number;
     };
     /**
      * GoalDefinition
@@ -1144,9 +1167,13 @@ export interface components {
     /**
      * SessionCreate
      * @description 创建会话请求体。
+     *
+     *     未携带 binding 的 legacy 请求继续忽略顶层额外字段。只有显式非 null
+     *     binding 才启用严格顶层输入，避免改变旧客户端语义。
      */
     SessionCreate: {
       doc_context?: components["schemas"]["DocContext"] | null;
+      goal_binding?: components["schemas"]["GoalBindingRef"] | null;
       /** Mode */
       mode: string;
     };
@@ -1824,7 +1851,9 @@ export interface operations {
   };
   get_next_curriculum_api_curriculum_next_get: {
     parameters: {
-      query?: never;
+      query?: {
+        include_goals?: boolean;
+      };
       header?: {
         authorization?: string | null;
       };

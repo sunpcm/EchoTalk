@@ -60,7 +60,12 @@ test("scenario failure opens settings, deduplicates explicit recheck and never a
     await route.continue({ headers: { ...route.request().headers(), "x-e2e-readiness": fixture } });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: zhCN.dashboard.enterPractice }).click();
+  await page
+    .getByRole("button", {
+      name: `${zhCN.dashboard.enterPractice}：Business Meeting Greetings`,
+      exact: true,
+    })
+    .click();
   await expect(page.getByTestId("practice-readiness-error")).toContainText(t.settings_required);
   await expect(page.getByText(t.settings_required)).toHaveCount(1);
   await expect(page.locator("body")).not.toContainText("synthetic-readiness-canary");
@@ -85,7 +90,12 @@ test("scenario failure opens settings, deduplicates explicit recheck and never a
       new URL(response.url()).pathname === "/api/sessions",
     { timeout: 10_000 },
   );
-  await page.getByRole("button", { name: zhCN.dashboard.enterPractice }).click();
+  await page
+    .getByRole("button", {
+      name: `${zhCN.dashboard.enterPractice}：Business Meeting Greetings`,
+      exact: true,
+    })
+    .click();
   const createdResponse = await createdResponsePromise;
   expect(createdResponse.status()).toBe(201);
   await expect(createdResponse.json()).resolves.toMatchObject({
@@ -160,7 +170,12 @@ for (const fixture of ["unknown", "legacy", "html"]) {
       }),
     );
     await page.goto("/");
-    await page.getByRole("button", { name: zhCN.dashboard.enterPractice }).click();
+    await page
+      .getByRole("button", {
+        name: `${zhCN.dashboard.enterPractice}：Business Meeting Greetings`,
+        exact: true,
+      })
+      .click();
     await expect(page.getByText(t.fallback)).toBeVisible();
     await expect(page.getByRole("button", { name: t.openSettings })).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText("synthetic-readiness-canary");

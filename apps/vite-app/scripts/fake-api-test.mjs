@@ -2086,3 +2086,119 @@ describe("Fake API 与 backend/openapi.json 成功响应契约", { timeout: 30_0
     );
   });
 });
+describe("G-WIRE curriculum goals and session binding", { timeout: 30_000 }, () => {
+  let instance;
+
+  before(async () => {
+    instance = await startFakeApiServer();
+  });
+
+  after(async () => {
+    await terminateServer(instance?.child);
+  });
+
+  it("keeps legacy curriculum bytes by default and exposes only pilot goals on opt-in", async () => {
+    const legacyResponse = await timedFetch(instance.baseUrl + "/api/curriculum/next", {
+      headers: AUTH_HEADER,
+    });
+    assert.equal(legacyResponse.status, 200);
+    const legacy = await legacyResponse.json();
+    assert.deepEqual(legacy.recommendations, [
+      {
+        scenario_name: "travel_planning",
+        difficulty_cefr: "B1",
+        category: "conversation",
+        focus_skills: ["grammar_past_tense"],
+        system_prompt_template: "Practice planning a trip.",
+      },
+    ]);
+
+    const optedResponse = await timedFetch(
+      instance.baseUrl + "/api/curriculum/next?include_goals=true",
+      { headers: AUTH_HEADER },
+    );
+    assert.equal(optedResponse.status, 200);
+    const opted = await optedResponse.json();
+    assert.deepEqual(
+      opted.recommendations.map((item) => item.scenario_name),
+      ["business_meeting_greetings", "th_minimal_pairs", "hotel_checkin_roleplay"],
+    );
+    const business = opted.recommendations[0];
+    const th = opted.recommendations[1];
+    const hotel = opted.recommendations[2];
+    assert.equal(business.goal_binding.material_id, "mat_biz_greet_b1");
+    assert.equal(business.goal_binding.material_version, 1);
+    assert.equal(business.goal_binding.goals.length, 2);
+    assert.equal(
+      business.goal_binding.goals[1].goal_id,
+      "mat_biz_greet_b1:ask_other_work_question",
+    );
+    assert.equal(hotel.goal_binding.material_id, "mat_hotel_checkin_b1");
+    assert.equal(hotel.goal_binding.goals.length, 2);
+    assert.equal("goal_binding" in th, false);
+  });
+
+  it("uses the minimal binding in idempotency fingerprint and rejects forged goals", async () => {
+    const key = "2da3e936-bcb6-4e97-baf8-92749c7c0e2d";
+    const body = {
+      mode: "scenario",
+      goal_binding: {
+        material_id: "mat_biz_greet_b1",
+        material_version: 1,
+      },
+    };
+    const headers = {
+      ...AUTH_HEADER,
+      "Content-Type": "application/json",
+      "Idempotency-Key": key,
+    };
+
+    const first = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    assert.equal(first.status, 201);
+    const firstSession = await first.json();
+
+    const replay = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    assert.equal(replay.status, 201);
+    assert.equal((await replay.json()).id, firstSession.id);
+
+    const conflict = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        mode: "scenario",
+        goal_binding: {
+          material_id: "mat_hotel_checkin_b1",
+          material_version: 1,
+        },
+      }),
+    });
+    assert.equal(conflict.status, 409);
+    await conflict.json();
+
+    const forgedGoals = await timedFetch(instance.baseUrl + "/api/sessions", {
+      method: "POST",
+      headers: {
+        ...AUTH_HEADER,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        mode: "scenario",
+        goal_binding: {
+          material_id: "mat_biz_greet_b1",
+          material_version: 1,
+          goals: [{ goal_id: "client-authored" }],
+        },
+      }),
+    });
+    assert.equal(forgedGoals.status, 422);
+    await forgedGoals.json();
+  });
+});

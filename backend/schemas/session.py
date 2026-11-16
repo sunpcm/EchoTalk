@@ -1,10 +1,19 @@
 """会话相关 Pydantic 请求/响应模型。"""
 
+from collections.abc import Mapping
 from datetime import date as CalendarDate
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
+from schemas.scenario_goals import MATERIAL_ID_PATTERN
 from schemas.time import UtcDatetime
 
 
@@ -16,11 +25,46 @@ class DocContext(BaseModel):
     prompt: str
 
 
+class GoalBindingRef(BaseModel):
+    """Client-selected immutable goal catalog reference."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    material_id: Annotated[
+        str,
+        StringConstraints(strict=True, pattern=MATERIAL_ID_PATTERN),
+    ]
+    material_version: int = Field(gt=0)
+
+
 class SessionCreate(BaseModel):
-    """创建会话请求体。"""
+    """创建会话请求体。
+
+    未携带 binding 的 legacy 请求继续忽略顶层额外字段。只有显式非 null
+    binding 才启用严格顶层输入，避免改变旧客户端语义。
+    """
 
     mode: str
     doc_context: DocContext | None = None  # 仅 mode=doc_chat 时必填
+    goal_binding: GoalBindingRef | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_explicit_goal_binding(cls, value: Any) -> Any:
+        if not isinstance(value, Mapping):
+            return value
+        if value.get("goal_binding") is None:
+            return value
+
+        expected = {"mode", "doc_context", "goal_binding"}
+        unexpected = sorted(str(key) for key in set(value).difference(expected))
+        if unexpected:
+            raise ValueError(
+                "goal_binding requests reject extra fields: " + ", ".join(unexpected)
+            )
+        if value.get("mode") != "scenario":
+            raise ValueError("goal_binding is only valid for mode=scenario")
+        return value
 
 
 class TranscriptResponse(BaseModel):

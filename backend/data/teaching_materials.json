@@ -8,7 +8,26 @@
     "category": "conversation",
     "primary_skill": "word_stress",
     "skill_tags": ["word_stress", "linking_sounds"],
-    "priority": 1
+    "priority": 1,
+    "material_version": 1,
+    "goals": [
+      {
+        "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+        "goal_version": 1,
+        "description_en": "Introduce your name and your job or role.",
+        "description_zh": "介绍自己的姓名及工作/角色。",
+        "criteria": ["State your name.", "State your job or role."],
+        "evidence_types": ["transcript"]
+      },
+      {
+        "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+        "goal_version": 1,
+        "description_en": "Ask the other person a question about their work.",
+        "description_zh": "向对方提出一个与其工作相关的问题。",
+        "criteria": ["Ask the other person a question about their work."],
+        "evidence_types": ["transcript"]
+      }
+    ]
   },
   {
     "id": "mat_past_perfect_b2",
@@ -41,7 +60,26 @@
     "category": "conversation",
     "primary_skill": "preposition",
     "skill_tags": ["preposition", "linking_sounds"],
-    "priority": 4
+    "priority": 4,
+    "material_version": 1,
+    "goals": [
+      {
+        "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+        "goal_version": 1,
+        "description_en": "Express a check-in request and state whether you have a reservation.",
+        "description_zh": "表达入住需求并说明有无预订。",
+        "criteria": ["Express a check-in request.", "State whether you have a reservation."],
+        "evidence_types": ["transcript"]
+      },
+      {
+        "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+        "goal_version": 1,
+        "description_en": "Ask for the checkout time.",
+        "description_zh": "询问退房时间。",
+        "criteria": ["Ask for the checkout time."],
+        "evidence_types": ["transcript"]
+      }
+    ]
   },
   {
     "id": "mat_svagree_a2",
@@ -63,7 +101,28 @@
     "category": "conversation",
     "primary_skill": "vowel_sounds",
     "skill_tags": ["vowel_sounds", "article_usage"],
-    "priority": 6
+    "priority": 6,
+    "material_version": 1,
+    "goals": [
+      {
+        "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+        "goal_version": 1,
+        "description_en": "Clearly order one dish or drink.",
+        "description_zh": "明确点一道菜或饮品。",
+        "criteria": ["Order one dish or drink clearly."],
+        "evidence_types": ["transcript"]
+      },
+      {
+        "goal_id": "mat_restaurant_b1:state_preference_or_no_requirements",
+        "goal_version": 1,
+        "description_en": "State one preference or restriction, or clearly say that you have no special requirements.",
+        "description_zh": "说明一项偏好或限制，或明确表示没有特殊要求。",
+        "criteria": [
+          "State a preference or restriction, or explicitly say that there are no special requirements."
+        ],
+        "evidence_types": ["transcript"]
+      }
+    ]
   },
   {
     "id": "mat_articles_b2",

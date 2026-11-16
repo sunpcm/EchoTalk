@@ -13,7 +13,7 @@ import {
   getCallCapabilities,
   isValidUuid,
 } from "@/lib/api";
-import type { CurriculumRecommendation, DocContext } from "@/lib/api";
+import type { CurriculumRecommendation, DocContext, SessionGoalBindingInput } from "@/lib/api";
 import {
   getAuthSnapshot,
   getAuthRevision,
@@ -588,6 +588,13 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
       mode === "scenario" && selectedScenario
         ? selectedScenario.scenario_name.trim() || null
         : null;
+    const goalBindingSnapshot: SessionGoalBindingInput | null =
+      mode === "scenario" && selectedScenario?.goal_binding
+        ? {
+            material_id: selectedScenario.goal_binding.material_id,
+            material_version: selectedScenario.goal_binding.material_version,
+          }
+        : null;
     clearReadinessWatch();
 
     // 2. 必须具备有效认证快照，否则不发起开始
@@ -732,7 +739,11 @@ export function createConversationSlice<TState extends ConversationSlice = Conve
     };
 
     try {
-      const session = await createSession(mode, docContext);
+      const session = goalBindingSnapshot
+        ? await createSession(mode, docContext, {
+            goalBinding: goalBindingSnapshot,
+          })
+        : await createSession(mode, docContext);
       if (!checkOrRelease()) return;
       if (typeof session.id !== "string" || session.id.trim() === "") {
         throw new Error(zhCN.conversation.startFailed);

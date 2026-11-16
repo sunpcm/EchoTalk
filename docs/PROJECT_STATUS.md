@@ -1,26 +1,18 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **G-CONTRACT 场景目标实施合同（`FINAL_READY`）**：
+> 最后核对：2026-11-16。当前卡片为 **G-WIRE 首期课程目标与会话创建接线（`FINAL_READY`）**：
 > 唯一工作树为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
-> `codex/B1-learning-events-20261112`，开工 HEAD
-> `353e0c9f61693d0e1134843abd25da61bb7df1fa`，开工 clean。用户已确认 goal A、首批 3 课各 2 个
-> goal、确定性规则加离线人工 gold/复核、四终态及 `achieved X / assessed Y / total Z` 汇总口径。
-> 商务寒暄目标 2 明确为“向对方提出一个与其工作相关的问题”；其他 5 个目标保持已确认内容。
-> 本卡只写 `docs/SCENARIO_GOALS_DESIGN.md`、`TODO.md`、本文件与 `docs/history/2026-11.md`；
-> 产品、测试、依赖、迁移、锁文件和其他历史文件不改。实施节点不运行测试、服务或 PostgreSQL，也
-> 不执行 Git 写操作。
+> `codex/B1-learning-events-20261112`，当前基线 HEAD
+> `882a1a9853f37235d0a1ef5f1521e8d01d422ada`。G-CONTRACT 已独立 Review `APPROVED` 并发布为
+> 该提交；G-WIRE 在其上实现首期 6 个版本化目标、创建会话 binding/snapshot 接线和前端冻结引用。
+> 主控 12 项行为门禁、backend 目标测试和完整双浏览器 E2E 均通过，详细数字只集中在下方 G-WIRE
+> 当前小节。G-EVAL 判定/结果持久化和 G-VIEW 用户界面目标预览/展示仍未实施、未勾选。完整合同见
+> [SCENARIO_GOALS_DESIGN.md §10](./SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)，
+> 详细数字、失败历史和边界只集中在本文件的 G-WIRE 当前小节。
 >
-> `GOAL-DATA` 已独立 Review `APPROVED` 并发布为上述 `353e0c9`，实现严格不可变目标结构、旧目录
-> 兼容解析、两张不可变表、caller-owned 写原语、owner-scoped 读取、显式 v2 投影与账号删除配套。
-> 当前创建会话 API 仍未绑定快照，历史会话无快照，也未回填、接入恢复 UI 或写入 10 条生产 goals。
-> 后续拆为 `G-WIRE`（目标内容/创建接线）、`G-EVAL`（判定结果持久化与自动判定）、`G-VIEW`（展示）；
-> `G-WIRE` 的服务端 binding 校验、目录 opt-in、旧指纹兼容和 User→Session 锁序已核为实施计划，但仍未
-> 落地。这些能力均未实施，完整合同见
-> [SCENARIO_GOALS_DESIGN.md §10](./SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
-> 主控已完成本卡 12 项现有行为门禁与机器 behavior 核验，完整数字集中在本文件的 G-CONTRACT 当前
-> 小节；这不是最终 13 项全仓 format 门禁。正式返修 `0/2`。技术 Review、最终全仓 format、
+> 四文档已完成 `FINAL_READY`，源、测试和 schema 生成物停写。最终 13 项全仓 format、独立 Review、
 > commit/push 以主控同卡回执为准；用户 Review 待，本状态不自称 `APPROVED`。goals 父项及其他
-> RF/CP 不连带勾选。
+> RF/CP 不连带勾选；合成目标、Fake/Mock 和浏览器 E2E 不代表真实媒体、Provider 或教学效果已验收。
 
 > HHTTP-CLOSE 历史宿主 HTTP 待办核销（已 `APPROVED` 并发布 `1d75250824e9b50173ac20f0faed928240e54208`）现作为历史快照保留：
 > 唯一工作树为
@@ -127,29 +119,81 @@
 
 ## 当前功能
 
-| 领域           | 当前实现                                                                                            | 状态与边界                                                                                    |
-| -------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                     | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                             |
-| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                   | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                    |
-| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康                | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收                                 |
-| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                   |
-| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                                     | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                                  |
-| 场景目标       | G-CONTRACT 已确认首批 3 课 × 2 个目标、确定性判定、四终态与 `X / Y / Z` 汇总合同                    | GOAL-DATA 仅完成数据层；G-WIRE、G-EVAL、G-VIEW 未实施，当前不展示目标完成结果                 |
-| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                  | 已实现                                                                                        |
-| 本人数据导出   | `GET /api/user/data-export` 默认输出 v1；显式 `schema_version=2` 增加完整生效目标并共用 RR 只读事务 | GOAL-DATA 数据合同与历史门禁已验证；已独立 Review `APPROVED` 并发布 `353e0c9`；旧 v1 合同保留 |
-| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人业务数据，含 goal 快照，保留控制行和他人数据           | 快照删除与失败回滚已验证；生产不可恢复性未验收                                                |
-| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                 | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                      |
-| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                  | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                |
-| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                                 | 已实现 Web 流程；原生端文件选择未验收                                                         |
-| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标       | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                                       |
-| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3、已记录会话时长               | **部分实现**：时长三卡本范围已 FINAL_READY；其他周报指标未实现                                |
-| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                             | 真机全链路、原生登录与发布未验收                                                              |
-| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存                | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验                         |
-| 数字人         | 只有待办                                                                                            | **未实现**                                                                                    |
+| 领域           | 当前实现                                                                                                                          | 状态与边界                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                                                   | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                               |
+| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                                                 | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                      |
+| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康                                              | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收                                   |
+| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                                              | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                     |
+| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                                                                   | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                                    |
+| 场景目标       | 首批 3 课 × 2 个中英文版本化目标、显式 opt-in curriculum API 目标预览字段、最小 binding、创建事务 catalog/snapshot 与前端冻结引用 | G-WIRE 已实现并通过目标/真实后端测试；G-EVAL 判定/持久化和 G-VIEW 用户界面目标预览/展示尚未实施 |
+| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                                                | 已实现                                                                                          |
+| 本人数据导出   | `GET /api/user/data-export` 默认输出 v1；显式 `schema_version=2` 增加完整生效目标并共用 RR 只读事务                               | GOAL-DATA 数据合同与历史门禁已验证；已独立 Review `APPROVED` 并发布 `353e0c9`；旧 v1 合同保留   |
+| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人业务数据，含 goal 快照，保留控制行和他人数据                                         | 快照删除与失败回滚已验证；生产不可恢复性未验收                                                  |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                                               | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                        |
+| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                                                | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                  |
+| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                                                               | 已实现 Web 流程；原生端文件选择未验收                                                           |
+| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标                                     | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                                         |
+| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3、已记录会话时长                                             | **部分实现**：时长三卡本范围已 FINAL_READY；其他周报指标未实现                                  |
+| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                                                           | 真机全链路、原生登录与发布未验收                                                                |
+| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存                                              | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验                           |
+| 数字人         | 只有待办                                                                                                                          | **未实现**                                                                                      |
 
 ## 当前验证基线
 
-### G-CONTRACT 场景目标实施合同（`FINAL_READY`）
+### G-WIRE 首期课程目标与会话创建接线（`FINAL_READY`）
+
+- **范围与冻结边界**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，基线 HEAD
+  `882a1a9853f37235d0a1ef5f1521e8d01d422ada`。G-CONTRACT 已独立 Review `APPROVED` 并发布为该
+  提交。G-WIRE 首期允许写集为 25 文件；当前 19 个源/测试最终 SHA 已冻结，19 份旧迁移不可改。716
+  个保护文件 SHA256 字节保持；另 3 份已跟踪环境配置仅核 metadata、不读内容。产品、测试与 schema
+  生成物已停写；本轮只收口四份文档。
+- **目标内容与兼容**：商务寒暄、酒店入住、餐厅点餐各 2 个中英文版本化 goal，均为
+  `material_version=1 / goal_version=1 / evidence_types=['transcript']`。商务目标 2 明确为向对方
+  提出一个与其工作相关的问题，不泛化为询问自己的工作。其他 7 课保持无目标兼容；原 material 文档、
+  排序和技能标签不变。
+- **创建接线**：旧 `POST /sessions` 请求与旧 `Idempotency-Key` fingerprint 字节保持；新的最小
+  `goal_binding={material_id, material_version}` 由服务端按受控目录校验，同一事务写不可变 catalog
+  与 snapshot，拒绝客户端 goals/判定字段。带目标创建先锁 User 再插 Session；已有 key 重放先返回
+  原 snapshot。只有 `mode=scenario` 才提交冻结引用，`scenario_id` 整数旧字段不填。
+- **Curriculum 与前端**：默认 curriculum 保持旧响应；只有显式 opt-in 才按检索 `material.id` 关联
+  受控 `CatalogMaterial` 返回 curriculum API 目标预览字段，其他 7 课无 binding。用户界面目标预览/
+  展示仍由 G-VIEW 负责，尚未实施。前端在首个 await 前冻结
+  ID/version；Fake 默认继续返回旧 `travel_planning` 五字段，只有真值 opt-in 才返回首期预览。
+- **真实接口与缺陷历史**：R1 首次真实 backend 目标运行 `45 passed / 1 failed`，原因是 curriculum
+  从检索投影误读不存在的 `goals/material_version`；改为 router 按 id 关联受控 catalog 后，真实
+  backend 定向套件 `55/55`、exit 0（含旧 curriculum；该总数含单元与实际 PG）。本卡新增 10 项中
+  8 项带 `wire_pg` 走真实 PG/ASGI，2 项目录/指纹为纯单测。PostgreSQL 只使用主控自建合成库/合成
+  数据，并发创建、回滚、跨账号、原幂等兼容与目录演进重放均已验证；本批 PG 保留到后续卡结束。
+- **最终机器回执**：12 项行为门禁通过，machine behavior 全 `0`。Vitest `1316 passed / 62 files`；
+  backend `1101 passed / 3 warnings / 0 skip`，raw coverage `81.93826837562123%`；Fake API `119`；
+  build `47`、API 类型生成器 `8`、iOS 仅 Node `37`；lint `132 warnings / 0 errors / 0 new`；3 项
+  有效私有断言变异均命中具体断言并恢复。E2E `280 passed = 140 Chromium + 140 WebKit`，每例单
+  result，`retry 0`，`skip / flaky / unexpected` 全 `0`。iOS 数字仅为 Node runner，不代表原生编译。
+- **RED 与测试纠正记录**：5 份 RED 测试中，backend 新测试、API 新测试和 browser 新测试保持原字节；
+  store 测试只有两处纯类型/未使用 import 修正，主控逆向证明 TS emitted 整文件相同；Fake 新测试只
+  纠正首例错误 oracle，旧 117 例字节保持，纠正后的私有父提交 RED 为 `117 passed / 2 failed`。
+  API 旧 192 例中仅 curriculum 请求 URL 的 1 处强等式按新 opt-in 需要改变。旧 snapshot 测试文件
+  110 条 assert 保持；该文件含 schema/catalog 纯单测，不全是 PG。
+- **浏览器排障**：首轮完整 E2E 为 `272 passed / 8 failed`，8 例均因“进入练习”动作 locator 命中 3 个
+  合法课程，不是后续业务断言失败。新旧 readiness 单文件仅 3 个动作 locator 固定为
+  “进入练习：Business Meeting Greetings”并设 `exact: true`，其余 AST 全部相同；12 个定向双浏览器
+  用例通过，随后完整 `280` 通过。原失败、目标修复和完整通过证据分别保留。
+- **质量返修记录**：quality 首次由 typecheck/build 在同一单测位置重复报 TS2322，随后出现同一文件
+  未使用 import lint；两次均为测试边界适配，未放宽产品 schema、断言或运行语义，最终 quality
+  `132 warnings / 0 errors / 0 new`。R1 的产品修复与 R2 测试/浏览器动作补充分别记录，原证据不覆盖。
+- **边界与状态**：G-CONTRACT 合同与 G-WIRE 创建接线已完成；G-EVAL 自动判定/结果持久化和 G-VIEW
+  用户界面目标预览/展示仍未实施、未勾选。四文档为 `FINAL_READY`，12 项行为门禁通过不等于最终 13 项全仓 format、
+  独立 Review、commit/push 或用户 Review 已完成，这些以主控同卡回执为准。未调用真实 Provider、
+  IdP 或 LiveKit，未使用生产或真实数据；synthetic/Fake/Mock 不构成真实媒体或教学效果验收。
+  详细合同见 [SCENARIO_GOALS_DESIGN.md §10](./SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
+
+### G-CONTRACT 场景目标实施合同（历史快照；已 `APPROVED` 并发布 `882a1a9`）
+
+以下内容保留 G-CONTRACT 作者交付时点。该合同后由主控独立 Review `APPROVED` 并发布为
+`882a1a9853f37235d0a1ef5f1521e8d01d422ada`；后续实现状态以上方 G-WIRE 小节为准。
 
 - **范围与基线**：唯一工作树为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
@@ -170,29 +214,29 @@
 - **版本与隐私**：原判不改，重判创建新 `revision`；首期不提供任意重跑入口，也不重跑已成功
   analysis Job。新目标/判定数据必须进入账号导出，并在既有整账号删除事务内删除；证据只存
   ID/有序范围，不复制正文、不新增录音，不声明真实教学效果。
-- **四卡边界**：`G-CONTRACT` 当前只冻结合同与验收；`G-WIRE` 负责目标内容和创建接线，
+- **四卡边界**：`G-CONTRACT` 当时只冻结合同与验收；`G-WIRE` 负责目标内容和创建接线，
   `G-EVAL` 负责判定与结果持久化，`G-VIEW` 负责展示。具体 API、表结构、规则结构、文案键和组件
   接线由主控在后续卡决定；本卡不新增业务开关、分数或阈值。
-- **G-WIRE 已核计划**：旧 `POST /sessions` 与旧幂等 fingerprint 保持不变；新
+- **G-WIRE 当时计划**：旧 `POST /sessions` 与旧幂等 fingerprint 保持不变；新
   `goal_binding={material_id, material_version}` 由服务端按当前目录校验，并在创建事务内写入
   immutable catalog 与 snapshot，拒绝客户端 goals/判定输入。Curriculum 目标预览须显式 opt-in，
   await 前冻结版本且只有 `mode=scenario` 时才提交引用；带目标创建先锁 User 再插 Session，旧
   `Idempotency-Key` 重放按原 fingerprint 返回原 snapshot。`scenario_id` 旧整数字段不填，原
   material 文档、排序和技能标签保持。以上只属计划，真实 PostgreSQL 实例（仅合成库/合成数据）
-  的并发创建、回滚、跨账号和旧幂等兼容仍未实现或验收。
+  的并发创建、回滚、跨账号和旧幂等兼容当时仍未实现或验收；后续状态以上方 G-WIRE 小节为准。
 - **G-EVAL 已核计划**：completed 事务落独立 goal run 为 `pending`；冻结精确 user transcript
   IDs/排序/digest，worker 同进程公平 poll 且每轮最多 `1 goal + 1 analysis`，各自事务、失败隔离并
   保持停机 drain。run header 按 session/revision 唯一，per-goal 结果 append-only；首期仅 revision
   1、无重判入口、终态不可覆盖。v1/v2 导出保持，显式 v3 可导出新记录并由整账号事务删除；离线
   人工标注或 synthetic 样例之外的审校、准确率和教学效果均未验证。以上仍未实施，详见设计 §10.6。
-- **主控当前门禁回执**：现有行为门禁 12 项完成，machine behavior 全 `0`；Vitest
+- **G-CONTRACT 当时门禁回执**：行为门禁 12 项完成，machine behavior 全 `0`；Vitest
   `1309 passed / 60 files`；backend `1091 passed / 3 warnings / 0 skip`，raw coverage
   `81.88588908099482%`；E2E `278 = 139 Chromium + 139 WebKit`，每例 `1 passed`、`retry 0`、
   `0 skip/flaky`；build `47`、Fake API `117`、API 类型生成器 `8`、iOS 仅 Node `37`；lint
   `132 warnings / 0 errors / 0 new`，warning/file/message/rule 多重集与基线相同。PG 的 19 份旧迁移
   已重放，回执值 `0`；本批独占合成 PostgreSQL 保留到四卡结束。732 个保护文件与 3 个 `.env` 仅核
   metadata，不读取内容。该回执与下方 GOAL-DATA 历史小节分开记录，不冒充当前最终 13 项格式门禁。
-- **当前状态**：四份文档已完成作者交付并停在 `FINAL_READY`，正式返修 `0/2`。主控 12 项现有行为
+- **原卡状态**：四份文档已完成作者交付并停在 `FINAL_READY`，正式返修 `0/2`。主控 12 项现有行为
   门禁回执不等于技术 Review、最终全仓 format、commit/push 或用户 Review 已完成。技术 Review、
   最终全仓 format、commit/push 以主控同卡回执为准；用户 Review 待，本状态不自称 `APPROVED`。
   真实外部服务、生产环境和真实数据均未使用。完整合同与逐卡验收见

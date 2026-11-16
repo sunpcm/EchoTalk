@@ -2221,7 +2221,7 @@ describe("API client", () => {
       const res = await getRecommendedCurriculum();
       expect(res).toEqual(mockCurriculum);
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        `${getBaseUrl()}/curriculum/next`,
+        `${getBaseUrl()}/curriculum/next?include_goals=true`,
         expect.anything(),
       );
     });

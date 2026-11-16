@@ -59,6 +59,13 @@ from services.session_admission import (
     get_active_session_or_raise,
     verify_session_admission,
 )
+from services.session_goal_binding import (
+    GoalBindingValidationError,
+    ResolvedGoalBinding,
+    bind_session_goal,
+    lock_user_for_goal_session,
+    resolve_goal_binding,
+)
 from services.session_idempotency import (
     compute_session_fingerprint,
     is_idempotency_unique_violation,
@@ -75,6 +82,51 @@ from time_utils import utc_now
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _resolve_requested_goal_binding(
+    body: SessionCreate,
+) -> ResolvedGoalBinding | None:
+    if body.goal_binding is None:
+        return None
+    try:
+        return resolve_goal_binding(
+            body.goal_binding.material_id,
+            body.goal_binding.material_version,
+        )
+    except GoalBindingValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+async def _lock_user_for_bound_session(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    binding: ResolvedGoalBinding | None,
+) -> None:
+    if binding is None:
+        return
+    try:
+        await lock_user_for_goal_session(db, user_id=user_id)
+    except GoalBindingValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+async def _persist_bound_session_goal(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    binding: ResolvedGoalBinding | None,
+) -> None:
+    if binding is None:
+        return
+    await bind_session_goal(
+        db,
+        user_id=user_id,
+        session_id=session_id,
+        binding=binding,
+    )
 
 
 @router.post("/sessions", response_model=SessionResponse)
@@ -112,6 +164,12 @@ async def create_session(
 
     # 1. 未提供 Idempotency-Key：保持原有每次新建行为
     if parsed_key is None:
+        goal_binding = _resolve_requested_goal_binding(body)
+        await _lock_user_for_bound_session(
+            db,
+            user_id=current_user.id,
+            binding=goal_binding,
+        )
         session = Session(
             id=uuid.uuid4(),
             user_id=current_user.id,
@@ -134,6 +192,12 @@ async def create_session(
             db.add(ctx)
             await db.flush()
 
+        await _persist_bound_session_goal(
+            db,
+            user_id=current_user.id,
+            session_id=session.id,
+            binding=goal_binding,
+        )
         await db.refresh(session)
         return session
 
@@ -157,6 +221,13 @@ async def create_session(
                 detail="Idempotency-Key 已被不同参数的请求使用",
             )
         return existing
+
+    goal_binding = _resolve_requested_goal_binding(body)
+    await _lock_user_for_bound_session(
+        db,
+        user_id=current_user.id,
+        binding=goal_binding,
+    )
 
     # 不存在则尝试插入（通过 Savepoint 隔离并发冲突）
     try:
@@ -182,6 +253,13 @@ async def create_session(
                 )
                 db.add(ctx)
                 await db.flush()
+
+            await _persist_bound_session_goal(
+                db,
+                user_id=current_user.id,
+                session_id=session.id,
+                binding=goal_binding,
+            )
     except IntegrityError as exc:
         if not is_idempotency_unique_violation(exc):
             raise

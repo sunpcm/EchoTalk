@@ -187,11 +187,36 @@ export type SkillResponse = Omit<
 
 // ─── 课程推荐相关类型 ───
 
-/** 单个课程推荐 */
-export type CurriculumRecommendation = ApiSchemas["CurriculumRecommendation"];
+/** 客户端提交的最小目标目录引用。 */
+export type SessionGoalBindingInput = Readonly<ApiSchemas["GoalBindingRef"]>;
 
-/** 课程推荐响应 */
-export type CurriculumNextResponse = ApiSchemas["CurriculumNextResponse"];
+/** 目标定义；数组字段由生成 schema 派生并收窄为只读。 */
+export type CurriculumGoalDefinition = Readonly<
+  Omit<ApiSchemas["GoalDefinition"], "criteria" | "evidence_types">
+> & {
+  readonly criteria: ReadonlyArray<ApiSchemas["GoalDefinition"]["criteria"][number]>;
+  readonly evidence_types: ReadonlyArray<ApiSchemas["GoalDefinition"]["evidence_types"][number]>;
+};
+
+/** 冻结材料版本及其完整目标预览。 */
+export type CurriculumGoalBinding = Readonly<Omit<ApiSchemas["CurriculumGoalBinding"], "goals">> & {
+  readonly goals: ReadonlyArray<CurriculumGoalDefinition>;
+};
+
+/** 单个课程推荐；目标字段由生成 schema 派生并保持只读。 */
+export type CurriculumRecommendation = Omit<
+  ApiSchemas["CurriculumRecommendation"],
+  "goal_binding"
+> & {
+  readonly goal_binding?: CurriculumGoalBinding | null;
+};
+
+/** 课程推荐响应；推荐列表沿用只读的目标定义。 */
+export type CurriculumNextResponse = Readonly<
+  Omit<ApiSchemas["CurriculumNextResponse"], "recommendations">
+> & {
+  readonly recommendations: ReadonlyArray<CurriculumRecommendation>;
+};
 
 /** 会话列表项（不含转录）；保留客户端要求 ended_at 必须存在的既有契约。 */
 export type SessionListItem = WithRequired<ApiSchemas["SessionListItem"], "ended_at">;
@@ -569,20 +594,34 @@ export function checkHealthReady(options?: ApiRequestOptions): Promise<HealthRea
 /** 文档对话上下文 */
 export type DocContext = ApiSchemas["DocContext"];
 
+export interface CreateSessionOptions extends ApiRequestOptions {
+  readonly goalBinding?: SessionGoalBindingInput;
+}
+
 /** 创建会话请求体 */
-export type CreateSessionBody = Omit<ApiSchemas["SessionCreate"], "doc_context"> & {
+export type CreateSessionBody = Omit<
+  ApiSchemas["SessionCreate"],
+  "doc_context" | "goal_binding"
+> & {
   doc_context?: DocContext;
+  goal_binding?: SessionGoalBindingInput;
 };
 
 /** 创建会话 */
 export function createSession(
   mode: string,
   docContext?: DocContext,
-  options?: ApiRequestOptions,
+  options?: CreateSessionOptions,
 ): Promise<Session> {
   const body: CreateSessionBody = { mode };
   if (docContext) {
     body.doc_context = docContext;
+  }
+  if (options?.goalBinding) {
+    body.goal_binding = {
+      material_id: options.goalBinding.material_id,
+      material_version: options.goalBinding.material_version,
+    };
   }
   return request<Session>("/sessions", {
     method: "POST",
@@ -1023,7 +1062,7 @@ export function getSkills(options?: ApiRequestOptions): Promise<SkillResponse[]>
 export function getRecommendedCurriculum(
   options?: ApiRequestOptions,
 ): Promise<CurriculumNextResponse> {
-  return request<CurriculumNextResponse>("/curriculum/next", {
+  return request<CurriculumNextResponse>("/curriculum/next?include_goals=true", {
     signal: options?.signal,
   });
 }

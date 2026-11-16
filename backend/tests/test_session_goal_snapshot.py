@@ -547,8 +547,19 @@ def test_goal_definition_rejects_invalid_versions_and_slugs() -> None:
         )
 
 
-def test_existing_ten_material_catalog_remains_legacy_compatible() -> None:
-    materials = load_material_catalog()
+def test_existing_ten_material_catalog_remains_legacy_compatible(
+    tmp_path: Path,
+) -> None:
+    source_path = (
+        Path(__file__).resolve().parents[1] / "data" / "teaching_materials.json"
+    )
+    old_catalog = json.loads(source_path.read_text(encoding="utf-8"))
+    for material in old_catalog:
+        material.pop("goals", None)
+        material.pop("material_version", None)
+    catalog_path = tmp_path / "legacy_material_catalog.json"
+    _write_catalog_records(catalog_path, old_catalog)
+    materials = load_material_catalog(catalog_path)
     missing_fields = [
         field
         for field in ("goals", "material_version")

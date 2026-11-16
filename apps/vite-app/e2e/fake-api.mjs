@@ -5,6 +5,7 @@ const host = "127.0.0.1";
 const port = Number(process.env.E2E_API_PORT ?? 18181);
 const sessions = new Map();
 const analysisJobs = new Map();
+const sessionIdempotency = new Map();
 let accountDeleted = false;
 
 function sendJson(response, status, body, extraHeaders = {}) {
@@ -272,6 +273,155 @@ function createSession(mode) {
     started_at: now,
     ended_at: null,
     transcripts: [],
+  };
+}
+
+const PILOT_GOALS = {
+  mat_biz_greet_b1: [
+    {
+      goal_id: "mat_biz_greet_b1:introduce_name_and_role",
+      goal_version: 1,
+      description_en: "Introduce your name and your job or role.",
+      description_zh: "介绍自己的姓名及工作/角色。",
+      criteria: ["State your name.", "State your job or role."],
+      evidence_types: ["transcript"],
+    },
+    {
+      goal_id: "mat_biz_greet_b1:ask_other_work_question",
+      goal_version: 1,
+      description_en: "Ask the other person a question about their work.",
+      description_zh: "向对方提出一个与其工作相关的问题。",
+      criteria: ["Ask the other person a question about their work."],
+      evidence_types: ["transcript"],
+    },
+  ],
+  mat_hotel_checkin_b1: [
+    {
+      goal_id: "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      goal_version: 1,
+      description_en: "Express a check-in request and state whether you have a reservation.",
+      description_zh: "表达入住需求并说明有无预订。",
+      criteria: ["Express a check-in request.", "State whether you have a reservation."],
+      evidence_types: ["transcript"],
+    },
+    {
+      goal_id: "mat_hotel_checkin_b1:ask_checkout_time",
+      goal_version: 1,
+      description_en: "Ask for the checkout time.",
+      description_zh: "询问退房时间。",
+      criteria: ["Ask for the checkout time."],
+      evidence_types: ["transcript"],
+    },
+  ],
+  mat_restaurant_b1: [
+    {
+      goal_id: "mat_restaurant_b1:order_one_dish_or_drink",
+      goal_version: 1,
+      description_en: "Clearly order one dish or drink.",
+      description_zh: "明确点一道菜或饮品。",
+      criteria: ["Order one dish or drink clearly."],
+      evidence_types: ["transcript"],
+    },
+    {
+      goal_id: "mat_restaurant_b1:state_preference_or_no_requirements",
+      goal_version: 1,
+      description_en:
+        "State one preference or restriction, or clearly say that you have no special requirements.",
+      description_zh: "说明一项偏好或限制，或明确表示没有特殊要求。",
+      criteria: [
+        "State a preference or restriction, or explicitly say that there are no special requirements.",
+      ],
+      evidence_types: ["transcript"],
+    },
+  ],
+};
+
+function curriculumGoalBinding(materialId, materialVersion) {
+  return {
+    material_id: materialId,
+    material_version: materialVersion,
+    goals: PILOT_GOALS[materialId],
+  };
+}
+
+function curriculumRecommendations(includeGoals) {
+  if (!includeGoals) {
+    return [
+      {
+        scenario_name: "travel_planning",
+        difficulty_cefr: "B1",
+        category: "conversation",
+        focus_skills: ["grammar_past_tense"],
+        system_prompt_template: "Practice planning a trip.",
+      },
+    ];
+  }
+  const recommendations = [
+    {
+      scenario_name: "business_meeting_greetings",
+      difficulty_cefr: "B1",
+      category: "conversation",
+      focus_skills: ["word_stress", "linking_sounds"],
+      system_prompt_template: "Practice introducing yourself and making professional small talk.",
+      material_id: "mat_biz_greet_b1",
+    },
+    {
+      scenario_name: "th_minimal_pairs",
+      difficulty_cefr: "A2",
+      category: "pronunciation",
+      focus_skills: ["th_sounds", "consonant_clusters"],
+      system_prompt_template: "Practice distinguishing TH minimal pairs.",
+      material_id: "mat_th_minimal_a2",
+    },
+    {
+      scenario_name: "hotel_checkin_roleplay",
+      difficulty_cefr: "B1",
+      category: "conversation",
+      focus_skills: ["preposition", "linking_sounds"],
+      system_prompt_template: "Practice a polite hotel check-in conversation.",
+      material_id: "mat_hotel_checkin_b1",
+    },
+  ];
+  return recommendations.map(({ material_id, ...recommendation }) => ({
+    ...recommendation,
+    ...(includeGoals && PILOT_GOALS[material_id]
+      ? { goal_binding: curriculumGoalBinding(material_id, 1) }
+      : {}),
+  }));
+}
+
+function validateSessionGoalBinding(body) {
+  if (body.goal_binding === undefined || body.goal_binding === null) {
+    return null;
+  }
+  const topLevelKeys = Object.keys(body);
+  if (topLevelKeys.some((key) => !["mode", "doc_context", "goal_binding"].includes(key))) {
+    return { error: "goal_binding requests reject extra top-level fields" };
+  }
+  if (body.mode !== "scenario") {
+    return { error: "goal_binding is only valid for mode=scenario" };
+  }
+  const binding = body.goal_binding;
+  if (typeof binding !== "object" || binding === null || Array.isArray(binding)) {
+    return { error: "goal_binding must be an object" };
+  }
+  if (
+    Object.keys(binding).length !== 2 ||
+    !Object.hasOwn(binding, "material_id") ||
+    !Object.hasOwn(binding, "material_version")
+  ) {
+    return { error: "goal_binding accepts only material_id and material_version" };
+  }
+  if (
+    typeof binding.material_id !== "string" ||
+    binding.material_version !== 1 ||
+    !Object.hasOwn(PILOT_GOALS, binding.material_id)
+  ) {
+    return { error: "goal_binding does not match a current goal catalog version" };
+  }
+  return {
+    material_id: binding.material_id,
+    material_version: binding.material_version,
   };
 }
 
@@ -726,6 +876,7 @@ const server = createServer(async (request, response) => {
   if (method === "DELETE" && pathname === "/api/user/account") {
     sessions.clear();
     analysisJobs.clear();
+    sessionIdempotency.clear();
     accountDeleted = true;
     sendJson(response, 200, { status: "deleted" });
     return;
@@ -740,19 +891,26 @@ const server = createServer(async (request, response) => {
   }
 
   if (method === "GET" && pathname === "/api/curriculum/next") {
+    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+    const rawIncludeGoals = url.searchParams.get("include_goals");
+    const normalizedIncludeGoals = rawIncludeGoals?.toLowerCase();
+    const includeGoals =
+      rawIncludeGoals === null
+        ? false
+        : TRUE_QUERY_BOOLEANS.has(normalizedIncludeGoals)
+          ? true
+          : FALSE_QUERY_BOOLEANS.has(normalizedIncludeGoals)
+            ? false
+            : undefined;
+    if (includeGoals === undefined) {
+      sendJson(response, 422, { detail: "include_goals must be a boolean" });
+      return;
+    }
     sendJson(response, 200, {
       weakest_skill: "grammar_past_tense",
       weakest_skill_mastery: 0.4,
       target_level: "B1",
-      recommendations: [
-        {
-          scenario_name: "travel_planning",
-          difficulty_cefr: "B1",
-          category: "conversation",
-          focus_skills: ["grammar_past_tense"],
-          system_prompt_template: "Practice planning a trip.",
-        },
-      ],
+      recommendations: curriculumRecommendations(includeGoals),
     });
     return;
   }
@@ -769,8 +927,37 @@ const server = createServer(async (request, response) => {
 
   if (method === "POST" && pathname === "/api/sessions") {
     const body = await readJson(request);
+    const goalBinding = validateSessionGoalBinding(body);
+    if (goalBinding?.error) {
+      sendJson(response, 422, { detail: goalBinding.error });
+      return;
+    }
+
+    const idempotencyKey = request.headers["idempotency-key"];
+    const fingerprint = JSON.stringify({
+      mode: body.mode,
+      goal_binding: goalBinding,
+    });
+    if (typeof idempotencyKey === "string" && sessionIdempotency.has(idempotencyKey)) {
+      const existingRequest = sessionIdempotency.get(idempotencyKey);
+      if (existingRequest.fingerprint !== fingerprint) {
+        sendJson(response, 409, {
+          detail: "Idempotency-Key has already been used with different parameters",
+        });
+        return;
+      }
+      sendJson(response, 201, sessions.get(existingRequest.sessionId));
+      return;
+    }
+
     const session = createSession(typeof body.mode === "string" ? body.mode : "scenario");
     sessions.set(session.id, session);
+    if (typeof idempotencyKey === "string") {
+      sessionIdempotency.set(idempotencyKey, {
+        fingerprint,
+        sessionId: session.id,
+      });
+    }
     sendJson(response, 201, session);
     return;
   }
