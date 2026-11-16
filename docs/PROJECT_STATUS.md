@@ -1,16 +1,20 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **GOAL-DESIGN 场景 goals 与 Task Completion 设计（`FINAL_READY`）**：
+> 最后核对：2026-11-16。当前卡片为 **I18N-DESIGN 正式 i18n 迁移设计（`FINAL_READY`）**：
 > 唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，冻结 HEAD
-> `929fb0ea91d2c9937c1414be192e5f5cad47d02c`，开工 clean。本卡只把私有已内容评审的场景
-> goals/Task Completion 设计草案写回 `docs/SCENARIO_GOALS_DESIGN.md`，并只更新 `TODO.md`、
-> 本文件与 `docs/history/2026-11.md`；goal 持久化 A/B/C、判定器、状态机与总体完成度均待用户
-> 确认，未实施、未获业务批准。实施节点不运行测试/服务/PG，不执行 Git 写操作（允许只读核基线）；
-> 主控 12 项行为/工程门禁已全 `exit 0`（机器核验 behavior `0`），完整数字集中在下方 GOAL-DESIGN
-> 小节。设计草案见
-> [SCENARIO_GOALS_DESIGN.md](./SCENARIO_GOALS_DESIGN.md)。
+> `3322bef719947342b3c5c805524a512aa45efb16`，开工 clean。本卡只新增
+> `docs/I18N_MIGRATION_DESIGN.md` 并更新 `TODO.md`、本文件与 `docs/history/2026-11.md`；A/B/C、
+> 首期语言范围/fallback 与何时进入依赖/兼容/试点待用户确认，未实施；依赖安装尚未授权。实施节点
+> 不运行测试/服务/PG，不执行 Git 写操作；主控 12 项现有应用回归门禁与机器 behavior 核验已完成，
+> 本卡数字、资源清理与交付边界集中记录在下方 I18N-DESIGN 小节。设计见
+> [I18N_MIGRATION_DESIGN.md](./I18N_MIGRATION_DESIGN.md)。
+>
+> GOAL-DESIGN 现作为历史快照保留（已 `APPROVED` 并发布
+> `3322bef719947342b3c5c805524a512aa45efb16`）：goal 持久化 A/B/C、判定器、状态机与总体完成度
+> 仍待用户确认，业务未获批准。详见下方
+> [GOAL-DESIGN 小节](#goal-design-场景-goals-与-task-completion-设计final_ready)。
 >
 > WR-DESIGN 周报剩余指标设计（`FINAL_READY`）现作为最近历史快照保留（已 `APPROVED` 并发布
 > `929fb0ea91d2c9937c1414be192e5f5cad47d02c`）：`p_mastery` 环比 A/B/C、报告/对比窗口与 IANA 时区
@@ -110,6 +114,41 @@
 
 ## 当前验证基线
 
+### I18N-DESIGN 正式 i18n 迁移设计（`FINAL_READY`）
+
+- **范围与写集**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，源码基线（冻结 HEAD）为
+  `3322bef719947342b3c5c805524a512aa45efb16`，开工 clean。允许写集为
+  `docs/I18N_MIGRATION_DESIGN.md`、`TODO.md`、本文件与 `docs/history/2026-11.md`。本卡只写设计，
+  不安装依赖、不访问 registry、不改代码/测试/迁移/锁，实施节点不运行测试/服务/PG，不执行 Git
+  写操作。
+- **内容**：A 推荐 i18next/react-i18next 渐进迁移，B 为 FormatJS/ICU，C 为零依赖 typed
+  dictionary 且只能明确改目标/延期，不能称正式框架完成。首期推荐仅 `zh-CN`，不新增语言、locale
+  存储、设置或自动检测。A/B/C、首期范围/fallback 与何时进入依赖/兼容/试点仍待用户确认；当前
+  不授权安装。
+- **插值边界**：现有单花括号 `{count}` 等与 i18next 默认 `{{count}}` 不兼容，未来必须显式映射/
+  转换并做实际渲染回归，不能原样套用，也不能自研消息引擎。Provider 真实名称、技能 label、ARIA
+  及现有中文/日期行为属于固定技术前置和既有合同保护；未来第二语言译文另行验收。
+- **固定边界**：母语、目标学习语言、UI locale 与 IANA 报告时区保持四个独立维度；Provider catalog
+  原值不被前端翻译改写。官方文档能力链接只证明框架声明，具体版本、包体和生产适配仍未验证。
+- **主控机器门禁（12 项原应用行为/工程门禁全 `exit 0`，机器 behavior 核验 `exit 0`）**：Vitest
+  `1309 passed / 60 files`；默认 E2E `278 = 139 Chromium + 139 WebKit`，每例单个 passed result、
+  `retry 0`、`0 skip/flaky/unexpected`；backend `1055 passed / 3 warnings / 0 skip`，raw coverage
+  `81.76300179335081%`；build `47`、Fake API `117`、API 类型生成器 `8`、iOS（仅 Node）`37`；
+  lint `132 warnings / 0 errors / 0 new`，file/message/rule 多重集与基线相同。
+- **验证边界**：以上只是现有应用回归，不是尚未安装的 i18n 框架适配验证；框架版本、包体、React/
+  构建运行时、插值转换和试点均未验证。设计未安装、未实施、未获业务批准，正式 i18n 父项不勾。
+- **整批 PG 清理**：整批数据库/测试已结束。主 checkout 本地回执
+  `.review/reports/b1-implementation-20261112/authorized-local-resume-20261116/pg-cleanup.json`
+  （未纳 Git）记录 exact ID
+  `5ccc6b710e08cb084544f98816745c4ec1a24aa9654eb2175e6c249a5aa0d5cf`，`stop_exit0`、
+  `auto_removed=true`、独立确认 `exit 0`；精确 ID、双 owner、loopback-only、合成库身份和名称/ID
+  不存在均已核验，其他资源未动。历史 WDI 等小节的“PG 保留”只属于各自原时点，不代表当前整批状态。
+- **状态与下一步**：`FINAL_READY`；四文档已按固定 Node 22 Prettier 精确格式化。全仓最终 format、
+  独立 Review、正常 commit/push 以主控同卡回执为准。A/B/C、首期范围/fallback 与依赖/兼容/试点
+  时点三项仍待用户确认。
+
 ### GOAL-DESIGN 场景 goals 与 Task Completion 设计（`FINAL_READY`）
 
 - **范围与写集**：唯一工作树为
@@ -131,8 +170,9 @@
   `0 skip/flaky/unexpected`；backend `1055 passed / 3 warnings / 0 skip`，raw coverage
   `81.87336184301283%`；build-script `47`、Fake API `117`、API 类型生成器 `8`、iOS（仅 Node）`37`；
   lint `132 warnings / 0 errors / 0 new`，多重集与基线相同。
-- **状态与下一步**：`FINAL_READY`，等主控最终全仓 format、独立 Review、commit/push 与用户/业务
-  确认；合成不替代业务确认或真实环境，不称真实准确率/教学效果。设计草案见
+- **状态与下一步**：原卡已 `APPROVED` 并发布
+  `3322bef719947342b3c5c805524a512aa45efb16`；用户/业务确认仍待。合成不替代业务确认或真实
+  环境，不称真实准确率/教学效果。设计草案见
   [SCENARIO_GOALS_DESIGN.md](./SCENARIO_GOALS_DESIGN.md)。
 
 ### WR-DESIGN 周报剩余指标设计（`FINAL_READY`）

@@ -4,9 +4,20 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **GOAL-DESIGN 场景 goals 与 Task Completion 设计（当前卡，2026-11-16，`FINAL_READY`）：** 把私有已
-> 内容评审的场景 goals/Task Completion 设计草案写回，goal 持久化 A/B/C、判定器、状态机与总体完成度
-> 均待用户确认，未实施。设计见
+> **I18N-DESIGN 正式 i18n 迁移设计（当前卡，2026-11-16，`FINAL_READY`）：** 把已内容评审的设计
+> 草案写回，推荐 i18next/react-i18next 渐进迁移，FormatJS 为标准 ICU 备选，自研 typed dictionary
+> 只能作为改目标/延期方案，不能冒充正式框架完成。首期建议仅 `zh-CN`，A/B/C、fallback 与何时进入
+> 依赖/兼容/试点仍待用户确认；依赖安装尚未授权。四维度分离、Provider catalog 原值、现有中文/
+> ARIA/日期兼容及显式插值转换与渲染回归属于固定技术前置。已批准的时长方案 A 不自动授权本稿 i18n
+> 路线；既有 R2/SGEC 等确认不受本稿变更，未实施。设计见
+> [I18N_MIGRATION_DESIGN.md](./docs/I18N_MIGRATION_DESIGN.md)，状态见
+> [PROJECT_STATUS 的 I18N-DESIGN 小节](./docs/PROJECT_STATUS.md#i18n-design-正式-i18n-迁移设计final_ready)。
+> 主控 12 项现有应用回归门禁已完成，数字只集中在该状态小节；全仓最终 format、独立 Review、
+> commit/push 以主控回执为准，三项路线/范围决策仍待用户确认。
+
+> **GOAL-DESIGN 场景 goals 与 Task Completion 设计（历史子卡，2026-11-16，已 `APPROVED` 并发布
+> `3322bef719947342b3c5c805524a512aa45efb16`）：** goal 持久化 A/B/C、判定器、状态机与总体完成度
+> 仍待用户确认，未实施。设计见
 > [SCENARIO_GOALS_DESIGN.md](./docs/SCENARIO_GOALS_DESIGN.md)，状态与数字见
 > [PROJECT_STATUS 的 GOAL-DESIGN 小节](./docs/PROJECT_STATUS.md#goal-design-场景-goals-与-task-completion-设计final_ready)。
 
