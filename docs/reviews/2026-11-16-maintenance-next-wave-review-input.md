@@ -208,3 +208,15 @@ backend：
 - 真实 Provider/LiveKit/IdP/设备、迁移、部署。
 - SGECD 本包 fresh 仅三树，其余源码门禁引用同源 CI，不冒称全 17。
 - 真实 ZIP PR192 artifact 14197564029（trace2）与 main 14198137360（trace0）区分；GC 时序 error 后约 1ms 才发起结果请求。
+
+## P2 澄清（尾追加，原前缀保全）
+
+- 旧 10 行实测表各包 backend pytest 用例数均为 962（A19/A18/WGGC 同源；表内 pytest 列显示的是 warnings/coverage/time）。
+- A19 变异 `:485` 的目标 `RoomSessionOwnership.test.tsx:252` 断言是 `replacementStop.toHaveBeenCalled`
+  （替换后旧 Room 的 stop 被调用），不是统计 `roomRef.current = room` 赋值次数。
+
+## 本阶段指针（SGEC-OFF）
+
+- 2026-11-16 后续 SGEC 纯离线契约实施（SGEC-OFF）已完成、代码独立 APPROVED R1（未发布），见
+  [history](../history/2026-11-16-sgec-offline-implementation.md)；设计见
+  [SGEC_OFFLINE_DESIGN.md](../SGEC_OFFLINE_DESIGN.md)。

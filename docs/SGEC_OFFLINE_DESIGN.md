@@ -1,10 +1,13 @@
-# SGEC 旧离线产出复用设计（仅设计，待用户确认后实施）
+# SGEC 旧离线产出复用设计（已确认 A，纯离线候选已验收）
 
-> 状态：**设计待确认，不是已确认实现**。本文件只交可审阅设计，不拿旧分支 DEC-A/FINAL_READY 自述当当前许可；
-> 旧 DEC-A 人类确认未查得。实施需当前方案经用户确认后另开包。
-> 基线：main `9dbc7a8e210398d68c3562433b608ced76226bdd`（WGGC 最终 main）。所有源码/测试字节零改，本包只写 MD。
+> 状态：**用户已确认方案 A，纯离线候选已实施并经独立验收（代码 APPROVED R1，未发布）**。旧分支 DEC-A/FINAL_READY 自述不作为当前许可依据；真实确认来源为 2026-11-16 PR193 用户答复。
+> 本文件此前为待确认设计；本包已按确认进入实施并验收。
+> 基线：main `9dbc7a8e210398d68c3562433b608ced76226bdd`（WGGC 最终 main）。§2 契约冻结保留；本节只记录确认与实施状态。
 
 ## 1. 目标与边界
+
+> 注：本节与 §5 中「不写 `.py`/`.json`」「旧 4 源码待实施授权」「未来实施」等均为原设计阶段冻结时点表述；
+> 本包已按用户确认进入实施并验收（见 §6 与 [实施记录](./history/2026-11-16-sgec-offline-implementation.md)）。§2 契约逐字保留。
 
 复用冻结旧 commit `9a9d6c10519e46880a20f5cb7112f3cde5170933` 中 5 个纯离线候选，重审为「SGEC 严格离线结构校验与合成评测」
 的最小设计；**绝不整并旧分支 133 路径**，不写任何 `.py`/`.json`/测试/产品代码，不改 default 分析/API/BKT/learning events/依赖/DB，
@@ -78,14 +81,15 @@ exit code + summary`。
 
 ## 5. 验收边界与风险
 
-- 当前不是已确认实现；旧 FINAL_READY 计数不照搬。
+- 已确认 A、候选已验收（代码 APPROVED R1，未发布）；旧 FINAL_READY 计数不照搬。
 - 未来实施需 ≥5 项有效变异（unknown 回退 other、coerce 数字字符串、接受 bool、extra 元数据透传、单条坏值部分接受）
   被对应断言杀死 + 纯导入 fence（模块导入不触达 ORM/config/DB/env/network）+ 旧产出 fresh 测试/范围审查。
 - 结构接受/拒绝不证明 SGEC 教学质量、纠错正确性或真实模型准确率；真实 Provider、人工 gold、BKT/events 接线仍未验。
 
-## 6. 未确认项
+## 6. 确认与实施状态
 
-- 是否采用推荐 A（validator + CLI）或方案 B（仅契约/fixture，无 validator/CLI），需用户确认。
-- SGEC 真实 LLM Provider、人工 golden 评测集、BKT/learning events 接线均不在本设计范围，需另行裁定。
+- 方案 A（validator + CLI）已由用户确认（2026-11-16，PR193 答复）；纯离线候选（4 个离线文件）已实施并独立验收
+  （代码 APPROVED R1，未发布）。方案 B 仅作为已放弃备选保留在 §4。
+- SGEC 真实 LLM Provider、人工 golden 评测集、BKT/learning events 接线仍不在本设计范围，需另行裁定。
 
-本文件仅为设计；实施需当前方案经用户确认后另开包，不 commit / stage / push / merge。
+本文件已从设计进入实施：纯离线候选已实现并验收；真实 Provider/BKT 接线仍待另行裁定。
