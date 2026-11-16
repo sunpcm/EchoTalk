@@ -34,9 +34,10 @@ function ScenarioCard({
   onEnter: (scenario: CurriculumRecommendation) => void;
 }) {
   const cefrColor = cefrColorMap[scenario.difficulty_cefr] ?? "bg-surface-alt text-text-muted";
+  const goals = scenario.goal_binding?.goals ?? [];
 
   return (
-    <div className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-colors transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
+    <article className="border-border-default bg-surface flex flex-col rounded-[20px] border p-5 shadow-[0_6px_22px_-14px_var(--card-shadow)] transition-colors transition-shadow hover:shadow-[0_10px_26px_-12px_var(--card-shadow)]">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
         <h3 className="text-text-default leading-tight font-semibold">
@@ -64,6 +65,25 @@ function ScenarioCard({
             </span>
           ))}
         </div>
+        {goals.length > 0 ? (
+          <section aria-label={t.goalPreview} className="mt-4">
+            <p className="text-text-muted mb-1.5 text-xs">{t.goalPreview}</p>
+            <ul className="text-text-default space-y-1.5 text-sm leading-relaxed">
+              {goals.map((goal) => (
+                <li
+                  key={goal.goal_id}
+                  data-testid="recommendation-goal"
+                  className="flex gap-2 break-words"
+                >
+                  <span aria-hidden="true" className="text-text-faint shrink-0">
+                    •
+                  </span>
+                  <span className="min-w-0">{goal.description_zh}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
 
       {/* Enter button */}
@@ -103,7 +123,7 @@ function ScenarioCard({
           t.enterPractice
         )}
       </button>
-    </div>
+    </article>
   );
 }
 

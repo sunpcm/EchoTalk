@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { GoalResults } from "./GoalResults";
 import { PronunciationFeedback } from "./PronunciationFeedback";
 import { SkillTree } from "@/components/shared/SkillTree";
 import { usePollingAssessment } from "@/hooks/usePollingAssessment";
@@ -81,6 +82,7 @@ export function EndedConversation() {
             </div>
           </div>
         </div>
+        <GoalResults sessionId={sessionId} />
         <div className="flex gap-3">
           <button onClick={handleGoHome} className="btn-primary px-6 py-2.5">
             {tAgentErr.goHome}
@@ -95,6 +97,8 @@ export function EndedConversation() {
       <div className="text-center">
         <h2 className="text-text-default mb-2 text-2xl font-bold">{tConv.ended}</h2>
       </div>
+
+      <GoalResults sessionId={sessionId} />
 
       {(loadState === "pending" || loadState === "running") && <AnalyzingView state={loadState} />}
       {(loadState === "failed" || loadState === "error") && (

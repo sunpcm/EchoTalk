@@ -4,21 +4,21 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **G-EVAL 场景目标自动判定、持久化与导出（当前实施卡，2026-11-16，FINAL_READY）：** 唯一工作树为
-> /Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115，分支
-> codex/B1-learning-events-20261112，基于 G-WIRE 已发布的 HEAD
-> 2d6a916fcdfbd22cb8a9dee4f2f6c510b462a0b0。已实现 append-only goal run/results、completed
-> 同事务唯一 revision 1、completed 结束事务创建 run 时冻结精确学生 transcript IDs/顺序/digest、
-> 6 个目标四结果规则、
-> pending/running 执行进度分离、worker 公平调度/停止/恢复、owner-scoped 单 SELECT goals GET、
-> v3 完整同 RR 快照导出、v1/v2 兼容和整账号同事务删除。G-EVAL 未重跑成功 analysis，未新增产品
-> 开关、分数或阈值。
+> **G-VIEW 目标预览与结果展示（当前实施卡，2026-11-16，FINAL_READY）：** 唯一工作树为
+> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，当前基线 HEAD
+> `3889e294d2c8254b9c857e0f4251f57021a67e4b`。G-EVAL 已独立 Review `APPROVED` 并正常 commit/push
+> 到该提交；G-VIEW 在此基础上实现课程目标被动预览、严格 goals GET、auth/revision/session/lifecycle
+> 隔离、受控 pending/running 轮询、四终态和 `X / Y / Z + unknown / not_assessed` 展示。没有新增
+> 业务开关、分数、阈值、重判入口、百分比、后端、Fake、迁移或依赖。
 >
-> 四份文档已完成最终收口；12 项行为门禁最终全 0，原始失败和修正历史保留。最终完整 13 门禁、
-> Review、正常提交发布以主控同卡回执为准，用户 Review 待；本文件不自称
-> APPROVED。详细实现、完整数字、RED/变异、保护边界和 PG 保留状态集中在
-> [PROJECT_STATUS 的 G-EVAL 小节](./docs/PROJECT_STATUS.md#g-eval-场景目标自动判定持久化与导出final_ready)。
-> G-VIEW 尚未实施，场景 goals 父项和其他 RF/CP 复选框保持未勾。
+> 四份文档完成最终收口；当前四卡实现和合成验收已闭环，当前范围没有未实现功能。12 项行为门禁最终
+> 全 0，首轮 quality 2 项已由 R1 修正，原始 RED、类型边界和修正证据保留。最终完整 13 门禁、
+> Review、正常提交发布以主控同卡回执为准，用户 Review 待，本文件不自称
+> APPROVED。完整数字、保护边界、截图与私有补验集中在
+> [PROJECT_STATUS 的 G-VIEW 小节](./docs/PROJECT_STATUS.md#g-view-目标预览与结果展示final_ready)。
+> 场景 goals 父项保持未勾，只待用户 Review、人工 gold 与真实教学质量验收；其他 RF/CP/SGEC 父项
+> 不连带核销。
 >
 > **G-WIRE 首期课程目标与会话创建接线（历史实施卡，2026-11-16，已 APPROVED 并发布
 > 2d6a916fcdfbd22cb8a9dee4f2f6c510b462a0b0）：** 实现商务寒暄、酒店入住、餐厅点餐各 2 个
@@ -404,11 +404,10 @@
       质量）仍未验，保持未勾。合同见
       [SGEC_OFFLINE_CONTRACT](./docs/SGEC_OFFLINE_CONTRACT.md)。
 - [ ] 场景 goals[] + Task Completion（方案 D-1，#115）：业务合同已 APPROVED；GOAL-DATA
-      发布 353e0c9，G-CONTRACT 发布 882a1a9，G-WIRE 已 APPROVED 并发布 2d6a916。G-EVAL 已实现
-      append-only run/results、四结果规则、worker 生命周期、owner-scoped goals GET、v3 同 RR
-      导出和整账号删除，四文档达到 FINAL_READY；主控 12 项行为门禁全 0，最终完整 13 门禁、Review、
-      正常提交发布与用户 Review 待同卡回执。G-VIEW 四状态/汇总展示尚未实施，所以父项保持
-      未勾；完整数字只集中在 PROJECT_STATUS，逐卡验收见
+      发布 353e0c9，G-CONTRACT 发布 882a1a9，G-WIRE 发布 2d6a916，G-EVAL 已独立 APPROVED 并正常
+      commit/push 3889e294。G-VIEW 已实现课程目标预览、受控轮询、四状态、无百分比汇总和未配置/不可用
+      区分，当前四卡实现及合成验收已收口，当前范围没有未实现功能。父项保持未勾，只待用户 Review、
+      人工 gold 与真实教学质量验收；完整数字只集中在 PROJECT_STATUS，逐卡技术状态见
       [SCENARIO_GOALS_DESIGN.md §10](./docs/SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
