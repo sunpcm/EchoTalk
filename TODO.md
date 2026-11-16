@@ -65,7 +65,8 @@
 **被 Key 或外部条件阻断：**
 
 - [ ] 语法 LLM SGEC（方案 C-2）：可先在 Mock 下做结构化输出、`skill_tag` 校验与离线评测集；
-      真实 Provider 验收需 LLM Key，BKT 接线等 C-1。
+      真实 Provider 验收需 LLM Key，BKT 接线等 C-1。旧离线产出复用设计已交（待用户确认），见
+      [SGEC_OFFLINE_DESIGN.md](./docs/SGEC_OFFLINE_DESIGN.md)。
 - [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：先由用户裁定产品口径。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
@@ -81,6 +82,10 @@
       重复运行（≥20 次）全过，不靠放宽断言或增加重试。本轮 Harness 基线 76d9d6ba 原版
       无重试 80/80（C40/W40，retries0，55.1s），只满足定向重验，不替代历史因果；
       历史 5/1 与根因未知保留，未满足原完整验收，继续开放。WGGC 有界调查（2026-11-16）：父 macOS corrected60 中本用例两 case × C/W × repeat10 = 40（另含 neutral GC 20，合计 60）全绿、全量 E2E 258 全绿，近期无复现；根因仍未知，继续开放。
+- [ ] **E2E `page.evaluate` Promise GC 偶发（因果未知）**：READ2 PR182 首轮 Chromium `session-flow.spec.ts:109`
+      `shows a neutral saved notice...`（1 flaky）与 PR192 Chromium `a11y-focus-touch.spec.ts:80` 首次/retry1 两次
+      `Error: page.evaluate: Resulting promise was garbage collected`，两真实 trace 已留；本机 a11y repeat20 20/20
+      未复现，因果未知，不勾选修复。见 [PR192](https://github.com/sunpcm/EchoTalk/pull/192) 与本轮[复核材料](./docs/reviews/2026-11-16-maintenance-next-wave-review-input.md)（含 WGGC PR a11y trace 原行）。
 - [ ] **防止 bot 推送导致误合并**（2026-11-09 已加 `.github/workflows/pr-guard.yml`：删除 ≥1000 且 >5× 新增时失败，
       `allow-mass-deletion` label 放行；剩余：用户在仓库创建该 label 并把 `mass-deletion-guard` 设为 required check）：#118 合并前 google-labs-jules[bot] 在更新分支后推送
       删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
