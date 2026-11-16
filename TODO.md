@@ -4,14 +4,28 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **HHTTP-CLOSE 历史宿主 HTTP 待办核销（当前卡，2026-11-16，`FINAL_READY`）：** 只核销两条
-> 2026-11-04 TODO 记录。旧 internal-only 拓扑下宿主 `18800` 不可达的失败原文保留在新月档；对应
-> 动作后来由独立 host-gateway 合成拓扑完成，TODO 当时遗漏核销。该通过只绑定旧历史拓扑，不是当前
-> HEAD 重跑、原 Compose、真实外链或 RF/CP 父项通过。两条记录移入已完成归档后，原始未勾记录由
-> `58` 降到 `56`，这里的 `56` 是原始记录数，不是 56 张开发卡；其他父项不勾。主控本卡 12 项当前
-> 应用回归及机器 behavior 核验已完成，完整数字集中在状态小节；全仓最终 format、技术 Review、
-> 正常 commit/push 以主控回执为准。状态见
-> [PROJECT_STATUS 的 HHTTP-CLOSE 小节](./docs/PROJECT_STATUS.md#hhttp-close-历史宿主-http-待办核销final_ready)。
+> **GOAL-DATA goal A 持久化与合成 PG 数据层（当前卡，2026-11-16，`FINAL_READY`）：**
+> 用户只确认 goal A 的版本化 material 目录、`material_version`、会话目标快照、默认 v1/显式 v2
+> 导出和整账号删除配套数据合同，以及仅使用合成目标验证的持久化/privacy 范围。判定器、
+> `achieved / not_achieved / unknown / not_assessed` 四状态、总体完成度汇总、真实课程 goals 与
+> 教学内容、周报剩余指标及正式 i18n 均未获业务确认。当前实现限定为两张不可变表、严格目标
+> schema/目录解析、caller-owned 写原语、owner-scoped 读取、显式 v2 同 RR 只读导出与账号删除；
+> 当前创建会话 API 尚未绑定快照，历史会话没有快照，也没有回填、恢复 UI 或 10 条生产 goals。
+> 新 36 目标测试经主控最终核验全绿并完成冻结行为变异核验；正式返修仍为 `R1/2`，本卡不自称
+> `APPROVED`，完整门禁与保护边界集中记录在
+> [PROJECT_STATUS 的 GOAL-DATA 小节](./docs/PROJECT_STATUS.md#goal-data-goal-a-持久化与合成-pg-数据层final_ready)。
+> 合同与边界见 [SCENARIO_GOALS_DESIGN.md](./docs/SCENARIO_GOALS_DESIGN.md) §9。代码、测试、
+> 迁移、OpenAPI 生成物和前端生成类型均已停写；最终 Review/commit/push 以主控同卡回执为准，
+> 用户 Review 待；goals 父项及其他 RF/CP 复选框不连带勾选。
+
+> **HHTTP-CLOSE 历史宿主 HTTP 待办核销（历史卡，2026-11-16，已 `APPROVED` 并发布
+> `1d75250824e9b50173ac20f0faed928240e54208`）：** 只核销两条 2026-11-04 TODO 记录。旧
+> internal-only 拓扑下宿主 `18800` 不可达的失败原文保留在新月档；对应动作后来由独立
+> host-gateway 合成拓扑完成。该通过只绑定旧历史拓扑，不是当前 HEAD 重跑、原 Compose、真实外链
+> 或 RF/CP 父项通过。两条记录移入已完成归档后，原始未勾记录由 `58` 降到 `56`，这里的 `56`
+> 是原始记录数，不是开发卡数。完整机器结果、保护边界与 PG 清理只留在
+> [PROJECT_STATUS 的 HHTTP-CLOSE 历史小节](./docs/PROJECT_STATUS.md#hhttp-close-历史宿主-http-待办核销final_ready)，
+> 不冒充 GOAL-DATA 当前数字。
 
 > **I18N-DESIGN 正式 i18n 迁移设计（历史子卡，2026-11-16，已 `APPROVED` 并发布
 > `4c3bd1accfa06d66b2d21b560b5db69eb4a7920b`）：** 推荐 i18next/react-i18next 渐进迁移，FormatJS
@@ -25,8 +39,10 @@
 > 三项路线/范围决策仍待用户确认。
 
 > **GOAL-DESIGN 场景 goals 与 Task Completion 设计（历史子卡，2026-11-16，已 `APPROVED` 并发布
-> `3322bef719947342b3c5c805524a512aa45efb16`）：** goal 持久化 A/B/C、判定器、状态机与总体完成度
-> 仍待用户确认，未实施。设计见
+> `3322bef719947342b3c5c805524a512aa45efb16`）：** 其中“goal 持久化 A/B/C、判定器、状态机与
+> 总体完成度仍待用户确认、未实施”是历史卡时点口径。后续 GOAL-DATA 只确认了 goal A 的持久化数据
+> 合同、导出/删除隐私配套与合成 PG 范围；判定器、四状态、总体汇总及真实课程目标内容仍未确认。
+> 设计见
 > [SCENARIO_GOALS_DESIGN.md](./docs/SCENARIO_GOALS_DESIGN.md)，状态与数字见
 > [PROJECT_STATUS 的 GOAL-DESIGN 小节](./docs/PROJECT_STATUS.md#goal-design-场景-goals-与-task-completion-设计final_ready)。
 
@@ -356,7 +372,8 @@
       events、Provider 或自动重试。结构通过不称准确率；SGEC 总项（真实 Provider、人工 gold 与教学
       质量）仍未验，保持未勾。合同见
       [SGEC_OFFLINE_CONTRACT](./docs/SGEC_OFFLINE_CONTRACT.md)。
-- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：先由用户裁定产品口径。
+- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：goal A 的持久化/privacy
+      数据层已完成；判定器、四状态、总体汇总、真实课程目标内容及创建会话接线仍待后续确认。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。

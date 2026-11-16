@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, FiniteFloat
 
+from schemas.scenario_goals import GoalDefinition
 from schemas.time import UtcDatetime
 
 
@@ -159,3 +160,26 @@ class UserDataExport(BaseModel):
     grammar_assessments: list[GrammarAssessmentExport]
     learning_events: list[LearningEventExport]
     knowledge_states: list[KnowledgeStateExport]
+
+
+class SessionGoalExport(BaseModel):
+    """One session snapshot with its complete immutable goal definitions."""
+
+    session_id: uuid.UUID
+    material_id: str
+    material_version: int
+    goals: list[GoalDefinition]
+
+
+class UserDataExportV2(BaseModel):
+    """Explicit opt-in version-2 export with effective session goals."""
+
+    schema_version: Literal[2]
+    exported_at: UtcDatetime
+    sessions: list[SessionExport]
+    transcripts: list[TranscriptExport]
+    pronunciation_assessments: list[PronunciationAssessmentExport]
+    grammar_assessments: list[GrammarAssessmentExport]
+    learning_events: list[LearningEventExport]
+    knowledge_states: list[KnowledgeStateExport]
+    session_goals: list[SessionGoalExport]

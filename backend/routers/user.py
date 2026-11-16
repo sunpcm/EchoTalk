@@ -1,8 +1,9 @@
 """用户设置与本人数据导出路由。"""
 
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -20,7 +21,7 @@ from models.user import (
 )
 from schemas.user import UserSettingsResponse, UserSettingsUpdate
 from schemas.user_account_deletion import UserAccountDeletionResponse
-from schemas.user_data_export import UserDataExport
+from schemas.user_data_export import UserDataExport, UserDataExportV2
 from services.learning_event_cutover import lock_cutover_control_for_update
 from services.user_account_deletion import (
     delete_user_account as delete_user_account_data,
@@ -128,19 +129,30 @@ def _apply_settings_update(
     )
 
 
-@router.get("/user/data-export", response_model=UserDataExport)
+@router.get(
+    "/user/data-export",
+    response_model=UserDataExport | UserDataExportV2,
+)
 async def export_user_data(
     current_user: CurrentUser = Depends(get_current_user),
     session_factory: async_sessionmaker[AsyncSession] = Depends(
         get_user_data_export_session_factory
     ),
+    schema_version: Annotated[int, Query(ge=1, le=2)] = 1,
 ) -> Response:
     """Export the authenticated user's data as one complete JSON attachment."""
     try:
-        export = await build_user_data_export(
-            session_factory=session_factory,
-            user_id=current_user.id,
-        )
+        if schema_version == 1:
+            export = await build_user_data_export(
+                session_factory=session_factory,
+                user_id=current_user.id,
+            )
+        else:
+            export = await build_user_data_export(
+                session_factory=session_factory,
+                user_id=current_user.id,
+                include_session_goals=True,
+            )
         payload = serialize_user_data_export(export)
     except Exception as exc:
         logger.error(

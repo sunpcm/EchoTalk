@@ -864,6 +864,24 @@ export interface components {
       pronunciation: number | null;
     };
     /**
+     * GoalDefinition
+     * @description One fully described goal in an immutable material version.
+     */
+    GoalDefinition: {
+      /** Criteria */
+      criteria: string[];
+      /** Description En */
+      description_en: string;
+      /** Description Zh */
+      description_zh: string;
+      /** Evidence Types */
+      evidence_types: string[];
+      /** Goal Id */
+      goal_id: string;
+      /** Goal Version */
+      goal_version: number;
+    };
+    /**
      * GrammarAssessmentExport
      * @description Grammar error and correction fields for the authenticated user.
      */
@@ -1155,6 +1173,23 @@ export interface components {
       status: string;
     };
     /**
+     * SessionGoalExport
+     * @description One session snapshot with its complete immutable goal definitions.
+     */
+    SessionGoalExport: {
+      /** Goals */
+      goals: components["schemas"]["GoalDefinition"][];
+      /** Material Id */
+      material_id: string;
+      /** Material Version */
+      material_version: number;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+    };
+    /**
      * SessionListItem
      * @description 会话列表项（不含转录记录）。
      */
@@ -1334,6 +1369,36 @@ export interface components {
        * @constant
        */
       schema_version: 1;
+      /** Sessions */
+      sessions: components["schemas"]["SessionExport"][];
+      /** Transcripts */
+      transcripts: components["schemas"]["TranscriptExport"][];
+    };
+    /**
+     * UserDataExportV2
+     * @description Explicit opt-in version-2 export with effective session goals.
+     */
+    UserDataExportV2: {
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Grammar Assessments */
+      grammar_assessments: components["schemas"]["GrammarAssessmentExport"][];
+      /** Knowledge States */
+      knowledge_states: components["schemas"]["KnowledgeStateExport"][];
+      /** Learning Events */
+      learning_events: components["schemas"]["LearningEventExport"][];
+      /** Pronunciation Assessments */
+      pronunciation_assessments: components["schemas"]["PronunciationAssessmentExport"][];
+      /**
+       * Schema Version
+       * @constant
+       */
+      schema_version: 2;
+      /** Session Goals */
+      session_goals: components["schemas"]["SessionGoalExport"][];
       /** Sessions */
       sessions: components["schemas"]["SessionExport"][];
       /** Transcripts */
@@ -2392,7 +2457,9 @@ export interface operations {
   };
   export_user_data_api_user_data_export_get: {
     parameters: {
-      query?: never;
+      query?: {
+        schema_version?: number;
+      };
       header?: {
         authorization?: string | null;
       };
@@ -2407,7 +2474,9 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["UserDataExport"];
+          "application/json":
+            | components["schemas"]["UserDataExport"]
+            | components["schemas"]["UserDataExportV2"];
         };
       };
       /** @description Validation Error */

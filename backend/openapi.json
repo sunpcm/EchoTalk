@@ -635,6 +635,60 @@
         "title": "EventUnmappedCounts",
         "type": "object"
       },
+      "GoalDefinition": {
+        "additionalProperties": false,
+        "description": "One fully described goal in an immutable material version.",
+        "properties": {
+          "criteria": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Criteria",
+            "type": "array"
+          },
+          "description_en": {
+            "minLength": 1,
+            "title": "Description En",
+            "type": "string"
+          },
+          "description_zh": {
+            "minLength": 1,
+            "title": "Description Zh",
+            "type": "string"
+          },
+          "evidence_types": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Types",
+            "type": "array"
+          },
+          "goal_id": {
+            "pattern": "^mat_[a-z0-9_-]+:[a-z][a-z0-9_-]*$",
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "goal_version": {
+            "exclusiveMinimum": 0.0,
+            "title": "Goal Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "goal_id",
+          "goal_version",
+          "description_en",
+          "description_zh",
+          "criteria",
+          "evidence_types"
+        ],
+        "title": "GoalDefinition",
+        "type": "object"
+      },
       "GrammarAssessmentExport": {
         "description": "Grammar error and correction fields for the authenticated user.",
         "properties": {
@@ -1443,6 +1497,39 @@
         "title": "SessionExport",
         "type": "object"
       },
+      "SessionGoalExport": {
+        "description": "One session snapshot with its complete immutable goal definitions.",
+        "properties": {
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/GoalDefinition"
+            },
+            "title": "Goals",
+            "type": "array"
+          },
+          "material_id": {
+            "title": "Material Id",
+            "type": "string"
+          },
+          "material_version": {
+            "title": "Material Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "material_id",
+          "material_version",
+          "goals"
+        ],
+        "title": "SessionGoalExport",
+        "type": "object"
+      },
       "SessionListItem": {
         "description": "会话列表项（不含转录记录）。",
         "properties": {
@@ -1824,6 +1911,83 @@
           "knowledge_states"
         ],
         "title": "UserDataExport",
+        "type": "object"
+      },
+      "UserDataExportV2": {
+        "description": "Explicit opt-in version-2 export with effective session goals.",
+        "properties": {
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "grammar_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/GrammarAssessmentExport"
+            },
+            "title": "Grammar Assessments",
+            "type": "array"
+          },
+          "knowledge_states": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeStateExport"
+            },
+            "title": "Knowledge States",
+            "type": "array"
+          },
+          "learning_events": {
+            "items": {
+              "$ref": "#/components/schemas/LearningEventExport"
+            },
+            "title": "Learning Events",
+            "type": "array"
+          },
+          "pronunciation_assessments": {
+            "items": {
+              "$ref": "#/components/schemas/PronunciationAssessmentExport"
+            },
+            "title": "Pronunciation Assessments",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 2,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session_goals": {
+            "items": {
+              "$ref": "#/components/schemas/SessionGoalExport"
+            },
+            "title": "Session Goals",
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionExport"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptExport"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "sessions",
+          "transcripts",
+          "pronunciation_assessments",
+          "grammar_assessments",
+          "learning_events",
+          "knowledge_states",
+          "session_goals"
+        ],
+        "title": "UserDataExportV2",
         "type": "object"
       },
       "UserSettingsResponse": {
@@ -3971,6 +4135,18 @@
         "operationId": "export_user_data_api_user_data_export_get",
         "parameters": [
           {
+            "in": "query",
+            "name": "schema_version",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 2,
+              "minimum": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -3992,7 +4168,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserDataExport"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UserDataExport"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UserDataExportV2"
+                    }
+                  ],
+                  "title": "Response Export User Data Api User Data Export Get"
                 }
               }
             },

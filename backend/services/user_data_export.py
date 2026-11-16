@@ -3,7 +3,8 @@
 import uuid
 from typing import Any, Sequence
 
-from sqlalchemy import select, text
+from pydantic import ValidationError
+from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from database import async_session_maker
@@ -11,7 +12,9 @@ from models.analysis import AnalysisJob
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
 from models.learning_event import LearningEvent
+from models.scenario_goals import GoalCatalogVersion, SessionGoalSnapshot
 from models.session import Session, Transcript
+from schemas.scenario_goals import GoalDefinition
 from schemas.user_data_export import (
     BktAlgorithmParams,
     CoverageDirection,
@@ -24,8 +27,10 @@ from schemas.user_data_export import (
     PhonemeAlignmentExport,
     PronunciationAssessmentExport,
     SessionExport,
+    SessionGoalExport,
     TranscriptExport,
     UserDataExport,
+    UserDataExportV2,
 )
 from time_utils import utc_now
 
@@ -41,7 +46,9 @@ def get_user_data_export_session_factory() -> SessionFactory:
     return async_session_maker
 
 
-def serialize_user_data_export(export: UserDataExport) -> str:
+def serialize_user_data_export(
+    export: UserDataExport | UserDataExportV2,
+) -> str:
     """Serialize only after the complete model has been constructed."""
     return export.model_dump_json()
 
@@ -50,6 +57,33 @@ def _require_mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise UserDataExportIntegrityError("Expected JSON object")
     return value
+
+
+def _project_goal_definitions(
+    value: Any,
+    *,
+    material_id: str,
+) -> list[GoalDefinition]:
+    if not isinstance(value, list) or not value:
+        raise UserDataExportIntegrityError("Expected non-empty goal definition list")
+
+    projected: list[GoalDefinition] = []
+    seen_goal_ids: set[str] = set()
+    expected_prefix = f"{material_id}:"
+    for index, raw_goal in enumerate(value):
+        try:
+            goal = GoalDefinition.model_validate(raw_goal)
+        except ValidationError as exc:
+            raise UserDataExportIntegrityError(
+                f"Invalid goal definition at index {index}"
+            ) from exc
+        if not goal.goal_id.startswith(expected_prefix):
+            raise UserDataExportIntegrityError("Goal material prefix mismatch")
+        if goal.goal_id in seen_goal_ids:
+            raise UserDataExportIntegrityError("Duplicate exported goal id")
+        seen_goal_ids.add(goal.goal_id)
+        projected.append(goal)
+    return projected
 
 
 def _project_phoneme_alignment(value: Any) -> list[PhonemeAlignmentExport]:
@@ -227,7 +261,8 @@ async def build_user_data_export(
     *,
     session_factory: SessionFactory,
     user_id: uuid.UUID,
-) -> UserDataExport:
+    include_session_goals: bool = False,
+) -> UserDataExport | UserDataExportV2:
     """Read all export sections from one repeatable-read, read-only snapshot."""
     async with session_factory() as db:
         await db.execute(
@@ -360,6 +395,34 @@ async def build_user_data_export(
             )
         ).all()
 
+        session_goal_rows: Sequence[Any] = ()
+        if include_session_goals:
+            session_goal_rows = (
+                await db.execute(
+                    select(
+                        SessionGoalSnapshot.session_id,
+                        SessionGoalSnapshot.material_id,
+                        SessionGoalSnapshot.material_version,
+                        GoalCatalogVersion.goals,
+                    )
+                    .join(
+                        Session,
+                        Session.id == SessionGoalSnapshot.session_id,
+                    )
+                    .join(
+                        GoalCatalogVersion,
+                        and_(
+                            GoalCatalogVersion.material_id
+                            == SessionGoalSnapshot.material_id,
+                            GoalCatalogVersion.material_version
+                            == SessionGoalSnapshot.material_version,
+                        ),
+                    )
+                    .where(Session.user_id == user_id)
+                    .order_by(Session.started_at, SessionGoalSnapshot.session_id)
+                )
+            ).all()
+
         await _validate_relationships(
             db,
             event_rows=event_rows,
@@ -367,10 +430,8 @@ async def build_user_data_export(
             owned_session_ids=owned_session_ids,
         )
 
-        return UserDataExport(
-            schema_version=1,
-            exported_at=utc_now(),
-            sessions=[
+        export_sections = {
+            "sessions": [
                 SessionExport(
                     id=row.id,
                     mode=row.mode.value,
@@ -380,7 +441,7 @@ async def build_user_data_export(
                 )
                 for row in session_rows
             ],
-            transcripts=[
+            "transcripts": [
                 TranscriptExport(
                     id=row.id,
                     session_id=row.session_id,
@@ -391,7 +452,7 @@ async def build_user_data_export(
                 )
                 for row in transcript_rows
             ],
-            pronunciation_assessments=[
+            "pronunciation_assessments": [
                 PronunciationAssessmentExport(
                     id=row.id,
                     session_id=row.session_id,
@@ -406,7 +467,7 @@ async def build_user_data_export(
                 )
                 for row in pronunciation_rows
             ],
-            grammar_assessments=[
+            "grammar_assessments": [
                 GrammarAssessmentExport(
                     id=row.id,
                     session_id=row.session_id,
@@ -423,7 +484,7 @@ async def build_user_data_export(
                 )
                 for row in grammar_rows
             ],
-            learning_events=[
+            "learning_events": [
                 LearningEventExport(
                     apply_seq=row.apply_seq,
                     event_type=row.event_type,
@@ -450,7 +511,7 @@ async def build_user_data_export(
                 )
                 for row in event_rows
             ],
-            knowledge_states=[
+            "knowledge_states": [
                 KnowledgeStateExport(
                     skill_id=row.skill_id,
                     p_mastery=row.p_mastery,
@@ -458,4 +519,28 @@ async def build_user_data_export(
                 )
                 for row in knowledge_rows
             ],
+        }
+        exported_at = utc_now()
+        if include_session_goals:
+            return UserDataExportV2(
+                schema_version=2,
+                exported_at=exported_at,
+                session_goals=[
+                    SessionGoalExport(
+                        session_id=row.session_id,
+                        material_id=row.material_id,
+                        material_version=row.material_version,
+                        goals=_project_goal_definitions(
+                            row.goals,
+                            material_id=row.material_id,
+                        ),
+                    )
+                    for row in session_goal_rows
+                ],
+                **export_sections,
+            )
+        return UserDataExport(
+            schema_version=1,
+            exported_at=exported_at,
+            **export_sections,
         )

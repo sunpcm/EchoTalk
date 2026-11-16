@@ -10,6 +10,7 @@ from .exercise import GrammarError, PronunciationAssessment
 from .knowledge import KnowledgeState, Skill
 from .learning_event import LearningEvent
 from .learning_event_cutover import LearningEventCutover
+from .scenario_goals import GoalCatalogVersion, SessionGoalSnapshot
 from .session import Session, SessionContext, Transcript
 from .user import (
     LLMProvider,
@@ -39,6 +40,8 @@ __all__ = [
     "KnowledgeState",
     "LearningEvent",
     "LearningEventCutover",
+    "GoalCatalogVersion",
+    "SessionGoalSnapshot",
     "PronunciationAssessment",
     "GrammarError",
 ]

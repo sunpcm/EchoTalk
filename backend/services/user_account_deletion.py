@@ -10,6 +10,7 @@ from models.call_lease import CallLease
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState
 from models.learning_event import LearningEvent
+from models.scenario_goals import SessionGoalSnapshot
 from models.session import Session, SessionContext, Transcript
 from models.user import User, UserProfile, UserSettings
 from services.learning_event_cutover import (
@@ -291,6 +292,11 @@ async def delete_user_account(
         )
         await db.execute(
             delete(SessionContext).where(SessionContext.session_id.in_(session_ids))
+        )
+        await db.execute(
+            delete(SessionGoalSnapshot).where(
+                SessionGoalSnapshot.session_id.in_(session_ids)
+            )
         )
         await db.execute(
             delete(AnalysisJob).where(AnalysisJob.session_id.in_(session_ids))
