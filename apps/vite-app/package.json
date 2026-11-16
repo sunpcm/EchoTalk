@@ -24,6 +24,7 @@
     "test:api-types": "node --test scripts/api-types-test.mjs",
     "test:build": "node --test scripts/build-isolation-test.mjs scripts/macos-build-test.mjs",
     "test:fake-api": "node --test scripts/fake-api-test.mjs",
+    "test:weekly-duration-local": "cross-env ECHOTALK_WDI_LOCAL_PG=1 playwright test --config=integration/weekly-duration/weekly-duration.local.config.ts",
     "test:e2e": "playwright test"
   },
   "keywords": [],

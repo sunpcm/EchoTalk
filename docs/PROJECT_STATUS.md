@@ -1,6 +1,19 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **TDOC 剩余待办与项目状态核对（`FINAL_READY`）**：
+> 最后核对：2026-11-16。当前卡片为 **WDI 周报时长真实本地组合补验（`FINAL_READY`）**：
+> 唯一工作树为
+> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，冻结 HEAD
+> `ad4f61e70fe471cb7ef3c8e5351fb2d0aa177410`，开工 clean。本卡只新增显式本地测试入口、
+> Chromium/WebKit 组合用例及隔离 harness/说明，补浏览器 → 真实 HTTP → 本地 FastAPI/main lifespan/
+> dev 认证/生产 `get_db` → 真实 SQLAlchemy/asyncpg → 自有 PostgreSQL → 现有 parser/controller/UI
+> 的组合缺口。产品、既有测试、默认 Playwright/Vite 配置、旧 bridge、迁移与依赖锁不改；默认 278
+> 例 E2E 不扩写。WDI 本机合成链路子范围已完成，完整机器数字、失败历史、变异、guard 与资源
+> 状态集中记录在下方 [WDI 小节](#wdi-周报时长真实本地组合补验final_ready)；CP-06 父项及真实
+> 外部条件不因本子项完成而勾选。详细边界见下方 WDI 小节与
+> [CP-06 周报时长验证说明](./verification/cross-platform/CP-06-WEEKLY-DURATION-LOCAL.md)。
+>
+> TDOC 文档卡现作为最近历史快照保留，其结论为 **TDOC 剩余待办与项目状态核对（`FINAL_READY`）**：
 > 唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，本次核对业务基线（原开工 HEAD）
@@ -80,6 +93,89 @@
 | 数字人         | 只有待办                                                                                      | **未实现**                                                              |
 
 ## 当前验证基线
+
+### WDI 周报时长真实本地组合补验（`FINAL_READY`）
+
+- **范围与写集**：冻结基线与工作树见文首。允许写集为
+  `apps/vite-app/integration/weekly-duration/` 的 5 个新文件、`apps/vite-app/package.json` 的
+  `test:weekly-duration-local` 入口、新 CP-06 验证说明、[`TODO.md`](../TODO.md)、本文件与
+  [`docs/history/2026-11.md`](./history/2026-11.md)。产品业务、既有测试、旧 bridge、默认
+  Playwright/Vite 配置、迁移、锁与真实 runtime 均只读。目标是补齐当前缺失的浏览器到自有 PG 的
+  真实组合，不重复大量已有单元、ASGI、Fake HTTP 或布局兼容用例。
+- **真实拓扑**：Chromium/WebKit 各 2 例；API 只监听 `127.0.0.1:18183`，前端仅 HTTPS
+  `127.0.0.1:4175`，遇到占用即失败，不杀、不复用。Playwright 使用真实默认产品入口、真实
+  `main.app`/lifespan、生产 `get_db` 与 dev 认证、真实 SQLAlchemy/asyncpg；无
+  `dependency_overrides`、ASGITransport、stdio、Fake HTTP、`route.fulfill` 或正常响应重写。
+  WebKit 复用仓库既有 launcher。专用 Vite config 显式 `envDir:false`，不导入旧
+  `vite.config.ts`/`loadEnv`，保留 HTTPS、React plugin、`@` alias 与 `/api` proxy。
+- **显式入口**：从仓库根目录执行
+  `pnpm --filter vite-app test:weekly-duration-local --retries=0 --workers=1`。运行前须自建专用
+  PostgreSQL、完成迁移并注入仅指向 `127.0.0.1:55433`、`echotalk_b1_test` 数据库/用户的合成
+  `DATABASE_URL`；package script 固定设置 `ECHOTALK_WDI_LOCAL_PG=1`。该入口管理真实 API/Vite 与
+  fixture 生命周期，不负责起停 PG。
+- **进程与网络隔离**：主控进程外注入 `DATABASE_URL`，只接受 `127.0.0.1:55433`、
+  `echotalk_b1_test` 数据库与用户；包裹命令固定 `ECHOTALK_WDI_LOCAL_PG=1`。API 子进程只允许该
+  PG 出站，非 PG TCP/DNS/`sendto` 硬拒；Python `.env*` 打开读取与 Vite 实际 dotenv 读取硬拒。
+  测试 API 外层最小 ASGI envelope 将产品 lifespan 原样透传，只允许与浏览器白名单一致的必要
+  Dashboard GET 和 health/ready；非 GET 在进入产品路由前返回 `405`，未知 GET 返回 `403`，
+  WebSocket 直接关闭。产品 app、路由、认证与依赖覆盖不变，服务端拒绝不依赖 page route。
+- **合成 fixture**：默认 dev 身份为 `urn:echotalk:dev` / `local-developer`，优先复用预检创建的
+  用户；缺失时才用固定 ID 初始化并记录 ownership。另有固定他人用户；全部 10 条 session 使用
+  marker `wdi-local-weekly-duration-20261116`。七天 completed 为
+  `3/1/1/0/2/1/0`，对应时长 `999ms/61,500ms/0/0/0/3,600,000ms/0`，不可计算计数
+  `0/0/0/0/2/0/0`。1–3 号分别 333666µs，逐条 floor 后合计 `999ms`，而错误地汇总后 floor 为
+  `1000ms`；4 号为 61.5 秒；5 号合法零；6–7 号为 missing/negative end；8 号为整小时；9 号为
+  当前用户 active；10 号为他人 completed。独立 oracle 冻结周总 `3,662,499ms`，UI 显示
+  “1小时1分2秒”、不可计算 `2`。
+- **组合断言**：主场景按真实 weekly request/response 校验 `end_date/timezone/include=true`、
+  七桶六字段、逐条 floor、合法零、11-01 选中日两条均不可计算、首个 50 条查询窗口与用户/状态
+  排除；正数日点击只按
+  `/api/sessions` 路径捕获本次 request，再由同一 `Request.response()` 校验 query/status/IDs，并
+  异步核对 DOM listitem IDs。零日按产品原语义检查 UI 空态，另用同源真实 Bearer GET 独立验证
+  该历史窗口为空；不伪造未发生的浏览器请求。兼容场景用同源真实 HTTP 校验省略/false 四字段和无
+  Bearer `401`。每例最终断言 `capture.blocked=[]`、`pageErrors=[]`、无业务写和禁用动态 GET。
+- **最终机器门禁**：前端七项加后端五项共 12 项最终 `exit 0`。Vitest 为
+  `1309 passed / 60 files / 0 skip`；默认 E2E 为 `278 = Chromium 139 + WebKit 139`，每例一个
+  passed result、retry 0，skip/flaky/unexpected 均为 0；backend 为
+  `1055 passed / 3 warnings / 0 skip`，
+  raw coverage 为 `81.90095185542833%`。完整 backend 套件含既有单元、mock 与 PostgreSQL 测试，
+  不把 1055 全部描述为无 mock 的整链路。Fake API `117`、build `47`、API 类型 runner `8`、iOS
+  仅 Node runner `37` 均 `exit 0`；lint 为基线 `132 warnings / 0 errors / 0 new`，按
+  file/message/rule 多重集与基线完全相同。新增真实 HTTP+PG 组合另计 `4 = Chromium 2 + WebKit 2`，
+  最终 `exit 0`，不与默认 278 例 E2E 混算。
+- **负对照与快速重启**：两项语义变异各为 `1 selected / 1` 个具体 assertion failure，子进程状态
+  `1`，组合 driver `exit 0`；Python/Node 隔离 guard 为 `exit 0`，真实 `POST/PUT` `405`、
+  unsafe GET `403`、原始无认证 `401` 负对照 driver `exit 0`。同一端口快速连续启动成功；保留
+  存活 listener 的连接/accept 哨兵仍拒绝且未受影响。`SO_REUSEADDR=1` 只解决已停止自有服务的
+  `TIME_WAIT`，未启用 `SO_REUSEPORT`，不绕过仍存活的占用者。
+- **格式核验**：spec 与 runner 两文件仅经现有 Prettier `--write`；主控已对 before/after 做完整
+  AST 与 raw 模板字面量等价核验，断言、向量与产品行为未改。
+- **资源生命周期**：固定端口先排他探测；只管理本进程启动的 API/前端 PID 与 marker/fixture state。
+  正常和启动失败均先收束自有子进程，再按 state 精确清理本卡会话、自有他人用户及本卡新建
+  settings/profile；即使 seed 结果不明确，只要 state 或进程存在仍尝试回收。cleanup 失败不删除
+  临时根，保留 state 路径并非零报告；不终止占端口者、不复用端口。预检 dev 用户不由本卡无条件
+  删除。实测仅 API/Vite 自有进程/监听资源与 WDI marker rows 已回收；本批专用合成 PG 仍为后续
+  三张设计卡的后端验证独占保留。
+- **失败与返修历史**：R0 四例先因 direct Node 绕过标准 bin shim、已缓存 PostCSS 插件解析失败
+  而在 CSS 初始化阶段失败，不是产品 RED。runner 改为执行现有 `node_modules/.bin/vite` shim，
+  dotenv preload 与自有 PID 生命周期保持，未安装依赖或修改 PostCSS/样式。R1 两例通过，另两例仅
+  因历史 window 常量使用 `.000Z`、真实 controller query 使用同瞬间的 `Z` 而失败，属于测试 oracle
+  写法；第 3 轮在 helper 中先验证带时区 RFC3339，再以 `toISOString()` 与独立窗口常量比较。
+  正式 harness 返修最终 `2/2`，产品业务返修 `0/2`。主控已修正 Ruff 的 backend cwd 接线，不把
+  repo cwd 的 I001 误记为源码问题。
+- **R2 快速重启缺陷**：真实连续周期暴露手工预绑定 socket 未设 `SO_REUSEADDR`。主控用同一端口
+  控制复现无 reuse 失败 `errno 48`→启用 reuse 成功→移除后再次 `errno 48`；修复只在 bind 前启用
+  `SO_REUSEADDR`，绝不启用 `SO_REUSEPORT`。存活 listener 的连接/accept 哨兵继续被真实 bind
+  拒绝。历史首个私有 API stderr 未保留，不能声称当时直接采到 errno；现有结论只与已复现机制一致。
+- **证据保留**：R0 trace 未单独复制，后续 output 清理后仅保留原日志/JSON/RCA；R1 及之后各轮 trace
+  分别保存在独立 output 目录。导入、连接或缺失配置失败不算有效业务 RED，skip 不算通过。
+- **完成边界**：WDI 只完成本机浏览器→真实 HTTP→FastAPI→SQLAlchemy/asyncpg→自有合成 PG→现有
+  UI 的子范围。没有新增大于 50 条的真实 PG 分页场景，不宣称本卡验证 50+5 分页；既有
+  controller/backend/Fake API 覆盖继续承担分页。CP-06 父项、Linux CI、真实 IdP/LiveKit、设备、
+  生产部署、真实数据与完整周报父项继续未验收且不勾；后续三份设计分别为周报剩余指标、goals/Task
+  Completion 与正式 i18n，仍待逐卡写回和用户决策。
+- **终态与交接**：代码、测试和四份文档均已停写。全仓最终 format、独立 Review、正常 commit 与
+  当前分支 push 以主控同卡回执为准；本小节不预告这些回执，也不与新开 PR、merge、deploy 混同。
 
 ### TDOC 剩余待办与项目状态核对（`FINAL_READY`）
 

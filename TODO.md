@@ -4,7 +4,36 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **TDOC 剩余待办与项目状态核对（当前文档卡，2026-11-16，FINAL_READY）：** 唯一工作树为
+> **WDI 周报时长真实本地组合补验（当前卡，2026-11-16，`FINAL_READY`）：** 唯一工作树为
+> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，冻结 HEAD 为
+> `ad4f61e70fe471cb7ef3c8e5351fb2d0aa177410`，开工 clean。本卡只补齐浏览器 → 真实 HTTP →
+> 本地 FastAPI/main lifespan/dev 认证/生产 `get_db` → 真实 SQLAlchemy/asyncpg → 自有 PostgreSQL →
+> 现有 parser/controller/UI 的当前组合缺口，产品业务、既有测试、默认 Playwright/Vite 配置、旧
+> bridge、迁移与依赖锁未改。本机合成链路子范围已完成，完整机器计数、保护边界、变异与资源回执
+> 只集中在
+> [PROJECT_STATUS 的 WDI 小节](./docs/PROJECT_STATUS.md#wdi-周报时长真实本地组合补验final_ready)；
+> 验证边界见
+> [CP-06 周报时长验证说明](./docs/verification/cross-platform/CP-06-WEEKLY-DURATION-LOCAL.md)。
+>
+> 从仓库根目录的显式入口为
+> `pnpm --filter vite-app test:weekly-duration-local --retries=0 --workers=1`。运行前须自建专用
+> PostgreSQL、完成迁移并注入仅指向 `127.0.0.1:55433`、`echotalk_b1_test` 数据库/用户的合成
+> `DATABASE_URL`；该入口负责真实 API/Vite 与 fixture 生命周期，不负责起停 PG。正式 harness 返修
+> `2/2`，产品业务返修 `0/2`，测试 oracle 修正为第 3 轮。R0 的四例 CSS 初始化失败属于测试启动
+> 基础设施问题；R1 两例通过、两例仅为时间字符串 oracle 写法；R2 已实证同端口
+> `TIME_WAIT` 的 `errno 48`→启用 `SO_REUSEADDR` 成功→移除后再次 `errno 48`，存活监听者仍被
+> 真实 `bind` 拒绝。首轮私有 API stderr 未保留，不声称当时直接采到 errno；R0 trace 未单独复制且
+> 后续 output 清理后仅保留原日志/JSON/RCA，R1 及之后各轮 trace 分别保存在独立 output 目录。
+>
+> 默认 E2E 与新增真实 HTTP+PG 组合分别计账，不混算；完整后端套件也不因含 PG 用例就宣称全树
+> 无 mock。仅 API/Vite 自有 PID、监听资源及 WDI marker fixture rows 已回收；本批合成 PG 仍由
+> 后续三张设计卡的后端验证独占保留。WDI 完成只关闭本机合成链路子项，CP-06 父项、Linux CI、
+> 真实 IdP/LiveKit、设备、生产、真实学习质量与完整周报父项均不勾；后续三份设计分别为周报剩余
+> 指标、goals/Task Completion 与正式 i18n，仍待逐卡写回和用户决策。代码/测试已停写；全仓最终
+> format、独立 Review、正常 commit 与当前分支 push 以主控同卡回执为准。
+
+> **TDOC 剩余待办与项目状态核对（历史文档卡，2026-11-16，FINAL_READY）：** 唯一工作树为
 > `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
 > `codex/B1-learning-events-20261112`，本次核对业务基线（原开工 HEAD）
 > `3134a0ccb47d5c75e570117d2eb534cd265f712e`，开工 clean。本卡只核对并写回 `TODO.md` 与
@@ -719,8 +748,19 @@ CP02I 本地组合补验（真实 controller + api.ts + stdio 桥 + ASGI + 真�
 
 ### CP-06：自动化与真实链路回归
 
-- [ ] 取得当前增量树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 旧 8 项门禁及其具名计数保留在 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；PR #117 及对应 main 运行此前已绿，本批 PR #119 frontend 与组合门禁仍待收口，真实链路未验。
-- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。macOS 探针 CI 已随 PR #117 合并；B r1 已修复 Node runner 误收集并通过主控本地四项检查，PR #119 为验证 draft，原生 iOS 仍待真实 CI。
+- [ ] 取得当前增量树 Linux CI 双浏览器与完整真实链路回归证据；验收：Chromium/WebKit 均覆盖登录边界、会话恢复和分析状态，Mock 测试与真实 Provider 验收分别报告。A64 旧 8 项门禁及其具名计数属于原卡历史回执，保留在 [CI 质量门禁验证](./docs/verification/cross-platform/CP-06-CI-QUALITY-GATES.md)；PR #117 及对应 main 运行“已绿”、PR #119 frontend 与组合门禁“待收口”也均为各自原历史时点结论，不代表今日状态。当前增量树 Linux 双浏览器与真实链路仍须另行取证，不能用上述旧回执替代；真实链路未验。
+
+> **WDI 子项（`FINAL_READY`，本机合成链路完成）：** 新增显式
+> `test:weekly-duration-local` 入口和专用 Chromium/WebKit 组合用例，补验现有
+> Dashboard/WeeklyProgress、parser/controller/UI 经真实 HTTP、FastAPI/main、生产 `get_db`、dev
+> 认证、SQLAlchemy/asyncpg 与自有 PostgreSQL 的当前组合路径。真实 HTTP/PG、两项业务变异、
+> `POST/PUT` 与 unsafe GET 服务端负对照、guard/快速重启和两文件格式等价均已通过；完整数字只见
+> [PROJECT_STATUS 的 WDI 小节](./docs/PROJECT_STATUS.md#wdi-周报时长真实本地组合补验final_ready)。
+> 仅自有 API/Vite 资源和 marker rows 已回收，合成 PG 为后续三张设计卡继续独占保留。该子项只关闭
+> 本机合成链路，CP-06 父项、Linux CI、真实 IdP/LiveKit、设备、生产、50+5 分页与真实学习质量
+> 继续未验，不勾父项。
+
+- [ ] 接入 macOS runner 的 iOS 构建和所选 macOS 方案构建；验收：普通 PR 可无发布密钥验证编译，签名仅在受控发布任务使用。macOS 探针 CI 已随 PR #117 合并、B r1 已修复 Node runner 误收集并通过主控本地四项检查、PR #119 为验证 draft，均为原历史时点回执，不代表今日状态。当前增量树原生 CI 仍须另行取证，不能用旧回执替代；原生 iOS 仍待真实 CI。
 - [ ] 完成三端真实链路矩阵；验收：真实 IdP → 创建 → LiveKit/Agent 双向语音 → 结束 → 分析 → 报告，并验证拒绝权限、弱网、中断、重启、双端冲突和账号切换。
 - [ ] 补充按版本/平台关联的诊断信息；验收：可定位 API、LiveKit、Agent 错误，不采集 Token、密钥或默认上传文档/对话正文。本地一期已通过独立评审，完成控制台结构化脱敏诊断（严格白名单 record、8项冻结事件、版本与平台自动关联、status/agent_code白名单过滤、控制台敏感parsed/canary彻底消除，见 [本地安全诊断一期验证](./docs/verification/cross-platform/CP-06-SAFE-DIAGNOSTICS.md)）。A76 已 Review APPROVED、以单提交 `f8b9dad3e2af2062d9dbbf59943cc2a7fc72aa7a` 精确 fast-forward 本地 main，并完成 main 完整门禁；lane 独立消费探针与 3 项有效变异未在 main 重复。A77 已把 Room 物理 adapter/Room 与认证业务监听归属分离；r1 产品 Vitest 为 940 passed/25 failed/965 total，r2 已修复 native pending 占位 hidden 被误判为真实 inactive，并把 Web 订阅后快照与 native pending 分开：Web 立即失败，native 等 `whenReady` 后重读 snapshot/能力并按原 10 秒 deadline 对账；旧 timer 不得清空新句柄，刷新后当前 native 业务监听仍可停轨。r2 独立 9 项时序与 A76 compat 5 项在 formatter 前通过，随后 format/lint/typecheck 通过，完整 Vitest 为 958 passed/9 failed/967 total，失败均由 stale timer fixture 残留 fake 全局时钟导致后续 A76 异步等待超时；r3 已清理该 fixture，并通过 967 Vitest/33 files、18 build-script、61 Fake API、8 type generator、148 双浏览器 E2E、576 backend/80.09% coverage、schema 与 Ruff。auth revision、原 deadline、ready snapshot 三个产品变异产生 11/6/4 项失败并精确还原；第四项 timer-handle 变异未被原 967 测试杀死，但实际 timer 队列确认卸载后残留本 Room timer，因此 r4 已补真实队列与卸载清理回归，产品逻辑不变。r1 只执行官方返修 native 预检，baseline3 是历史 r0 实测，当前 r4 仍待主 Agent 停写后完整代跑、复验第四项变异必被杀死并由独立 Review 判定，见 [A76 冻结实施记录](./docs/verification/cross-platform/CP-06-AGENT-ERROR-OWNERSHIP.md) 与 [A77 本地实施记录](./docs/verification/cross-platform/CP-06-ROOM-AUTH-REFRESH.md)；三端真实异常联动仍待外部验收，本计划不要求新增遥测上报，整项保持未勾选。
 
