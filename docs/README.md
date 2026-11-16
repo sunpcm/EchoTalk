@@ -3,7 +3,9 @@
 本目录只保留能解释当前实现、指导验收或记录仍有效设计约束的文档。
 
 - 首次接手入口见 [项目概览](./OVERVIEW.md)：技术架构、已实现功能与使用方法。
-- [下一阶段决策准备](./NEXT_PHASE_DECISIONS.md)：B2/周报口径/真实环境前置的决策表（待用户确认）。
+- [下一阶段决策](./NEXT_PHASE_DECISIONS.md)：B2/周报口径/真实环境前置的确认状态与剩余门禁。
+- [B2 实施计划](./B2_IMPLEMENTATION_PLAN.md)：旧候选审计、表结构与迁移、同事务写入、只读重算及逐包验收边界。
+- [B2 干净起步评审输入](./reviews/2026-11-16-b2-clean-start-review-input.md)：新政策一致性及实施计划的独立评审范围。
 
 - 当前已实现功能、近期变更和取舍以
   [EchoTalk 当前状态与变更决策](./PROJECT_STATUS.md) 为准。
@@ -18,6 +20,7 @@
 
 - [Agent 评审手册](./agent-review-loop.md)：三端评审循环、测试树、环境和并行边界。
 - [外部 CLI 自动评审接入](./REVIEW_LOOP_AUTOMATION.md)：本地状态门禁、授权、预算、暂停恢复及交付判定。
+- [2026-11-16 B2 决策记录](./history/2026-11-16-b2-clean-start-decision.md)：开发期干净起步、正式政策另定及未执行事项。
 
 ## 当前架构与验收
 
