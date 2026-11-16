@@ -4,7 +4,13 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **WR-DESIGN 周报剩余指标设计（当前卡，2026-11-16，`FINAL_READY`）：** 把私有已内容评审的周报
+> **GOAL-DESIGN 场景 goals 与 Task Completion 设计（当前卡，2026-11-16，`FINAL_READY`）：** 把私有已
+> 内容评审的场景 goals/Task Completion 设计草案写回，goal 持久化 A/B/C、判定器、状态机与总体完成度
+> 均待用户确认，未实施。设计见
+> [SCENARIO_GOALS_DESIGN.md](./docs/SCENARIO_GOALS_DESIGN.md)，状态与数字见
+> [PROJECT_STATUS 的 GOAL-DESIGN 小节](./docs/PROJECT_STATUS.md#goal-design-场景-goals-与-task-completion-设计final_ready)。
+
+> **WR-DESIGN 周报剩余指标设计（历史子卡，2026-11-16，已 `APPROVED` 并发布 `929fb0ea91d2c9937c1414be192e5f5cad47d02c`）：** 把私有已内容评审的周报
 > 剩余指标设计草案写回，`p_mastery` 环比 A/B/C、报告/对比窗口与 IANA 时区均待用户确认，未实施。
 > 设计见 [WEEKLY_REMAINING_METRICS_DESIGN.md](./docs/WEEKLY_REMAINING_METRICS_DESIGN.md)，状态与
 > 数字见 [PROJECT_STATUS 的 WR-DESIGN 小节](./docs/PROJECT_STATUS.md#wr-design-周报剩余指标设计final_ready)。
