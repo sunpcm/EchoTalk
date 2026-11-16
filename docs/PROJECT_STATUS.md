@@ -1,21 +1,26 @@
 # EchoTalk 当前状态
 
-> 最后核对：2026-11-16。当前卡片为 **GOAL-DATA goal A 持久化与合成 PG 数据层
-> （`FINAL_READY`）**：唯一工作树为
-> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
-> `codex/B1-learning-events-20261112`，基线 HEAD
-> `1d75250824e9b50173ac20f0faed928240e54208`。用户只确认 goal A 的版本化 material 目录、
-> `material_version`、会话目标快照、默认 v1/显式 v2 导出和整账号删除配套数据合同，以及仅使用
-> 合成目标的持久化/privacy 范围。判定器、四状态、总体完成度汇总、真实课程 goals 与教学内容、
-> 周报剩余指标及正式 i18n 仍未获业务确认。实现包含严格不可变目标结构、旧目录兼容解析、两张
-> 不可变表、caller-owned 写原语、owner-scoped 读取、显式 v2 完整投影与账号删除配套；当前创建
-> 会话 API 尚未绑定快照，历史会话无快照，也未回填、接入恢复 UI 或写入 10 条生产 goals。
+> 最后核对：2026-11-16。当前卡片为 **G-CONTRACT 场景目标实施合同（`FINAL_READY`）**：
+> 唯一工作树为 `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，开工 HEAD
+> `353e0c9f61693d0e1134843abd25da61bb7df1fa`，开工 clean。用户已确认 goal A、首批 3 课各 2 个
+> goal、确定性规则加离线人工 gold/复核、四终态及 `achieved X / assessed Y / total Z` 汇总口径。
+> 商务寒暄目标 2 明确为“向对方提出一个与其工作相关的问题”；其他 5 个目标保持已确认内容。
+> 本卡只写 `docs/SCENARIO_GOALS_DESIGN.md`、`TODO.md`、本文件与 `docs/history/2026-11.md`；
+> 产品、测试、依赖、迁移、锁文件和其他历史文件不改。实施节点不运行测试、服务或 PostgreSQL，也
+> 不执行 Git 写操作。
 >
-> 主控已完成 12 项门禁及机器 behavior 核验，新 36 目标测试全绿；完整数字、RED/返修历史、变异、
-> 迁移、保护字节和 PG 清理只集中在本文件的
-> [GOAL-DATA 小节](#goal-data-goal-a-持久化与合成-pg-数据层final_ready)。正式返修仍为 `R1/2`，
-> 本卡不自称 `APPROVED`；最终 Review/commit/push 以主控同卡回执为准，用户 Review 待。
-> goals 父项、其他 RF/CP 与完整业务完成度不因本数据层实现而勾选。
+> `GOAL-DATA` 已独立 Review `APPROVED` 并发布为上述 `353e0c9`，实现严格不可变目标结构、旧目录
+> 兼容解析、两张不可变表、caller-owned 写原语、owner-scoped 读取、显式 v2 投影与账号删除配套。
+> 当前创建会话 API 仍未绑定快照，历史会话无快照，也未回填、接入恢复 UI 或写入 10 条生产 goals。
+> 后续拆为 `G-WIRE`（目标内容/创建接线）、`G-EVAL`（判定结果持久化与自动判定）、`G-VIEW`（展示）；
+> `G-WIRE` 的服务端 binding 校验、目录 opt-in、旧指纹兼容和 User→Session 锁序已核为实施计划，但仍未
+> 落地。这些能力均未实施，完整合同见
+> [SCENARIO_GOALS_DESIGN.md §10](./SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
+> 主控已完成本卡 12 项现有行为门禁与机器 behavior 核验，完整数字集中在本文件的 G-CONTRACT 当前
+> 小节；这不是最终 13 项全仓 format 门禁。正式返修 `0/2`。技术 Review、最终全仓 format、
+> commit/push 以主控同卡回执为准；用户 Review 待，本状态不自称 `APPROVED`。goals 父项及其他
+> RF/CP 不连带勾选。
 
 > HHTTP-CLOSE 历史宿主 HTTP 待办核销（已 `APPROVED` 并发布 `1d75250824e9b50173ac20f0faed928240e54208`）现作为历史快照保留：
 > 唯一工作树为
@@ -39,8 +44,9 @@
 >
 > GOAL-DESIGN 现作为历史快照保留（已 `APPROVED` 并发布
 > `3322bef719947342b3c5c805524a512aa45efb16`）：其中“goal 持久化 A/B/C、判定器、状态机与总体
-> 完成度仍待用户确认、业务未获批准”是历史卡时点口径。后续 GOAL-DATA 只确认 goal A 的持久化数据
-> 合同、导出/删除隐私配套与合成 PG 范围；判定器、四状态、总体汇总及真实课程目标内容仍未确认。
+> 完成度仍待用户确认、业务未获批准”是历史卡时点口径。后续 GOAL-DATA 已发布 A 的数据层，
+> `G-CONTRACT` 又确认 A、首批目标内容、确定性判定、四状态与无百分比汇总；创建接线、判定、结果
+> 持久化和展示仍未实施。
 > 详见下方
 > [GOAL-DESIGN 小节](#goal-design-场景-goals-与-task-completion-设计final_ready)。
 >
@@ -121,38 +127,88 @@
 
 ## 当前功能
 
-| 领域           | 当前实现                                                                                            | 状态与边界                                                                                                   |
-| -------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                     | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                                            |
-| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                   | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                                   |
-| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康                | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收                                                |
-| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                                  |
-| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                                     | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                                                 |
-| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                  | 已实现                                                                                                       |
-| 本人数据导出   | `GET /api/user/data-export` 默认输出 v1；显式 `schema_version=2` 增加完整生效目标并共用 RR 只读事务 | GOAL-DATA 数据合同与 final 门禁已验证；旧 v1 合同保留；Review/commit/push 以主控同卡回执为准，用户 Review 待 |
-| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人业务数据，含 goal 快照，保留控制行和他人数据           | 快照删除与失败回滚已验证；生产不可恢复性未验收                                                               |
-| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                 | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                                     |
-| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                  | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                               |
-| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                                 | 已实现 Web 流程；原生端文件选择未验收                                                                        |
-| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标       | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                                                      |
-| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3、已记录会话时长               | **部分实现**：时长三卡本范围已 FINAL_READY；其他周报指标未实现                                               |
-| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                             | 真机全链路、原生登录与发布未验收                                                                             |
-| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存                | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验                                        |
-| 数字人         | 只有待办                                                                                            | **未实现**                                                                                                   |
+| 领域           | 当前实现                                                                                            | 状态与边界                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 认证与用户边界 | 开发模式显式 Token；生产模式 OIDC issuer/audience/JWKS 校验；用户资源按身份隔离                     | 代码和自动化已落地；真实 IdP 联调、原生系统登录与 Keychain 未验收                             |
+| 实时对话       | LiveKit WebRTC、STT → LLM → TTS、转录持久化、Agent 调度和错误回传                                   | 代码已实现；真实语音质量和外部 Provider 可用性不由 CI 证明                                    |
+| 启动与系统就绪 | 公开 `/api/health/system-ready` 只读检查共享 PG；Compose 先迁移后启动并校验 API 健康                | 本地合成合同已验收；原整栈、生产 rollout 和真实外部依赖未验收                                 |
+| 会话生命周期   | 创建/结束幂等、活动会话发现、显式结束与恢复、连接中断安全关闭、取 Token 失败自动结束                | 浏览器 E2E 覆盖到"进房前"；单端通话占用协议已实现但默认关闭                                   |
+| 会话分析       | 持久化分析 Job、发音评估、语法检测、BKT 知识追踪、失败/重试状态                                     | 自动化覆盖状态机；语法为 demo 规则，真实发音 Provider 未验收                                  |
+| 场景目标       | G-CONTRACT 已确认首批 3 课 × 2 个目标、确定性判定、四终态与 `X / Y / Z` 汇总合同                    | GOAL-DATA 仅完成数据层；G-WIRE、G-EVAL、G-VIEW 未实施，当前不展示目标完成结果                 |
+| 结果可信度     | 评估记录来源、Provider、模型版本、Synthetic 和置信度；Synthetic 不更新真实知识状态                  | 已实现                                                                                        |
+| 本人数据导出   | `GET /api/user/data-export` 默认输出 v1；显式 `schema_version=2` 增加完整生效目标并共用 RR 只读事务 | GOAL-DATA 数据合同与历史门禁已验证；已独立 Review `APPROVED` 并发布 `353e0c9`；旧 v1 合同保留 |
+| 本人账号删除   | `DELETE /api/user/account` 在受控事务硬删本人业务数据，含 goal 快照，保留控制行和他人数据           | 快照删除与失败回滚已验证；生产不可恢复性未验收                                                |
+| 自适应课程     | 读取薄弱技能，通过版本化离线目录与 Krashen i+1 生成确定性的课程推荐                                 | 真实 API 调用链；无 Chroma、embedding 下载或外部检索服务                                      |
+| BYOK           | 用户设置、版本化 Fernet keyring、Provider Key 校验、基础轨/自定义轨路由、Fail-Fast                  | 已实现；密钥轮换和 Provider 连通性需按环境验收                                                |
+| DocTalk        | 文档输入、Prompt 构建、文档会话入口                                                                 | 已实现 Web 流程；原生端文件选择未验收                                                         |
+| 前端体验       | Dashboard 已独立，课程推荐、每日进度、评估反馈按页面边界归位；三主题、键盘焦点、44px 触控目标       | 三主题文字对比度有 E2E 回归；边框对比度与读屏实测未完成                                       |
+| 周度学习       | 最近七个本地自然日的 completed 会话次数、按日只读历史、语法错误 Top 3、已记录会话时长               | **部分实现**：时长三卡本范围已 FINAL_READY；其他周报指标未实现                                |
+| iOS            | Capacitor 工程、前后台生命周期适配、CI 无签名模拟器编译                                             | 真机全链路、原生登录与发布未验收                                                              |
+| macOS          | 共享 Vite 静态产物 `dist/macos/<mode>`、manifest、sync 前校验和 Turbo `ANALYZE` 缓存                | 纯脚本已实现；正式客户端、壳、Tauri 选型、native 认证、设备与签名未验                         |
+| 数字人         | 只有待办                                                                                            | **未实现**                                                                                    |
 
 ## 当前验证基线
 
-### GOAL-DATA goal A 持久化与合成 PG 数据层（`FINAL_READY`）
+### G-CONTRACT 场景目标实施合同（`FINAL_READY`）
+
+- **范围与基线**：唯一工作树为
+  `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+  `codex/B1-learning-events-20261112`，开工 HEAD
+  `353e0c9f61693d0e1134843abd25da61bb7df1fa`，开工 clean。允许写集仅为
+  `docs/SCENARIO_GOALS_DESIGN.md`、`TODO.md`、本文件与 `docs/history/2026-11.md`。本卡不改
+  产品、测试、依赖、迁移或锁，不运行测试、服务或 PostgreSQL，不执行 Git 写操作。
+- **已确认合同**：首期商务寒暄、酒店入住和餐厅点餐各 2 个 goal，中英文版本化目录，其他 7 课
+  保持无目标兼容。商务寒暄目标 2 明确为“向对方提出一个与其工作相关的问题”，不得泛化为询问
+  自己的工作情况；其他 5 个目标保持已确认内容。用确定性规则加离线人工 gold/复核，不启用真实
+  LLM、不接受用户自评覆盖，不按文本判发音/重音。仅学生发言可作达成证据，关键词未命中不直接
+  失败，不可靠时输出 `unknown`。
+- **状态与汇总**：completed 后对冻结目标版本和转录证据范围自动判定；active/cancelled 默认不
+  自动判定且不等于失败。`pending / running` 单独展示为“评估中”；终态为
+  `achieved / not_achieved / unknown / not_assessed`。汇总为 `X / Y / Z`，满足
+  `0 ≤ X ≤ Y ≤ Z`，`unknown` 与 `not_assessed` 分开计，部分结果禁止百分比；无目标配置显示
+  “未配置”，不伪造 goal 行或 0/100%。
+- **版本与隐私**：原判不改，重判创建新 `revision`；首期不提供任意重跑入口，也不重跑已成功
+  analysis Job。新目标/判定数据必须进入账号导出，并在既有整账号删除事务内删除；证据只存
+  ID/有序范围，不复制正文、不新增录音，不声明真实教学效果。
+- **四卡边界**：`G-CONTRACT` 当前只冻结合同与验收；`G-WIRE` 负责目标内容和创建接线，
+  `G-EVAL` 负责判定与结果持久化，`G-VIEW` 负责展示。具体 API、表结构、规则结构、文案键和组件
+  接线由主控在后续卡决定；本卡不新增业务开关、分数或阈值。
+- **G-WIRE 已核计划**：旧 `POST /sessions` 与旧幂等 fingerprint 保持不变；新
+  `goal_binding={material_id, material_version}` 由服务端按当前目录校验，并在创建事务内写入
+  immutable catalog 与 snapshot，拒绝客户端 goals/判定输入。Curriculum 目标预览须显式 opt-in，
+  await 前冻结版本且只有 `mode=scenario` 时才提交引用；带目标创建先锁 User 再插 Session，旧
+  `Idempotency-Key` 重放按原 fingerprint 返回原 snapshot。`scenario_id` 旧整数字段不填，原
+  material 文档、排序和技能标签保持。以上只属计划，真实 PostgreSQL 实例（仅合成库/合成数据）
+  的并发创建、回滚、跨账号和旧幂等兼容仍未实现或验收。
+- **G-EVAL 已核计划**：completed 事务落独立 goal run 为 `pending`；冻结精确 user transcript
+  IDs/排序/digest，worker 同进程公平 poll 且每轮最多 `1 goal + 1 analysis`，各自事务、失败隔离并
+  保持停机 drain。run header 按 session/revision 唯一，per-goal 结果 append-only；首期仅 revision
+  1、无重判入口、终态不可覆盖。v1/v2 导出保持，显式 v3 可导出新记录并由整账号事务删除；离线
+  人工标注或 synthetic 样例之外的审校、准确率和教学效果均未验证。以上仍未实施，详见设计 §10.6。
+- **主控当前门禁回执**：现有行为门禁 12 项完成，machine behavior 全 `0`；Vitest
+  `1309 passed / 60 files`；backend `1091 passed / 3 warnings / 0 skip`，raw coverage
+  `81.88588908099482%`；E2E `278 = 139 Chromium + 139 WebKit`，每例 `1 passed`、`retry 0`、
+  `0 skip/flaky`；build `47`、Fake API `117`、API 类型生成器 `8`、iOS 仅 Node `37`；lint
+  `132 warnings / 0 errors / 0 new`，warning/file/message/rule 多重集与基线相同。PG 的 19 份旧迁移
+  已重放，回执值 `0`；本批独占合成 PostgreSQL 保留到四卡结束。732 个保护文件与 3 个 `.env` 仅核
+  metadata，不读取内容。该回执与下方 GOAL-DATA 历史小节分开记录，不冒充当前最终 13 项格式门禁。
+- **当前状态**：四份文档已完成作者交付并停在 `FINAL_READY`，正式返修 `0/2`。主控 12 项现有行为
+  门禁回执不等于技术 Review、最终全仓 format、commit/push 或用户 Review 已完成。技术 Review、
+  最终全仓 format、commit/push 以主控同卡回执为准；用户 Review 待，本状态不自称 `APPROVED`。
+  真实外部服务、生产环境和真实数据均未使用。完整合同与逐卡验收见
+  [SCENARIO_GOALS_DESIGN.md §10](./SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
+
+### GOAL-DATA goal A 持久化与合成 PG 数据层（历史快照；已 `APPROVED` 并发布 `353e0c9`）
 
 - **范围与批准边界**：唯一工作树为
   `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
   `codex/B1-learning-events-20261112`，基线 HEAD
   `1d75250824e9b50173ac20f0faed928240e54208`。用户只确认 goal A 的 material/version 版本化目录、
   session goal snapshot、默认 v1/显式 v2 结构化导出和整账号删除隐私配套，以及仅用 synthetic
-  goals 验证的两张 PostgreSQL 表与写读原语。判定器、achieved、not_achieved、unknown、
-  not_assessed 四状态、总体完成度汇总、真实课程 goals/教学内容、周报剩余指标和正式 i18n 均未
-  获业务确认。当前生产目录仍为旧 10 条 material，不填 `goals[]`；当前创建会话 API 未绑定目标，
-  历史会话没有快照，也不做回填或恢复 UI 接入。
+  goals 验证的两张 PostgreSQL 表与写读原语。该卡当时不包含后续创建接线、自动判定、结果持久化
+  或展示；这些业务项后来由 G-CONTRACT 确认，但实施仍待 G-WIRE / G-EVAL / G-VIEW。当前生产目录
+  仍为旧 10 条 material，不填 `goals[]`；当前创建会话 API 未绑定目标，历史会话没有快照，也不做
+  回填或恢复 UI 接入。
 - **实现合同**：`GoalDefinition` 为 strict/frozen；`goal_id={material_id}:{slug}` 稳定，每个 goal
   独立 `goal_version`，material 独立 `material_version`。strict int 拒绝 bool/字符串，合法 JSON
   array 规范为 immutable tuple；`criteria` 只是声明文本，`evidence_types` 只是非空结构字符串，
@@ -195,10 +251,10 @@
   exact ID 为
   `a97fd3ae372cfdd3021f6e1cc1c2901246ffef620def5f49a7568d3be7b84d35`，`stop 0`、
   `auto_removed=true`，名称与 ID 均不存在，其他资源未动。
-- **终态与交接**：代码、测试、迁移和两个生成文件停写；本卡 `FINAL_READY`。最终
-  Review/commit/push 以主控同卡回执为准，用户 Review 待，业务判定口径仍待确认。合成 goals、
-  schema 与 schema_version 2 只证明数据合同/privacy 和已覆盖工程行为，不证明真实判定准确率、
-  实际恢复 UI 或教学效果。
+- **终态与交接**：代码、测试、迁移和两个生成文件已停写，本卡当时为 `FINAL_READY`；其后主控
+  独立 Review `APPROVED` 并发布为 `353e0c9f61693d0e1134843abd25da61bb7df1fa`。上面的门禁、
+  RED、变异和清理数字继续绑定该历史 Review 时点。合成 goals、schema 与 `schema_version=2` 只
+  证明数据合同/privacy 和已覆盖工程行为，不证明自动判定、实际恢复 UI 或教学效果。
 
 ### HHTTP-CLOSE 历史宿主 HTTP 待办核销（`FINAL_READY`）
 
@@ -279,10 +335,10 @@
   `docs/SCENARIO_GOALS_DESIGN.md`、`TODO.md`、本文件与 `docs/history/2026-11.md`。
   实施节点只写回设计草案，不安装依赖、不改代码/测试/迁移/锁，不运行测试/服务/PG，不执行 Git
   写操作（允许只读核基线）；最终全仓 format、独立 Review、正常 commit 与当前分支 push 以主控同卡回执为准。
-- **内容**：把私有已内容评审的场景 goals/Task Completion 设计草案写回，goal 持久化 A/B/C（A 目录内
-  版本化目标为推荐、待确认）、判定器与状态机、总体完成度 `achieved X / assessed Y / total Z` 均待确认；
-  技术失败 `unknown`、未运行 `not_assessed`、成功评估未满足 `not_achieved`。用户此前仅批准“已记录
-  会话时长”方案 A；本卡各方案均未获业务批准，未实施。
+- **内容**：把私有已内容评审的场景 goals/Task Completion 设计草案写回。该卡当时将 A 目录内版本化
+  目标列为推荐待确认，并保留判定器、状态机和 `achieved X / assessed Y / total Z` 草案；这些
+  历史状态不改写。后续 G-CONTRACT 已确认 A、确定性判定、四终态与无百分比汇总，GOAL-DATA 已发布
+  数据层；创建接线、判定、结果持久化和展示仍未实施。
 - **口径保护**：`material.id` 字符串不与 `sessions.scenario_id`（Integer）互填；新增 goal/evaluation/
   revision 持久化必须以账号结构化导出与 B1-5 同事务整账号删除为实施前置，未准备好只能延期；不放开
   既有成功 analysis Job 重跑、不复制转录正文、不新增录音。
@@ -292,8 +348,8 @@
   `81.87336184301283%`；build-script `47`、Fake API `117`、API 类型生成器 `8`、iOS（仅 Node）`37`；
   lint `132 warnings / 0 errors / 0 new`，多重集与基线相同。
 - **状态与下一步**：原卡已 `APPROVED` 并发布
-  `3322bef719947342b3c5c805524a512aa45efb16`；用户/业务确认仍待。合成不替代业务确认或真实
-  环境，不称真实准确率/教学效果。设计草案见
+  `3322bef719947342b3c5c805524a512aa45efb16`；后续 G-CONTRACT 已完成业务口径确认并拆出实施卡。
+  合成不替代真实环境，不称真实准确率/教学效果。设计草案见
   [SCENARIO_GOALS_DESIGN.md](./SCENARIO_GOALS_DESIGN.md)。
 
 ### WR-DESIGN 周报剩余指标设计（`FINAL_READY`）
@@ -1770,6 +1826,8 @@ OpenAPI/TypeScript 只新增 DELETE path 和一个响应 schema，旧 path/schem
   并在运行 E2E 前核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
 - R2-12 本轮前端 lint warning/error 数量与 R2-12 小节一致，主要是 `Unexpected any`。
 - 输入框与卡片边框对比度约 1.2，低于非文字组件 3.0 的要求；会话中界面的 LiveKit 控制条未在真实连接下验收。
+- 场景目标目前只有已确认的合同和 GOAL-DATA 数据层。创建会话仍未绑定目标，自动判定、结果持久化、
+  四状态/汇总展示及真实课程内容均未实施；合成数据不证明真实教学效果。
 - 历史 B1-5 的完整双浏览器 E2E 当时为
   `233 passed / 1 failed / 0 skip / 0 retry / exit 1`，唯一失败是设置抽屉三个 Provider select
   的 `336x23 < 44px`；该历史快照及当时范围外判断继续保留。后续独立 WPH 已完成修复，其历史快照

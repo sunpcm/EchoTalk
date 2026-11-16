@@ -4,19 +4,39 @@
 > [已完成事项归档](./docs/history/todo-done.md)，不在本文累积历史。各节标题沿用原分组，
 > 标题中的"历史""已通过"指该轮整体状态，节内列出的是其中仍未完成的项。
 
-> **GOAL-DATA goal A 持久化与合成 PG 数据层（当前卡，2026-11-16，`FINAL_READY`）：**
-> 用户只确认 goal A 的版本化 material 目录、`material_version`、会话目标快照、默认 v1/显式 v2
-> 导出和整账号删除配套数据合同，以及仅使用合成目标验证的持久化/privacy 范围。判定器、
-> `achieved / not_achieved / unknown / not_assessed` 四状态、总体完成度汇总、真实课程 goals 与
-> 教学内容、周报剩余指标及正式 i18n 均未获业务确认。当前实现限定为两张不可变表、严格目标
-> schema/目录解析、caller-owned 写原语、owner-scoped 读取、显式 v2 同 RR 只读导出与账号删除；
-> 当前创建会话 API 尚未绑定快照，历史会话没有快照，也没有回填、恢复 UI 或 10 条生产 goals。
-> 新 36 目标测试经主控最终核验全绿并完成冻结行为变异核验；正式返修仍为 `R1/2`，本卡不自称
-> `APPROVED`，完整门禁与保护边界集中记录在
+> **G-CONTRACT 场景目标实施合同（当前文档卡，2026-11-16，`FINAL_READY`）：** 唯一工作树为
+> `/Users/sunpcm/code/EchoTalk/.review/worktrees/b1-continuation-20261115`，分支
+> `codex/B1-learning-events-20261112`，开工 HEAD
+> `353e0c9f61693d0e1134843abd25da61bb7df1fa`，开工 clean。用户已确认 goal A、首批 3 课各 2 个
+> goal、确定性规则加离线人工 gold/复核、四终态与 `achieved X / assessed Y / total Z` 汇总口径。
+> 商务寒暄目标 2 为“向对方提出一个与其工作相关的问题”；其他 5 个目标按已确认内容保持。
+> 本卡只更新 `docs/SCENARIO_GOALS_DESIGN.md`、本文件、`docs/PROJECT_STATUS.md` 与
+> `docs/history/2026-11.md`；产品、测试、依赖、迁移、锁文件和其他历史文件不改，实施节点不运行
+> 测试、服务或 PostgreSQL，也不执行 Git 写操作。
+>
+> 后续拆为 `G-CONTRACT / G-WIRE / G-EVAL / G-VIEW` 四卡。`G-CONTRACT` 已完成作者交付并停在
+> `FINAL_READY`；创建会话接线、自动判定、判定结果持久化和界面展示均未实施，具体技术接线
+> 由主控在后续卡决定。完整合同、逐卡最小目标与验收见
+> [§10.3 G-WIRE 已核技术约束](./docs/SCENARIO_GOALS_DESIGN.md#103-g-wire-已核技术约束与计划验收) 与
+> [SCENARIO_GOALS_DESIGN.md §10](./docs/SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
+> 主控已完成本卡 12 项现有行为/工程门禁，机器 behavior 核验全 `0`；这是现有应用回归，不是
+> 最终 13 项全仓 format 门禁，完整数字集中在
+> [PROJECT_STATUS 的 G-CONTRACT 小节](./docs/PROJECT_STATUS.md#g-contract-场景目标实施合同final_ready)。
+> 正式返修 `0/2`。技术 Review、最终全仓 format、commit/push 以主控同卡回执为准；用户 Review
+> 待；本文件不自称 `APPROVED`。
+
+> **GOAL-DATA goal A 持久化与合成 PG 数据层（历史实施卡，2026-11-16）：** 该卡只覆盖 goal A 的
+> 版本化 material 目录、`material_version`、会话目标快照、默认 v1/显式 v2 导出、整账号删除配套
+> 和仅使用合成目标的 synthetic PostgreSQL 数据层，后已由主控独立 Review `APPROVED` 并发布为
+> `353e0c9f61693d0e1134843abd25da61bb7df1fa`。实现限定为两张不可变表、严格目标 schema/目录
+> 解析、caller-owned 写原语、owner-scoped 读取、显式 v2 同 RR 只读导出与账号删除；当前创建会话
+> API 仍未绑定快照，历史会话没有快照，也没有回填、恢复 UI 或 10 条生产 goals。
+>
+> 新 36 目标测试、正式返修 `R1/2`、12 项门禁与保护边界继续作为该卡历史快照记录在
 > [PROJECT_STATUS 的 GOAL-DATA 小节](./docs/PROJECT_STATUS.md#goal-data-goal-a-持久化与合成-pg-数据层final_ready)。
-> 合同与边界见 [SCENARIO_GOALS_DESIGN.md](./docs/SCENARIO_GOALS_DESIGN.md) §9。代码、测试、
-> 迁移、OpenAPI 生成物和前端生成类型均已停写；最终 Review/commit/push 以主控同卡回执为准，
-> 用户 Review 待；goals 父项及其他 RF/CP 复选框不连带勾选。
+> 数据层已实现不等于创建接线、判定、结果持久化或展示已完成；
+> 这些后续工作以 `G-WIRE / G-EVAL / G-VIEW` 为准。
+> goals 父项及其他 RF/CP 复选框不连带勾选。
 
 > **HHTTP-CLOSE 历史宿主 HTTP 待办核销（历史卡，2026-11-16，已 `APPROVED` 并发布
 > `1d75250824e9b50173ac20f0faed928240e54208`）：** 只核销两条 2026-11-04 TODO 记录。旧
@@ -40,8 +60,9 @@
 
 > **GOAL-DESIGN 场景 goals 与 Task Completion 设计（历史子卡，2026-11-16，已 `APPROVED` 并发布
 > `3322bef719947342b3c5c805524a512aa45efb16`）：** 其中“goal 持久化 A/B/C、判定器、状态机与
-> 总体完成度仍待用户确认、未实施”是历史卡时点口径。后续 GOAL-DATA 只确认了 goal A 的持久化数据
-> 合同、导出/删除隐私配套与合成 PG 范围；判定器、四状态、总体汇总及真实课程目标内容仍未确认。
+> 总体完成度仍待用户确认、未实施”是历史卡时点口径。后续 GOAL-DATA 已发布 A 的数据层，
+> `G-CONTRACT` 又确认 A、首批目标内容、确定性判定、四状态与无百分比汇总；创建接线、判定、结果
+> 持久化和展示仍未实施。
 > 设计见
 > [SCENARIO_GOALS_DESIGN.md](./docs/SCENARIO_GOALS_DESIGN.md)，状态与数字见
 > [PROJECT_STATUS 的 GOAL-DESIGN 小节](./docs/PROJECT_STATUS.md#goal-design-场景-goals-与-task-completion-设计final_ready)。
@@ -372,8 +393,13 @@
       events、Provider 或自动重试。结构通过不称准确率；SGEC 总项（真实 Provider、人工 gold 与教学
       质量）仍未验，保持未勾。合同见
       [SGEC_OFFLINE_CONTRACT](./docs/SGEC_OFFLINE_CONTRACT.md)。
-- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：goal A 的持久化/privacy
-      数据层已完成；判定器、四状态、总体汇总、真实课程目标内容及创建会话接线仍待后续确认。
+- [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：业务合同已确认 A，GOAL-DATA 的
+      持久化/privacy 数据层已 `APPROVED` 并发布 `353e0c9`。后续拆为 G-CONTRACT / G-WIRE /
+      G-EVAL / G-VIEW；G-WIRE 已核的旧请求/幂等兼容、服务端 binding 校验、只有
+      `mode=scenario` 才提交冻结引用、User→Session 锁序和真实 PostgreSQL 实例（仅合成库/合成
+      数据）并发/回滚/跨账号验收都已列为计划，但创建接线、判定结果
+      持久化、四状态/汇总展示尚未实施。逐卡验收见
+      [SCENARIO_GOALS_DESIGN.md §10](./docs/SCENARIO_GOALS_DESIGN.md#10-g-contract-当前实施合同draft_ready)。
 - [ ] 发音真实评估：先单独设计会话音频切片采集（存储、保留期、授权、删除）。
 - [ ] 部署侧日志 Key 排查与轮换、#102 部署证据：需部署环境访问。
 - [ ] 1.8.x / Turn Detector / `language_hint`（#30、#116、#127）：等 RF-12 前置完成。

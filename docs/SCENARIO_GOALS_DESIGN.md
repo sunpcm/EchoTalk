@@ -1,15 +1,15 @@
 # 场景 goals 与 Task Completion 设计（GOAL-DESIGN）
 
-> 状态分层：第 2–8 节保留原 **GOAL-DESIGN** 历史设计卡的时点与未批准口径；§9 的
-> **GOAL-DATA** 是后续独立实施卡，当前为 `FINAL_READY`。原设计卡写“未实施/业务未确认”只描述
-> 其在 `codex/B1-learning-events-20261112@929fb0ea91d2c9937c1414be192e5f5cad47d02c` 上的历史
-> 状态，不否定后续批准。GOAL-DATA 只确认 goal A 的 material/version 目录、session snapshot、
-> 默认 v1/显式 v2 导出、整账号删除 privacy 和 synthetic PG 数据层；判定器、四状态、总体汇总、
-> 真实课程 goals/教学内容、周报剩余指标及正式 i18n 仍待确认。设计基线仍为冻结
-> `1d75250824e9b50173ac20f0faed928240e54208`；正式返修 `R1/2`，本文件不自称 `APPROVED`；
-> 最终 Review/commit/push 以主控同卡回执为准，用户 Review 待。
-> 状态与数字见
-> [PROJECT_STATUS 的 GOAL-DATA 小节](./PROJECT_STATUS.md#goal-data-goal-a-持久化与合成-pg-数据层final_ready)。
+> 状态分层：第 1–6、8–9 节保留 **GOAL-DESIGN / GOAL-DATA** 各自历史卡的时点、数字和边界；
+> §7 在保留原决策项的同时写明 `G-CONTRACT` 的当前确认状态；§10 是本轮当前实施合同。
+> GOAL-DATA 已由主控独立 Review `APPROVED`，并发布为当前基线
+> `codex/B1-learning-events-20261112@353e0c9f61693d0e1134843abd25da61bb7df1fa`，但它只覆盖
+> material/version 目录、session snapshot、v1/v2 导出、整账号删除配套和 synthetic PostgreSQL
+> 数据层，没有完成创建会话接线、自动判定、判定结果持久化或展示。`G-CONTRACT` 当前只写四份
+> 文档，作者交付已收口为 `FINAL_READY`；12 项现有行为门禁已完成，机器 behavior 核验全 `0`，
+> 完整数字集中在 `PROJECT_STATUS.md` 的当前小节。这不是最终 13 项全仓 format 门禁。技术
+> Review、最终全仓 format、commit/push 以主控同卡回执为准；用户 Review 待，本文件不自称
+> `APPROVED`。
 
 ## 1. 原 GOAL-DESIGN 范围与非目标（历史）
 
@@ -44,7 +44,8 @@
 `goal_id={material_id}:{slug}`、独立 `goal_version`、中英文描述、结构字段与声明式 criteria。
 会话 snapshots 只引用已记录的 material/version，不复制目录 JSON。旧 10 条 JSON 不含这些字段时
 仍按 `goals=()`、`material_version=None` 载入；当前生产目录不填 goals，也不写教学内容。
-GOAL-DATA 只确认该数据/版本化/privacy 合同；goal 内容、判定、报表比较及 B/C 方案仍未确认。
+GOAL-DATA 只落实该数据/版本化/privacy 合同；后续 `G-CONTRACT` 已确认采用 A、首批目标内容和
+判定/展示口径，但目录内容、创建会话接线、判定与界面尚未实施，B/C 方案不采用。
 
 ### B. 运行时动态生成 goals
 
@@ -66,7 +67,7 @@ goal 判据得出。每个 goal 输出 `achieved / not_achieved / unknown / not_
 - `not_assessed`：目标不适合该会话，或未运行判定（含主动未启用/未运行 Provider）。
 
 会话 cancelled 不自动等于 goal 失败；completed 会话中 goal 未满足可判 `not_achieved`，但不阻止会话
-完成。该状态映射本身仍是待确认推荐，不伪装已有产品状态。
+完成。原草案的状态映射已由后续 `G-CONTRACT` 确认；当前代码仍没有自动判定器或结果产品状态。
 
 ## 5. 判定器候选
 
@@ -76,31 +77,38 @@ goal 判据得出。每个 goal 输出 `achieved / not_achieved / unknown / not_
 
 推荐初期 (a)+人工确认建立可审计闭环，LLM 仅作后续经用户批准的第三种 adjudicator，不默认真实
 Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID 或有序范围，不复制原文。
+该边界已由后续 `G-CONTRACT` 确认，当前尚未实施。
 
 ## 6. 总体完成度候选
 
 - (a) 不展示汇总，只列每个 goal 状态（最保守）。
-- (b) 显示 `achieved X / assessed Y / total Z`，不做百分比（推荐，待确认）：`X`=achieved 数，`Y`=achieved+not_achieved（成功判定数），`Z`=生效目标数，`0 ≤ X ≤ Y ≤ Z`；`unknown` 与 `not_assessed` 分开计、不计入 X/Y。
+- (b) 显示 `achieved X / assessed Y / total Z`，不做百分比（推荐，后续已确认）：`X`=achieved 数，`Y`=achieved+not_achieved（成功判定数），`Z`=生效目标数，`0 ≤ X ≤ Y ≤ Z`；`unknown` 与 `not_assessed` 分开计、不计入 X/Y。
 - (c) 仅在全部 goal 均成功评估后显示百分比。
 
 没有目标定义、分母为 0 或部分未知分母时不得显示 100%/0%，并须明确标出未评估数量；存在
 `unknown/not_assessed` 时不能用部分结果冒充整体完成。若未来允许重判，只能作为新的独立派生判定
 `revision`，不改变原判，也不借此放开既有成功 analysis Job 重跑。
 
-## 7. 决策清单与当前批准状态（待用户确认）
+## 7. 原决策清单（历史草案与当前确认）
 
-1. 目标持久化方案：GOAL-DATA 已确认 A 的 material/version 目录与 session snapshot 数据合同；
-   B/C 方案仍未确认。
-2. `material_id/material_version` 与 goal snapshot 持久化：数据合同与 synthetic PG 实现已确认；
-   生产目标内容与当前创建路径接线未确认。
-3. 状态机：`unknown / not_assessed / not_achieved / achieved` 的边界与执行失败归为 `unknown`
-   仍待确认，没有判定器或状态产品实现。
-4. 判定器：初期确定性规则 + 人工确认、LLM 后续经批准启用，仍待确认和实现。
-5. 总体完成度：`achieved X / assessed Y / total Z`、不展示或全评估后百分比，均仍待确认。
-6. 新 goal/evaluation/revision 的结构化导出与同事务整账号删除前置仍必须保持；GOAL-DATA 已对
-   两张新表完成该 privacy 配套，不扩大为未批准判定数据。
+下列编号保留原草案结构；状态已按 2026-11-16 用户确认更新。历史卡当时“待确认”的事实不改写为
+更早已经批准。
+
+1. **已确认采用 A**：目标放在版本化 material 目录；B/C 不采用。
+2. **已确认内容，已部分实现接线前置**：GOAL-DATA 已实现 material/version 目录与 session snapshot
+   的 synthetic PG 数据层；首批目标内容与当前创建会话 API 接线仍由 `G-WIRE` 实施。
+3. **已确认，尚未实施**：`achieved / not_achieved / unknown / not_assessed` 四终态及
+   `pending / running` 独立执行进度由 `G-EVAL` 落地并持久化，`G-VIEW` 展示。
+4. **已确认，尚未实施**：首期只用确定性规则与离线人工 gold/复核；不启用真实 LLM，不允许用户
+   自评覆盖判定。关键词未命中不得直接判失败，无法可靠判断时输出 `unknown`。
+5. **已确认，尚未实施**：总体显示 `achieved X / assessed Y / total Z`，其中
+   `0 ≤ X ≤ Y ≤ Z`；`unknown` 与 `not_assessed` 分开计数，部分结果禁止百分比。
+6. **前置已部分实现、范围已确认**：新增 goal/evaluation/revision 数据必须进入账号结构化导出，
+   并在既有整账号删除事务内同步删除。GOAL-DATA 已覆盖目录/快照；判定结果由 `G-EVAL` 补齐。
 
 ## 8. 拆卡与验收边界
+
+本节保留旧拆卡及当时的完成事实；`G-CONTRACT` 已将后续范围重新拆为 §10 的四张卡。
 
 - 卡 1 的 goal schema、optional 目录兼容与新迁移已由 GOAL-DATA 完成；旧 18 份迁移保持原字节。
 - 卡 2 的目录/快照写原语、同绑定幂等、版本保留、owner 校验和调用方事务原子性已完成；当前创建
@@ -115,9 +123,10 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 ## 9. GOAL-DATA 数据持久化合同（`FINAL_READY`）
 
 > 状态：GOAL-DATA 已实现 goal A 的最小数据层，并通过主控完整 12 项门禁、机器 behavior 核验和
-> 新 36 目标测试；正式返修仍为 `R1/2`。判定器、四状态、总体完成度、真实课程内容、周报与正式
-> i18n 均未获批准，不在本卡实施。最终 Review/commit/push 以主控同卡回执为准，用户 Review 待；
-> 本文不自称 `APPROVED`。
+> 新 36 目标测试。该卡后续已独立 Review `APPROVED` 并发布为
+> `353e0c9f61693d0e1134843abd25da61bb7df1fa`；下述 `FINAL_READY`、返修和门禁数字保留为当时的
+> Review 时点。GOAL-DATA 不包含创建接线、判定结果持久化、总体汇总或展示，这些由 §10 的后续卡
+> 承担。
 
 ### 9.1 目标结构与目录
 
@@ -182,6 +191,107 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
 
 ### 9.6 非目标
 
-- 不确认判定器、四状态、总体完成度、周报派生指标或正式 i18n。
+- 本卡未实现判定器、四状态、总体完成度、周报派生指标或正式 i18n；其中前两项及总体汇总的业务
+  合同已由后续 `G-CONTRACT` 确认，实施仍待 `G-EVAL / G-VIEW`。
 - 不填 10 条真实课程 goals，不改教学内容、scenario_id、BKT/Job、恢复 UI 或录音策略。
 - 不声称真实 Provider、真实课程数据、教学效果、实际恢复流程或生产不可恢复性已验收。
+
+## 10. G-CONTRACT 当前实施合同（`DRAFT_READY`）
+
+### 10.1 状态与边界
+
+- 作者交付状态为 `FINAL_READY`；本节标题保留既有 `DRAFT_READY` 锚点。主控已完成 12 项现有
+  行为门禁，机器 behavior 核验全 `0`，完整数字集中在 `PROJECT_STATUS.md`；这不是最终 13 项全仓
+  format 门禁。
+- 当前文档卡只修改本文件、`TODO.md`、`PROJECT_STATUS.md` 与 `history/2026-11.md`。产品、测试、
+  依赖、迁移、锁文件和其他历史文件不改；实施节点不运行测试、服务或 PostgreSQL，也不执行 Git
+  写操作。
+- 用户已确认 goal A、首批目标内容、四终态与总体汇总口径。GOAL-DATA 的数据层已发布；创建会话
+  接线、判定结果持久化、自动判定和界面展示尚未完成。
+- 本文件只冻结业务合同、最小验收与拆卡边界。具体 API、表结构、触发位置、规则结构、文案键和
+  组件接线由主控在后续卡中决定，不在本卡额外发明业务开关、分数或阈值。
+
+### 10.2 首批目标内容与目录兼容
+
+| 首期课程 | 两个目标                                                      |
+| -------- | ------------------------------------------------------------- |
+| 商务寒暄 | 介绍自己的姓名及工作/角色；向对方提出一个与其工作相关的问题   |
+| 酒店入住 | 表达入住需求并说明有无预订；询问退房时间                      |
+| 餐厅点餐 | 明确点一道菜或饮品；说明一项偏好/限制，或明确表示没有特殊要求 |
+
+- 中英文目录均使用既有版本化 material/goal 结构。首期只给以上 3 课各 2 个 goal；其他 7 课保持
+  `goals=()` 与旧目录兼容。
+- 商务寒暄目标 2 明确指询问**对方的工作**，不能泛化为询问自己的工作情况；其他 5 个目标保持
+  上表内容。
+- goal 只描述可观察的交际任务。不得把文本中的发音或重音作为判定项，也不得因关键词未命中直接
+  判失败。
+
+### 10.3 G-WIRE 已核技术约束与计划验收
+
+以下约束已由主控核对，作为后续 `G-WIRE` 的实施计划；当前均未落地，具体代码接线仍由后续 task
+决定。
+
+- **旧请求兼容**：`POST /sessions` 不带目标时，请求语义和既有 `Idempotency-Key` fingerprint
+  字节保持不变。旧客户端不得因目标能力上线而改变重放或错误行为。
+- **绑定输入最小化**：新可选输入仅为 `goal_binding={material_id, material_version}`。服务端用
+  当前目录校验该引用，并在创建 Session 的同一事务写入不可变目录记录和 snapshot；拒绝客户端
+  传入 `goals`、判定结果或其他可伪造判定输入。
+- **目录读取与提交时序**：前端在 await 前冻结 `material_id/material_version`；只有
+  `mode=scenario` 时才提交该引用。`GET curriculum` 可显式 opt-in 获得
+  `goal_binding`（ID/version 与目标预览），默认旧响应保持不变；其他 7 课返回无目标兼容结构。
+- **创建与幂等**：带目标创建时，必须先锁 User 再插入 Session，避免两个 Session 先各持 User
+  FK key-share、再升级 `FOR UPDATE` 时形成死锁。已有 `Idempotency-Key` 重放必须先按原
+  fingerprint 返回原 snapshot，即使目录随后发布新版本，也不得借重放改绑新版本。
+- **既有字段与内容**：`sessions.scenario_id` 的整数旧字段不填、不做 material ID 转换或双向
+  映射。首期三课新增的 6 个版本化 goal 只改变目标元数据；原 material 文档、排序和技能标签
+  保持不变。
+
+### 10.4 判定生命周期与终态
+
+- 只在会话进入 completed 后，针对该会话冻结的 goal 版本和转录证据范围启动自动判定。active 或
+  cancelled 默认不自动判定，也不等于失败。
+- `pending / running` 是执行进度，界面单独显示为“评估中”，不能冒充四种终态。
+- 终态固定为：
+  - `achieved`：证据充分且明确满足目标。
+  - `not_achieved`：证据充分且明确不满足目标。
+  - `unknown`：证据不足、证据范围不完整，或应执行但判定执行失败；不得写成学生失败。
+  - `not_assessed`：未启用、未运行或不适用于该会话/目标。
+- 首期判定为确定性规则加离线人工 gold/复核；仅学生发言可作为达成证据。不启用真实 LLM，不让
+  用户自评覆盖判定；无法可靠判断时保持 `unknown`。
+
+### 10.5 结果、汇总、版本与隐私
+
+- 冻结集合目标数为 `Z`，`X` 为 `achieved` 数，`Y` 为 `achieved + not_achieved` 数，
+  必须满足 `0 ≤ X ≤ Y ≤ Z`。`unknown` 与 `not_assessed` 分开计数；禁止用部分结果计算百分比。
+- 汇总示例统一解释为 `1 / 2 / 4`，另有 `1` 项无法判断、`1` 项未评估；界面不得把示例折叠成
+  完成率或伪造 `100% / 0%`。
+- 无目标配置的历史或新建会话显示“未配置”，不伪造 goal 行，也不显示 `0 / 0`、`0%` 或 `100%`。
+- 原判不可修改。后续重判必须创建新的 `revision`，首期不提供任意重跑入口，也不重跑已成功的
+  analysis Job。
+- 新目标与判定数据必须进入账号结构化导出，并与既有整账号删除在同一事务中删除。证据只保存
+  transcript/assessment/job 的 ID 或有序范围，不复制正文、不新增录音。
+- 合同验收只证明结构与确定性规则行为，不声明真实教学效果、真实 Provider 能力或生产质量。
+
+### 10.6 G-EVAL 后续技术计划、未落地
+
+- completed 事务将独立 goal run 落为 `pending`。以下均为已授权业务内的技术实现计划，本卡尚未
+  实施。
+- 启动评估时冻结精确 user transcript IDs、排序与 digest；证据不复制正文，也不能只保存 max id。
+- worker 在同一进程公平 poll，每轮最多处理 `1 goal + 1 analysis`；两者各自使用事务并隔离失败，
+  保留既有停机 drain 语义。
+- 不新增服务、依赖或业务开关。
+- run header 按 session/revision 唯一，per-goal 结果 append-only；首期仅 revision 1，不提供重判
+  入口，终态不可覆盖。
+- 发音或语法评估失败不得触发已成功的 analysis Job 重跑。
+- v1/v2 导出合同保持；新增显式 v3 可导出新评估记录，GET 只读，整账号事务删除新记录。
+- 当前只承诺离线人工标注合同或显式 synthetic 样例，不称真实人工审校、准确率或教学效果已经
+  验证。
+
+### 10.7 四卡拆分
+
+| 卡           | 最小目标与验收                                                                                                                                                                                                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `G-CONTRACT` | 冻结本节的批准内容、状态含义、汇总不变量、四卡边界和文档状态。验收：只改指定四文档；历史数字仍绑定原时点；明确 GOAL-DATA 已发布而后续能力未实施；经固定 Prettier 格式化后停在 `FINAL_READY`，等待主控独立 Review。                                                                                          |
+| `G-WIRE`     | 写入 3 课 × 2 个中英文版本化 goal，其他 7 课保持兼容，并按 §10.3 把生效 material/version/snapshot 接到创建会话路径。验收还包括真实 PostgreSQL 实例（仅合成库/合成数据）的并发创建、回滚、跨账号隔离和原幂等兼容；旧客户端与历史会话仍可运行，不新增 scenario 映射或业务开关。                               |
+| `G-EVAL`     | 持久化 `pending / running` 与四终态、冻结版本和证据引用；completed 后按确定性规则执行，并提供离线人工 gold/复核与不可变 revision。验收：active/cancelled 不自动判定；只有学生发言可作证据；关键词未命中不直接失败；不可靠或执行失败为 `unknown`；成功 analysis Job 不重跑；新数据可导出且整账号同事务删除。 |
+| `G-VIEW`     | 展示执行中的“评估中”、四终态、`X / Y / Z`、独立 `unknown / not_assessed` 计数及“未配置”。验收：计数满足 `0 ≤ X ≤ Y ≤ Z`；部分结果不显示百分比；历史无 goal 不伪造行或 0/100%；不增加任意重跑入口、用户自评覆盖、业务开关、分数或阈值。                                                                      |
