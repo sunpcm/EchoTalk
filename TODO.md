@@ -9,12 +9,21 @@
 > B1 的完整历史正文、原数字和逐卡回执集中在
 > [B1 实施历史快照](./docs/history/b1-implementation-2026-11-16.md)，不在本页重新累积。
 >
-> 最终文档收口核对：2026-11-17。目录和历史档日期仍为 2026-11-16；截至本回执，合并工作树的
-> quality、Vitest、backend、目标 87、独立 22 与完整双浏览器 322 项均已通过。12 行为门禁全 0；
-> 四文档落盘后由主控执行 format 作为第 13 项门禁，本文不自批该项已完成。合成 PG 已停止且自动移除，
-> 未有保留的活动 PG。
+> CGC R2 文档最终核对：2026-11-17。PR #197 / RC1 的完整 E2E 322 与早先 main 321+1 flaky
+> 只属各自历史时点。CGC 初始 C0 的目标 18、80 次重复和完整 E2E 324 也是前一阶段历史，不能代替
+> R2 最终结果。R2 暴露并修正了 DOM module script 的页面执行错误未向 helper reject 传播的问题：
+> 错误传播 RED 为 `4=2 GC pass/2 error reject fail`（双浏览器均 resolved），修复后 GREEN 两文件
+> `20/20`；原 unsupported、GC 回归及执行错误传播 3 场景在 Chromium/WebKit 各 20 次，共
+> `120/120`，单 result、retry 0、零 skip/flaky，类型/ESLint 0。三变体私有对照使用同一最新 spec，
+> 共 `6=4 pass/2 expected fail`：旧 async helper 仅 GC 一项精确 Promise GC fail，C0 模块 helper 仅
+> 错误传播一项报 `resolved instead of rejected`，final helper 两项均 pass；全部 retry 0，源码 SHA 未变。
+> backend 与前端非 E2E 全量输入未变，沿用本卡已实跑结果。完整双浏览器 E2E 为
+> `326/326 = Chromium 163 + WebKit 163`，每项单一 passed result、retry 0、零
+> skip/flaky/unexpected，约 5.3 分钟且 exit 0；12 项行为门禁全 0。最终第 13 项 format、
+> 独立 Review、正常 commit/push、PR CI、merge/main CI 与用户验收以主控同卡实际回执为准，本文不自批。
+> 两次自建合成库中，初始 55434 为非白名单自建库、最终 55433 为白名单库，均已清理；当前无本卡活动 PG。
 > 当前数字、失败历史和未验收边界统一见
-> [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md#本次合并集成验证2026-11-17)。
+> [PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)。
 
 ## 架构演进工作包（第二批：F / G / H / I）
 
@@ -64,13 +73,35 @@
 - **合并/数据边界：** HHTTP-CLOSE 只核销旧 host-gateway 合成拓扑；DEC-A/RDOC/TDOC 只修正历史口径；
   A3-A6/A5、A82C、A84C、RF04E 与 B1/WPH 的证据仍分别绑定原提交。B2 事件业务政策及本地合成实现已完成；
   生产切换、真实数据与真实学习质量仍未完成。
-- **本次集成本地验证：** 截至 2026-11-17，quality 0、Vitest 1429/73、Fake 141、build 47、API 类型
+- **PR #197 / RC1 合入历史验证：** 截至 2026-11-17，quality 0、Vitest 1429/73、Fake 141、build 47、API 类型
   10、backend 1351/3 warnings/0 skip、目标 87/87、独立 22/22 与完整 E2E 322/322 已通过。
   E2E 为 Chromium 161 + WebKit 161，每项单一 passed result、retry 0、0 skip/flaky/unexpected；
   quality 诊断多重集为 132 warning/0 error/0 新增，与 80df 基线完全一致。合成 PG `stop 0`、
   `auto_removed=true`。12 行为门禁全 0，四文档后主控 formatter 为第 13 项及最终
   format/Review/提交/推送/新 head CI/合并以主控同卡回执为准；本文不自批 Independent Review，
   不预填远端 CI 通过，也不代表真实依赖、生产或用户验收完成。
+- **CGC 当前测试夹具闭环（R2）：** 2026-11-17 已在独立 worktree 确认 Chromium 151 的
+  `page.evaluate` Promise GC 因果，并把 `session-flow` helper 改为由 DOM 加载器持有的 module script。
+  初始 C0 的目标 `18/18`、unsupported + GC 场景共 `80/80` 无重试重复与完整 E2E
+  `324/324 = Chromium 162 + WebKit 162` 均保留为该阶段历史，不再作为 R2 当前结果。
+  R2 另确认真实浏览器中 module 执行抛错会发出 `pageerror`，但 `addScriptTag` 可 resolved。新增真实
+  `setState` 抛错回归先得到 `4=2 GC pass/2 error reject fail`，两个浏览器都报
+  `Received promise resolved instead of rejected`；helper 注册当前调用自己的 `pageerror` 回调、记录首个
+  真实错误并在 `addScriptTag` 完成后原样抛出，`finally` 只 `off` 该回调，随后目标两文件 `20/20`。
+  原 unsupported、GC 回归与执行错误传播 3 场景随后在 Chromium/WebKit 各重复 20 次，共 `120/120`，
+  每组单一 result、retry 0、零 skip/flaky；成功和失败路径的 listener 数量均守恒，e2e 类型/ESLint 0，
+  三个源码/测试文件由主控核验为精确 R2 SHA。三变体私有对照使用同一最新 spec，共
+  `6=4 pass/2 expected fail`：旧 async helper 仅 GC 一项精确 Promise GC fail；C0 模块 helper 仅错误
+  传播一项报 `resolved instead of rejected`；final helper 两项均 pass，全部 retry 0且源码 SHA 未变。
+  原 8 case、35 个 `expect` 与历史失败/trace 保留。
+  backend `1351 passed/3 warnings/0 skip`、raw coverage `81.92254049994635%` 以及前端非 E2E 的
+  quality `132 warnings/0 errors/0 new`、Vitest 1429/73、build 47、Fake 141、API 10 所用保护输入未变，
+  沿用本卡已实跑结果。完整双浏览器 E2E 为
+  `326/326 = Chromium 163 + WebKit 163`，每项单一 passed result、retry 0、零
+  skip/flaky/unexpected，约 5.3 分钟且 exit 0；12 项行为门禁全 0。最终 format/Review、
+  commit/push、PR CI/merge/main CI 与用户验收以主控同卡实际回执为准，本文不自批。两次自建合成库中，
+  初始 55434 为非白名单自建库、最终 55433 为白名单库，二者均为 `stop 0 / auto-remove`，
+  当前无本卡活动 PG。
 
 ## 2026-11-10 云端评审后续（R2）
 
@@ -137,7 +168,19 @@ macos` 产出 `dist/macos/<mode>` 与 manifest；`sync-macos.mjs` 在外部工�
 - [ ] **E2E `page.evaluate` Promise GC 偶发（因果未知）**：READ2 PR182 首轮 Chromium `session-flow.spec.ts:109`
       `shows a neutral saved notice...`（1 flaky）与 PR192 Chromium `a11y-focus-touch.spec.ts:80` 首次/retry1 两次
       `Error: page.evaluate: Resulting promise was garbage collected`，两真实 trace 已留；本机 a11y repeat20 20/20
-      未复现，因果未知，不勾选修复。见 [PR192](https://github.com/sunpcm/EchoTalk/pull/192) 与本轮[复核材料](./docs/reviews/2026-11-16-maintenance-next-wave-review-input.md)（含 WGGC PR a11y trace 原行）。
+      未复现。**原观察文字保留：因果未知，不勾选修复。**见
+      [PR192](https://github.com/sunpcm/EchoTalk/pull/192) 与本轮[复核材料](./docs/reviews/2026-11-16-maintenance-next-wave-review-input.md)
+      （含 WGGC PR a11y trace 原行）。后续 CGC 控制实验已确认 Chrome 151/V8 inspector 弱句柄持有协议
+      Promise 的机制，并将 `session-flow` helper 改为 DOM module script；初始 C0 的目标 `18/18`、
+      双浏览器各 20 次共 `80/80` 与完整 E2E `324/324` 保留为该阶段历史。R2 又新增真实浏览器执行错误
+      传播回归，RED `4=2 GC pass/2 error reject fail`，显式首错误重抛与本人 listener 卸载后 GREEN
+      `20/20`，最终三场景双浏览器各 20 次共 `120/120` 无重试通过。三变体私有对照共
+      `6=4 pass/2 expected fail`，分别准确杀死旧 async 的 GC 与 C0 模块 helper 的错误传播缺口，
+      final helper 2/2 pass、retry 0且源码 SHA 未变。原 8 case、35 个 `expect`、成功和失败路径 listener
+      守恒及历史失败/trace 保留。本卡只核销 `session-flow` helper 观察；PR192 a11y 等未改 fixture
+      仍未验证完成，父项继续开放。最终完整 E2E 为 `326/326 = Chromium 163 + WebKit 163`，12 项行为
+      门禁全 0；最终交付以主控同卡实际回执为准，不代表用户验收已完成，也不把其他历史 flaky 追认成
+      同一已修事件。
 - [ ] **防止 bot 推送导致误合并**（2026-11-09 已加 `.github/workflows/pr-guard.yml`：删除 ≥1000 且 >5× 新增时失败，
       `allow-mass-deletion` label 放行；剩余：用户在仓库创建该 label 并把 `mass-deletion-guard` 设为 required check）：#118 合并前 google-labs-jules[bot] 在更新分支后推送
       删除 1.3 万行的提交，squash 后回退了 #119（#128 恢复）。验收：二选一或组合——
