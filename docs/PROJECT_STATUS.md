@@ -5,9 +5,19 @@
 > main `d33f236`；真实 Provider、BKT、人工 gold 与教学质量仍未验收。未完成与待决策事项只在根目录
 > [`TODO.md`](../TODO.md)。
 >
-> 本次合并后的 RC1 本地验证进入收口中。下方“当前验证基线”仍是历史发布证据，本轮结果集中记录在
-> “本次合并集成验证”；完整 E2E 322 项已 exit 0，12 个行为门禁全部通过。
-> 四文档落盘后由主控执行 format，作为第 13 项及最终交付门禁。
+> PR #197 / RC1 的完整 E2E 322（Chromium 161 + WebKit 161）与更早 main 的 321+1 flaky 均为历史快照。
+> CGC 的初始 C0 目标 18、80 次重复与完整 E2E 324 也是前一阶段历史，不能代替 R2 最终结果。R2
+> 揭示并修复了 DOM module script 页面执行错误未传给 helper 的问题：错误传播 RED 为
+> `4=2 GC pass/2 error reject fail`，补显式 `pageerror` 首错误重抛和本人 listener 卸载后 GREEN
+> `20/20`；三个场景在双浏览器各 20 次共 `120/120`，单 result、retry 0、零 skip/flaky，类型/ESLint 0。
+> 三变体私有对照使用同一最新 spec，共 `6=4 pass/2 expected fail`：旧 async helper 仅 GC 一项精确
+> Promise GC fail，C0 模块 helper 仅错误传播一项报 `resolved instead of rejected`，final helper 两项
+> 均 pass；全部 retry 0，源码 SHA 未变。backend 与前端非 E2E 全量的保护输入未变，沿用本卡已实跑
+> 结果。完整双浏览器 E2E 为 `326/326 = Chromium 163 + WebKit 163`，每项单一 passed result、retry 0、
+> 零 skip/flaky/unexpected，约 5.3 分钟且 exit 0；12 项行为门禁全 0。最终第 13 项 format、独立
+> Review、正常 commit/push、PR CI、merge/main CI 与用户验收以主控同卡实际回执为准，本文不自批。
+> 两次自建合成库中，初始 55434 为非白名单自建库、最终 55433 为白名单库，均已清理，当前无本卡活动
+> PG。
 > 技术实现与合成验收完成，不等于人工 gold、真实 Provider 或生产验收；历史表只属各自原时点。
 > 最终 format/Review/提交/推送/新 head CI/合并以主控同卡回执为准；本文不自批 Independent Review，
 > 也不预填远端 CI 通过。
@@ -60,13 +70,51 @@ SGEC-OFF 已通过 [PR194](https://github.com/sunpcm/EchoTalk/pull/194) 合入 m
 | 构建脚本            | 21 passed                  |
 | 完整 backend pytest | 962 / 3w / 80.63% / 59.50s |
 
-本次 B1 主集成的前端、后端、目标、独立回归、完整双浏览器 E2E 与既有合成门禁已有本轮证据。
+PR #197 / RC1 主集成的前端、后端、目标、独立回归、完整双浏览器 E2E 与既有合成门禁已有历史证据。
 最终 format/Review/提交、PR、新 head CI、合并与总体放行仍以主控同卡回执为准。所有数字都不能证明
 真实 LiveKit、IdP、Provider、设备、数据库生产数据或部署已验收。
 
-### 本次合并集成验证（2026-11-17）
+### CGC Chromium Promise GC 测试夹具修复（2026-11-17 当前任务）
 
-以下记录当前合并工作树的本轮本地集成证据，不替代最终同卡回执；历史表保持原时点数字。
+本任务基线为 `73ab94db07c23f93ec23a56b6cab883b6beb590a`，分支
+`codex/chromium-promise-gc-20261117`，只改
+`apps/vite-app/e2e/session-flow.spec.ts`、`apps/vite-app/e2e/helpers/show-ended-session.ts` 与
+`apps/vite-app/e2e/promise-gc.spec.ts`。根因是 Chrome 151/V8 inspector 以弱句柄持有
+`page.evaluate` 的协议结果 Promise；原 async helper 在 Zustand setter 后两层 `queueMicrotask` 处强制
+GC 时精确报 `Resulting promise was garbage collected`，UI 原文案仍可见。修复只把 helper 改为由 DOM
+加载器持有的 module script，静态导入同一 `appStore`、设置同一对象，并用 `JSON.stringify(sessionId)`
+编码；产品源码、公共 Playwright config、CI、依赖和迁移均未改。
+
+| 证据 / 范围       | CGC 当前结果                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| C0 历史（非当前） | 两文件 `18=17 passed/1 failed` 后 `18/18`；unsupported + GC 两个场景 `80/80`；完整 E2E `324/324`。这些均只属 R2 前阶段   |
+| R2 RED            | 错误传播用例 `4=2 GC pass/2 error reject fail`；Chromium/WebKit 均报 `Received promise resolved instead of rejected`     |
+| R2 GREEN          | `20/20`；真实 `setState` 抛错被 helper reject，成功/失败路径 listener 数量均守恒                                         |
+| R2 无重试重复     | unsupported + GC + 执行错误传播，3 场景 × Chromium/WebKit × 20 = `120/120`；单 result、retry 0、0 skip/flaky             |
+| 原断言保全        | 原 8 case、35 个 `expect` 与 fixture 保持；GC 由新 spec 包裹真实 `setState` 触发，不进入 helper                          |
+| R2 三变体私有对照 | 同一最新 spec `6=4 pass/2 expected fail`：旧 async 仅 GC fail、C0 模块 helper 仅错误传播 fail、final 2/2 pass；retry 0   |
+| 静态与保护面      | e2e 显式 TypeScript/ESLint 0、无 disable；三源码/测试精确 R2 SHA；822 个保护文件、3 项 env metadata、20 份旧迁移字节保持 |
+| backend           | 保护输入未变，沿用本卡已实跑 `1351 passed / 3 warnings / 0 skip`，raw coverage `81.92254049994635%`                      |
+| 前端非 E2E 门禁   | 保护输入未变，沿用本卡已实跑 quality 132 warnings / 0 errors / 0 new；Vitest 1429/73；build 47、Fake 141、API 10         |
+| 完整双浏览器 E2E  | `326/326 = Chromium 163 + WebKit 163`；单一 passed result/retry 0/零 skip/flaky/unexpected，约 5.3m、exit 0              |
+| 行为门禁          | 机器汇总 12 项行为门禁全 0                                                                                               |
+| 合成 PG 清理      | 初始 55434 为非白名单自建库、最终 55433 为白名单库；二者均 `stop 0 / auto-remove`，当前无本卡活动 PG                     |
+| 最终交付          | 第 13 项 format/Review、commit/push、PR CI/merge/main CI 与用户 Review 以主控同卡实际回执为准，本文不自批                |
+
+主控私有失败与纠偏均保留在本轮证据，不用最终绿色覆盖：初私有因果 r0 的 oracle 失败、首次私有
+TypeScript 检查的路径/扩展配置纠正、lint 两次把 `use` 前缀 fixture 参数误识别为 Hook、以及首次
+PG 55434 因不在测试白名单而被拒绝后出现的 `3 fail / 162 error / 1186 pass` 与清理重建。之后 fixture
+参数仅局部改名为
+`provideLaunchOptions`，逆向 SHA 已证明 helper、原断言和运行逻辑未随之变化。主控最终已清理
+两次自建合成库：初始 55434 为非白名单自建库，最终白名单库为
+`127.0.0.1:55433/echotalk_b1_test`；二者均为 `stop 0 / auto-remove`，当前无本卡活动 PG。
+最终完整双浏览器 E2E 已通过 `326 = Chromium 163 + WebKit 163`，每项单一 passed result、retry 0、
+零 skip/flaky/unexpected，约 5.3 分钟且 exit 0；12 项行为门禁全 0。最终第 13 项 format、独立 Review、
+正常 commit/push、PR CI、merge/main CI 与用户验收以主控同卡实际回执为准，本文不自批用户验收。
+
+### PR #197 / RC1 合入历史验证（2026-11-17）
+
+以下记录 PR #197 / RC1 合并工作树的历史集成证据，不替代 CGC 当前结果或最终同卡回执；历史表保持原时点数字。
 
 | 门禁 / 范围             | 本轮证据                                                                                                                           |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -417,6 +465,9 @@ B1 §9 七项业务政策已于 2026-11-12 确认；本地四迁移、ledger、�
   （ST）历史根因未知，不写"历史根因已成立"或"不是环境偶发"。
 - CI 首失败取证（EV）只补证据保存（retain-on-failure/only-on-failure + list,json reporter + artifact 上传），
   不修复也不宣称修复 GC；历史 GC60 自然未复现、根因未知；首次 YAML require 根路径 module-not-found 失败保留（工具/环境证据）。
+- 上述 READ2/ST/A11Y 条目保留 CGC 前的原时点文字与 trace。后续 CGC 仅确认并修复
+  `session-flow` helper 的 Chrome 151 Promise GC 夹具机制；其他历史 flaky 的首失败、自然未复现和未改动
+  fixture 继续按原事实保留，不把控制实验外推成所有历史事件均已解释或修复。
 - 真实方向键选择仍未验证：focus/Tab/selectOption 已通过，原生 popup 实际操作仍未验。
 - 根目录 `README.md` 仍含历史阶段叙述，若与本文冲突，以本文和当前代码/CI 为准。
 

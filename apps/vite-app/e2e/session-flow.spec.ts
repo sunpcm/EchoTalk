@@ -1,19 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-async function showEndedSession(page: import("@playwright/test").Page, sessionId: string) {
-  await page.evaluate(async (id) => {
-    const { useAppStore } = await import("/src/store/appStore.ts");
-    useAppStore.setState({
-      appView: "session",
-      connectionState: "ended",
-      sessionId: id,
-      token: null,
-      wsUrl: null,
-      error: null,
-      agentError: null,
-    });
-  }, sessionId);
-}
+import { showEndedSession } from "./helpers/show-ended-session";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
