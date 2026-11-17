@@ -23,16 +23,22 @@ import asyncio
 import importlib
 import os
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from alembic.script import ScriptDirectory
 from sqlalchemy import delete, select, text
 from sqlalchemy import event as sa_event
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session as SyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
@@ -65,9 +71,14 @@ def require_b1_database_url():
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -458,6 +469,90 @@ async def _validate(pg, api, factory=None):
         factory or pg.factory,
         algorithm_versions={FROZEN_BKT_VERSION: dict(FROZEN_BKT_PARAMS)},
     )
+
+
+@contextmanager
+def _learning_event_read_fault(
+    *,
+    target_key: str,
+    field: str,
+    value: Any,
+    listener_ref: list[Any] | None = None,
+):
+    """Inject one corrupt ORM value on read without changing production logic."""
+
+    injected = False
+
+    def loaded(
+        session: SyncSession,
+        instance: object,
+    ) -> None:
+        del session
+        nonlocal injected
+        if injected or not isinstance(instance, LearningEvent):
+            return
+        if instance.idempotency_key != target_key:
+            return
+        set_committed_value(instance, field, value)
+        injected = True
+
+    sa_event.listen(SyncSession, "loaded_as_persistent", loaded)
+    if listener_ref is not None:
+        listener_ref.append(loaded)
+    try:
+        yield lambda: injected
+    finally:
+        sa_event.remove(SyncSession, "loaded_as_persistent", loaded)
+
+
+def test_learning_event_read_fault_uses_persistent_load_and_committed_value():
+    session = SyncSession()
+    event = LearningEvent(
+        idempotency_key="offline-read-fault",
+        details={"schema_version": 1},
+    )
+    event_state = sa_inspect(event)
+    session.dispatch.loaded_as_persistent(session, event_state)
+    listeners = []
+
+    with _learning_event_read_fault(
+        target_key=event.idempotency_key,
+        field="details",
+        value={"schema_version": 99},
+        listener_ref=listeners,
+    ) as injected:
+        listener = listeners.pop()
+        assert sa_event.contains(SyncSession, "loaded_as_persistent", listener)
+        assert not injected()
+        session.dispatch.loaded_as_persistent(session, event_state)
+        assert injected()
+        assert event.details == {"schema_version": 99}
+        assert event_state.attrs.details.history.has_changes() is False
+
+    assert not sa_event.contains(SyncSession, "loaded_as_persistent", listener)
+    assert event_state.attrs.details.history.has_changes() is False
+
+
+def _postgres_error(error: BaseException) -> Any:
+    pending = [error]
+    seen: list[BaseException] = []
+    while pending:
+        current = pending.pop(0)
+        if any(current is candidate for candidate in seen):
+            continue
+        seen.append(current)
+        if current.__class__.__module__.startswith("asyncpg."):
+            return current
+        pending.extend(
+            candidate
+            for candidate in (
+                getattr(current, "__cause__", None),
+                getattr(current, "__context__", None),
+                getattr(current, "orig", None),
+            )
+            if candidate is not None
+        )
+    pytest.fail("database rejection must come from asyncpg", pytrace=False)
 
 
 def _issue_tuples(report) -> set[tuple[str, uuid.UUID | None, str | None]]:
@@ -1207,6 +1302,34 @@ async def _load_event_by_key(pg, key: str) -> int:
         )
 
 
+def _event_copy(event: LearningEvent) -> LearningEvent:
+    return LearningEvent(
+        idempotency_key=event.idempotency_key,
+        event_type=event.event_type,
+        user_id=event.user_id,
+        session_id=event.session_id,
+        analysis_job_id=event.analysis_job_id,
+        pronunciation_assessment_id=event.pronunciation_assessment_id,
+        grammar_error_id=event.grammar_error_id,
+        skill_id=event.skill_id,
+        source_ordinal=event.source_ordinal,
+        observation_correct=event.observation_correct,
+        observation_code=event.observation_code,
+        source=event.source,
+        provider=event.provider,
+        model_version=event.model_version,
+        confidence=event.confidence,
+        is_synthetic=event.is_synthetic,
+        algorithm_version=event.algorithm_version,
+        algorithm_params=event.algorithm_params,
+        p_mastery_snapshot=event.p_mastery_snapshot,
+        cutover_revision=event.cutover_revision,
+        occurred_at=event.occurred_at,
+        recorded_at=event.recorded_at,
+        details=event.details,
+    )
+
+
 @pytest.mark.asyncio
 async def test_replay_rejects_completed_event_without_coverage_directions(pg):
     cutover = _cutover_api()
@@ -1261,17 +1384,29 @@ async def test_replay_rejects_completed_event_schema_version_drift(pg):
 
     assert (await _validate(pg, replay)).issues == ()
 
-    async with pg.factory() as db, db.begin():
-        completed = (
-            await db.execute(
-                select(LearningEvent).where(
-                    LearningEvent.idempotency_key == batch.completed_key
+    async with pg.factory() as db:
+        with pytest.raises(IntegrityError) as caught:
+            async with db.begin_nested():
+                completed = await db.scalar(
+                    select(LearningEvent).where(
+                        LearningEvent.idempotency_key == batch.completed_key
+                    )
                 )
-            )
-        ).scalar_one()
-        completed.details = {**completed.details, "schema_version": 99}
+                completed.details = {**completed.details, "schema_version": 99}
+                await db.flush()
+    postgres = _postgres_error(caught.value)
+    assert getattr(postgres, "sqlstate", None) == "23514"
+    assert getattr(postgres, "constraint_name", None) == (
+        "ck_learning_events_details_shape"
+    )
 
-    report = await _validate(pg, replay)
+    with _learning_event_read_fault(
+        target_key=batch.completed_key,
+        field="details",
+        value={"schema_version": 99},
+    ) as injected:
+        report = await _validate(pg, replay)
+    assert injected()
     issues = _issue_tuples(report)
     assert ("event_schema_version_mismatch", user_id, None) in issues
 
@@ -1295,17 +1430,27 @@ async def test_replay_rejects_completed_event_source_drift(pg):
 
     assert (await _validate(pg, replay)).issues == ()
 
-    async with pg.factory() as db, db.begin():
-        completed = (
-            await db.execute(
-                select(LearningEvent).where(
-                    LearningEvent.idempotency_key == batch.completed_key
+    async with pg.factory() as db:
+        with pytest.raises(IntegrityError) as caught:
+            async with db.begin_nested():
+                completed = await db.scalar(
+                    select(LearningEvent).where(
+                        LearningEvent.idempotency_key == batch.completed_key
+                    )
                 )
-            )
-        ).scalar_one()
-        completed.source = "wrong-source"
+                completed.source = "wrong-source"
+                await db.flush()
+    postgres = _postgres_error(caught.value)
+    assert getattr(postgres, "sqlstate", None) == "23514"
+    assert getattr(postgres, "constraint_name", None) == "ck_learning_events_shape"
 
-    report = await _validate(pg, replay)
+    with _learning_event_read_fault(
+        target_key=batch.completed_key,
+        field="source",
+        value="wrong-source",
+    ) as injected:
+        report = await _validate(pg, replay)
+    assert injected()
     issues = _issue_tuples(report)
     assert ("completed_source_mismatch", user_id, None) in issues
 
@@ -1329,11 +1474,25 @@ async def test_replay_rejects_observation_schema_version_drift(pg):
 
     assert (await _validate(pg, replay)).issues == ()
 
-    async with pg.factory() as db, db.begin():
-        observation = await db.get(LearningEvent, batch.observation_event_id)
-        observation.details = {"schema_version": 99}
+    async with pg.factory() as db:
+        with pytest.raises(IntegrityError) as caught:
+            async with db.begin_nested():
+                observation = await db.get(LearningEvent, batch.observation_event_id)
+                observation.details = {"schema_version": 99}
+                await db.flush()
+    postgres = _postgres_error(caught.value)
+    assert getattr(postgres, "sqlstate", None) == "23514"
+    assert getattr(postgres, "constraint_name", None) == (
+        "ck_learning_events_details_shape"
+    )
 
-    report = await _validate(pg, replay)
+    with _learning_event_read_fault(
+        target_key=batch.observation_key,
+        field="details",
+        value={"schema_version": 99},
+    ) as injected:
+        report = await _validate(pg, replay)
+    assert injected()
     issues = _issue_tuples(report)
     assert ("event_schema_version_mismatch", user_id, skill_id) in issues
 
@@ -1351,21 +1510,36 @@ async def test_replay_rejects_baseline_schema_version_drift(pg):
 
     assert (await _validate(pg, replay)).issues == ()
 
-    async with pg.factory() as db, db.begin():
-        baseline = (
-            await db.execute(
-                select(LearningEvent).where(
-                    LearningEvent.cutover_revision == revision,
-                    LearningEvent.event_type == "baseline_snapshot",
-                )
-            )
-        ).scalar_one()
-        baseline.details = {
-            "schema_version": 99,
-            "legacy_synthetic_impact": "unknown",
-        }
+    baseline_key = f"baseline:{revision}:{user_id}:{skill_id}"
+    async with pg.factory() as db:
+        with pytest.raises(IntegrityError) as caught:
+            async with db.begin_nested():
+                baseline = (
+                    await db.execute(
+                        select(LearningEvent).where(
+                            LearningEvent.cutover_revision == revision,
+                            LearningEvent.event_type == "baseline_snapshot",
+                        )
+                    )
+                ).scalar_one()
+                baseline.details = {
+                    "schema_version": 99,
+                    "legacy_synthetic_impact": "unknown",
+                }
+                await db.flush()
+    postgres = _postgres_error(caught.value)
+    assert getattr(postgres, "sqlstate", None) == "23514"
+    assert getattr(postgres, "constraint_name", None) == (
+        "ck_learning_events_details_shape"
+    )
 
-    report = await _validate(pg, replay)
+    with _learning_event_read_fault(
+        target_key=baseline_key,
+        field="details",
+        value={"schema_version": 99, "legacy_synthetic_impact": "unknown"},
+    ) as injected:
+        report = await _validate(pg, replay)
+    assert injected()
     issues = _issue_tuples(report)
     assert ("event_schema_version_mismatch", user_id, skill_id) in issues
 
@@ -1395,59 +1569,48 @@ async def test_replay_rejects_baseline_between_complete_job_batches(pg):
     assert (await _validate(pg, replay)).issues == ()
 
     baseline_key = f"baseline:{revision}:{user_id}:{skill_id}"
-    baseline_seq = await _load_event_by_key(pg, baseline_key)
-    first_completed_seq = await _load_event_by_key(pg, first_batch.completed_key)
-    first_observation_seq = await _load_event_by_key(
-        pg,
-        first_batch.observation_key,
-    )
-    assert baseline_seq < first_completed_seq < first_observation_seq
-
-    # Move the baseline between the two complete batches without breaking
-    # either job's completed-first order: [completed, observation, baseline,
-    # second completed, second observation].
+    # ALWAYS identity makes UPDATE apply_seq invalid. Recreate the baseline and
+    # the second complete batch in the desired legal insert order instead:
+    # [first completed, first observation, baseline, second completed,
+    # second observation].
     async with pg.factory() as db, db.begin():
-        await db.execute(
-            text(
-                "UPDATE learning_events SET apply_seq = :target "
-                "WHERE idempotency_key = :key"
-            ),
-            {
-                "target": baseline_seq + 10000,
-                "key": first_batch.observation_key,
-            },
+        baseline = (
+            await db.execute(
+                select(LearningEvent).where(
+                    LearningEvent.idempotency_key == baseline_key
+                )
+            )
+        ).scalar_one()
+        second_events = list(
+            (
+                await db.execute(
+                    select(LearningEvent)
+                    .where(LearningEvent.analysis_job_id == second_batch.job_id)
+                    .order_by(LearningEvent.apply_seq)
+                )
+            )
+            .scalars()
+            .all()
         )
-        await db.execute(
-            text(
-                "UPDATE learning_events SET apply_seq = :target "
-                "WHERE idempotency_key = :key"
-            ),
-            {"target": first_observation_seq, "key": baseline_key},
-        )
-        await db.execute(
-            text(
-                "UPDATE learning_events SET apply_seq = :target "
-                "WHERE idempotency_key = :key"
-            ),
-            {"target": baseline_seq, "key": first_batch.completed_key},
-        )
-        await db.execute(
-            text(
-                "UPDATE learning_events SET apply_seq = :target "
-                "WHERE idempotency_key = :key"
-            ),
-            {
-                "target": first_completed_seq,
-                "key": first_batch.observation_key,
-            },
-        )
-
-    moved_baseline_seq = await _load_event_by_key(pg, baseline_key)
-    assert (
-        first_batch.completed_event_id
-        < moved_baseline_seq
-        < second_batch.completed_event_id
-    )
+        first_observation = (
+            await db.execute(
+                select(LearningEvent).where(
+                    LearningEvent.idempotency_key == first_batch.observation_key
+                )
+            )
+        ).scalar_one()
+        first_observation_copy = _event_copy(first_observation)
+        second_replacements = [_event_copy(baseline), *map(_event_copy, second_events)]
+        await db.delete(baseline)
+        for event in second_events:
+            await db.delete(event)
+        await db.delete(first_observation)
+        await db.flush()
+        db.add(first_observation_copy)
+        await db.flush()
+        for event in second_replacements:
+            db.add(event)
+            await db.flush()
 
     report = await _validate(pg, replay)
     issues = _issue_tuples(report)
@@ -1601,28 +1764,36 @@ async def test_replay_rejects_cross_source_observation_order_swap(pg):
     first_seq = await _load_event_by_key(pg, first_key)
     second_seq = await _load_event_by_key(pg, second_key)
     assert first_seq < second_seq
+
+    # Replace both observations in reverse insert order. Identity allocates
+    # new apply_seq values, so the original canonical positions now appear in
+    # the opposite replay order without weakening ALWAYS identity.
     async with pg.factory() as db, db.begin():
-        await db.execute(
-            text(
-                "UPDATE learning_events SET apply_seq = :target "
-                "WHERE idempotency_key = :key"
-            ),
-            {"target": second_seq + 10000, "key": first_key},
-        )
-        await db.execute(
-            text(
-                "UPDATE learning_events SET apply_seq = :target "
-                "WHERE idempotency_key = :key"
-            ),
-            {"target": first_seq, "key": second_key},
-        )
-        await db.execute(
-            text(
-                "UPDATE learning_events SET apply_seq = :target "
-                "WHERE idempotency_key = :key"
-            ),
-            {"target": second_seq, "key": first_key},
-        )
+        first_event = (
+            await db.execute(
+                select(LearningEvent).where(LearningEvent.idempotency_key == first_key)
+            )
+        ).scalar_one()
+        second_event = (
+            await db.execute(
+                select(LearningEvent).where(LearningEvent.idempotency_key == second_key)
+            )
+        ).scalar_one()
+        first_copy = _event_copy(first_event)
+        second_copy = _event_copy(second_event)
+        await db.delete(first_event)
+        await db.delete(second_event)
+        await db.flush()
+        db.add(second_copy)
+        await db.flush()
+        db.add(first_copy)
+        await db.flush()
+
+    swapped_second_seq = await _load_event_by_key(pg, second_key)
+    swapped_first_seq = await _load_event_by_key(pg, first_key)
+    assert second_seq < swapped_second_seq < swapped_first_seq
+    assert first_seq < swapped_second_seq < swapped_first_seq
+    assert (await _validate(pg, replay)).watermark >= swapped_first_seq
 
     report = await _validate(pg, replay)
     assert any(

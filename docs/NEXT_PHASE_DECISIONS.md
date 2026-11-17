@@ -129,3 +129,29 @@
 | 6   | “已记录会话时长”       | 用户已确认命名；B1 后端 opt-in 聚合与前端三态显示已完成                          | 有效说话时长需媒体/说话区间；掌握度环比及真实输入另行决定      |
 | 7   | 掌握度环比             | 尚未确认；建议同技能百分点变化                                                   | 可比基线快照 + 缺值/版本门控 + 独立实施/评审                   |
 | 8   | 真实环境范围/资源/预算 | 尚未授权                                                                         | 账号/费用、环境隔离、迁移/起栈/拨测/部署、设备与证据矩阵       |
+
+## 8. B2 新 main 决策增量（2026-11-17）
+
+本节覆盖本页早先面向旧 main 的 B2 切换准备口径，但保留其上全部 B1 历史。详细内容见
+[B2 学习事件契约](./B2_LEDGER_CONTRACT.md) 与
+[B2 实施计划](./B2_IMPLEMENTATION_PLAN.md)。
+
+当前选择是 EchoTalk 新 main 的干净开发期起步：不承接旧测试 Job、旧状态或旧事件；不写
+`legacy_unknown` baseline、不回填、不从 `knowledge_states` 反推；不重新分析成功 Job。
+新 Job 的 `bkt-v1` 链从 `p_init=.1` 开始。历史 cutover 表、维护代码和相关迁移保留，
+但 B2 新成功链不以 cutover 阶段或 baseline 作准入，运行路径适配留到 S2。
+
+账号存续期保留、整账号删除、JSON 导出和 goals 继续保留，本轮不新增 API，也不批准真实
+retention 或生产不可恢复删除。`bkt-v1`、失败重试复用 Job、成功 Job 不重新分析等既有
+业务口径不变。
+
+S1 只加固已有 `learning_events`：identity 改 ALWAYS；新增 5 个空串/JSON object CHECK；
+替换旧 shape，要求 completed `source='analysis'`、mapped 观察的 `model_version` 非 NULL
+且非空串、`observation_code` 非空、语法正确性显式为 false。未知 mapped 版本由数据库
+整批拒绝，不能伪造 `"unknown"`；S2 再把该数据库失败升级为稳定服务错误码。非法旧行
+必须阻止迁移并整体回滚，不清理、不回填；downgrade 精确恢复 B1 四 CHECK 与 BY DEFAULT。
+
+S2 目标为 Job→User、完整批次、七键 coverage、同事务 BKT 与 Job succeeded，并需解决
+现有账号删除 User→Job 和 writer Job→User 在退出旧共享 control 锁后的兼容锁序。S3
+目标为 RR/READ ONLY、首条 watermark 与同快照只读重算。S2/S3 均未开始，S1 源码完成也
+不表示真实迁移、服务、CI、部署或 main 已完成。

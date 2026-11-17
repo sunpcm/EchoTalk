@@ -438,3 +438,36 @@ WebKit 7 failed，定向 GREEN 为 14 passed；修复后当前完整 E2E 为
 SHA，不开 PR、不合并、不部署。生产库未执行 DDL、切换、真实数据处理或不可恢复删除；真实
 Provider/IdP/LiveKit、设备、原生 iOS、远端 CI、生产备份与法定/特殊保留均未验收，音频采集与真实
 外部服务不在本范围。任务分支 push 不触发远端 CI。
+
+## 10. B2 新 main 增量口径（2026-11-17）
+
+本节只追加当前 main 的 B2 决策，不重写 §1–§9 的 B1 历史。详细契约见
+[B2_LEDGER_CONTRACT.md](./B2_LEDGER_CONTRACT.md)，实施边界见
+[B2_IMPLEMENTATION_PLAN.md](./B2_IMPLEMENTATION_PLAN.md)。
+
+- 新 main 已有 `learning_events`、writer、canonical、replay、cutover、删除/导出和
+  goals；B2 只做已有表 ALTER，不重复建表，不改 B1 历史迁移。
+- 开发期从干净事件链起步，不承接旧 Job、旧状态或旧事件；不写 baseline、不回填，也不
+  重新分析成功 Job。新状态从 `p_init=.1` 开始。
+- 历史 cutover 表与维护迁移保留，以维持现有源码事实；B2 新成功链不以 cutover 阶段或
+  baseline 作准入。运行路径适配属于 S2，当前未开始。
+- `apply_seq` 在 S1 升为 `GENERATED ALWAYS`；mapped observation 的 `model_version`
+  必须非 NULL 且非空串，`observation_code` 非空，语法观察必须
+  `observation_correct IS FALSE`，completed 固定 `source='analysis'`。未知版本不得写成
+  `"unknown"`。
+- `details` 必须是 JSON object 且 `schema_version` 为数值 1；`algorithm_params` 为 SQL
+  `NULL` 或 JSON object。CHECK 必须显式处理 SQL/JSON `UNKNOWN`。
+- 每个成功 Job 写完整批次：一条 completed 与全部可映射观察；重试复用同一 Job 和幂等
+  键。completed 与观察必须同事务、同 user/session/job，Job 最终 succeeded。
+- 目标锁序为 Job→User；用户锁覆盖事件、BKT 和 Job 成功。S2 必须解决现有账号删除
+  User→Job 与 writer Job→User 在退出旧共享 control 锁后的兼容锁序，S1 不改运行代码。
+- 发音按原数组下标、语法按 `(skill_tag,error_type)` 排序；不可映射项保留位置空洞，
+  重复语法稳定键拒绝。`bkt-v1` 四参数与公式继续冻结。
+- coverage 每方向固定七键：
+  `status/reason/result_count/reused/metadata/basis/source_facts`；全合成写事件但不读写
+  知识状态。I1 DTO 仍保留 `model_version=None` 的事实，服务兼容与稳定错误码属于 S2。
+- replay 使用 `REPEATABLE READ READ ONLY`，首条数据查询固定
+  `MAX(apply_seq)` watermark；只读同一快照并报告问题，不修复数据。实现与双连接时序
+  证据属于 S3。
+- 删除、导出和 goals 保留；本轮不批准真实 retention、业务数据清理、生产 DDL、服务、
+  CI、部署或 main 合并。

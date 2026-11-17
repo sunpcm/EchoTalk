@@ -278,9 +278,14 @@ def _require_b1_database_url():
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -694,7 +699,7 @@ def _grammar_event_values(
     job_id: uuid.UUID,
     grammar_id: uuid.UUID,
     occurred_at: datetime,
-    model_version: str | None = None,
+    model_version: str | None = "acme-grammar-rules-v1",
     is_synthetic: bool = True,
 ) -> dict[str, Any]:
     return {
@@ -986,7 +991,16 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
     )
     job_id = await export_pg.new_job(session_id)
     pronunciation_id = await export_pg.new_pronunciation_assessment(session_id)
-    grammar_id = await export_pg.new_grammar_error(session_id)
+    grammar_id = await export_pg.new_grammar_error(
+        session_id,
+        model_version="acme-grammar-rules-v1",
+    )
+    unknown_grammar_id = await export_pg.new_grammar_error(
+        session_id,
+        original="Unknown grammar row remains exportable.",
+        corrected="Unknown grammar row is not mapped to an event.",
+        model_version=None,
+    )
     await export_pg.new_knowledge_state(
         user_id,
         skill_id="verb_tense_past",
@@ -1023,7 +1037,7 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
             job_id=job_id,
             grammar_id=grammar_id,
             occurred_at=ended_at,
-            model_version=None,
+            model_version="acme-grammar-rules-v1",
             is_synthetic=True,
         )
     )
@@ -1071,8 +1085,11 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
     assert pronunciation["model_version"] == "acme-phoneme-v1"
     assert pronunciation["is_synthetic"] is False
     assert grammar["source"] == "acme_grammar"
-    assert grammar["model_version"] is None
+    assert grammar["model_version"] == "acme-grammar-rules-v1"
     assert grammar["is_synthetic"] is True
+    grammar_rows = {row["id"]: row for row in body["grammar_assessments"]}
+    assert grammar_rows[str(unknown_grammar_id)]["model_version"] is None
+    assert grammar_rows[str(grammar_id)]["model_version"] == "acme-grammar-rules-v1"
     assert baseline["source"] == "legacy_unknown"
     assert baseline["is_synthetic"] is None
     assert baseline["details"]["legacy_synthetic_impact"] == "unknown"

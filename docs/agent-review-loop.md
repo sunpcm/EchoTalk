@@ -576,3 +576,39 @@ tasks null 槽位、其他 pin、runtime、历史记录不改。r0 上述备份/
 - **Fake API 截图或手动验证**：用与 E2E 不同的端口启动，避免与测试并行冲突，例如
   `E2E_API_PORT=18282 node e2e/fake-api.mjs` 与
   `E2E_API_URL=http://127.0.0.1:18282 VITE_AUTH_MODE=dev VITE_DEV_AUTH_TOKEN=e2e-dev-token pnpm dev --host 127.0.0.1 --port 4273 --strictPort`。
+
+## §21 B2 新 main 增量专用 PostgreSQL 与执行边界（2026-11-17）
+
+本包只属于 EchoTalk 应用仓 `sunpcm/EchoTalk`，不改 review-loop 框架或其他项目。唯一
+实施 worktree 为
+`/Users/sunpcm/code/EchoTalk/.review/worktrees/b2-main-incremental-20261117`，分支
+`codex/b2-main-incremental-20261117`，基线
+`5d3641203484d66454a45f6d43547648b99dc05c`。
+
+主控为 S0/S1 提供独立合成 namespace：
+
+| 项目               | 固定值                         |
+| ------------------ | ------------------------------ |
+| container          | `echotalk-b2-test-pg-20261116` |
+| host port          | `127.0.0.1:55446`              |
+| database           | `echotalk_b2_main_test`        |
+| role               | `echotalk_b2_main_test`        |
+| server_version_num | `150019`                       |
+| schema             | `public`                       |
+
+凭据只由主控持有并注入，不写 prompt、源码、报告、日志或 tracked 文档。原 P1
+`echotalk_b2_test`、旧 55433 与 5432 目标保持独立。
+
+实施作者只做静态迁移、Ruff、compileall 与纯离线测试，不连接 Docker/DB、不读取
+`.env`/凭据、不执行 Alembic。主控先独立审阅 upgrade/downgrade 的真实 SQL，再在已从
+空库升级至 `b1_goal_evaluation` 的专用库执行 B2 增量迁移、正负例、downgrade 与
+reupgrade。迁移执行不是实施作者权限，迁移文件存在也不表示已部署。
+
+既有 B1 数据库 guard 可保留原 55433 与 CI 条目，只增加精确 tuple
+`("127.0.0.1", 55446, "echotalk_b2_main_test")`。该新 tuple 还须要求
+`parsed.username == "echotalk_b2_main_test"`；不得接受该地址上的任意数据库或角色。
+缺 `DATABASE_URL`、身份不符、query/fragment 或非专用目标均 fail，不 skip。
+
+主控负责全部三树、格式、类型、构建、迁移流与有效私有变异；实施作者没有执行的部分在
+交付报告中列为未验证。源码完成即停写进入独立 Review，不 commit、push、部署或 merge
+main，不进入 S2/S3。

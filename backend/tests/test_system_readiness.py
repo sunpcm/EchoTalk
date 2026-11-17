@@ -27,6 +27,7 @@ SYSTEM_READY_PATH = "/api/health/system-ready"
 SYSTEM_READY_ROUTE_PATH = "/health/system-ready"
 LEGACY_READY_PATH = "/api/health/ready"
 _LOCAL_B1_DATABASE = ("127.0.0.1", 55433, "echotalk_b1_test")
+_LOCAL_B2_DATABASE = ("127.0.0.1", 55446, "echotalk_b2_main_test")
 _CI_DATABASE = ("localhost", 5432, "echotalk_test")
 _AUTH_DEPENDENCIES = (
     get_authenticated_identity,
@@ -73,28 +74,32 @@ def _require_b1_database_url():
             "R2-14 PostgreSQL test requires explicit DATABASE_URL",
             pytrace=False,
         )
-    expected_target = (
-        _CI_DATABASE
+    expected_targets = (
+        {_CI_DATABASE}
         if os.environ.get("GITHUB_ACTIONS") == "true"
-        else _LOCAL_B1_DATABASE
+        else {_LOCAL_B1_DATABASE, _LOCAL_B2_DATABASE}
     )
     try:
         parsed = make_url(raw)
         actual = (parsed.host, parsed.port, parsed.database)
+        engine_url = database.engine.url
         valid = (
             parsed.drivername in {"postgresql", "postgresql+asyncpg"}
-            and actual == expected_target
+            and actual in expected_targets
             and bool(parsed.username and parsed.username.strip())
+            and (
+                actual != _LOCAL_B2_DATABASE or parsed.username == _LOCAL_B2_DATABASE[2]
+            )
             and not parsed.query
         )
-        engine_target = (
-            database.engine.url.host,
-            database.engine.url.port,
-            database.engine.url.database,
-        )
+        engine_target = (engine_url.host, engine_url.port, engine_url.database)
     except Exception:
         pytest.fail("R2-14 PostgreSQL test DATABASE_URL is invalid", pytrace=False)
-    if not valid or engine_target != expected_target:
+    engine_identity_valid = engine_target == actual and (
+        engine_target != _LOCAL_B2_DATABASE
+        or engine_url.username == _LOCAL_B2_DATABASE[2]
+    )
+    if not valid or not engine_identity_valid:
         pytest.fail("R2-14 PostgreSQL test database boundary mismatch", pytrace=False)
     return parsed
 

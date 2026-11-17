@@ -47,6 +47,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import delete, select, text
 from sqlalchemy import event as sa_event
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from models.analysis import AnalysisJob, AnalysisJobStatus
@@ -88,9 +89,14 @@ def require_b1_database_url():
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -119,6 +125,28 @@ def _write_learning_events():
             pytrace=False,
         )
     return fn
+
+
+def _postgres_error(error: BaseException) -> Any:
+    pending = [error]
+    seen: list[BaseException] = []
+    while pending:
+        current = pending.pop(0)
+        if any(current is candidate for candidate in seen):
+            continue
+        seen.append(current)
+        if current.__class__.__module__.startswith("asyncpg."):
+            return current
+        pending.extend(
+            candidate
+            for candidate in (
+                getattr(current, "__cause__", None),
+                getattr(current, "__context__", None),
+                getattr(current, "orig", None),
+            )
+            if candidate is not None
+        )
+    pytest.fail("database rejection must come from asyncpg", pytrace=False)
 
 
 @dataclass
@@ -1015,55 +1043,89 @@ async def test_cross_relation_fails_closed(pg, mismatch):
 
 
 @pytest.mark.asyncio
-async def test_unknown_model_version_stays_null(pg, monkeypatch):
+async def test_unknown_model_version_rejects_complete_batch_at_shape_constraint(pg):
     await pg.ensure_seed_skills()
     user_id = await pg.new_user()
     session_id = await pg.new_session(user_id)
     await pg.new_transcript(session_id)
-    job_id = await pg.new_job(session_id)
+    job_id = await pg.new_job(session_id, status=AnalysisJobStatus.running)
 
-    async def legacy_analyze(session_id_arg, db):
-        assessment = PronunciationAssessment(
-            id=uuid.uuid4(),
-            session_id=session_id_arg,
-            overall_score=75.0,
-            phoneme_alignment=TH_ALIGNMENT,
-            source="legacy_mock",
-            provider=None,
-            model_version=None,
-            is_synthetic=False,
-            confidence=None,
+    with pytest.raises(IntegrityError) as caught:
+        async with pg.factory() as db, db.begin():
+            job = await db.get(AnalysisJob, job_id)
+            session = await db.get(Session, session_id)
+            assessment = PronunciationAssessment(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                overall_score=75.0,
+                phoneme_alignment=TH_ALIGNMENT,
+                source="legacy_mock",
+                provider=None,
+                model_version=None,
+                is_synthetic=False,
+                confidence=None,
+            )
+            grammar_error = GrammarError(
+                id=uuid.uuid4(),
+                session_id=session_id,
+                skill_tag="verb_tense_past",
+                original="I go",
+                corrected="I went",
+                error_type="wrong_tense",
+                source="legacy_rule",
+                provider=None,
+                model_version=None,
+                is_synthetic=False,
+                confidence=None,
+            )
+            db.add_all([assessment, grammar_error])
+            await db.flush()
+            assert assessment.model_version is None
+            assert grammar_error.model_version is None
+            coverage = _coverage_for(assessment, [grammar_error])
+            assert coverage["pronunciation"]["model_version"] is None
+            assert coverage["grammar"]["model_version"] is None
+            await _write_learning_events()(
+                job=job,
+                session=session,
+                user_id=user_id,
+                assessment=assessment,
+                grammar_errors=[grammar_error],
+                coverage=coverage,
+                db=db,
+            )
+
+    postgres = _postgres_error(caught.value)
+    assert getattr(postgres, "sqlstate", None) == "23514"
+    assert getattr(postgres, "constraint_name", None) == "ck_learning_events_shape"
+
+    assert await get_events(pg.factory, user_id) == []
+    assert await get_knowledge_states(pg.factory, user_id) == []
+    async with pg.factory() as db:
+        assessments = (
+            (
+                await db.execute(
+                    select(PronunciationAssessment).where(
+                        PronunciationAssessment.session_id == session_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        db.add(assessment)
-        grammar_error = GrammarError(
-            id=uuid.uuid4(),
-            session_id=session_id_arg,
-            skill_tag="verb_tense_past",
-            original="I go",
-            corrected="I went",
-            error_type="wrong_tense",
-            source="legacy_rule",
-            provider=None,
-            model_version=None,
-            is_synthetic=False,
-            confidence=None,
+        grammar_errors = (
+            (
+                await db.execute(
+                    select(GrammarError).where(GrammarError.session_id == session_id)
+                )
+            )
+            .scalars()
+            .all()
         )
-        db.add(grammar_error)
-        await db.flush()
-        return _AnalysisResult(
-            assessment=assessment,
-            grammar_errors=[grammar_error],
-            coverage=_coverage_for(assessment, [grammar_error]),
-        )
-
-    monkeypatch.setattr(analysis_jobs, "analyze_session", legacy_analyze)
-
-    await run_job(pg.factory, job_id)
-
-    events = await get_events(pg.factory, user_id)
-    observations = [e for e in events if e.event_type != "analysis_completed"]
-    assert observations
-    assert all(e.model_version is None for e in observations)
+        job = await db.get(AnalysisJob, job_id)
+    assert assessments == []
+    assert grammar_errors == []
+    assert job.status == AnalysisJobStatus.running
 
 
 @pytest.mark.asyncio

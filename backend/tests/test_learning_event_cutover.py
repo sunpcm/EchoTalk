@@ -66,9 +66,14 @@ def require_b1_database_url():
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -502,6 +507,43 @@ def _run_maintenance_cli(
 
 def _combined_output(result: subprocess.CompletedProcess[str]) -> str:
     return f"{result.stdout}\n{result.stderr}"
+
+
+def test_maintenance_cli_namespace_guard_accepts_only_exact_55446(
+    monkeypatch,
+) -> None:
+    _require_maintenance_cli()
+    from scripts.learning_events_maintenance import (
+        MaintenanceUsageError,
+        _database_url,
+    )
+
+    accepted = (
+        "postgresql://echotalk_b2_main_test:secret@127.0.0.1:55446/"
+        "echotalk_b2_main_test"
+    )
+    monkeypatch.setenv("DATABASE_URL", accepted)
+    parsed = _database_url()
+    assert parsed.drivername == "postgresql+asyncpg"
+    assert parsed.username == "echotalk_b2_main_test"
+    assert (parsed.host, parsed.port, parsed.database) == (
+        "127.0.0.1",
+        55446,
+        "echotalk_b2_main_test",
+    )
+
+    rejected = (
+        "postgresql://wrong_role:secret@127.0.0.1:55446/echotalk_b2_main_test",
+        "postgresql://echotalk_b2_main_test:secret@127.0.0.1:55446/"
+        "echotalk_b2_main_test?sslmode=disable",
+        "postgresql://echotalk_b2_main_test:secret@127.0.0.1:55445/"
+        "echotalk_b2_main_test",
+        "postgresql://echotalk_b2_main_test:secret@127.0.0.1:55446/wrong_database",
+    )
+    for database_url in rejected:
+        monkeypatch.setenv("DATABASE_URL", database_url)
+        with pytest.raises(MaintenanceUsageError):
+            _database_url()
 
 
 @pytest.mark.asyncio
