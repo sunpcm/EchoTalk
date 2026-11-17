@@ -316,17 +316,32 @@ def _coverage(algorithm_version: str) -> dict:
         "coverage": {
             "pronunciation": {
                 "status": "not_called",
-                "source": None,
-                "provider": None,
-                "model_version": None,
-                "is_synthetic": None,
+                "reason": "disabled",
+                "result_count": None,
+                "reused": False,
+                "metadata": None,
+                "basis": "none",
+                "source_facts": None,
             },
             "grammar": {
                 "status": "evaluated",
-                "source": "provider",
-                "provider": "llm",
-                "model_version": "v1",
-                "is_synthetic": False,
+                "reason": "completed",
+                "result_count": 1,
+                "reused": False,
+                "metadata": {
+                    "source": "provider",
+                    "provider": "llm",
+                    "model_version": "v1",
+                    "is_synthetic": False,
+                    "confidence": 0.9,
+                },
+                "basis": "current_invocation",
+                "source_facts": {
+                    "source": "provider",
+                    "provider": "llm",
+                    "model_version": "v1",
+                    "is_synthetic": False,
+                },
             },
         },
         "unmapped": {"pronunciation": 0, "grammar": 0},
@@ -906,10 +921,23 @@ async def _add_pronunciation_batch(
         details = _coverage(FROZEN_BKT_VERSION)
         details["coverage"]["pronunciation"] = {
             "status": "evaluated",
-            "source": "demo",
-            "provider": "demo",
-            "model_version": "demo-v1",
-            "is_synthetic": True,
+            "reason": "completed",
+            "result_count": 1,
+            "reused": False,
+            "metadata": {
+                "source": "demo",
+                "provider": "demo",
+                "model_version": "demo-v1",
+                "is_synthetic": True,
+                "confidence": 0.6,
+            },
+            "basis": "current_invocation",
+            "source_facts": {
+                "source": "demo",
+                "provider": "demo",
+                "model_version": "demo-v1",
+                "is_synthetic": True,
+            },
         }
         db.add(
             LearningEvent(
@@ -1714,7 +1742,9 @@ async def test_replay_rejects_cross_source_observation_order_swap(pg):
             )
         await db.flush()
         completed_details = _coverage(FROZEN_BKT_VERSION)
-        completed_details["coverage"]["grammar"]["is_synthetic"] = True
+        completed_details["coverage"]["grammar"]["result_count"] = 2
+        completed_details["coverage"]["grammar"]["metadata"]["is_synthetic"] = True
+        completed_details["coverage"]["grammar"]["source_facts"]["is_synthetic"] = True
         db.add(
             LearningEvent(
                 idempotency_key=f"job:{job_id}:completed",

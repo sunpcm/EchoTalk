@@ -20,7 +20,13 @@ from models.session import Session
 from services.knowledge.bkt_model import BKTParams, update_mastery
 from services.learning_event_canonical import (
     CanonicalObservation,
+    CanonicalObservationError,
     build_canonical_observations,
+)
+from services.learning_event_rules import (
+    CoverageValidationError,
+    has_complete_b2_coverage,
+    validate_ledger_coverage,
 )
 
 TOLERANCE = 1e-9
@@ -31,13 +37,6 @@ _EVENT_TYPES_WITH_SCHEMA_VERSION = {
     *_OBSERVATION_TYPES,
     "baseline_snapshot",
 }
-_COVERAGE_FIELDS = (
-    "status",
-    "source",
-    "provider",
-    "model_version",
-    "is_synthetic",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,69 +118,25 @@ def _schema_version_matches(details: object) -> bool:
     )
 
 
-def _source_facts(source: object) -> tuple[object, object, object, object]:
-    return (
-        source.source,
-        source.provider,
-        source.model_version,
-        source.is_synthetic,
-    )
-
-
-def _coverage_direction_matches(
-    direction: object,
-    *,
-    expected_status: str,
-    source_facts: set[tuple[object, object, object, object]] | None,
-    require_absent_source: bool,
-) -> bool:
-    if (
-        not isinstance(direction, dict)
-        or set(direction) != set(_COVERAGE_FIELDS)
-        or direction.get("status") != expected_status
-    ):
-        return False
-    actual_facts = (
-        direction.get("source"),
-        direction.get("provider"),
-        direction.get("model_version"),
-        direction.get("is_synthetic"),
-    )
-    if any(
-        value is not None and not isinstance(value, str) for value in actual_facts[:3]
-    ):
-        return False
-    if actual_facts[3] is not None and type(actual_facts[3]) is not bool:
-        return False
-    if source_facts is None:
-        return not require_absent_source or all(value is None for value in actual_facts)
-    return actual_facts in source_facts
-
-
 def _coverage_matches(
     details: object,
     *,
     assessment: PronunciationAssessment | None,
     grammar_errors: list[GrammarError],
 ) -> bool:
-    if not isinstance(details, dict):
+    if not has_complete_b2_coverage(details):
         return False
+    assert isinstance(details, dict)
     coverage = details.get("coverage")
-    if not isinstance(coverage, dict) or set(coverage) != {"pronunciation", "grammar"}:
+    try:
+        validate_ledger_coverage(
+            coverage,
+            pronunciation_sources=([assessment] if assessment is not None else []),
+            grammar_sources=grammar_errors,
+        )
+    except CoverageValidationError:
         return False
-    pronunciation_facts = None if assessment is None else {_source_facts(assessment)}
-    grammar_facts = {_source_facts(error) for error in grammar_errors} or None
-    return _coverage_direction_matches(
-        coverage.get("pronunciation"),
-        expected_status="evaluated" if assessment is not None else "not_called",
-        source_facts=pronunciation_facts,
-        require_absent_source=True,
-    ) and _coverage_direction_matches(
-        coverage.get("grammar"),
-        expected_status="evaluated",
-        source_facts=grammar_facts,
-        require_absent_source=False,
-    )
+    return True
 
 
 def _baseline_digest(
@@ -714,12 +669,21 @@ async def validate_learning_event_replay(
                     None,
                 )
 
-            expected_batch = build_canonical_observations(
-                job_id=job.id,
-                assessment=assessment_by_session.get(job.session_id),
-                grammar_errors=grammar_by_session.get(job.session_id, []),
-                valid_skill_ids=valid_skill_ids,
-            )
+            try:
+                expected_batch = build_canonical_observations(
+                    job_id=job.id,
+                    assessment=assessment_by_session.get(job.session_id),
+                    grammar_errors=grammar_by_session.get(job.session_id, []),
+                    valid_skill_ids=valid_skill_ids,
+                )
+            except CanonicalObservationError:
+                _issue(
+                    issues,
+                    "canonical_source_invalid",
+                    job_user,
+                    None,
+                )
+                continue
             expected_groups: dict[tuple[str, uuid.UUID], list[CanonicalObservation]] = (
                 defaultdict(list)
             )

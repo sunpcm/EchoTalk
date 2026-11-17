@@ -7,17 +7,20 @@
 import asyncio
 import logging
 import uuid
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Literal, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from agent_analysis_contract import AnalysisPublicErrorCode
 from config import settings
+from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState, Skill
-from models.session import Transcript, TranscriptRole
+from models.learning_event import LearningEvent
+from models.session import Session, Transcript, TranscriptRole
 from services.assessment_providers import (
     AssessmentMetadata,
     DemoMockPronunciationProvider,
@@ -30,6 +33,17 @@ from services.assessment_providers import (
 )
 from services.knowledge.bkt_model import BKTParams, update_mastery
 from services.knowledge.skill_updater import phoneme_error_to_skill
+from services.learning_event_canonical import (
+    CanonicalObservationError,
+    _pronunciation_entries,
+)
+from services.learning_event_rules import (
+    CoverageValidationError,
+    has_b2_direction_coverage,
+    metadata_source_facts,
+    uniform_source_facts,
+    validate_ledger_coverage,
+)
 from time_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -55,6 +69,10 @@ class AnalysisServiceError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.retryable = retryable
+
+
+class KnowledgeStateProvenanceError(RuntimeError):
+    """An existing state lacks a committed B2 observation history."""
 
 
 CoverageReason = Literal[
@@ -310,7 +328,12 @@ async def analyze_session(
             assessment=assessment,
             coverage=coverage,
             grammar_errors=grammar_errors,
-            ledger_coverage=_build_ledger_coverage(assessment, grammar_errors),
+            ledger_coverage=_build_ledger_coverage(
+                coverage.pronunciation,
+                coverage.grammar,
+                bkt_assessment,
+                grammar_errors,
+            ),
             bkt_assessment=bkt_assessment,
         )
     except asyncio.CancelledError:
@@ -332,32 +355,52 @@ async def analyze_session(
 
 
 def _build_ledger_coverage(
+    pronunciation: DirectionCoverage,
+    grammar: DirectionCoverage,
     assessment: PronunciationAssessment | None,
     grammar_errors: Sequence[GrammarError],
 ) -> dict[str, Any]:
-    """Return per-direction coverage facts for the completed event details."""
-    first_grammar = grammar_errors[0] if grammar_errors else None
+    """Build seven-key B2 coverage without altering I1 invocation facts."""
+
+    def direction(
+        value: DirectionCoverage,
+        sources: Sequence[object],
+    ) -> dict[str, Any]:
+        if value.status == "evaluated":
+            basis = "current_invocation"
+            try:
+                facts = (
+                    uniform_source_facts(sources)
+                    if sources
+                    else metadata_source_facts(value.metadata)
+                )
+            except CoverageValidationError as exc:
+                raise ValueError(str(exc)) from exc
+        elif sources:
+            basis = "persisted_rows"
+            try:
+                facts = uniform_source_facts(sources)
+            except CoverageValidationError as exc:
+                raise ValueError(str(exc)) from exc
+        else:
+            basis = "none"
+            facts = None
+        return {
+            "status": value.status,
+            "reason": value.reason,
+            "result_count": value.result_count,
+            "reused": value.reused,
+            "metadata": asdict(value.metadata) if value.metadata is not None else None,
+            "basis": basis,
+            "source_facts": facts.as_dict() if facts is not None else None,
+        }
+
     return {
-        "pronunciation": {
-            "status": "evaluated" if assessment is not None else "not_called",
-            "source": assessment.source if assessment is not None else None,
-            "provider": assessment.provider if assessment is not None else None,
-            "model_version": assessment.model_version
-            if assessment is not None
-            else None,
-            "is_synthetic": assessment.is_synthetic if assessment is not None else None,
-        },
-        "grammar": {
-            "status": "evaluated",
-            "source": first_grammar.source if first_grammar is not None else None,
-            "provider": first_grammar.provider if first_grammar is not None else None,
-            "model_version": first_grammar.model_version
-            if first_grammar is not None
-            else None,
-            "is_synthetic": first_grammar.is_synthetic
-            if first_grammar is not None
-            else None,
-        },
+        "pronunciation": direction(
+            pronunciation,
+            [assessment] if assessment is not None else [],
+        ),
+        "grammar": direction(grammar, grammar_errors),
     }
 
 
@@ -530,14 +573,18 @@ async def update_knowledge(
 async def _apply_bkt_updates(
     *,
     user_id: uuid.UUID,
+    job_id: uuid.UUID,
     observations: Sequence[dict[str, Any]],
     db: AsyncSession,
 ) -> None:
     """Apply frozen ``bkt-v1`` updates for already-validated observations.
 
     ``observations`` are the newly inserted non-synthetic observations in
-    ``apply_seq`` order.  This helper only writes ``knowledge_states``; it must
-    not re-read source tables or decide which direction was evaluated.
+    ``apply_seq`` order.  This helper writes ``knowledge_states`` and verifies
+    that any pre-existing state is supported by a committed real B2 history.  It
+    reads the prior successful jobs' completed coverage and source rows solely
+    to prove provenance; it does not decide which direction the current batch
+    evaluated.
     """
     real = [obs for obs in observations if obs.get("is_synthetic") is not True]
     if not real:
@@ -556,6 +603,170 @@ async def _apply_bkt_updates(
         )
     )
     states = {state.skill_id: state for state in result.scalars().all()}
+    prior_observation = aliased(LearningEvent)
+    prior_completed = aliased(LearningEvent)
+    history_session = aliased(Session)
+    history_rows = (
+        await db.execute(
+            select(
+                prior_observation,
+                prior_completed.details,
+                prior_completed.session_id,
+            )
+            .join(
+                prior_completed,
+                and_(
+                    prior_completed.analysis_job_id
+                    == prior_observation.analysis_job_id,
+                    prior_completed.event_type == "analysis_completed",
+                    prior_completed.session_id == prior_observation.session_id,
+                ),
+            )
+            .join(
+                AnalysisJob,
+                and_(
+                    AnalysisJob.id == prior_observation.analysis_job_id,
+                    AnalysisJob.session_id == prior_completed.session_id,
+                ),
+            )
+            .join(
+                history_session,
+                and_(
+                    history_session.id == prior_completed.session_id,
+                    history_session.user_id == user_id,
+                ),
+            )
+            .where(
+                prior_observation.user_id == user_id,
+                prior_observation.skill_id.in_(valid_skills),
+                prior_observation.event_type.in_(
+                    ("pronunciation_observation", "grammar_observation")
+                ),
+                prior_observation.is_synthetic.is_(False),
+                prior_observation.analysis_job_id.is_not(None),
+                prior_observation.analysis_job_id != job_id,
+                prior_completed.user_id == user_id,
+                prior_completed.algorithm_version == FROZEN_BKT_VERSION,
+                AnalysisJob.status == AnalysisJobStatus.succeeded,
+            )
+        )
+    ).all()
+    history_session_ids = {session_id for _event, _details, session_id in history_rows}
+    historical_assessments: dict[uuid.UUID, list[PronunciationAssessment]] = {}
+    historical_grammar: dict[uuid.UUID, list[GrammarError]] = {}
+    if history_session_ids:
+        for assessment in (
+            (
+                await db.execute(
+                    select(PronunciationAssessment).where(
+                        PronunciationAssessment.session_id.in_(history_session_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            historical_assessments.setdefault(assessment.session_id, []).append(
+                assessment
+            )
+        for error in (
+            (
+                await db.execute(
+                    select(GrammarError)
+                    .where(GrammarError.session_id.in_(history_session_ids))
+                    .order_by(GrammarError.skill_tag, GrammarError.error_type)
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            historical_grammar.setdefault(error.session_id, []).append(error)
+
+    supported_skills: set[str] = set()
+    history_by_job: dict[uuid.UUID, list[Any]] = {}
+    for event, details, session_id in history_rows:
+        history_by_job.setdefault(event.analysis_job_id, []).append(
+            (event, details, session_id)
+        )
+    for rows in history_by_job.values():
+        session_id = rows[0][2]
+        assessments = historical_assessments.get(session_id, [])
+        grammar_errors = historical_grammar.get(session_id, [])
+        details = rows[0][1]
+        try:
+            validate_ledger_coverage(
+                details["coverage"],
+                pronunciation_sources=assessments,
+                grammar_sources=grammar_errors,
+            )
+        except (CoverageValidationError, KeyError, TypeError):
+            continue
+
+        for event, _details, _session_id in rows:
+            direction_name = (
+                "pronunciation"
+                if event.event_type == "pronunciation_observation"
+                else "grammar"
+            )
+            if not has_b2_direction_coverage(details, direction_name):
+                continue
+            direction = details["coverage"][direction_name]
+            if direction["source_facts"] != {
+                "source": event.source,
+                "provider": event.provider,
+                "model_version": event.model_version,
+                "is_synthetic": event.is_synthetic,
+            }:
+                continue
+
+            if event.event_type == "grammar_observation":
+                source = next(
+                    (
+                        candidate
+                        for candidate in grammar_errors
+                        if candidate.id == event.grammar_error_id
+                    ),
+                    None,
+                )
+                if source is None or source.skill_tag != event.skill_id:
+                    continue
+            else:
+                source = next(
+                    (
+                        candidate
+                        for candidate in assessments
+                        if candidate.id == event.pronunciation_assessment_id
+                    ),
+                    None,
+                )
+                if source is None or source.id != event.pronunciation_assessment_id:
+                    continue
+                alignment = getattr(source, "phoneme_alignment", None)
+                ordinal = event.source_ordinal
+                try:
+                    entries = _pronunciation_entries(alignment)
+                except CanonicalObservationError:
+                    continue
+                if (
+                    ordinal is None
+                    or ordinal < 0
+                    or ordinal >= len(entries)
+                    or phoneme_error_to_skill(entries[ordinal]) != event.skill_id
+                ):
+                    continue
+            supported_skills.add(event.skill_id)
+    unsupported_states = set(states) - supported_skills
+    if unsupported_states:
+        raise KnowledgeStateProvenanceError(
+            "existing knowledge state has no prior real B2 history: "
+            + ", ".join(sorted(unsupported_states))
+        )
+    missing_states = (valid_skills - set(states)) & supported_skills
+    if missing_states:
+        raise KnowledgeStateProvenanceError(
+            "prior real B2 history has no knowledge state: "
+            + ", ".join(sorted(missing_states))
+        )
 
     params = BKTParams(**FROZEN_BKT_PARAMS)
     for obs in real:

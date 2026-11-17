@@ -1043,6 +1043,7 @@ async def test_postgres_external_cancel_does_not_persist_failure_or_partial_prod
 
 async def ensure_test_skills(db):
     for skill_id, name, category in (
+        ("article_usage", "Article usage", "grammar"),
         ("th_sounds", "TH sounds", "pronunciation"),
         ("verb_tense_past", "Past tense", "grammar"),
         ("subject_verb_agreement", "Subject-verb agreement", "grammar"),
@@ -1238,15 +1239,15 @@ async def test_postgres_both_real_sources_update_bkt(postgres_worker_job):
             GrammarError(
                 id=uuid.uuid4(),
                 session_id=session_id,
-                skill_tag="subject_verb_agreement",
-                original="he go",
-                corrected="he goes",
-                error_type="wrong_3p_verb",
-                source="demo_rule",
-                provider=None,
-                model_version="demo-grammar-rules-v1",
-                is_synthetic=True,
-                confidence=0.5,
+                skill_tag="article_usage",
+                original="I go school",
+                corrected="I go to school",
+                error_type="missing_article",
+                source="provider",
+                provider="llm",
+                model_version="v1",
+                is_synthetic=False,
+                confidence=0.9,
             )
         )
         await db.flush()
@@ -1256,7 +1257,11 @@ async def test_postgres_both_real_sources_update_bkt(postgres_worker_job):
     async with factory() as db:
         stmt = select(KnowledgeState).where(KnowledgeState.user_id == user_id)
         states = (await db.execute(stmt)).scalars().all()
-        assert {s.skill_id for s in states} == {"th_sounds", "verb_tense_past"}
+        assert {s.skill_id for s in states} == {
+            "article_usage",
+            "th_sounds",
+            "verb_tense_past",
+        }
 
 
 @pytest.mark.asyncio

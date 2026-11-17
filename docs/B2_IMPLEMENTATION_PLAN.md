@@ -1,8 +1,8 @@
 # B2 新 main 增量实施计划
 
 > 日期：2026-11-17。基线：`5d3641203484d66454a45f6d43547648b99dc05c`。
-> 当前包只完成 S0/S1，源码完成后停在独立 Review。S2/S3、真实迁移、服务、CI、部署、
-> push 和 main 合并均未执行。
+> S0/S1 已独立 `APPROVED R1` 并本地提交。S2 已完成最后收口并停写，待独立 Review；
+> S3、真实服务、CI、部署、push 和 main 合并均未执行。
 
 ## 1. 已确认口径
 
@@ -20,7 +20,7 @@ B2 在 EchoTalk 应用仓 `sunpcm/EchoTalk` 内增量实施。当前 main 已包
 
 ## 2. S0：契约与当前 main 对齐
 
-状态：本包完成。
+状态：已独立 `APPROVED R1` 并本地提交。
 
 交付：
 
@@ -39,7 +39,7 @@ B2 在 EchoTalk 应用仓 `sunpcm/EchoTalk` 内增量实施。当前 main 已包
 
 ## 3. S1：已有表增量加固
 
-状态：本包实现完成，待主控静态迁移 Review 与真实 PG 执行。
+状态：已独立 `APPROVED R1` 并本地提交。
 
 ### 3.1 写集
 
@@ -84,7 +84,7 @@ downgrade 只移除 5 个新增 CHECK 和新 shape，恢复 B1 shape 与 BY DEFA
 
 ## 4. S2：同事务成功链
 
-状态：未开始。用户已授权，须前包独立验收通过后推进；不另批、不另行请示。
+状态：已完成最后收口并停写，待独立 Review。用户已授权，不另批、不另行请示。
 
 适配现有 `analysis_service`、`analysis_jobs`、`learning_event_canonical`、
 `learning_events` 和共享 BKT，不新建平行 writer/API。
@@ -101,6 +101,18 @@ downgrade 只移除 5 个新增 CHECK 和新 shape，恢复 B1 shape 与 BY DEFA
 
 必须单独解决账号删除 `User→Job` 与 writer `Job→User` 在退出旧共享 control 锁后的
 兼容锁序。设计、代码与真实 PG 并发证据通过前，不切运行路径。
+
+S2 实现把生命周期屏障前移到 Job/GoalRun/User 行锁和真实删除 router 身份映射之前；
+success writer、直接 writer、worker 与删除使用同一屏障。七键 coverage 保留调用级
+`metadata`，有持久化来源行时 `source_facts` 投影完整同质行，零来源零错误时从本次调用
+metadata 投影四事实。导出继续从新七键 `source_facts` 投影既有五字段 DTO，响应 schema
+不变。真实 BKT 更新只检查本批参与更新的技能：旧状态须有排除当前 Job 的真实 B2 历史，
+该历史可以是 `evaluated/current_invocation` 或 `not_called/persisted_rows`，但都须有完整
+七键 coverage 与真实非合成 `source_facts`；旧状态无历史、或有真实历史但状态缺失，均整批
+拒绝。只有既无旧状态也无真实历史时从 `p_init=.1` 起步，全合成保持零状态读取。
+
+S2 测试覆盖规范顺序、幂等残批、完整来源、并发锁序、删除屏障、取消/回滚、导出投影和
+上述三类状态起点；真实 PostgreSQL 与三树由主控执行。
 
 ## 5. S3：只读重算
 
@@ -128,7 +140,6 @@ downgrade 只移除 5 个新增 CHECK 和新 shape，恢复 B1 shape 与 BY DEFA
 
 ## 7. 非范围
 
-- 修改 writer、canonical、replay、jobs、worker、删除/导出 API、前端、依赖或 CI；
 - 执行 Alembic、访问 Docker/DB/.env/凭据、读取 reviewer 私有探针；
 - 清理业务数据、承接旧 Job、写 baseline、回填或重新分析；
 - 真实 retention、生产切换、部署、commit、push 或 merge main；

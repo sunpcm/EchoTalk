@@ -37,7 +37,6 @@ from pathlib import Path
 import pytest
 from alembic.script import ScriptDirectory
 from sqlalchemy import delete, select, text
-from sqlalchemy import event as sa_event
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -48,7 +47,6 @@ from models.knowledge import KnowledgeState, Skill
 from models.learning_event import LearningEvent
 from models.session import Session, SessionMode, SessionStatus
 from models.user import User
-from services.analysis_jobs import AnalysisExecutionError
 
 CUTOVER_MODULE = "services.learning_event_cutover"
 WRITER_MODULE = "services.learning_events"
@@ -319,17 +317,32 @@ def _coverage() -> dict:
     return {
         "pronunciation": {
             "status": "not_called",
-            "source": None,
-            "provider": None,
-            "model_version": None,
-            "is_synthetic": None,
+            "reason": "disabled",
+            "result_count": None,
+            "reused": False,
+            "metadata": None,
+            "basis": "none",
+            "source_facts": None,
         },
         "grammar": {
             "status": "evaluated",
-            "source": "demo_rule",
-            "provider": None,
-            "model_version": "demo-grammar-rules-v1",
-            "is_synthetic": True,
+            "reason": "completed",
+            "result_count": 1,
+            "reused": False,
+            "metadata": {
+                "source": "demo_rule",
+                "provider": None,
+                "model_version": "demo-grammar-rules-v1",
+                "is_synthetic": True,
+                "confidence": 0.5,
+            },
+            "basis": "current_invocation",
+            "source_facts": {
+                "source": "demo_rule",
+                "provider": None,
+                "model_version": "demo-grammar-rules-v1",
+                "is_synthetic": True,
+            },
         },
     }
 
@@ -362,12 +375,6 @@ async def _invoke_writer(
             coverage=_coverage(),
             db=db,
         )
-
-
-async def _assert_writer_closed(pg, **kwargs) -> None:
-    with pytest.raises(AnalysisExecutionError) as error:
-        await _invoke_writer(pg, **kwargs)
-    assert error.value.code == "learning_event_gate_closed"
 
 
 async def _phase(pg) -> str:
@@ -547,7 +554,7 @@ def test_maintenance_cli_namespace_guard_accepts_only_exact_55446(
 
 
 @pytest.mark.asyncio
-async def test_empty_cutover_enforces_order_and_direct_writer_gate(pg):
+async def test_empty_cutover_order_is_independent_from_direct_writer(pg):
     api = _cutover_api()
     revision = f"b1-3-empty-{uuid.uuid4()}"
     pg.track_revision(revision)
@@ -557,15 +564,31 @@ async def test_empty_cutover_enforces_order_and_direct_writer_gate(pg):
     session_id, job_id = await pg.new_session_job(user_id)
     grammar_id = await pg.add_synthetic_grammar(session_id, skill_id)
 
-    # A running Job is not a gate marker.  Without the persistent singleton
-    # row, even a direct writer call must fail closed.
+    # The success chain no longer uses the historical cutover control as an
+    # admission gate.  Maintenance remains available and keeps its own order.
     assert await _control_state(pg) == (None, None)
-    await _assert_writer_closed(
+    await _invoke_writer(
         pg,
         session_id=session_id,
         job_id=job_id,
         grammar_id=grammar_id,
     )
+    async with pg.factory() as db:
+        direct_events = (
+            (
+                await db.execute(
+                    select(LearningEvent)
+                    .where(LearningEvent.analysis_job_id == job_id)
+                    .order_by(LearningEvent.apply_seq)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert [event.event_type for event in direct_events] == [
+        "analysis_completed",
+        "grammar_observation",
+    ]
 
     async with pg.factory() as db, db.begin():
         prepared = await api.prepare_cutover(db=db, revision=revision)
@@ -582,111 +605,35 @@ async def test_empty_cutover_enforces_order_and_direct_writer_gate(pg):
     assert unconfirmed.value.code == "legacy_writers_not_confirmed"
     assert await _phase(pg) == "prepared"
 
-    with pytest.raises(api.CutoverError) as running_job:
+    # The synthetic Job is still running.  Historical maintenance checks the
+    # running job before it can observe the already-written events.
+    with pytest.raises(api.CutoverError) as running_jobs:
         async with pg.factory() as db, db.begin():
             await api.stop_legacy_writes(
                 db=db,
                 revision=revision,
                 confirmed_legacy_writers_stopped=True,
             )
-    assert running_job.value.code == "cutover_running_jobs_exist"
+    assert running_jobs.value.code == "cutover_running_jobs_exist"
+    assert await _phase(pg) == "prepared"
+
+    # Drain the synthetic Job, then the same maintenance path must reject on
+    # the existing B2 events rather than the running job.
+    await _set_job_status(pg, job_id, AnalysisJobStatus.succeeded)
+
+    with pytest.raises(api.CutoverError) as existing_events:
+        async with pg.factory() as db, db.begin():
+            await api.stop_legacy_writes(
+                db=db,
+                revision=revision,
+                confirmed_legacy_writers_stopped=True,
+            )
+    assert existing_events.value.code == "cutover_existing_events"
     assert await _control_state(pg) == ("prepared", None)
 
-    await _set_job_status(pg, job_id, AnalysisJobStatus.succeeded)
-    async with pg.factory() as db, db.begin():
-        stopped = await api.stop_legacy_writes(
-            db=db,
-            revision=revision,
-            confirmed_legacy_writers_stopped=True,
-        )
-    assert stopped.phase == "legacy_writes_stopped"
-    assert stopped.cutover_at is None
-    assert await _control_state(pg) == ("legacy_writes_stopped", None)
-
-    with pytest.raises(api.CutoverError) as skipped_baseline:
-        async with pg.factory() as db, db.begin():
-            await api.enable_event_gate(db=db, revision=revision)
-    assert skipped_baseline.value.code == "cutover_phase_order"
-
-    async with pg.factory() as db, db.begin():
-        baseline = await api.write_legacy_baselines(db=db, revision=revision)
-    assert baseline.count == 0
-    assert baseline.digest is not None
-    assert baseline.cutover_at is not None
-    assert await _control_state(pg) == ("baselines_written", baseline.cutover_at)
-
-    writer_session, writer_job = await pg.new_session_job(
-        user_id,
-        status=AnalysisJobStatus.pending,
-    )
-    writer_grammar = await pg.add_synthetic_grammar(writer_session, skill_id)
-
-    await _assert_writer_closed(
-        pg,
-        session_id=writer_session,
-        job_id=writer_job,
-        grammar_id=writer_grammar,
-    )
-
-    async with pg.factory() as db, db.begin():
-        gated = await api.enable_event_gate(db=db, revision=revision)
-    assert gated.phase == "events_enabled"
-
-    await _assert_writer_closed(
-        pg,
-        session_id=writer_session,
-        job_id=writer_job,
-        grammar_id=writer_grammar,
-    )
-
-    async with pg.factory() as db, db.begin():
-        resumed = await api.resume_traffic(db=db, revision=revision)
-    assert resumed.phase == "traffic_resumed"
-    await _set_job_status(pg, writer_job, AnalysisJobStatus.running)
-
-    statements: list[str] = []
-
-    def capture(conn, cursor, statement, parameters, context, executemany):
-        statements.append(statement)
-
-    sa_event.listen(pg.engine.sync_engine, "before_cursor_execute", capture)
-    try:
-        await _invoke_writer(
-            pg,
-            session_id=writer_session,
-            job_id=writer_job,
-            grammar_id=writer_grammar,
-        )
-    finally:
-        sa_event.remove(pg.engine.sync_engine, "before_cursor_execute", capture)
-
-    async with pg.factory() as db:
-        events = (
-            (
-                await db.execute(
-                    select(LearningEvent)
-                    .where(LearningEvent.analysis_job_id == writer_job)
-                    .order_by(LearningEvent.apply_seq)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        states = (
-            (
-                await db.execute(
-                    select(KnowledgeState).where(KnowledgeState.user_id == user_id)
-                )
-            )
-            .scalars()
-            .all()
-        )
-    assert [event.event_type for event in events] == [
-        "analysis_completed",
-        "grammar_observation",
-    ]
-    assert states == []
-    assert not any("FROM knowledge_states" in stmt for stmt in statements)
+    # The already-written B2 batch remains the authoritative new-chain proof.
+    # Historical maintenance cannot start from a fresh baseline over it.
+    assert direct_events[0].analysis_job_id == job_id
 
 
 @pytest.mark.asyncio

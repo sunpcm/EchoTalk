@@ -610,5 +610,7 @@ reupgrade。迁移执行不是实施作者权限，迁移文件存在也不表�
 缺 `DATABASE_URL`、身份不符、query/fragment 或非专用目标均 fail，不 skip。
 
 主控负责全部三树、格式、类型、构建、迁移流与有效私有变异；实施作者没有执行的部分在
-交付报告中列为未验证。源码完成即停写进入独立 Review，不 commit、push、部署或 merge
-main，不进入 S2/S3。
+交付报告中列为未验证。S0/S1 已独立 `APPROVED R1`；S2 与 S3 已由用户单独授权推进，仍须
+分别停在独立 Review。主控为 S2 使用上述 55446 合成 namespace 代跑 PG，实施作者只做
+静态迁移、Ruff、compileall 与纯离线测试，不连接 Docker/DB、不读取 `.env`/凭据。S2 源码
+和报告完成后停写，不 commit、push、部署或 merge main；S3 只在前序独立验收通过后推进。

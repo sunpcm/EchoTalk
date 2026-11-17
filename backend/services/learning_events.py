@@ -15,7 +15,7 @@ or an unexpected observation cannot prove a fully committed write, so the
 writer fails closed without repairing or re-applying BKT.
 """
 
-import logging
+import json
 import uuid
 from typing import Any, Sequence
 
@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.analysis import AnalysisJob
+from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import Skill
 from models.learning_event import LearningEvent
@@ -33,18 +33,21 @@ from services.analysis_jobs import AnalysisExecutionError
 from services.analysis_service import (
     FROZEN_BKT_PARAMS,
     FROZEN_BKT_VERSION,
+    KnowledgeStateProvenanceError,
     _apply_bkt_updates,
 )
 from services.learning_event_canonical import (
+    CanonicalObservationError,
     build_canonical_observations,
     candidate_skills,
 )
-from services.learning_event_cutover import (
-    CutoverError,
-    assert_learning_event_gate,
+from services.learning_event_lifecycle import (
+    acquire_shared_lifecycle_barrier,
 )
-
-logger = logging.getLogger(__name__)
+from services.learning_event_rules import (
+    CoverageValidationError,
+    validate_ledger_coverage,
+)
 
 _COMPLETED_SOURCE = "analysis"
 _SCHEMA_VERSION = 1
@@ -57,9 +60,29 @@ def _fail(code: str, message: str) -> AnalysisExecutionError:
 def _event_matches(existing: LearningEvent, values: dict[str, Any]) -> bool:
     """Compare a persisted ledger row against its canonical payload."""
     for key, expected in values.items():
-        if key in {"apply_seq", "recorded_at", "idempotency_key"}:
+        if key in {"apply_seq", "recorded_at"}:
             continue
-        if getattr(existing, key) != expected:
+        actual = getattr(existing, key)
+        if isinstance(expected, dict):
+            # PostgreSQL JSONB preserves boolean and numeric types, while
+            # Python considers ``False == 0`` and ``True == 1``.  Compare a
+            # canonical JSON encoding so a damaged nested payload cannot match
+            # a valid batch merely because Python's equality is permissive.
+            if not isinstance(actual, dict):
+                return False
+            if json.dumps(
+                actual,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ) != json.dumps(
+                expected,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ):
+                return False
+        elif actual != expected:
             return False
     return True
 
@@ -81,9 +104,9 @@ async def _insert_event(
         return inserted_seq
 
     existing = await db.scalar(
-        select(LearningEvent).where(
-            LearningEvent.idempotency_key == values["idempotency_key"]
-        )
+        select(LearningEvent)
+        .where(LearningEvent.idempotency_key == values["idempotency_key"])
+        .execution_options(populate_existing=True)
     )
     if existing is None or not _event_matches(existing, values):
         raise _fail(
@@ -108,6 +131,7 @@ async def _existing_job_events(
         select(LearningEvent)
         .where(LearningEvent.analysis_job_id == job_id)
         .order_by(LearningEvent.apply_seq)
+        .execution_options(populate_existing=True)
     )
     return list(result.scalars().all())
 
@@ -166,21 +190,19 @@ async def write_learning_events(
     db: AsyncSession,
 ) -> None:
     """Persist one completed analysis batch inside the caller's transaction."""
-    # The persistent gate is the first lock for every writer, including direct
-    # service callers.  Maintenance takes the conflicting exclusive lock on
-    # this row before it starts draining Jobs or state writes.
-    try:
-        await assert_learning_event_gate(db)
-    except CutoverError as exc:
-        raise _fail(exc.code, str(exc)) from exc
+    # Direct callers must enter before their own source flush or business row
+    # locks.  The production executor already covers that larger boundary.
+    await acquire_shared_lifecycle_barrier(db)
 
-    # Keep the complete writer order stable: control -> Job -> User.  Locking
-    # the Job before the user also prevents a user-scoped shortcut around the
-    # old worker's Job-first transaction.
-    locked_job_id = await db.scalar(
-        select(AnalysisJob.id).where(AnalysisJob.id == job.id).with_for_update()
-    )
-    if locked_job_id is None:
+    locked_job = (
+        await db.execute(
+            select(AnalysisJob)
+            .where(AnalysisJob.id == job.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if locked_job is None:
         raise _fail("job_missing", "analysis job no longer exists")
 
     locked_user_id = await db.scalar(
@@ -189,57 +211,125 @@ async def write_learning_events(
     if locked_user_id is None:
         raise _fail("user_missing", "learning event owner no longer exists")
 
-    # Fail closed on any relationship that a bare FK would not prove.
-    if job.session_id != session.id:
-        raise _fail(
-            "session_ownership_mismatch",
-            "analysis job does not belong to the target session",
+    # The Job row lock was acquired first, but an ORM identity can predate that
+    # lock. Re-read it after the User lock so no stale status or ownership can
+    # authorize a write, and then refresh the Session under the same barrier.
+    locked_job = (
+        await db.execute(
+            select(AnalysisJob)
+            .where(AnalysisJob.id == job.id)
+            .execution_options(populate_existing=True)
         )
-    if session.user_id != user_id:
-        raise _fail(
-            "session_ownership_mismatch",
-            "session does not belong to the locked user",
-        )
-    if assessment is not None and assessment.session_id != session.id:
-        raise _fail(
-            "source_ownership_mismatch",
-            "pronunciation assessment belongs to a different session",
-        )
-    for error in grammar_errors:
-        if error.session_id != session.id:
-            raise _fail(
-                "source_ownership_mismatch",
-                "grammar error belongs to a different session",
-            )
+    ).scalar_one_or_none()
+    if locked_job is None:
+        raise _fail("job_missing", "analysis job no longer exists")
+    if locked_job.status != AnalysisJobStatus.running:
+        raise _fail("job_not_running", "analysis job is no longer running")
 
-    if session.ended_at is None:
+    locked_session = (
+        await db.execute(
+            select(Session)
+            .where(Session.id == locked_job.session_id)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if locked_session is None:
+        raise _fail("session_missing", "analysis session no longer exists")
+    if locked_session.user_id != user_id:
+        raise _fail(
+            "session_ownership_mismatch",
+            "analysis job session does not belong to the target user",
+        )
+    if locked_session.ended_at is None:
         raise _fail("session_incomplete", "session ended_at is missing")
 
-    occurred_at = session.ended_at
+    if session.id != locked_session.id:
+        raise _fail(
+            "session_ownership_mismatch",
+            "stale caller session does not match the locked analysis job",
+        )
+    if job.session_id != locked_job.session_id:
+        raise _fail(
+            "session_ownership_mismatch",
+            "stale caller job does not match the locked analysis job",
+        )
 
-    candidate_skill_ids = candidate_skills(
-        assessment=assessment,
-        grammar_errors=grammar_errors,
+    stored_assessment = (
+        await db.execute(
+            select(PronunciationAssessment)
+            .where(PronunciationAssessment.session_id == locked_session.id)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    stored_grammar_errors = list(
+        (
+            await db.execute(
+                select(GrammarError)
+                .where(GrammarError.session_id == locked_session.id)
+                .order_by(GrammarError.skill_tag, GrammarError.error_type)
+                .execution_options(populate_existing=True)
+            )
+        )
+        .scalars()
+        .all()
     )
-    valid_skills = await _read_skill_ids(db, candidate_skill_ids)
-    canonical = build_canonical_observations(
-        job_id=job.id,
-        assessment=assessment,
-        grammar_errors=grammar_errors,
-        valid_skill_ids=valid_skills,
-    )
+
+    if assessment is not None and (
+        stored_assessment is None or stored_assessment.id != assessment.id
+    ):
+        raise _fail(
+            "source_ownership_mismatch",
+            "pronunciation assessment is not the persisted session source",
+        )
+    if assessment is None and stored_assessment is not None:
+        raise _fail(
+            "source_set_mismatch",
+            "persisted pronunciation source is missing from the caller batch",
+        )
+    caller_grammar_ids = [error.id for error in grammar_errors]
+    if len(caller_grammar_ids) != len(set(caller_grammar_ids)) or set(
+        caller_grammar_ids
+    ) != {error.id for error in stored_grammar_errors}:
+        raise _fail(
+            "source_set_mismatch",
+            "caller grammar sources do not match the complete persisted set",
+        )
+
+    occurred_at = locked_session.ended_at
+
+    try:
+        candidate_skill_ids = candidate_skills(
+            assessment=stored_assessment,
+            grammar_errors=stored_grammar_errors,
+        )
+        valid_skills = await _read_skill_ids(db, candidate_skill_ids)
+        canonical = build_canonical_observations(
+            job_id=locked_job.id,
+            assessment=stored_assessment,
+            grammar_errors=stored_grammar_errors,
+            valid_skill_ids=valid_skills,
+        )
+        validate_ledger_coverage(
+            coverage,
+            pronunciation_sources=(
+                [stored_assessment] if stored_assessment is not None else []
+            ),
+            grammar_sources=stored_grammar_errors,
+        )
+    except (CanonicalObservationError, CoverageValidationError) as exc:
+        raise _fail("coverage_invalid", str(exc)) from exc
 
     completed_values = _completed_values(
-        job_id=job.id,
+        job_id=locked_job.id,
         user_id=user_id,
-        session_id=session.id,
+        session_id=locked_session.id,
         occurred_at=occurred_at,
         coverage=coverage,
         unmapped_pronunciation=canonical.unmapped_pronunciation,
         unmapped_grammar=canonical.unmapped_grammar,
     )
 
-    existing = await _existing_job_events(db, job.id)
+    existing = await _existing_job_events(db, locked_job.id)
     existing_completed = [e for e in existing if e.event_type == "analysis_completed"]
     existing_observations = {
         e.idempotency_key: e for e in existing if e.event_type != "analysis_completed"
@@ -263,8 +353,8 @@ async def write_learning_events(
             "idempotency_key": obs.idempotency_key,
             "event_type": obs.event_type,
             "user_id": user_id,
-            "session_id": session.id,
-            "analysis_job_id": job.id,
+            "session_id": locked_session.id,
+            "analysis_job_id": locked_job.id,
             "pronunciation_assessment_id": obs.pronunciation_assessment_id,
             "grammar_error_id": obs.grammar_error_id,
             "skill_id": obs.skill_id,
@@ -288,20 +378,21 @@ async def write_learning_events(
 
     expected_keys = set(observation_values)
     persisted_keys = set(existing_observations)
-    if existing_observations:
-        # A residual batch must prove the whole canonical batch is present and
-        # identical.  A fresh job has no prior observations and writes all of
-        # them for the first time; that is the only case where a mismatch
-        # between an empty ``persisted_keys`` and a non-empty ``expected_keys``
-        # is legitimate.
-        if persisted_keys != expected_keys:
+    if existing:
+        if not existing_completed or persisted_keys != expected_keys:
             raise _fail(
                 "idempotency_conflict",
-                "persisted observation batch does not match the canonical batch",
+                "persisted event set is a partial or extra batch",
             )
-
+        if len(existing) != 1 + len(expected_keys):
+            raise _fail(
+                "idempotency_conflict",
+                "persisted event set contains unexpected rows",
+            )
         for key, row in existing_observations.items():
-            if not _event_matches(row, observation_values[key]):
+            if key not in observation_values or not _event_matches(
+                row, observation_values[key]
+            ):
                 raise _fail(
                     "idempotency_conflict",
                     "existing observation conflicts with canonical payload",
@@ -337,8 +428,12 @@ async def write_learning_events(
             "completed event exists but observations were missing",
         )
 
-    await _apply_bkt_updates(
-        user_id=user_id,
-        observations=new_bkt_observations,
-        db=db,
-    )
+    try:
+        await _apply_bkt_updates(
+            user_id=user_id,
+            job_id=locked_job.id,
+            observations=new_bkt_observations,
+            db=db,
+        )
+    except KnowledgeStateProvenanceError as exc:
+        raise _fail("knowledge_state_provenance_conflict", str(exc)) from exc

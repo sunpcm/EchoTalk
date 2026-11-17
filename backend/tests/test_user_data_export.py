@@ -609,6 +609,51 @@ def _coverage_values() -> dict[str, Any]:
     }
 
 
+def _b2_coverage_values() -> dict[str, Any]:
+    return {
+        "pronunciation": {
+            "status": "evaluated",
+            "reason": "completed",
+            "result_count": 1,
+            "reused": False,
+            "metadata": {
+                "source": "metadata-pronunciation-canary",
+                "provider": "metadata-provider-canary",
+                "model_version": "metadata-model-canary",
+                "is_synthetic": False,
+                "confidence": 0.91,
+            },
+            "basis": "current_invocation",
+            "source_facts": {
+                "source": "b2-pronunciation",
+                "provider": None,
+                "model_version": "b2-pronunciation-v2",
+                "is_synthetic": False,
+            },
+        },
+        "grammar": {
+            "status": "evaluated",
+            "reason": "completed",
+            "result_count": 0,
+            "reused": False,
+            "metadata": {
+                "source": "metadata-grammar-canary",
+                "provider": "metadata-grammar-provider-canary",
+                "model_version": "metadata-grammar-model-canary",
+                "is_synthetic": True,
+                "confidence": 0.5,
+            },
+            "basis": "current_invocation",
+            "source_facts": {
+                "source": "b2-grammar",
+                "provider": "b2-grammar-provider",
+                "model_version": "b2-grammar-v1",
+                "is_synthetic": True,
+            },
+        },
+    }
+
+
 def _completed_event_values(
     user_id: uuid.UUID,
     *,
@@ -1103,6 +1148,61 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
     stable_first.pop("exported_at")
     stable_second.pop("exported_at")
     assert stable_first == stable_second
+
+
+@pytest.mark.asyncio
+async def test_http_export_projects_b2_source_facts_without_metadata(
+    export_pg: ExportHarness,
+):
+    user_id = await export_pg.new_user(email_label="b2-coverage")
+    ended_at = datetime(2026, 11, 18, 4, 10, tzinfo=UTC)
+    session_id = await export_pg.new_session(
+        user_id,
+        started_at=ended_at - timedelta(minutes=10),
+        ended_at=ended_at,
+    )
+    job_id = await export_pg.new_job(session_id)
+    completed = _completed_event_values(
+        user_id,
+        session_id=session_id,
+        job_id=job_id,
+        occurred_at=ended_at,
+    )
+    completed["details"]["coverage"] = _b2_coverage_values()
+    await export_pg.insert_event(completed)
+
+    with _request_as(user_id, export_pg.factory):
+        response = await _get_export()
+
+    assert response.status_code == 200
+    coverage = response.json()["learning_events"][0]["details"]["coverage"]
+    assert coverage == {
+        "pronunciation": {
+            "status": "evaluated",
+            "source": "b2-pronunciation",
+            "provider": None,
+            "model_version": "b2-pronunciation-v2",
+            "is_synthetic": False,
+        },
+        "grammar": {
+            "status": "evaluated",
+            "source": "b2-grammar",
+            "provider": "b2-grammar-provider",
+            "model_version": "b2-grammar-v1",
+            "is_synthetic": True,
+        },
+    }
+    assert "metadata-pronunciation-canary" not in response.text
+    assert "metadata-grammar-canary" not in response.text
+    for direction in coverage.values():
+        assert set(direction) == {
+            "status",
+            "source",
+            "provider",
+            "model_version",
+            "is_synthetic",
+        }
+    assert "confidence" not in json.dumps(coverage, sort_keys=True)
 
 
 @pytest.mark.asyncio

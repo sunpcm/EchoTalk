@@ -1,9 +1,9 @@
 # B2 学习事件契约（新 main 增量版）
 
 > 日期：2026-11-17。基线：`5d3641203484d66454a45f6d43547648b99dc05c`。
-> 状态：S0/S1 契约与已有表增量加固，待主控独立 Review。本文不表示 S2/S3、真实
-> PostgreSQL 迁移、服务运行或部署已完成。历史 B1 文档继续有效；冲突时以本文件的 B2
-> 开发期干净起步口径为准。
+> 状态：S0/S1 已独立 `APPROVED R1` 并本地提交；S2 实施中，尚待 targeted PG 自测与
+> 独立 Review。本文不表示 S3、真实服务运行或部署已完成。历史 B1 文档继续有效；冲突时
+> 以本文件的 B2 开发期干净起步口径为准。
 
 ## 1. 范围
 
@@ -167,8 +167,16 @@ source_facts
 | `basis`        | 字符串，只允许 `current_invocation \| persisted_rows \| none`                                              |
 | `source_facts` | JSON `null`，或恰好包含 `source/provider/model_version/is_synthetic` 四键的对象；各值按真实事实可为 `null` |
 
-`status/reason/result_count/reused/metadata` 来自 I1 当次调用事实。`evaluated` 必须使用
-`basis=current_invocation`。复用已有结果仍表示当次没有调用，即 `status=not_called`；只有
+`status/reason/result_count/reused/metadata` 来自 I1 当次调用事实，`metadata` 必须原样保留
+调用级事实。`evaluated` 必须使用 `basis=current_invocation`，其 `source_facts` 按完整来源
+集合分两种情形投影：锁定 Session 中存在持久化来源行时，必须取该方向全量、同质来源行的
+四事实，不要求调用级 `metadata` 与逐行事实相同；真正零来源的合法调用（例如语法零错误）
+则从本次调用 `metadata` 投影 `source/provider/model_version/is_synthetic` 四键。两种情形都
+不能因行集合为空而把 `source_facts` 改成 `null` 或 `basis=none`，也不能把调用级 metadata
+覆盖成逐行事实。`evaluated` 的 `result_count` 必须非空并与完整来源一致：发音等于
+`phoneme_alignment` 原数组长度，语法等于持久化语法来源行数；语法零错误因此为 0。
+
+复用已有结果仍表示当次没有调用，即 `status=not_called`；只有
 从锁定 Session 的全量、同质来源行证明历史评估完整时，才可同时写
 `basis=persisted_rows` 和可核验的 `source_facts`。`basis=none` 只用于固定来源集合确实没有
 可纳入项的未调用方向，此时 `source_facts` 必须为 JSON `null`。`persisted_rows` 不得混用
@@ -219,6 +227,23 @@ p_next = posterior
 ```
 
 参数、公式或算法实现变化必须使用新版本，旧事件不原地改写。
+
+真实更新前，writer 只检查本批参与非合成 BKT 更新的技能。若其中任一技能已有
+`knowledge_states` 行，必须在同一用户锁和事务内证明该状态有更早的真实 B2 历史：
+至少一条非合成发音或语法观察，其对应 Job 已成功、completed 事件使用 `bkt-v1`，并带完整
+七键 coverage。历史观察所在方向的合法证明有两种：当次调用为 `evaluated/current_invocation`，
+或当次复用已存结果而为 `not_called/persisted_rows`；两种都必须有与真实同质观察一致、
+`is_synthetic=false` 的 `source_facts`。不得把 `not_called/persisted_rows` 改写成
+`evaluated`，也不得把调用级 `metadata` 当作逐行 BKT 事实。查询必须显式排除当前
+`analysis_job_id`，不能让本批刚插入的事件反过来证明旧状态。旧 baseline、五键旧 completed
+或任意无支撑状态都不是当前 B2 初值，必须整批 fail closed，不清理、补录、回填或改写状态与
+事件。
+
+同一门禁还必须识别反向损坏：本批技能没有 `knowledge_states`，但排除当前 Job 后存在合法
+真实 B2 历史时，不得从 `p_init=.1` 重建，必须整批 fail closed。只有“既无旧状态、也无真实
+B2 历史”的技能才从 `p_init=.1` 起步；有上述真实历史的后续更新才可沿用当前状态。全合成
+批次仍保持对 `knowledge_states` 的零读取。同一批技能的状态与历史均使用集合查询，不能退化
+为逐技能读取。此处只建立起点与历史门禁，每次更新的完整数值重放留给 S3。
 
 ## 8. S3 一致快照
 
