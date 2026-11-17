@@ -1141,7 +1141,7 @@ async def _application_pid(harness: DeletionHarness, application_name: str) -> i
 
 
 @pytest.mark.asyncio
-async def test_native_fixture_precondition_is_clean_before_deletion_red(
+async def test_native_fixture_baselines_are_unexpected_under_clean_start(
     deletion_pg: DeletionHarness,
 ):
     revision = f"b1-5-fixture-precondition-{uuid.uuid4()}"
@@ -1162,7 +1162,11 @@ async def test_native_fixture_precondition_is_clean_before_deletion_red(
         algorithm_versions={"bkt-v1": dict(FROZEN_BKT_PARAMS)},
     )
 
-    assert report.issues == ()
+    # B2 S3 clean-start treats every legacy baseline snapshot as an unexpected
+    # leftover instead of a valid initial state, so the native fixture is no
+    # longer expected to replay cleanly when it writes baseline_snapshot rows.
+    codes = {issue.code for issue in report.issues}
+    assert "unexpected_baseline" in codes
 
 
 def test_delete_response_schema_is_typed_and_fixed():
@@ -2165,7 +2169,7 @@ async def test_two_concurrent_account_deletes_do_not_lose_baseline_updates(
 
 
 @pytest.mark.asyncio
-async def test_replay_passes_and_other_user_baseline_payload_is_byte_stable(
+async def test_replay_flags_other_user_baselines_and_payload_is_byte_stable(
     deletion_pg: DeletionHarness,
 ):
     service = _deletion_api()
@@ -2209,7 +2213,12 @@ async def test_replay_passes_and_other_user_baseline_payload_is_byte_stable(
         deletion_pg.factory,
         algorithm_versions={"bkt-v1": dict(FROZEN_BKT_PARAMS)},
     )
-    assert report.issues == ()
+    # B2 S3 clean-start reports the remaining other-account legacy baselines as
+    # unexpected leftovers, so replay is no longer empty; the cross-account
+    # isolation guarantee (byte-stable payload below) is the preserved negative
+    # case and remains independent of that baseline expectation.
+    codes = {issue.code for issue in report.issues}
+    assert "unexpected_baseline" in codes
     async with deletion_pg.factory() as db:
         after_rows = (
             await db.execute(

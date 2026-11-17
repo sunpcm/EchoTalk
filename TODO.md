@@ -72,6 +72,8 @@
   真实 IdP、LiveKit、设备媒体、Keychain、签名与生产不因这些本地子卡完成而勾选。
 - **合并/数据边界：** HHTTP-CLOSE 只核销旧 host-gateway 合成拓扑；DEC-A/RDOC/TDOC 只修正历史口径；
   A3-A6/A5、A82C、A84C、RF04E 与 B1/WPH 的证据仍分别绑定原提交。B2 事件业务政策及本地合成实现已完成；
+  S0/S1/S2 已独立 `APPROVED R1` 并本地提交，S3 只读重算已独立 `APPROVED R2` 且本地实现验证完成、
+  未 push/合 main/部署，契约见 [B2_LEDGER_CONTRACT.md](./docs/B2_LEDGER_CONTRACT.md)；
   生产切换、真实数据与真实学习质量仍未完成。
 - **PR #197 / RC1 合入历史验证：** 截至 2026-11-17，quality 0、Vitest 1429/73、Fake 141、build 47、API 类型
   10、backend 1351/3 warnings/0 skip、目标 87/87、独立 22/22 与完整 E2E 322/322 已通过。

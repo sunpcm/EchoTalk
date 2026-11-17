@@ -1,8 +1,8 @@
 # B2 新 main 增量实施计划
 
 > 日期：2026-11-17。基线：`5d3641203484d66454a45f6d43547648b99dc05c`。
-> S0/S1 已独立 `APPROVED R1` 并本地提交。S2 已完成最后收口并停写，待独立 Review；
-> S3、真实服务、CI、部署、push 和 main 合并均未执行。
+> S0/S1/S2 已独立 `APPROVED R1` 并本地提交。S3 已独立 `APPROVED R2` 且本地实现验证完成、
+> 未 push/合 main/部署；真实服务与 CI 均未执行。
 
 ## 1. 已确认口径
 
@@ -84,7 +84,7 @@ downgrade 只移除 5 个新增 CHECK 和新 shape，恢复 B1 shape 与 BY DEFA
 
 ## 4. S2：同事务成功链
 
-状态：已完成最后收口并停写，待独立 Review。用户已授权，不另批、不另行请示。
+状态：已独立 `APPROVED R1` 并本地提交。
 
 适配现有 `analysis_service`、`analysis_jobs`、`learning_event_canonical`、
 `learning_events` 和共享 BKT，不新建平行 writer/API。
@@ -116,7 +116,13 @@ S2 测试覆盖规范顺序、幂等残批、完整来源、并发锁序、删�
 
 ## 5. S3：只读重算
 
-状态：未开始。用户已授权，须前包独立验收通过后推进；不另批、不另行请示。
+状态：已独立 `APPROVED R2` 且本地实现验证完成、未 push/合 main/部署。完整 backend
+1505 passed / 3 warnings / 82.55%，前端复用 R0 的 Vitest 1429/73、E2E 326（C163/W163）
+零 retry/skip/flaky/unexpected 与 285 同字节输入；19 项独立 PG 探针全绿、19/19 有效
+变异 RED 后恢复 GREEN。综合 20 门禁为 R0 完整运行、R1 受影响检查与 R2 完整后端复测综合
+核算，R2 未重跑全 20。实施含共享 `learning_event_canonical` 的非法 falsy JSON guard
+修复（显式区分 `None`、合法 `[]` 与非法 falsy JSON，复用 `_pronunciation_entries`）。
+生产、真实 Provider、真实学习质量、业务清理、push、CI 与 main 合并均未执行。
 
 适配现有 replay：
 
@@ -143,4 +149,4 @@ S2 测试覆盖规范顺序、幂等残批、完整来源、并发锁序、删�
 - 执行 Alembic、访问 Docker/DB/.env/凭据、读取 reviewer 私有探针；
 - 清理业务数据、承接旧 Job、写 baseline、回填或重新分析；
 - 真实 retention、生产切换、部署、commit、push 或 merge main；
-- 宣称 S2/S3、真实服务、CI 或生产已通过。
+- 宣称真实服务、CI 或生产已通过（S2/S3 代码与测试仅本地独立 Review 通过，未上线运行）。

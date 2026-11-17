@@ -1,9 +1,9 @@
 # B2 学习事件契约（新 main 增量版）
 
 > 日期：2026-11-17。基线：`5d3641203484d66454a45f6d43547648b99dc05c`。
-> 状态：S0/S1 已独立 `APPROVED R1` 并本地提交；S2 实施中，尚待 targeted PG 自测与
-> 独立 Review。本文不表示 S3、真实服务运行或部署已完成。历史 B1 文档继续有效；冲突时
-> 以本文件的 B2 开发期干净起步口径为准。
+> 状态：S0/S1/S2 已独立 `APPROVED R1` 并本地提交；S3 已独立 `APPROVED R2` 且本地实现验证完成、
+> 未 push/合 main/部署。本文不表示真实服务运行、生产、CI 或部署已完成。历史 B1 文档继续有效；
+> 冲突时以本文件的 B2 开发期干净起步口径为准。
 
 ## 1. 范围
 
@@ -265,7 +265,30 @@ SELECT COALESCE(MAX(apply_seq), 0) FROM learning_events
 报告只读，结尾 ROLLBACK。不得修事件、状态或 Job。S3 必须在同一快照中校验每个成功 Job
 的完整批次、全量来源、事件集合和状态集合：成功 Job 缺 completed、completed 缺观察、
 额外观察、缺状态或额外状态均须报告；观察必须覆盖完整规范批次，不能只抽样检查。问题码必须
-稳定并可供测试精确断言。
+稳定并可供测试精确断言。S3 稳定问题码至少覆盖：
+
+```text
+canonical_key_mismatch       event_schema_version_mismatch
+completed_source_mismatch    coverage_mismatch
+missing_source               ownership_mismatch
+completed_job_mismatch       event_time_mismatch
+unexpected_baseline          duplicate_completed_event
+algorithm_mismatch           event_order_violation
+canonical_source_invalid     unexpected_observation
+canonical_order_mismatch     missing_observation
+mismatched_batch             unmapped_count_mismatch
+missing_completed_event      real_state_missing
+synthetic_state_drift        state_mismatch
+state_out_of_range
+```
+
+算法版本固定 `bkt-v1`，四参数精确为 `p_init=.1 / p_transit=.2 / p_slip=.1 /
+p_guess=.2`；版本或任一参数与冻结事实不符均报 `algorithm_mismatch`，调用方传入的
+registry 不得覆盖该冻结事实。unmapped 计数必须是严格非布尔、非负整数。发音 alignment
+为 `None` 时保留既有语义；非 `None` 必须为合法有序数组，`[]` 有效；非法 falsy JSON
+（如 `{}`、`false`、`0`、空字符串）不得被静默当作零观察，须报 `canonical_source_invalid`。
+跨来源观察的实际 `apply_seq` 顺序须与规范观察批次逐位置一致，否则报
+`canonical_order_mismatch`。
 
 并发测试须使用两条真正独立的连接和可重复等待的因果屏障，记录并断言
 `watermark 返回 < writer 提交 < observer 后续读取`。测试必须在 watermark 查询返回后才
@@ -290,7 +313,8 @@ B1 的 cutover、baseline、旧 pending/failed Job 和七项政策继续作为�
 - 不承接旧 Job、旧状态或旧事件；
 - 不写 baseline、不回填、不重新分析成功 Job；
 - 历史 cutover 表/迁移保留，但不作新成功链准入；
-- S2/S3 通过独立 Review 前，不声称新链已运行。
+- S2 代码与测试已独立 `APPROVED R1`、S3 已独立 `APPROVED R2`，本地实现验证完成、
+  未 push/合 main/部署；真实服务运行、生产与 CI 未执行，不声称新链已上线运行。
 
 本契约的 S1 可执行边界仅为
 [`b2_ledger_hardening.py`](../backend/alembic/versions/b2_ledger_hardening.py) 和相应模型、

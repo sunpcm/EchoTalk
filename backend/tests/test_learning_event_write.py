@@ -1761,6 +1761,89 @@ async def test_basis_none_cannot_hide_persisted_pronunciation_rolls_back(pg):
 
 
 @pytest.mark.asyncio
+async def test_empty_object_alignment_reused_source_rejects_before_write(pg):
+    """P1-4: persisted ``phoneme_alignment={}`` must not be silently skipped.
+
+    An empty JSON object is not a legal ordered array. When the pronunciation
+    source is reused from a previous invocation (not_called / existing_result /
+    reused=True / persisted_rows with matching source facts), the shared
+    canonical rules must reject it and roll back rather than treat it as zero
+    observations.
+    """
+    await pg.ensure_seed_skills()
+    user_id = await pg.new_user()
+    session_id = await pg.new_session(user_id)
+    await pg.new_transcript(session_id)
+    job_id = await pg.new_job(session_id, status=AnalysisJobStatus.running)
+
+    assessment_id = uuid.uuid4()
+    async with pg.factory() as db, db.begin():
+        db.add(
+            PronunciationAssessment(
+                id=assessment_id,
+                session_id=session_id,
+                overall_score=75.0,
+                phoneme_alignment={},
+                source="provider",
+                provider="elsa",
+                model_version="v1",
+                is_synthetic=False,
+                confidence=0.9,
+            )
+        )
+
+    with pytest.raises(AnalysisExecutionError) as caught:
+        async with pg.factory() as db, db.begin():
+            job = await db.get(AnalysisJob, job_id)
+            session = await db.get(Session, session_id)
+            assessment = await db.get(PronunciationAssessment, assessment_id)
+            coverage = {
+                "pronunciation": {
+                    "status": "not_called",
+                    "reason": "existing_result",
+                    "result_count": None,
+                    "reused": True,
+                    "metadata": None,
+                    "basis": "persisted_rows",
+                    "source_facts": {
+                        "source": "provider",
+                        "provider": "elsa",
+                        "model_version": "v1",
+                        "is_synthetic": False,
+                    },
+                },
+                "grammar": {
+                    "status": "not_called",
+                    "reason": "not_reached",
+                    "result_count": None,
+                    "reused": False,
+                    "metadata": None,
+                    "basis": "none",
+                    "source_facts": None,
+                },
+            }
+            await _write_learning_events()(
+                job=job,
+                session=session,
+                user_id=user_id,
+                assessment=assessment,
+                grammar_errors=[],
+                coverage=coverage,
+                db=db,
+            )
+
+    assert caught.value.code == "coverage_invalid"
+    assert "phoneme_alignment must be an ordered array" in str(caught.value)
+    assert await get_events(pg.factory, user_id) == []
+    assert await get_knowledge_states(pg.factory, user_id) == []
+    async with pg.factory() as db:
+        job = await db.get(AnalysisJob, job_id)
+        assessment = await db.get(PronunciationAssessment, assessment_id)
+    assert job.status == AnalysisJobStatus.running
+    assert assessment is not None
+
+
+@pytest.mark.asyncio
 async def test_same_job_retry_does_not_duplicate_events(pg, monkeypatch):
     await pg.ensure_seed_skills()
     user_id = await pg.new_user()

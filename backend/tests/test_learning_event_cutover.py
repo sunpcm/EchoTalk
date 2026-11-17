@@ -1077,7 +1077,11 @@ async def test_maintenance_cli_validate_failure_is_nonzero_and_read_only(
         issue["code"] if isinstance(issue, dict) else str(issue)
         for issue in payload["issues"]
     }
-    assert "missing_baseline" in issue_codes
+    # B2 S3 clean-start no longer relies on a legacy baseline, so deleting the
+    # baseline leaves a knowledge state with no backing observation. The stable
+    # read-only issue is now state_mismatch instead of the removed
+    # missing_baseline code.
+    assert "state_mismatch" in issue_codes
     assert not re.search(r"postgres(?:ql)?(?:\+[A-Za-z0-9_]+)?://", output)
     assert "synthetic input" not in output
 

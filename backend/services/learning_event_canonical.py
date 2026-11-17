@@ -39,7 +39,7 @@ class CanonicalObservationBatch:
 def candidate_skills(*, assessment, grammar_errors: Sequence) -> set[str]:
     """Return every skill a source batch could map to before DB validation."""
     candidates: set[str] = set()
-    if assessment is not None and assessment.phoneme_alignment:
+    if assessment is not None and assessment.phoneme_alignment is not None:
         for entry in _pronunciation_entries(assessment.phoneme_alignment):
             skill_id = phoneme_error_to_skill(entry)
             if skill_id is not None:
@@ -91,7 +91,7 @@ def build_canonical_observations(
 ) -> CanonicalObservationBatch:
     """Rebuild the writer's deterministic mapped observation batch."""
     pronunciation_candidates: list[tuple[dict, str | None, int]] = []
-    if assessment is not None and assessment.phoneme_alignment:
+    if assessment is not None and assessment.phoneme_alignment is not None:
         for ordinal, entry in enumerate(
             _pronunciation_entries(assessment.phoneme_alignment)
         ):
