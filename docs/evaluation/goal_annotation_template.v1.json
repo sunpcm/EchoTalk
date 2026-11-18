@@ -1,0 +1,517 @@
+{
+  "schema_version": 1,
+  "corpus_id": "goal_candidates.v1",
+  "corpus_content_hash": "04c6db16559b2435503b453b506bcb52315c66a62068558e18eda8b3723a4fb3",
+  "blind": true,
+  "task_context": "Judge whether the student achieved the named scenario goal from the evidence. Choose exactly one of the four goal states.",
+  "goal_states": ["achieved", "not_achieved", "not_assessed", "unknown"],
+  "annotations": [
+    {
+      "candidate_id": "goal_001",
+      "version": 1,
+      "category": "direct_behavior",
+      "input": {
+        "student_utterances": ["My name is Alice and I am an engineer."],
+        "agent_utterances": ["Nice to meet you, Alice."]
+      },
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "goal_label": "Introduce name and role",
+      "goal_criteria": "achieved when the student states both a name and a job/role; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_002",
+      "version": 1,
+      "category": "refusal",
+      "input": {
+        "student_utterances": ["I refuse to tell you my name or my job."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "goal_label": "Introduce name and role",
+      "goal_criteria": "achieved when the student states both a name and a job/role; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_003",
+      "version": 1,
+      "category": "quotation",
+      "input": {
+        "student_utterances": ["The example says \"my name is Alice and I am an engineer\"."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "goal_label": "Introduce name and role",
+      "goal_criteria": "achieved when the student states both a name and a job/role; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_004",
+      "version": 1,
+      "category": "contradiction",
+      "input": {
+        "student_utterances": [
+          "My name is Alice and I am an engineer.",
+          "Actually, I am not an engineer."
+        ],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "goal_label": "Introduce name and role",
+      "goal_criteria": "achieved when the student states both a name and a job/role; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_005",
+      "version": 1,
+      "category": "direct_behavior",
+      "input": {
+        "student_utterances": ["What do you do for a living?"],
+        "agent_utterances": ["I am a teacher."]
+      },
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "goal_label": "Ask about the other person's work",
+      "goal_criteria": "achieved when the student asks the other person about their job/work; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_006",
+      "version": 1,
+      "category": "hypothetical",
+      "input": {
+        "student_utterances": ["If I wanted to be polite, I would ask what you do for a living."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "goal_label": "Ask about the other person's work",
+      "goal_criteria": "achieved when the student asks the other person about their job/work; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_007",
+      "version": 1,
+      "category": "reported_speech",
+      "input": {
+        "student_utterances": ["My friend said what do you do for a living."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "goal_label": "Ask about the other person's work",
+      "goal_criteria": "achieved when the student asks the other person about their job/work; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_008",
+      "version": 1,
+      "category": "assistant_only",
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["What do you do for a living?"]
+      },
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "goal_label": "Ask about the other person's work",
+      "goal_criteria": "achieved when the student asks the other person about their job/work; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_009",
+      "version": 1,
+      "category": "direct_behavior",
+      "input": {
+        "student_utterances": ["I would like to check in. I have a reservation under Alice."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "goal_label": "Check in and state reservation status",
+      "goal_criteria": "achieved when the student both requests check-in and states whether they have a reservation; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_010",
+      "version": 1,
+      "category": "refusal",
+      "input": {
+        "student_utterances": ["I don't want to check in."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "goal_label": "Check in and state reservation status",
+      "goal_criteria": "achieved when the student both requests check-in and states whether they have a reservation; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_011",
+      "version": 1,
+      "category": "self_report",
+      "input": {
+        "student_utterances": ["I said I would like to check in and I have a reservation."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "goal_label": "Check in and state reservation status",
+      "goal_criteria": "achieved when the student both requests check-in and states whether they have a reservation; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_012",
+      "version": 1,
+      "category": "no_student_evidence",
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["How can I help you today?"]
+      },
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "goal_label": "Check in and state reservation status",
+      "goal_criteria": "achieved when the student both requests check-in and states whether they have a reservation; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_013",
+      "version": 1,
+      "category": "direct_behavior",
+      "input": {
+        "student_utterances": ["What time is checkout?"],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "goal_label": "Ask checkout time",
+      "goal_criteria": "achieved when the student asks about checkout time; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_014",
+      "version": 1,
+      "category": "quotation",
+      "input": {
+        "student_utterances": ["The phrase is \"what time is checkout\"."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "goal_label": "Ask checkout time",
+      "goal_criteria": "achieved when the student asks about checkout time; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_015",
+      "version": 1,
+      "category": "contradiction",
+      "input": {
+        "student_utterances": ["What time is checkout?", "I do not ask about checkout time."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "goal_label": "Ask checkout time",
+      "goal_criteria": "achieved when the student asks about checkout time; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_016",
+      "version": 1,
+      "category": "assistant_only",
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["What time is checkout?"]
+      },
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "goal_label": "Ask checkout time",
+      "goal_criteria": "achieved when the student asks about checkout time; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_017",
+      "version": 1,
+      "category": "direct_behavior",
+      "input": {
+        "student_utterances": ["I'd like to order a coffee."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "goal_label": "Order one dish or drink",
+      "goal_criteria": "achieved when the student orders a food or drink item; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_018",
+      "version": 1,
+      "category": "refusal",
+      "input": {
+        "student_utterances": ["I don't want to order anything."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "goal_label": "Order one dish or drink",
+      "goal_criteria": "achieved when the student orders a food or drink item; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_019",
+      "version": 1,
+      "category": "hypothetical",
+      "input": {
+        "student_utterances": ["If I were hungry I would order a pizza."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "goal_label": "Order one dish or drink",
+      "goal_criteria": "achieved when the student orders a food or drink item; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_020",
+      "version": 1,
+      "category": "reported_speech",
+      "input": {
+        "student_utterances": ["My friend told the waiter to order a coffee."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "goal_label": "Order one dish or drink",
+      "goal_criteria": "achieved when the student orders a food or drink item; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_021",
+      "version": 1,
+      "category": "direct_behavior",
+      "input": {
+        "student_utterances": ["I am allergic to peanuts."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_restaurant_b1:state_preference_or_no_requirements",
+      "goal_version": 1,
+      "goal_label": "State preference or no requirements",
+      "goal_criteria": "achieved when the student states a dietary preference or that they have no requirements; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_022",
+      "version": 1,
+      "category": "self_report",
+      "input": {
+        "student_utterances": ["I already said I am allergic to peanuts."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_restaurant_b1:state_preference_or_no_requirements",
+      "goal_version": 1,
+      "goal_label": "State preference or no requirements",
+      "goal_criteria": "achieved when the student states a dietary preference or that they have no requirements; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_023",
+      "version": 1,
+      "category": "no_student_evidence",
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["Do you have any dietary restrictions?"]
+      },
+      "goal_id": "mat_restaurant_b1:state_preference_or_no_requirements",
+      "goal_version": 1,
+      "goal_label": "State preference or no requirements",
+      "goal_criteria": "achieved when the student states a dietary preference or that they have no requirements; not_achieved on a clear refusal; otherwise unknown.",
+      "goal_supported": true,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    },
+    {
+      "candidate_id": "goal_024",
+      "version": 1,
+      "category": "unknown_version",
+      "input": {
+        "student_utterances": ["My name is Alice and I am an engineer."],
+        "agent_utterances": []
+      },
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 2,
+      "goal_label": "Introduce name and role",
+      "goal_criteria": "achieved when the student states both a name and a job/role; not_achieved on a clear refusal; otherwise unknown. This version is unsupported; expect not_assessed.",
+      "goal_supported": false,
+      "annotator": null,
+      "judgment": null,
+      "evidence": null,
+      "rationale": null,
+      "dispute": null,
+      "review_ruling": null,
+      "annotation_version": null
+    }
+  ]
+}

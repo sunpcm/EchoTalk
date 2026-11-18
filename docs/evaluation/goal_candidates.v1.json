@@ -1,0 +1,444 @@
+{
+  "schema_version": 1,
+  "corpus_id": "goal_candidates.v1",
+  "corpus_version": 1,
+  "source": "synthetic",
+  "content_hash": "04c6db16559b2435503b453b506bcb52315c66a62068558e18eda8b3723a4fb3",
+  "candidates": [
+    {
+      "id": "goal_001",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "direct_behavior",
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["My name is Alice and I am an engineer."],
+        "agent_utterances": ["Nice to meet you, Alice."]
+      },
+      "proposal": {
+        "result": "achieved",
+        "rationale": "Student directly states a name and a role.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_002",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "refusal",
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I refuse to tell you my name or my job."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "not_achieved",
+        "rationale": "Student explicitly refuses to perform the goal.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_003",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "quotation",
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["The example says \"my name is Alice and I am an engineer\"."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student quotes an example rather than performing it directly.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_004",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "contradiction",
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": [
+          "My name is Alice and I am an engineer.",
+          "Actually, I am not an engineer."
+        ],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Positive and negative role evidence conflict.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_005",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "direct_behavior",
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["What do you do for a living?"],
+        "agent_utterances": ["I am a teacher."]
+      },
+      "proposal": {
+        "result": "achieved",
+        "rationale": "Student asks about the other party's work.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_006",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "hypothetical",
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["If I wanted to be polite, I would ask what you do for a living."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student frames the question hypothetically.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_007",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "reported_speech",
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["My friend said what do you do for a living."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student reports another person's question.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_008",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "assistant_only",
+      "goal_id": "mat_biz_greet_b1:ask_other_work_question",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["What do you do for a living?"]
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Only the Agent asks the question; there is no student evidence.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_009",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "direct_behavior",
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I would like to check in. I have a reservation under Alice."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "achieved",
+        "rationale": "Student expresses check-in intent and reservation status.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_010",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "refusal",
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I don't want to check in."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "not_achieved",
+        "rationale": "Student refuses to check in.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_011",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "self_report",
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I said I would like to check in and I have a reservation."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student reports their own earlier speech rather than acting now.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_012",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "no_student_evidence",
+      "goal_id": "mat_hotel_checkin_b1:express_checkin_reservation_status",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["How can I help you today?"]
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "No student utterance provides goal evidence.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_013",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "direct_behavior",
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["What time is checkout?"],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "achieved",
+        "rationale": "Student asks about checkout time.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_014",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "quotation",
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["The phrase is \"what time is checkout\"."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student quotes the target phrase instead of asking it.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_015",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "contradiction",
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["What time is checkout?", "I do not ask about checkout time."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student both asks and denies asking.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_016",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "assistant_only",
+      "goal_id": "mat_hotel_checkin_b1:ask_checkout_time",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["What time is checkout?"]
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Only the Agent asks about checkout time.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_017",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "direct_behavior",
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I'd like to order a coffee."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "achieved",
+        "rationale": "Student orders a drink.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_018",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "refusal",
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I don't want to order anything."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "not_achieved",
+        "rationale": "Student refuses to order.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_019",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "hypothetical",
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["If I were hungry I would order a pizza."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student orders only hypothetically.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_020",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "reported_speech",
+      "goal_id": "mat_restaurant_b1:order_one_dish_or_drink",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["My friend told the waiter to order a coffee."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student reports another person's order.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_021",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "direct_behavior",
+      "goal_id": "mat_restaurant_b1:state_preference_or_no_requirements",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I am allergic to peanuts."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "achieved",
+        "rationale": "Student states a dietary restriction.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_022",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "self_report",
+      "goal_id": "mat_restaurant_b1:state_preference_or_no_requirements",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": ["I already said I am allergic to peanuts."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "Student reports their own earlier statement.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_023",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "no_student_evidence",
+      "goal_id": "mat_restaurant_b1:state_preference_or_no_requirements",
+      "goal_version": 1,
+      "input": {
+        "student_utterances": [],
+        "agent_utterances": ["Do you have any dietary restrictions?"]
+      },
+      "proposal": {
+        "result": "unknown",
+        "rationale": "No student utterance states a preference.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    },
+    {
+      "id": "goal_024",
+      "version": 1,
+      "source": "synthetic",
+      "review_status": "unreviewed",
+      "category": "unknown_version",
+      "goal_id": "mat_biz_greet_b1:introduce_name_and_role",
+      "goal_version": 2,
+      "input": {
+        "student_utterances": ["My name is Alice and I am an engineer."],
+        "agent_utterances": []
+      },
+      "proposal": {
+        "result": "not_assessed",
+        "rationale": "Unsupported goal version must not be adjudicated.",
+        "evaluator_version": "deterministic-goal-v2"
+      }
+    }
+  ]
+}

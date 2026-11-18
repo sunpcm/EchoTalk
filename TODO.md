@@ -596,3 +596,12 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - `README.md` 只记录已验证现状，不承载待办。
 - `docs/PHASE_*_TECH_STACK.md` 记录已实现架构，`docs/PHASE_*_MANUAL_TEST.md` 记录验收步骤。
 - 已完成任务应同步删除对应源码 `TODO` 注释；重大取舍写入相关技术文档。
+
+## offline-readiness 准备包（2026-11-18，本地准备包实施已完成，独立 APPROVED R1）
+
+- 本包交付 SGEC 正式接线方案（只设计）、真实链路验收脚本（默认离线 + 未来 `execute` 子命令受控 GET）、
+  24+24 合成候选与两份单 corpus 盲标模板，均仅写本 lane，未接真实服务/DB/依赖/迁移。
+- 独立评审 APPROVED R1；live 全部 NOT_RUN，人工 gold 当前为 0。
+- 产物索引：`docs/SGEC_INTEGRATION_PLAN.md`、`docs/REAL_FLOW_ACCEPTANCE.md`、
+  `docs/GOLD_ANNOTATION_GUIDE.md`、`docs/evaluation/*`、`backend/scripts/{real_flow_acceptance,gold_candidates,acceptance_common}.py`
+  与对应两测试。真实 Provider/BKT/learning-events 接线、真实语音与人工 gold 审定仍待用户后续授权。
