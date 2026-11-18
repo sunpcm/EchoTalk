@@ -39,6 +39,10 @@ DATABASE_HOST = "127.0.0.1"
 DATABASE_PORT = 55446
 DATABASE_NAME = "echotalk_b2_main_test"
 DATABASE_ROLE = "echotalk_b2_main_test"
+CI_DATABASE_HOST = "localhost"
+CI_DATABASE_PORT = 5432
+CI_DATABASE_NAME = "echotalk_test"
+CI_DATABASE_ROLE = "echotalk"
 SERVER_VERSION_NUM = "150019"
 CHECK_STATE = "23514"
 IDENTITY_STATE = "428C9"
@@ -299,6 +303,17 @@ def test_downgrade_restores_only_b1_contract_and_preserves_rows() -> None:
         assert forbidden not in normalized
 
 
+def _expected_database_target() -> tuple[str, int, str, str]:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return (
+            CI_DATABASE_HOST,
+            CI_DATABASE_PORT,
+            CI_DATABASE_NAME,
+            CI_DATABASE_ROLE,
+        )
+    return DATABASE_HOST, DATABASE_PORT, DATABASE_NAME, DATABASE_ROLE
+
+
 def _valid_database_url() -> str:
     raw = os.environ.get("DATABASE_URL")
     if not raw:
@@ -307,13 +322,14 @@ def _valid_database_url() -> str:
             "no dotenv fallback",
             pytrace=False,
         )
+    host, port, database_name, role = _expected_database_target()
     try:
         parsed = make_url(raw)
         target = (parsed.host, parsed.port, parsed.database)
         valid = (
             parsed.drivername in {"postgresql", "postgresql+asyncpg"}
-            and target == (DATABASE_HOST, DATABASE_PORT, DATABASE_NAME)
-            and parsed.username == DATABASE_ROLE
+            and target == (host, port, database_name)
+            and parsed.username == role
             and not parsed.query
         )
     except Exception:
@@ -326,12 +342,117 @@ def _valid_database_url() -> str:
     return raw
 
 
+@pytest.mark.parametrize(
+    ("github_actions", "raw", "accepted"),
+    [
+        # Local namespace is valid only outside GitHub Actions.
+        (
+            None,
+            "postgresql+asyncpg://echotalk_b2_main_test@"
+            "127.0.0.1:55446/echotalk_b2_main_test",
+            True,
+        ),
+        # CI namespace is valid only inside GitHub Actions.
+        (
+            "true",
+            "postgresql+asyncpg://echotalk@localhost:5432/echotalk_test",
+            True,
+        ),
+        # Cross-environment targets are rejected.
+        (
+            "true",
+            "postgresql+asyncpg://echotalk_b2_main_test@"
+            "127.0.0.1:55446/echotalk_b2_main_test",
+            False,
+        ),
+        (
+            None,
+            "postgresql+asyncpg://echotalk@localhost:5432/echotalk_test",
+            False,
+        ),
+        # Wrong host, port, database, role, driver, or query are rejected.
+        (
+            None,
+            "postgresql+asyncpg://echotalk_b2_main_test@"
+            "127.0.0.2:55446/echotalk_b2_main_test",
+            False,
+        ),
+        (
+            None,
+            "postgresql+asyncpg://echotalk_b2_main_test@"
+            "127.0.0.1:55447/echotalk_b2_main_test",
+            False,
+        ),
+        (
+            None,
+            "postgresql+asyncpg://echotalk_b2_main_test@"
+            "127.0.0.1:55446/echotalk_other_test",
+            False,
+        ),
+        (
+            None,
+            "postgresql+asyncpg://echotalk_other@127.0.0.1:55446/echotalk_b2_main_test",
+            False,
+        ),
+        (
+            None,
+            "postgresql+psycopg2://echotalk_b2_main_test@"
+            "127.0.0.1:55446/echotalk_b2_main_test",
+            False,
+        ),
+        (
+            None,
+            "mysql://echotalk_b2_main_test@127.0.0.1:55446/echotalk_b2_main_test",
+            False,
+        ),
+        (
+            None,
+            "postgresql+asyncpg://echotalk_b2_main_test@"
+            "127.0.0.1:55446/echotalk_b2_main_test?sslmode=require",
+            False,
+        ),
+        (
+            None,
+            "postgresql+asyncpg://127.0.0.1:55446/echotalk_b2_main_test",
+            False,
+        ),
+        (None, "not-a-url", False),
+    ],
+)
+def test_database_url_guard(
+    monkeypatch: pytest.MonkeyPatch,
+    github_actions: str | None,
+    raw: str,
+    accepted: bool,
+) -> None:
+    if github_actions is None:
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_ACTIONS", github_actions)
+    monkeypatch.setenv("DATABASE_URL", raw)
+    if accepted:
+        assert _valid_database_url() == raw
+    else:
+        with pytest.raises(pytest.fail.Exception):
+            _valid_database_url()
+
+
+def test_database_url_guard_requires_explicit_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    with pytest.raises(pytest.fail.Exception):
+        _valid_database_url()
+
+
 @pytest.fixture
 async def db() -> AsyncIterator[AsyncSession]:
     engine = create_async_engine(
         _valid_database_url().replace("postgresql://", "postgresql+asyncpg://"),
         poolclass=NullPool,
     )
+    _, _, database_name, role = _expected_database_target()
     connection: AsyncConnection | None = None
     transaction = None
     try:
@@ -354,7 +475,7 @@ async def db() -> AsyncIterator[AsyncSession]:
             .scalars()
             .all()
         )
-        assert identity == (DATABASE_NAME, DATABASE_ROLE, SERVER_VERSION_NUM)
+        assert identity == (database_name, role, SERVER_VERSION_NUM)
         assert versions == [REVISION]
 
         async with AsyncSession(
