@@ -20,6 +20,9 @@ from services.learning_event_cutover import (
     refresh_baseline_control_after_account_deletion,
     validate_baseline_control_for_account_deletion,
 )
+from services.learning_event_lifecycle import (
+    acquire_exclusive_lifecycle_barrier,
+)
 
 
 class UserAccountDeletionError(RuntimeError):
@@ -226,6 +229,7 @@ async def delete_user_account(
     user_id: uuid.UUID,
 ) -> None:
     """Delete one account in the caller's transaction without committing it."""
+    await acquire_exclusive_lifecycle_barrier(db)
     control = await lock_cutover_control_for_update(db)
     if control is None:
         existing_baseline = await db.scalar(

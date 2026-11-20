@@ -27,6 +27,9 @@ from schemas.user_data_export import (
     UserDataExportV3,
 )
 from services.learning_event_cutover import lock_cutover_control_for_update
+from services.learning_event_lifecycle import (
+    acquire_exclusive_lifecycle_barrier,
+)
 from services.user_account_deletion import (
     delete_user_account as delete_user_account_data,
 )
@@ -54,6 +57,7 @@ async def _lock_account_deletion_control(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Serialize with event writers before mapping or locking the local user."""
+    await acquire_exclusive_lifecycle_barrier(db)
     await lock_cutover_control_for_update(db)
 
 

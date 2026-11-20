@@ -23,6 +23,81 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
 
+_SHAPE_CHECK = (
+    "(event_type = 'analysis_completed'"
+    " AND session_id IS NOT NULL"
+    " AND analysis_job_id IS NOT NULL"
+    " AND source = 'analysis'"
+    " AND pronunciation_assessment_id IS NULL"
+    " AND grammar_error_id IS NULL"
+    " AND skill_id IS NULL"
+    " AND source_ordinal IS NULL"
+    " AND observation_correct IS NULL"
+    " AND observation_code IS NULL"
+    " AND provider IS NULL"
+    " AND model_version IS NULL"
+    " AND confidence IS NULL"
+    " AND is_synthetic IS NULL"
+    " AND algorithm_version IS NOT NULL"
+    " AND algorithm_params IS NOT NULL"
+    " AND p_mastery_snapshot IS NULL"
+    " AND cutover_revision IS NULL)"
+    " OR (event_type = 'pronunciation_observation'"
+    " AND session_id IS NOT NULL"
+    " AND analysis_job_id IS NOT NULL"
+    " AND pronunciation_assessment_id IS NOT NULL"
+    " AND grammar_error_id IS NULL"
+    " AND skill_id IS NOT NULL"
+    " AND source_ordinal IS NOT NULL"
+    " AND source_ordinal >= 0"
+    " AND observation_correct IS NOT NULL"
+    " AND observation_code IS NOT NULL"
+    " AND observation_code <> ''"
+    " AND model_version IS NOT NULL"
+    " AND model_version <> ''"
+    " AND is_synthetic IS NOT NULL"
+    " AND algorithm_version IS NULL"
+    " AND algorithm_params IS NULL"
+    " AND p_mastery_snapshot IS NULL"
+    " AND cutover_revision IS NULL)"
+    " OR (event_type = 'grammar_observation'"
+    " AND session_id IS NOT NULL"
+    " AND analysis_job_id IS NOT NULL"
+    " AND pronunciation_assessment_id IS NULL"
+    " AND grammar_error_id IS NOT NULL"
+    " AND skill_id IS NOT NULL"
+    " AND source_ordinal IS NOT NULL"
+    " AND source_ordinal >= 0"
+    " AND observation_correct IS FALSE"
+    " AND observation_code IS NOT NULL"
+    " AND observation_code <> ''"
+    " AND model_version IS NOT NULL"
+    " AND model_version <> ''"
+    " AND is_synthetic IS NOT NULL"
+    " AND algorithm_version IS NULL"
+    " AND algorithm_params IS NULL"
+    " AND p_mastery_snapshot IS NULL"
+    " AND cutover_revision IS NULL)"
+    " OR (event_type = 'baseline_snapshot'"
+    " AND session_id IS NULL"
+    " AND analysis_job_id IS NULL"
+    " AND pronunciation_assessment_id IS NULL"
+    " AND grammar_error_id IS NULL"
+    " AND skill_id IS NOT NULL"
+    " AND source_ordinal IS NULL"
+    " AND observation_correct IS NULL"
+    " AND observation_code IS NULL"
+    " AND provider IS NULL"
+    " AND model_version IS NULL"
+    " AND confidence IS NULL"
+    " AND is_synthetic IS NULL"
+    " AND algorithm_version IS NULL"
+    " AND algorithm_params IS NULL"
+    " AND source = 'legacy_unknown'"
+    " AND p_mastery_snapshot IS NOT NULL"
+    " AND cutover_revision IS NOT NULL)"
+)
+
 
 class LearningEvent(Base):
     """One immutable user learning event in apply-order."""
@@ -43,41 +118,28 @@ class LearningEvent(Base):
             name="ck_learning_events_snapshot",
         ),
         CheckConstraint(
-            """
-            (event_type='analysis_completed' AND session_id IS NOT NULL
-            AND analysis_job_id IS NOT NULL AND pronunciation_assessment_id IS NULL
-            AND grammar_error_id IS NULL AND skill_id IS NULL AND source_ordinal IS NULL
-            AND observation_correct IS NULL AND observation_code IS NULL AND provider IS NULL
-            AND model_version IS NULL AND confidence IS NULL AND is_synthetic IS NULL
-            AND algorithm_version IS NOT NULL AND algorithm_params IS NOT NULL
-            AND p_mastery_snapshot IS NULL AND cutover_revision IS NULL)
-            OR (event_type='pronunciation_observation' AND session_id IS NOT NULL
-            AND analysis_job_id IS NOT NULL AND pronunciation_assessment_id IS NOT NULL
-            AND grammar_error_id IS NULL AND skill_id IS NOT NULL
-            AND source_ordinal IS NOT NULL AND source_ordinal >= 0
-            AND observation_correct IS NOT NULL AND observation_code IS NOT NULL
-            AND is_synthetic IS NOT NULL AND algorithm_version IS NULL
-            AND algorithm_params IS NULL AND p_mastery_snapshot IS NULL
-            AND cutover_revision IS NULL)
-            OR (event_type='grammar_observation' AND session_id IS NOT NULL
-            AND analysis_job_id IS NOT NULL AND pronunciation_assessment_id IS NULL
-            AND grammar_error_id IS NOT NULL AND skill_id IS NOT NULL
-            AND source_ordinal IS NOT NULL AND source_ordinal >= 0
-            AND observation_correct IS FALSE AND observation_code IS NOT NULL
-            AND is_synthetic IS NOT NULL AND algorithm_version IS NULL
-            AND algorithm_params IS NULL AND p_mastery_snapshot IS NULL
-            AND cutover_revision IS NULL)
-            OR (event_type='baseline_snapshot' AND session_id IS NULL
-            AND analysis_job_id IS NULL AND pronunciation_assessment_id IS NULL
-            AND grammar_error_id IS NULL AND skill_id IS NOT NULL AND source_ordinal IS NULL
-            AND observation_correct IS NULL AND observation_code IS NULL AND provider IS NULL
-            AND model_version IS NULL AND confidence IS NULL AND is_synthetic IS NULL
-            AND algorithm_version IS NULL AND algorithm_params IS NULL
-            AND source='legacy_unknown' AND p_mastery_snapshot IS NOT NULL
-            AND cutover_revision IS NOT NULL)
-            """,
-            name="ck_learning_events_shape",
+            "idempotency_key <> ''",
+            name="ck_learning_events_idempotency_key_not_empty",
         ),
+        CheckConstraint(
+            "source <> ''",
+            name="ck_learning_events_source_not_empty",
+        ),
+        CheckConstraint(
+            "provider IS NULL OR provider <> ''",
+            name="ck_learning_events_provider_null_or_not_empty",
+        ),
+        CheckConstraint(
+            "(jsonb_typeof(details) = 'object'"
+            " AND details->'schema_version' = '1'::jsonb) IS TRUE",
+            name="ck_learning_events_details_shape",
+        ),
+        CheckConstraint(
+            "(algorithm_params IS NULL"
+            " OR jsonb_typeof(algorithm_params) = 'object') IS TRUE",
+            name="ck_learning_events_algorithm_params_object",
+        ),
+        CheckConstraint(_SHAPE_CHECK, name="ck_learning_events_shape"),
         UniqueConstraint(
             "idempotency_key",
             name="uq_learning_events_idempotency_key",
@@ -103,9 +165,8 @@ class LearningEvent(Base):
 
     apply_seq: Mapped[int] = mapped_column(
         BigInteger,
-        Identity(),
+        Identity(always=True),
         primary_key=True,
-        autoincrement=True,
     )
     idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)

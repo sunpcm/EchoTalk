@@ -20,6 +20,7 @@ from models.scenario_goals import GoalCatalogVersion, SessionGoalSnapshot
 from models.session import Session, SessionStatus, Transcript, TranscriptRole
 from schemas.scenario_goals import GoalDefinition
 from services import goal_rules
+from services.learning_event_lifecycle import acquire_shared_lifecycle_barrier
 
 logger = logging.getLogger(__name__)
 
@@ -323,6 +324,7 @@ async def _write_results(
 
 async def execute_claimed_goal_run(run_id: uuid.UUID, db: AsyncSession) -> None:
     """Execute one running run and atomically write its terminal results."""
+    await acquire_shared_lifecycle_barrier(db)
     run = (
         await db.execute(select(GoalRun).where(GoalRun.id == run_id).with_for_update())
     ).scalar_one_or_none()

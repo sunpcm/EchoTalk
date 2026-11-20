@@ -42,6 +42,10 @@ from models.session import (
     TranscriptRole,
 )
 from models.user import User
+from services.learning_event_lifecycle import (
+    LIFECYCLE_LOCK_KEY,
+    LIFECYCLE_LOCK_NAMESPACE,
+)
 from services.user_account_deletion import delete_user_account
 from services.user_data_export import get_user_data_export_session_factory
 
@@ -173,9 +177,14 @@ def _require_b1_database_url() -> URL:
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -463,6 +472,125 @@ async def _export_client(
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_user_data_export_session_factory, None)
+
+
+async def _wait_for_blocked_application(
+    harness: EvalHarness,
+    application_name: str,
+) -> list[int]:
+    deadline = asyncio.get_running_loop().time() + 5
+    while asyncio.get_running_loop().time() < deadline:
+        async with harness.factory() as db:
+            rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT pid, pg_blocking_pids(pid) AS blockers
+                        FROM pg_stat_activity
+                        WHERE datname = current_database()
+                          AND application_name = :application_name
+                          AND wait_event_type = 'Lock'
+                        """
+                    ),
+                    {"application_name": application_name},
+                )
+            ).all()
+        if rows:
+            return [pid for pid, _ in rows]
+        await asyncio.sleep(0.02)
+    raise AssertionError(
+        f"timed out waiting for blocked application {application_name}"
+    )
+
+
+async def _wait_for_advisory_barrier_block(
+    harness: EvalHarness,
+    application_name: str,
+) -> tuple[int, list[int]]:
+    """Wait until ``application_name`` waits on the fixed advisory barrier."""
+    deadline = asyncio.get_running_loop().time() + 5
+    while asyncio.get_running_loop().time() < deadline:
+        async with harness.factory() as db:
+            waiter = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT l.pid
+                        FROM pg_locks l
+                        JOIN pg_stat_activity a ON a.pid = l.pid
+                        WHERE a.datname = current_database()
+                          AND a.application_name = :application_name
+                          AND l.locktype = 'advisory'
+                          AND l.classid = :namespace
+                          AND l.objid = :key
+                          AND l.granted = false
+                        """
+                    ),
+                    {
+                        "application_name": application_name,
+                        "namespace": LIFECYCLE_LOCK_NAMESPACE,
+                        "key": LIFECYCLE_LOCK_KEY,
+                    },
+                )
+            ).all()
+        if waiter:
+            pid = waiter[0][0]
+            holders = await _advisory_barrier_holders(harness, exclude_pid=pid)
+            if holders:
+                return pid, holders
+        await asyncio.sleep(0.02)
+    raise AssertionError(
+        f"timed out waiting for {application_name} to wait on the advisory barrier"
+    )
+
+
+async def _advisory_barrier_holders(
+    harness: EvalHarness,
+    *,
+    exclude_pid: int,
+) -> list[int]:
+    async with harness.factory() as db:
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT DISTINCT l.pid
+                    FROM pg_locks l
+                    JOIN pg_stat_activity a ON a.pid = l.pid
+                    WHERE a.datname = current_database()
+                      AND l.locktype = 'advisory'
+                      AND l.classid = :namespace
+                      AND l.objid = :key
+                      AND l.granted = true
+                      AND l.pid <> :exclude_pid
+                    """
+                ),
+                {
+                    "namespace": LIFECYCLE_LOCK_NAMESPACE,
+                    "key": LIFECYCLE_LOCK_KEY,
+                    "exclude_pid": exclude_pid,
+                },
+            )
+        ).all()
+    return [pid for (pid,) in rows]
+
+
+async def _application_pid(harness: EvalHarness, application_name: str) -> int:
+    async with harness.factory() as db:
+        pid = await db.scalar(
+            text(
+                """
+                SELECT pid
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+                  AND application_name = :application_name
+                """
+            ),
+            {"application_name": application_name},
+        )
+    if pid is None:
+        raise AssertionError(f"application {application_name} has no backend")
+    return pid
 
 
 async def _bootstrap_run(
@@ -1536,6 +1664,80 @@ async def test_account_deletion_removes_goal_runs_in_same_transaction(
         )
         assert run_count == 0
         assert result_count == 0
+
+
+@pytest.mark.asyncio
+async def test_goal_execute_and_delete_serialize_on_lifecycle_barrier(
+    eval_pg: EvalHarness,
+    monkeypatch,
+) -> None:
+    service = _service_api()
+    model = _model_api()
+    user_id, _session_id, run = await _bootstrap_run(
+        eval_pg,
+        utterances=["My name is Anna and I am a product manager."],
+    )
+    assert run is not None
+    async with eval_pg.factory() as db, db.begin():
+        assert await service.claim_next_goal_run(db) == run.id
+
+    evaluation_reached = asyncio.Event()
+    release_worker = asyncio.Event()
+    real_load_evidence = service._load_evidence
+
+    async def hold_after_barrier(db, claimed_run):
+        evaluation_reached.set()
+        await release_worker.wait()
+        return await real_load_evidence(db, claimed_run)
+
+    monkeypatch.setattr(service, "_load_evidence", hold_after_barrier)
+
+    async def run_goal() -> None:
+        async with eval_pg.factory() as db, db.begin():
+            await db.execute(
+                text("SELECT set_config('application_name', :value, true)"),
+                {"value": "b2-goal-execute"},
+            )
+            await service.execute_claimed_goal_run(run.id, db)
+
+    async def delete_account() -> None:
+        async with eval_pg.factory() as db, db.begin():
+            await db.execute(
+                text("SELECT set_config('application_name', :value, true)"),
+                {"value": "b2-goal-delete"},
+            )
+            await delete_user_account(db=db, user_id=user_id)
+
+    worker = asyncio.create_task(run_goal())
+    deletion = None
+    try:
+        await asyncio.wait_for(evaluation_reached.wait(), timeout=5)
+        deletion = asyncio.create_task(delete_account())
+        waiter_pid, holders = await _wait_for_advisory_barrier_block(
+            eval_pg, "b2-goal-delete"
+        )
+        worker_pid = await _application_pid(eval_pg, "b2-goal-execute")
+        assert waiter_pid != worker_pid
+        assert worker_pid in holders
+        assert not worker.done()
+        assert not deletion.done()
+
+        release_worker.set()
+        await asyncio.wait_for(worker, timeout=5)
+        await asyncio.wait_for(deletion, timeout=5)
+    finally:
+        release_worker.set()
+        for task in (worker, deletion):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(
+            *(task for task in (worker, deletion) if task is not None),
+            return_exceptions=True,
+        )
+
+    async with eval_pg.factory() as db:
+        assert await db.get(User, user_id) is None
+        assert await db.get(model.GoalRun, run.id) is None
 
 
 @pytest.mark.asyncio

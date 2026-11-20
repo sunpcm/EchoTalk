@@ -278,9 +278,14 @@ def _require_b1_database_url():
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -604,6 +609,51 @@ def _coverage_values() -> dict[str, Any]:
     }
 
 
+def _b2_coverage_values() -> dict[str, Any]:
+    return {
+        "pronunciation": {
+            "status": "evaluated",
+            "reason": "completed",
+            "result_count": 1,
+            "reused": False,
+            "metadata": {
+                "source": "metadata-pronunciation-canary",
+                "provider": "metadata-provider-canary",
+                "model_version": "metadata-model-canary",
+                "is_synthetic": False,
+                "confidence": 0.91,
+            },
+            "basis": "current_invocation",
+            "source_facts": {
+                "source": "b2-pronunciation",
+                "provider": None,
+                "model_version": "b2-pronunciation-v2",
+                "is_synthetic": False,
+            },
+        },
+        "grammar": {
+            "status": "evaluated",
+            "reason": "completed",
+            "result_count": 0,
+            "reused": False,
+            "metadata": {
+                "source": "metadata-grammar-canary",
+                "provider": "metadata-grammar-provider-canary",
+                "model_version": "metadata-grammar-model-canary",
+                "is_synthetic": True,
+                "confidence": 0.5,
+            },
+            "basis": "current_invocation",
+            "source_facts": {
+                "source": "b2-grammar",
+                "provider": "b2-grammar-provider",
+                "model_version": "b2-grammar-v1",
+                "is_synthetic": True,
+            },
+        },
+    }
+
+
 def _completed_event_values(
     user_id: uuid.UUID,
     *,
@@ -694,7 +744,7 @@ def _grammar_event_values(
     job_id: uuid.UUID,
     grammar_id: uuid.UUID,
     occurred_at: datetime,
-    model_version: str | None = None,
+    model_version: str | None = "acme-grammar-rules-v1",
     is_synthetic: bool = True,
 ) -> dict[str, Any]:
     return {
@@ -986,7 +1036,16 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
     )
     job_id = await export_pg.new_job(session_id)
     pronunciation_id = await export_pg.new_pronunciation_assessment(session_id)
-    grammar_id = await export_pg.new_grammar_error(session_id)
+    grammar_id = await export_pg.new_grammar_error(
+        session_id,
+        model_version="acme-grammar-rules-v1",
+    )
+    unknown_grammar_id = await export_pg.new_grammar_error(
+        session_id,
+        original="Unknown grammar row remains exportable.",
+        corrected="Unknown grammar row is not mapped to an event.",
+        model_version=None,
+    )
     await export_pg.new_knowledge_state(
         user_id,
         skill_id="verb_tense_past",
@@ -1023,7 +1082,7 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
             job_id=job_id,
             grammar_id=grammar_id,
             occurred_at=ended_at,
-            model_version=None,
+            model_version="acme-grammar-rules-v1",
             is_synthetic=True,
         )
     )
@@ -1071,8 +1130,11 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
     assert pronunciation["model_version"] == "acme-phoneme-v1"
     assert pronunciation["is_synthetic"] is False
     assert grammar["source"] == "acme_grammar"
-    assert grammar["model_version"] is None
+    assert grammar["model_version"] == "acme-grammar-rules-v1"
     assert grammar["is_synthetic"] is True
+    grammar_rows = {row["id"]: row for row in body["grammar_assessments"]}
+    assert grammar_rows[str(unknown_grammar_id)]["model_version"] is None
+    assert grammar_rows[str(grammar_id)]["model_version"] == "acme-grammar-rules-v1"
     assert baseline["source"] == "legacy_unknown"
     assert baseline["is_synthetic"] is None
     assert baseline["details"]["legacy_synthetic_impact"] == "unknown"
@@ -1086,6 +1148,61 @@ async def test_all_event_types_sources_versions_and_unknowns_are_preserved(
     stable_first.pop("exported_at")
     stable_second.pop("exported_at")
     assert stable_first == stable_second
+
+
+@pytest.mark.asyncio
+async def test_http_export_projects_b2_source_facts_without_metadata(
+    export_pg: ExportHarness,
+):
+    user_id = await export_pg.new_user(email_label="b2-coverage")
+    ended_at = datetime(2026, 11, 18, 4, 10, tzinfo=UTC)
+    session_id = await export_pg.new_session(
+        user_id,
+        started_at=ended_at - timedelta(minutes=10),
+        ended_at=ended_at,
+    )
+    job_id = await export_pg.new_job(session_id)
+    completed = _completed_event_values(
+        user_id,
+        session_id=session_id,
+        job_id=job_id,
+        occurred_at=ended_at,
+    )
+    completed["details"]["coverage"] = _b2_coverage_values()
+    await export_pg.insert_event(completed)
+
+    with _request_as(user_id, export_pg.factory):
+        response = await _get_export()
+
+    assert response.status_code == 200
+    coverage = response.json()["learning_events"][0]["details"]["coverage"]
+    assert coverage == {
+        "pronunciation": {
+            "status": "evaluated",
+            "source": "b2-pronunciation",
+            "provider": None,
+            "model_version": "b2-pronunciation-v2",
+            "is_synthetic": False,
+        },
+        "grammar": {
+            "status": "evaluated",
+            "source": "b2-grammar",
+            "provider": "b2-grammar-provider",
+            "model_version": "b2-grammar-v1",
+            "is_synthetic": True,
+        },
+    }
+    assert "metadata-pronunciation-canary" not in response.text
+    assert "metadata-grammar-canary" not in response.text
+    for direction in coverage.values():
+        assert set(direction) == {
+            "status",
+            "source",
+            "provider",
+            "model_version",
+            "is_synthetic",
+        }
+    assert "confidence" not in json.dumps(coverage, sort_keys=True)
 
 
 @pytest.mark.asyncio

@@ -38,6 +38,7 @@ from schemas.user_data_export import (
     UserDataExportV2,
     UserDataExportV3,
 )
+from services.learning_event_rules import SOURCE_FACT_KEYS
 from time_utils import utc_now
 
 SessionFactory = async_sessionmaker[AsyncSession]
@@ -115,6 +116,20 @@ def _project_coverage_direction(value: Any) -> CoverageDirection | None:
     if value is None:
         return None
     direction = _require_mapping(value)
+    source_facts = direction.get("source_facts")
+    if source_facts is not None:
+        facts = _require_mapping(source_facts)
+        if set(facts) != SOURCE_FACT_KEYS:
+            raise UserDataExportIntegrityError(
+                "Event coverage source_facts must contain exactly four fields"
+            )
+        return CoverageDirection(
+            status=direction.get("status"),
+            source=facts.get("source"),
+            provider=facts.get("provider"),
+            model_version=facts.get("model_version"),
+            is_synthetic=facts.get("is_synthetic"),
+        )
     return CoverageDirection(
         status=direction.get("status"),
         source=direction.get("source"),

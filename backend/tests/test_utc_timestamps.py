@@ -575,6 +575,7 @@ async def test_pg_seven_columns_defaults_and_persisted_utc(pg_env):
             corrected="I went",
             error_type="wrong_tense",
             source="demo_rule",
+            model_version="demo-grammar-rules-v1",
             is_synthetic=True,
         )
         db.add(ge)
@@ -835,6 +836,7 @@ async def test_update_knowledge_writes_explicit_zero_offset_utc(pg_env):
             corrected="I went",
             error_type="wrong_tense",
             source="test_rule",
+            model_version="test-rule-v1",
             is_synthetic=False,
         )
         db.add(ge)
@@ -939,6 +941,7 @@ async def test_teardown_cleans_unregistered_knowledge_state_without_fk_error(
             corrected="I went",
             error_type="wrong_tense",
             source="test_reg",
+            model_version="test-rule-v1",
             is_synthetic=False,
         )
         db.add(ge)

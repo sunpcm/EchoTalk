@@ -7,6 +7,10 @@ from uuid import UUID
 from services.knowledge.skill_updater import phoneme_error_to_skill
 
 
+class CanonicalObservationError(ValueError):
+    """A source batch cannot produce a unique deterministic observation set."""
+
+
 @dataclass(frozen=True, slots=True)
 class CanonicalObservation:
     idempotency_key: str
@@ -35,13 +39,47 @@ class CanonicalObservationBatch:
 def candidate_skills(*, assessment, grammar_errors: Sequence) -> set[str]:
     """Return every skill a source batch could map to before DB validation."""
     candidates: set[str] = set()
-    if assessment is not None and assessment.phoneme_alignment:
-        for entry in assessment.phoneme_alignment:
+    if assessment is not None and assessment.phoneme_alignment is not None:
+        for entry in _pronunciation_entries(assessment.phoneme_alignment):
             skill_id = phoneme_error_to_skill(entry)
             if skill_id is not None:
                 candidates.add(skill_id)
-    candidates.update(error.skill_tag for error in grammar_errors)
+    stable_keys = _grammar_stable_keys(grammar_errors)
+    candidates.update(skill_tag for skill_tag, _error_type in stable_keys)
     return candidates
+
+
+def _pronunciation_entries(alignment: object) -> list[dict]:
+    """Validate nested JSON shape before the legacy skill mapper is called."""
+    if not isinstance(alignment, list):
+        raise CanonicalObservationError("phoneme_alignment must be an ordered array")
+    entries: list[dict] = []
+    for entry in alignment:
+        if not isinstance(entry, dict):
+            raise CanonicalObservationError("phoneme_alignment entries must be objects")
+        error_type = entry.get("type")
+        if not isinstance(error_type, str):
+            raise CanonicalObservationError(
+                "phoneme_alignment entry type must be a string"
+            )
+        expected = entry.get("expected")
+        if expected is not None and not isinstance(expected, str):
+            raise CanonicalObservationError(
+                "phoneme_alignment expected must be null or a string"
+            )
+        entries.append(entry)
+    return entries
+
+
+def _grammar_stable_keys(grammar_errors: Sequence) -> list[tuple[str, str]]:
+    stable_keys: list[tuple[str, str]] = []
+    for error in grammar_errors:
+        skill_tag = getattr(error, "skill_tag", None)
+        error_type = getattr(error, "error_type", None)
+        if not isinstance(skill_tag, str) or not isinstance(error_type, str):
+            raise CanonicalObservationError("grammar stable keys must be strings")
+        stable_keys.append((skill_tag, error_type))
+    return stable_keys
 
 
 def build_canonical_observations(
@@ -53,22 +91,39 @@ def build_canonical_observations(
 ) -> CanonicalObservationBatch:
     """Rebuild the writer's deterministic mapped observation batch."""
     pronunciation_candidates: list[tuple[dict, str | None, int]] = []
-    if assessment is not None and assessment.phoneme_alignment:
-        for ordinal, entry in enumerate(assessment.phoneme_alignment):
+    if assessment is not None and assessment.phoneme_alignment is not None:
+        for ordinal, entry in enumerate(
+            _pronunciation_entries(assessment.phoneme_alignment)
+        ):
             pronunciation_candidates.append(
                 (entry, phoneme_error_to_skill(entry), ordinal)
             )
 
-    sorted_grammar = sorted(
-        grammar_errors, key=lambda error: (error.skill_tag, error.error_type)
-    )
+    stable_keys = _grammar_stable_keys(grammar_errors)
+    if len(stable_keys) != len(set(stable_keys)):
+        raise CanonicalObservationError("grammar source contains duplicate stable keys")
+    grammar_by_key = {
+        (error.skill_tag, error.error_type): error for error in grammar_errors
+    }
+    sorted_grammar = [grammar_by_key[key] for key in sorted(stable_keys)]
 
-    unmapped_pronunciation = 0
+    mapped_pronunciation = [
+        (entry, skill_id, ordinal)
+        for entry, skill_id, ordinal in pronunciation_candidates
+        if skill_id is not None and skill_id in valid_skill_ids
+    ]
+    if mapped_pronunciation and (
+        not assessment.model_version or not assessment.model_version.strip()
+    ):
+        raise CanonicalObservationError(
+            "mapped pronunciation source requires a non-empty model version"
+        )
+    unmapped_pronunciation = len(pronunciation_candidates) - len(mapped_pronunciation)
+    unmapped_grammar = sum(
+        error.skill_tag not in valid_skill_ids for error in sorted_grammar
+    )
     observations: list[CanonicalObservation] = []
-    for entry, skill_id, ordinal in pronunciation_candidates:
-        if skill_id is None or skill_id not in valid_skill_ids:
-            unmapped_pronunciation += 1
-            continue
+    for entry, skill_id, ordinal in mapped_pronunciation:
         observations.append(
             CanonicalObservation(
                 idempotency_key=f"job:{job_id}:pron:{ordinal}",
@@ -87,11 +142,13 @@ def build_canonical_observations(
             )
         )
 
-    unmapped_grammar = 0
     for ordinal, error in enumerate(sorted_grammar):
         if error.skill_tag not in valid_skill_ids:
-            unmapped_grammar += 1
             continue
+        if not error.model_version or not error.model_version.strip():
+            raise CanonicalObservationError(
+                "mapped grammar source requires a non-empty model version"
+            )
         observations.append(
             CanonicalObservation(
                 idempotency_key=f"job:{job_id}:grammar:{ordinal}",

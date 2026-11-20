@@ -6,11 +6,18 @@ import pytest
 from models.exercise import GrammarError, PronunciationAssessment
 from models.knowledge import KnowledgeState
 from models.session import Transcript, TranscriptRole
+from services import analysis_service
 from services.analysis_service import (
     SessionAnalysisResult,
     _apply_bkt_updates,
+    _build_ledger_coverage,
     analyze_session,
     update_knowledge,
+)
+from services.assessment_providers import AssessmentMetadata
+from services.learning_event_rules import (
+    CoverageValidationError,
+    validate_ledger_coverage,
 )
 
 
@@ -28,6 +35,109 @@ def test_legacy_analysis_result_isolates_ledger_coverage_from_rich_snapshot():
         SessionAnalysisResult(
             coverage=legacy_coverage,
             ledger_coverage={"grammar": {"status": "evaluated"}},
+        )
+
+
+def test_zero_error_current_invocation_keeps_demo_source_facts():
+    metadata = AssessmentMetadata(
+        "demo_rule",
+        None,
+        "demo-grammar-rules-v1",
+        True,
+        0.5,
+    )
+
+    coverage = _build_ledger_coverage(
+        analysis_service.DirectionCoverage(
+            "not_called",
+            reason="disabled",
+        ),
+        analysis_service.DirectionCoverage(
+            "evaluated",
+            result_count=0,
+            reason="completed",
+            metadata=metadata,
+        ),
+        None,
+        [],
+    )
+
+    assert coverage["grammar"] == {
+        "status": "evaluated",
+        "reason": "completed",
+        "result_count": 0,
+        "reused": False,
+        "metadata": {
+            "source": "demo_rule",
+            "provider": None,
+            "model_version": "demo-grammar-rules-v1",
+            "is_synthetic": True,
+            "confidence": 0.5,
+        },
+        "basis": "current_invocation",
+        "source_facts": {
+            "source": "demo_rule",
+            "provider": None,
+            "model_version": "demo-grammar-rules-v1",
+            "is_synthetic": True,
+        },
+    }
+
+
+def test_zero_error_current_invocation_passes_shared_reader_validation():
+    coverage = _build_ledger_coverage(
+        analysis_service.DirectionCoverage("not_called", reason="disabled"),
+        analysis_service.DirectionCoverage(
+            "evaluated",
+            result_count=0,
+            reason="completed",
+            metadata=AssessmentMetadata(
+                "demo_rule",
+                None,
+                "demo-grammar-rules-v1",
+                True,
+                0.5,
+            ),
+        ),
+        None,
+        [],
+    )
+
+    validate_ledger_coverage(
+        coverage,
+        pronunciation_sources=[],
+        grammar_sources=[],
+    )
+
+
+def test_evaluated_zero_error_rejects_null_source_facts():
+    coverage = _build_ledger_coverage(
+        analysis_service.DirectionCoverage("not_called", reason="disabled"),
+        analysis_service.DirectionCoverage(
+            "evaluated",
+            result_count=0,
+            reason="completed",
+            metadata=AssessmentMetadata(
+                "demo_rule",
+                None,
+                "demo-grammar-rules-v1",
+                True,
+                0.5,
+            ),
+        ),
+        None,
+        [],
+    )
+    coverage["grammar"]["source_facts"] = None
+
+    with pytest.raises(
+        CoverageValidationError,
+        match="current-invocation source facts do not match metadata",
+    ):
+        validate_ledger_coverage(
+            coverage,
+            pronunciation_sources=[],
+            grammar_sources=[],
         )
 
 
@@ -133,6 +243,7 @@ async def test_update_knowledge_skips_synthetic_results():
 @pytest.mark.asyncio
 async def test_apply_bkt_updates_batching():
     user_id = uuid.uuid4()
+    job_id = uuid.uuid4()
 
     skills = ["verb_tense_past", "subject_verb_agreement", "th_sounds"]
 
@@ -153,8 +264,84 @@ async def test_apply_bkt_updates_batching():
 
     mock_db.execute.side_effect = [mock_skills_res, mock_ks_res]
 
+    prior_session_id = uuid.uuid4()
+    prior_job_id = uuid.uuid4()
+    prior_grammar_id = uuid.uuid4()
+    prior_grammar = GrammarError(
+        id=prior_grammar_id,
+        session_id=prior_session_id,
+        skill_tag="verb_tense_past",
+        original="I go",
+        corrected="I went",
+        error_type="wrong_tense",
+        source="provider",
+        provider="llm",
+        model_version="v1",
+        is_synthetic=False,
+        confidence=0.9,
+    )
+    prior_event = MagicMock()
+    prior_event.event_type = "grammar_observation"
+    prior_event.analysis_job_id = prior_job_id
+    prior_event.grammar_error_id = prior_grammar_id
+    prior_event.pronunciation_assessment_id = None
+    prior_event.skill_id = "verb_tense_past"
+    prior_event.source_ordinal = 0
+    prior_event.source = "provider"
+    prior_event.provider = "llm"
+    prior_event.model_version = "v1"
+    prior_event.is_synthetic = False
+    prior_details = {
+        "schema_version": 1,
+        "coverage": {
+            "pronunciation": {
+                "status": "not_called",
+                "reason": "disabled",
+                "result_count": None,
+                "reused": False,
+                "metadata": None,
+                "basis": "none",
+                "source_facts": None,
+            },
+            "grammar": {
+                "status": "evaluated",
+                "reason": "completed",
+                "result_count": 1,
+                "reused": False,
+                "metadata": {
+                    "source": "provider",
+                    "provider": "llm",
+                    "model_version": "v1",
+                    "is_synthetic": False,
+                    "confidence": 0.9,
+                },
+                "basis": "current_invocation",
+                "source_facts": {
+                    "source": "provider",
+                    "provider": "llm",
+                    "model_version": "v1",
+                    "is_synthetic": False,
+                },
+            },
+        },
+    }
+    mock_history_res = MagicMock()
+    mock_history_res.all.return_value = [(prior_event, prior_details, prior_session_id)]
+    mock_assessments_res = MagicMock()
+    mock_assessments_res.scalars.return_value.all.return_value = []
+    mock_grammar_res = MagicMock()
+    mock_grammar_res.scalars.return_value.all.return_value = [prior_grammar]
+    mock_db.execute.side_effect = [
+        mock_skills_res,
+        mock_ks_res,
+        mock_history_res,
+        mock_assessments_res,
+        mock_grammar_res,
+    ]
+
     await _apply_bkt_updates(
         user_id=user_id,
+        job_id=job_id,
         observations=[
             {"skill_id": "verb_tense_past", "correct": False, "is_synthetic": False},
             {
@@ -167,9 +354,9 @@ async def test_apply_bkt_updates_batching():
         db=mock_db,
     )
 
-    # Skill validation and the single KnowledgeState batch select are the only
-    # reads; states are not re-read per observation.
-    assert mock_db.execute.call_count == 2
+    # Skill validation, one KnowledgeState batch select, one history select,
+    # and one batch read per historical source type are the only reads.
+    assert mock_db.execute.call_count == 5
     # subject_verb_agreement and th_sounds are newly created
     # (verb_tense_past already existed)
     assert mock_db.add.call_count == 2
@@ -184,6 +371,7 @@ async def test_synthetic_results_do_not_update_knowledge():
 
     await _apply_bkt_updates(
         user_id=uuid.uuid4(),
+        job_id=uuid.uuid4(),
         observations=[
             {"skill_id": "verb_tense_past", "correct": False, "is_synthetic": True},
         ],

@@ -81,6 +81,12 @@ from services.learning_event_cutover import (
     stop_legacy_writes,
     write_legacy_baselines,
 )
+from services.learning_event_lifecycle import (
+    LIFECYCLE_LOCK_KEY,
+    LIFECYCLE_LOCK_NAMESPACE,
+    acquire_exclusive_lifecycle_barrier,
+    acquire_shared_lifecycle_barrier,
+)
 from services.learning_event_replay import validate_learning_event_replay
 from services.learning_events import write_learning_events
 
@@ -160,9 +166,14 @@ def _require_b1_database_url():
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -231,6 +242,7 @@ class DeletionHarness:
         mastery: dict[str, float] | None = None,
         with_baseline: bool = True,
         with_analysis_events: bool = True,
+        with_knowledge_states: bool = True,
         job_status: AnalysisJobStatus = AnalysisJobStatus.succeeded,
         baseline_revision: str | None = None,
     ) -> AccountBundle:
@@ -428,17 +440,45 @@ class DeletionHarness:
                             "coverage": {
                                 "pronunciation": {
                                     "status": "evaluated",
-                                    "source": assessment.source,
-                                    "provider": assessment.provider,
-                                    "model_version": "v1",
-                                    "is_synthetic": False,
+                                    "reason": "completed",
+                                    "result_count": len(
+                                        assessment.phoneme_alignment or []
+                                    ),
+                                    "reused": False,
+                                    "metadata": {
+                                        "source": assessment.source,
+                                        "provider": assessment.provider,
+                                        "model_version": assessment.model_version,
+                                        "is_synthetic": assessment.is_synthetic,
+                                        "confidence": assessment.confidence,
+                                    },
+                                    "basis": "current_invocation",
+                                    "source_facts": {
+                                        "source": assessment.source,
+                                        "provider": assessment.provider,
+                                        "model_version": assessment.model_version,
+                                        "is_synthetic": assessment.is_synthetic,
+                                    },
                                 },
                                 "grammar": {
                                     "status": "evaluated",
-                                    "source": grammar_error.source,
-                                    "provider": grammar_error.provider,
-                                    "model_version": "v1",
-                                    "is_synthetic": False,
+                                    "reason": "completed",
+                                    "result_count": 1,
+                                    "reused": False,
+                                    "metadata": {
+                                        "source": grammar_error.source,
+                                        "provider": grammar_error.provider,
+                                        "model_version": grammar_error.model_version,
+                                        "is_synthetic": grammar_error.is_synthetic,
+                                        "confidence": grammar_error.confidence,
+                                    },
+                                    "basis": "current_invocation",
+                                    "source_facts": {
+                                        "source": grammar_error.source,
+                                        "provider": grammar_error.provider,
+                                        "model_version": grammar_error.model_version,
+                                        "is_synthetic": grammar_error.is_synthetic,
+                                    },
                                 },
                             },
                             "unmapped": {
@@ -485,15 +525,16 @@ class DeletionHarness:
                             BKT_PARAMS,
                         )
 
-            for skill_id, p_mastery in state_mastery.items():
-                db.add(
-                    KnowledgeState(
-                        user_id=user_id,
-                        skill_id=skill_id,
-                        p_mastery=p_mastery,
-                        updated_at=occurred_at,
+            if with_knowledge_states:
+                for skill_id, p_mastery in state_mastery.items():
+                    db.add(
+                        KnowledgeState(
+                            user_id=user_id,
+                            skill_id=skill_id,
+                            p_mastery=p_mastery,
+                            updated_at=occurred_at,
+                        )
                     )
-                )
 
         self.user_ids.append(user_id)
         self.session_ids.append(session_id)
@@ -1001,8 +1042,106 @@ async def _wait_for_blocked_application(
     )
 
 
+async def _wait_for_advisory_barrier_block(
+    harness: DeletionHarness,
+    application_name: str,
+) -> tuple[int, list[int]]:
+    """Wait until ``application_name`` waits on the fixed advisory barrier.
+
+    Returns ``(waiter_pid, holder_pids)``.  The waiter must be blocked on an
+    ungranted advisory lock carrying the lifecycle namespace/key, and at least
+    one holder must hold a granted advisory lock on the same namespace/key.
+    Reading ``pg_locks`` this way proves the block is the transaction-level
+    lifecycle barrier, not a User/Job/Session row lock or a task that merely
+    has not finished yet.
+    """
+    deadline = asyncio.get_running_loop().time() + 5
+    while asyncio.get_running_loop().time() < deadline:
+        async with harness.factory() as db:
+            waiter = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT l.pid
+                        FROM pg_locks l
+                        JOIN pg_stat_activity a ON a.pid = l.pid
+                        WHERE a.datname = current_database()
+                          AND a.application_name = :application_name
+                          AND l.locktype = 'advisory'
+                          AND l.classid = :namespace
+                          AND l.objid = :key
+                          AND l.granted = false
+                        """
+                    ),
+                    {
+                        "application_name": application_name,
+                        "namespace": LIFECYCLE_LOCK_NAMESPACE,
+                        "key": LIFECYCLE_LOCK_KEY,
+                    },
+                )
+            ).all()
+        if waiter:
+            pid = waiter[0][0]
+            holders = await _advisory_barrier_holders(harness, exclude_pid=pid)
+            if holders:
+                return pid, holders
+        await asyncio.sleep(0.02)
+    raise AssertionError(
+        f"timed out waiting for {application_name} to wait on the advisory barrier"
+    )
+
+
+async def _advisory_barrier_holders(
+    harness: DeletionHarness,
+    *,
+    exclude_pid: int,
+) -> list[int]:
+    async with harness.factory() as db:
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT DISTINCT l.pid
+                    FROM pg_locks l
+                    JOIN pg_stat_activity a ON a.pid = l.pid
+                    WHERE a.datname = current_database()
+                      AND l.locktype = 'advisory'
+                      AND l.classid = :namespace
+                      AND l.objid = :key
+                      AND l.granted = true
+                      AND l.pid <> :exclude_pid
+                    """
+                ),
+                {
+                    "namespace": LIFECYCLE_LOCK_NAMESPACE,
+                    "key": LIFECYCLE_LOCK_KEY,
+                    "exclude_pid": exclude_pid,
+                },
+            )
+        ).all()
+    return [pid for (pid,) in rows]
+
+
+async def _application_pid(harness: DeletionHarness, application_name: str) -> int:
+    async with harness.factory() as db:
+        pid = await db.scalar(
+            text(
+                """
+                SELECT pid
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+                  AND application_name = :application_name
+                """
+            ),
+            {"application_name": application_name},
+        )
+    if pid is None:
+        raise AssertionError(f"application {application_name} has no backend")
+    return pid
+
+
 @pytest.mark.asyncio
-async def test_native_fixture_precondition_is_clean_before_deletion_red(
+async def test_native_fixture_baselines_are_unexpected_under_clean_start(
     deletion_pg: DeletionHarness,
 ):
     revision = f"b1-5-fixture-precondition-{uuid.uuid4()}"
@@ -1023,7 +1162,11 @@ async def test_native_fixture_precondition_is_clean_before_deletion_red(
         algorithm_versions={"bkt-v1": dict(FROZEN_BKT_PARAMS)},
     )
 
-    assert report.issues == ()
+    # B2 S3 clean-start treats every legacy baseline snapshot as an unexpected
+    # leftover instead of a valid initial state, so the native fixture is no
+    # longer expected to replay cleanly when it writes baseline_snapshot rows.
+    codes = {issue.code for issue in report.issues}
+    assert "unexpected_baseline" in codes
 
 
 def test_delete_response_schema_is_typed_and_fixed():
@@ -1713,17 +1856,32 @@ async def test_claimed_and_stale_job_paths_cannot_resurrect_deleted_data(
                 coverage={
                     "pronunciation": {
                         "status": "not_called",
-                        "source": None,
-                        "provider": None,
-                        "model_version": None,
-                        "is_synthetic": None,
+                        "reason": "disabled",
+                        "result_count": None,
+                        "reused": False,
+                        "metadata": None,
+                        "basis": "none",
+                        "source_facts": None,
                     },
                     "grammar": {
                         "status": "evaluated",
-                        "source": "b1-5-test",
-                        "provider": "synthetic",
-                        "model_version": "v1",
-                        "is_synthetic": False,
+                        "reason": "completed",
+                        "result_count": 1,
+                        "reused": False,
+                        "metadata": {
+                            "source": "b1-5-test",
+                            "provider": "synthetic",
+                            "model_version": "v1",
+                            "is_synthetic": False,
+                            "confidence": 0.8,
+                        },
+                        "basis": "current_invocation",
+                        "source_facts": {
+                            "source": stale_grammar.source,
+                            "provider": stale_grammar.provider,
+                            "model_version": stale_grammar.model_version,
+                            "is_synthetic": stale_grammar.is_synthetic,
+                        },
                     },
                 },
                 db=db,
@@ -1741,6 +1899,8 @@ async def test_worker_and_delete_serialize_without_deadlock_or_late_resurrection
     target = await deletion_pg.new_account(
         "worker-delete-target",
         with_analysis_events=False,
+        with_baseline=False,
+        with_knowledge_states=False,
         job_status=AnalysisJobStatus.running,
         baseline_revision=revision,
     )
@@ -1748,6 +1908,7 @@ async def test_worker_and_delete_serialize_without_deadlock_or_late_resurrection
         "worker-delete-other",
         mastery={"verb_tense_past": 0.71},
         with_analysis_events=False,
+        with_baseline=False,
         baseline_revision=revision,
     )
     await deletion_pg.set_control(
@@ -1756,23 +1917,8 @@ async def test_worker_and_delete_serialize_without_deadlock_or_late_resurrection
         revision=revision,
     )
     before_other = await _owned_snapshot(deletion_pg, [other.user_id])
-    user_locked = asyncio.Event()
-    release_user = asyncio.Event()
-
-    async def hold_user_lock():
-        async with deletion_pg.factory() as db, db.begin():
-            await db.execute(
-                text("SELECT set_config('application_name', :value, true)"),
-                {"value": "b1-5-user-blocker"},
-            )
-            assert (
-                await db.scalar(
-                    select(User.id).where(User.id == target.user_id).with_for_update()
-                )
-                == target.user_id
-            )
-            user_locked.set()
-            await release_user.wait()
+    worker_ready = asyncio.Event()
+    release_worker = asyncio.Event()
 
     async def run_worker():
         async with deletion_pg.factory() as db, db.begin():
@@ -1780,30 +1926,82 @@ async def test_worker_and_delete_serialize_without_deadlock_or_late_resurrection
                 text("SELECT set_config('application_name', :value, true)"),
                 {"value": "b1-5-worker-writer"},
             )
+            await acquire_shared_lifecycle_barrier(db)
+            worker_ready.set()
+            await release_worker.wait()
             job = await db.get(AnalysisJob, target.job_id)
             session = await db.get(Session, target.session_id)
-            grammar = await db.get(GrammarError, target.grammar_id)
-            assert job is not None and session is not None and grammar is not None
+            assessment = (
+                await db.execute(
+                    select(PronunciationAssessment).where(
+                        PronunciationAssessment.session_id == target.session_id
+                    )
+                )
+            ).scalar_one_or_none()
+            grammar_errors = list(
+                (
+                    await db.execute(
+                        select(GrammarError).where(
+                            GrammarError.session_id == target.session_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert (
+                job is not None
+                and session is not None
+                and assessment is not None
+                and len(grammar_errors) == 1
+            )
+            grammar = grammar_errors[0]
             await write_learning_events(
                 job=job,
                 session=session,
                 user_id=target.user_id,
-                assessment=None,
+                assessment=assessment,
                 grammar_errors=[grammar],
                 coverage={
                     "pronunciation": {
-                        "status": "not_called",
-                        "source": None,
-                        "provider": None,
-                        "model_version": None,
-                        "is_synthetic": None,
+                        "status": "evaluated",
+                        "reason": "completed",
+                        "result_count": 1,
+                        "reused": False,
+                        "metadata": {
+                            "source": assessment.source,
+                            "provider": assessment.provider,
+                            "model_version": assessment.model_version,
+                            "is_synthetic": assessment.is_synthetic,
+                            "confidence": assessment.confidence,
+                        },
+                        "basis": "current_invocation",
+                        "source_facts": {
+                            "source": assessment.source,
+                            "provider": assessment.provider,
+                            "model_version": assessment.model_version,
+                            "is_synthetic": assessment.is_synthetic,
+                        },
                     },
                     "grammar": {
                         "status": "evaluated",
-                        "source": "b1-5-test",
-                        "provider": "synthetic",
-                        "model_version": "v1",
-                        "is_synthetic": False,
+                        "reason": "completed",
+                        "result_count": 1,
+                        "reused": False,
+                        "metadata": {
+                            "source": "b1-5-test",
+                            "provider": "synthetic",
+                            "model_version": "v1",
+                            "is_synthetic": False,
+                            "confidence": 0.8,
+                        },
+                        "basis": "current_invocation",
+                        "source_facts": {
+                            "source": grammar.source,
+                            "provider": grammar.provider,
+                            "model_version": grammar.model_version,
+                            "is_synthetic": grammar.is_synthetic,
+                        },
                     },
                 },
                 db=db,
@@ -1818,28 +2016,29 @@ async def test_worker_and_delete_serialize_without_deadlock_or_late_resurrection
             )
             await service.delete_user_account(db=db, user_id=target.user_id)
 
-    blocker = asyncio.create_task(hold_user_lock())
-    worker = None
+    worker = asyncio.create_task(run_worker())
     deletion = None
     try:
-        await asyncio.wait_for(user_locked.wait(), timeout=5)
-        worker = asyncio.create_task(run_worker())
-        await _wait_for_blocked_application(deletion_pg, "b1-5-worker-writer")
+        await asyncio.wait_for(worker_ready.wait(), timeout=5)
         deletion = asyncio.create_task(run_delete())
-        await _wait_for_blocked_application(deletion_pg, "b1-5-delete")
+        waiter_pid, holders = await _wait_for_advisory_barrier_block(
+            deletion_pg, "b1-5-delete"
+        )
+        worker_pid = await _application_pid(deletion_pg, "b1-5-worker-writer")
+        assert waiter_pid != worker_pid
+        assert worker_pid in holders
         assert not worker.done()
         assert not deletion.done()
-        release_user.set()
-        await asyncio.wait_for(blocker, timeout=5)
+        release_worker.set()
         await asyncio.wait_for(worker, timeout=5)
         await asyncio.wait_for(deletion, timeout=5)
     finally:
-        release_user.set()
-        for task in (blocker, worker, deletion):
+        release_worker.set()
+        for task in (worker, deletion):
             if task is not None and not task.done():
                 task.cancel()
         await asyncio.gather(
-            *(task for task in (blocker, worker, deletion) if task is not None),
+            *(task for task in (worker, deletion) if task is not None),
             return_exceptions=True,
         )
 
@@ -1850,6 +2049,63 @@ async def test_worker_and_delete_serialize_without_deadlock_or_late_resurrection
         assert control is not None
         assert control.baseline_count == len(other.baselines)
         assert control.baseline_digest == _digest(list(other.baselines))
+
+
+@pytest.mark.asyncio
+async def test_shared_barrier_cancel_releases_exclusive_immediately(
+    deletion_pg: DeletionHarness,
+):
+    shared_held = asyncio.Event()
+    hold_shared = asyncio.Event()
+
+    async def hold_shared_transaction() -> None:
+        async with deletion_pg.factory() as db, db.begin():
+            await db.execute(
+                text("SELECT set_config('application_name', :value, true)"),
+                {"value": "b1-5-cancel-shared"},
+            )
+            await acquire_shared_lifecycle_barrier(db)
+            shared_held.set()
+            await hold_shared.wait()
+
+    exclusive_acquired = asyncio.Event()
+
+    async def acquire_exclusive() -> None:
+        async with deletion_pg.factory() as db, db.begin():
+            await db.execute(
+                text("SELECT set_config('application_name', :value, true)"),
+                {"value": "b1-5-cancel-exclusive"},
+            )
+            await acquire_exclusive_lifecycle_barrier(db)
+            exclusive_acquired.set()
+
+    holder = asyncio.create_task(hold_shared_transaction())
+    waiter = None
+    try:
+        await asyncio.wait_for(shared_held.wait(), timeout=5)
+        waiter = asyncio.create_task(acquire_exclusive())
+        waiter_pid, holders = await _wait_for_advisory_barrier_block(
+            deletion_pg, "b1-5-cancel-exclusive"
+        )
+        holder_pid = await _application_pid(deletion_pg, "b1-5-cancel-shared")
+        assert waiter_pid != holder_pid
+        assert holder_pid in holders
+        assert not exclusive_acquired.is_set()
+
+        holder.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await holder
+        await asyncio.wait_for(exclusive_acquired.wait(), timeout=5)
+        await asyncio.wait_for(waiter, timeout=5)
+    finally:
+        hold_shared.set()
+        for task in (holder, waiter):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(
+            *(task for task in (holder, waiter) if task is not None),
+            return_exceptions=True,
+        )
 
 
 @pytest.mark.asyncio
@@ -1913,7 +2169,7 @@ async def test_two_concurrent_account_deletes_do_not_lose_baseline_updates(
 
 
 @pytest.mark.asyncio
-async def test_replay_passes_and_other_user_baseline_payload_is_byte_stable(
+async def test_replay_flags_other_user_baselines_and_payload_is_byte_stable(
     deletion_pg: DeletionHarness,
 ):
     service = _deletion_api()
@@ -1957,7 +2213,12 @@ async def test_replay_passes_and_other_user_baseline_payload_is_byte_stable(
         deletion_pg.factory,
         algorithm_versions={"bkt-v1": dict(FROZEN_BKT_PARAMS)},
     )
-    assert report.issues == ()
+    # B2 S3 clean-start reports the remaining other-account legacy baselines as
+    # unexpected leftovers, so replay is no longer empty; the cross-account
+    # isolation guarantee (byte-stable payload below) is the preserved negative
+    # case and remains independent of that baseline expectation.
+    codes = {issue.code for issue in report.issues}
+    assert "unexpected_baseline" in codes
     async with deletion_pg.factory() as db:
         after_rows = (
             await db.execute(
@@ -2215,6 +2476,8 @@ async def test_existing_unlinked_bearer_mapping_keeps_worker_lock_order(
         "existing-unlinked-lock",
         user_id=mapped_id,
         with_analysis_events=False,
+        with_baseline=False,
+        with_knowledge_states=False,
         job_status=AnalysisJobStatus.running,
         baseline_revision=revision,
     )
@@ -2222,6 +2485,7 @@ async def test_existing_unlinked_bearer_mapping_keeps_worker_lock_order(
         "existing-unlinked-lock-other",
         mastery={"verb_tense_past": 0.69},
         with_analysis_events=False,
+        with_baseline=False,
         baseline_revision=revision,
     )
     await deletion_pg.set_control(
@@ -2244,33 +2508,82 @@ async def test_existing_unlinked_bearer_mapping_keeps_worker_lock_order(
                 text("SELECT set_config('application_name', :value, true)"),
                 {"value": "b1-5-existing-auth-worker"},
             )
-            await assert_learning_event_gate(db)
+            await acquire_shared_lifecycle_barrier(db)
             worker_gate_held.set()
             await release_worker.wait()
             job = await db.get(AnalysisJob, target.job_id)
             session = await db.get(Session, target.session_id)
-            grammar = await db.get(GrammarError, target.grammar_id)
-            assert job is not None and session is not None and grammar is not None
+            assessment = (
+                await db.execute(
+                    select(PronunciationAssessment).where(
+                        PronunciationAssessment.session_id == target.session_id
+                    )
+                )
+            ).scalar_one_or_none()
+            grammar_errors = list(
+                (
+                    await db.execute(
+                        select(GrammarError).where(
+                            GrammarError.session_id == target.session_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert (
+                job is not None
+                and session is not None
+                and assessment is not None
+                and len(grammar_errors) == 1
+            )
+            grammar = grammar_errors[0]
             await write_learning_events(
                 job=job,
                 session=session,
                 user_id=target.user_id,
-                assessment=None,
+                assessment=assessment,
                 grammar_errors=[grammar],
                 coverage={
                     "pronunciation": {
-                        "status": "not_called",
-                        "source": None,
-                        "provider": None,
-                        "model_version": None,
-                        "is_synthetic": None,
+                        "status": "evaluated",
+                        "reason": "completed",
+                        "result_count": 1,
+                        "reused": False,
+                        "metadata": {
+                            "source": assessment.source,
+                            "provider": assessment.provider,
+                            "model_version": assessment.model_version,
+                            "is_synthetic": assessment.is_synthetic,
+                            "confidence": assessment.confidence,
+                        },
+                        "basis": "current_invocation",
+                        "source_facts": {
+                            "source": assessment.source,
+                            "provider": assessment.provider,
+                            "model_version": assessment.model_version,
+                            "is_synthetic": assessment.is_synthetic,
+                        },
                     },
                     "grammar": {
                         "status": "evaluated",
-                        "source": "b1-5-test",
-                        "provider": "synthetic",
-                        "model_version": "v1",
-                        "is_synthetic": False,
+                        "reason": "completed",
+                        "result_count": 1,
+                        "reused": False,
+                        "metadata": {
+                            "source": "b1-5-test",
+                            "provider": "synthetic",
+                            "model_version": "v1",
+                            "is_synthetic": False,
+                            "confidence": 0.8,
+                        },
+                        "basis": "current_invocation",
+                        "source_facts": {
+                            "source": grammar.source,
+                            "provider": grammar.provider,
+                            "model_version": grammar.model_version,
+                            "is_synthetic": grammar.is_synthetic,
+                        },
                     },
                 },
                 db=db,
@@ -2294,10 +2607,14 @@ async def test_existing_unlinked_bearer_mapping_keeps_worker_lock_order(
             request = asyncio.create_task(
                 _delete_http(headers={"Authorization": f"Bearer {DEV_BEARER_TOKEN}"})
             )
-            await _wait_for_blocked_application(
-                deletion_pg,
-                "b1-5-existing-auth-delete",
+            waiter_pid, holders = await _wait_for_advisory_barrier_block(
+                deletion_pg, "b1-5-existing-auth-delete"
             )
+            worker_pid = await _application_pid(
+                deletion_pg, "b1-5-existing-auth-worker"
+            )
+            assert waiter_pid != worker_pid
+            assert worker_pid in holders
             release_worker.set()
             worker_result, response = await asyncio.wait_for(
                 asyncio.gather(worker, request, return_exceptions=True),

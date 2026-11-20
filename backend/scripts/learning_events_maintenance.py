@@ -26,6 +26,7 @@ _FROZEN_BKT_PARAMS = {
 }
 _APPROVED_DATABASES = {
     ("127.0.0.1", 55433, "echotalk_b1_test"),
+    ("127.0.0.1", 55446, "echotalk_b2_main_test"),
     ("localhost", 5432, "echotalk_test"),
 }
 
@@ -46,6 +47,10 @@ def _database_url():
             parsed.drivername in {"postgresql", "postgresql+asyncpg"}
             and target in _APPROVED_DATABASES
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception as exc:

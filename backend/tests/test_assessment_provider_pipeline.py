@@ -877,7 +877,12 @@ async def test_real_job_cancel_keeps_running_and_rolls_back_partial_products(
 async def test_real_job_bkt_uses_each_persisted_synthetic_flag(
     pipeline, monkeypatch, p_synthetic, g_synthetic, expected
 ):
-    calls = _replacement_providers(monkeypatch, p_synthetic, g_synthetic)
+    calls = _replacement_providers(
+        monkeypatch,
+        p_synthetic,
+        g_synthetic,
+        populated_metadata=True,
+    )
     await _claim(pipeline)
     await analysis_jobs.process_job(pipeline.job_id, pipeline.factory)
     job, products = await _job_and_products(pipeline)
@@ -913,7 +918,7 @@ async def test_disabled_pronunciation_does_not_hide_old_real_row_from_job_bkt(
                 ],
                 source="legacy-fixture",
                 provider=None,
-                model_version=None,
+                model_version="legacy-fixture-v1",
                 is_synthetic=False,
                 confidence=None,
             )

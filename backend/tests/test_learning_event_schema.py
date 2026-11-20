@@ -93,9 +93,14 @@ def require_b1_database_url():
             and target
             in {
                 ("127.0.0.1", 55433, "echotalk_b1_test"),
+                ("127.0.0.1", 55446, "echotalk_b2_main_test"),
                 ("localhost", 5432, "echotalk_test"),
             }
             and bool(parsed.username and parsed.username.strip())
+            and (
+                target != ("127.0.0.1", 55446, "echotalk_b2_main_test")
+                or parsed.username == "echotalk_b2_main_test"
+            )
             and not parsed.query
         )
     except Exception:
@@ -258,6 +263,7 @@ def learning_event_values(event_type, idempotency_key, **overrides):
         "idempotency_key": idempotency_key,
         "event_type": event_type,
         "source": "analysis",
+        "details": {"schema_version": 1},
         "occurred_at": datetime(2026, 11, 12, tzinfo=UTC),
     }
     if event_type == "analysis_completed":
@@ -287,7 +293,7 @@ def learning_event_values(event_type, idempotency_key, **overrides):
                 "observation_correct": False,
                 "observation_code": "th_substitution",
                 "provider": "demo",
-                "model_version": None,
+                "model_version": "demo-phoneme-rules-v1",
                 "confidence": 0.5,
                 "is_synthetic": True,
                 "algorithm_params": None,
@@ -304,7 +310,7 @@ def learning_event_values(event_type, idempotency_key, **overrides):
                 "observation_correct": False,
                 "observation_code": "verb_tense_past",
                 "provider": "demo",
-                "model_version": None,
+                "model_version": "demo-grammar-rules-v1",
                 "confidence": 0.5,
                 "is_synthetic": True,
                 "algorithm_params": None,
@@ -514,6 +520,36 @@ async def test_postgres_learning_events_constraints():
                         "grammar_observation",
                         f"grammar-true-{suffix}",
                         {"observation_correct": True},
+                        "ck_learning_events_shape",
+                    ),
+                    (
+                        "pronunciation_observation",
+                        f"pron-null-version-{suffix}",
+                        {"model_version": None},
+                        "ck_learning_events_shape",
+                    ),
+                    (
+                        "grammar_observation",
+                        f"grammar-empty-version-{suffix}",
+                        {"model_version": ""},
+                        "ck_learning_events_shape",
+                    ),
+                    (
+                        "pronunciation_observation",
+                        f"pron-empty-code-{suffix}",
+                        {"observation_code": ""},
+                        "ck_learning_events_shape",
+                    ),
+                    (
+                        "grammar_observation",
+                        f"grammar-empty-code-{suffix}",
+                        {"observation_code": ""},
+                        "ck_learning_events_shape",
+                    ),
+                    (
+                        "analysis_completed",
+                        f"completed-wrong-source-{suffix}",
+                        {"source": "wrong-source"},
                         "ck_learning_events_shape",
                     ),
                     (

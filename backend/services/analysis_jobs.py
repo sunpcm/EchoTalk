@@ -23,9 +23,8 @@ from services.analysis_service import (
     AnalysisServiceError,
     analyze_session,
 )
-from services.learning_event_cutover import (
-    CutoverError,
-    assert_learning_event_gate,
+from services.learning_event_lifecycle import (
+    acquire_shared_lifecycle_barrier,
 )
 
 logger = logging.getLogger(__name__)
@@ -207,16 +206,16 @@ async def recover_stale_jobs(
 
 async def execute_claimed_job(job_id: uuid.UUID, db: AsyncSession) -> None:
     """Execute a running job atomically with all analysis result writes."""
-    try:
-        await assert_learning_event_gate(db)
-    except CutoverError as exc:
-        raise AnalysisExecutionError(
-            exc.code,
-            str(exc),
-            retryable=True,
-        ) from exc
+    # The lifecycle barrier precedes the Job lock.  Account deletion takes the
+    # conflicting exclusive barrier before any User/Job/GoalRun row lock.
+    await acquire_shared_lifecycle_barrier(db)
 
-    stmt = select(AnalysisJob).where(AnalysisJob.id == job_id).with_for_update()
+    stmt = (
+        select(AnalysisJob)
+        .where(AnalysisJob.id == job_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     job = (await db.execute(stmt)).scalar_one_or_none()
     if job is None or job.status != AnalysisJobStatus.running:
         raise InvalidAnalysisTransition("only a running job can be executed")
