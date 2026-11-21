@@ -1,7 +1,7 @@
 # 下一阶段决策准备：B2 / 周报口径 / 真实环境前置
 
 > 状态：本页最初是 main 的集中决策准备稿；其 B2 五问现作为历史建议保留，具体业务口径由
-> [LEARNING_EVENTS_DESIGN.md](./LEARNING_EVENTS_DESIGN.md) §9 的七项用户已确认合同覆盖。
+> [LEARNING_EVENTS_DESIGN.md](../../LEARNING_EVENTS_DESIGN.md) §9 的七项用户已确认合同覆盖。
 > 原始源码调查绑定 main `dac4d254c04e4fba4c604f64908895fbf90caece`（Overview/PR195），
 > 合入本页时的 main 为 `da37683e6579e479f0ab46315555b24c850360da`（PR196）；两个时点都不含 B1 分支实现。
 >
@@ -133,8 +133,8 @@
 ## 8. B2 新 main 决策增量（2026-11-17）
 
 本节覆盖本页早先面向旧 main 的 B2 切换准备口径，但保留其上全部 B1 历史。详细内容见
-[B2 学习事件契约](./B2_LEDGER_CONTRACT.md) 与
-[B2 实施计划](./B2_IMPLEMENTATION_PLAN.md)。
+[B2 学习事件契约](../../B2_LEDGER_CONTRACT.md) 与
+[B2 实施计划](../../B2_IMPLEMENTATION_PLAN.md)。
 
 当前选择是 EchoTalk 新 main 的干净开发期起步：不承接旧测试 Job、旧状态或旧事件；不写
 `legacy_unknown` baseline、不回填、不从 `knowledge_states` 反推；不重新分析成功 Job。

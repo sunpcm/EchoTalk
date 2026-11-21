@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF06“清理前端模板”与 A47 实施契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF06“清理前端模板”与 A47 实施契约：
 
 1. **根元数据规范化**：修复历史遗留的模板元数据（原 `name: "monorepo-study-note"`、空的 `description` 及指向不存在根文件的无效 `main: "index.js"`）。将 `name` 正式更新为 `"echotalk"`，添加准确的项目 `description`，显式声明 `"private": true` 杜绝意外发布至包管理器，并彻底删除无效的 `main` 字段。
 2. **不变性约束**：严格保持既有版本号、license、packageManager、脚本命令定义、devDependencies 依赖及 pnpm-lock.yaml 锁文件不变；保持 Turbo、Docker、Capacitor 及各 workspace 子应用配置一致。

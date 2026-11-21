@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-EchoTalk is a pnpm/Turborepo monorepo with a Python backend. The sole product frontend and Capacitor client live in `apps/vite-app`; brand SVG assets are in `docs/assets/branding` and reusable tooling configuration is under `packages/configs`. FastAPI, LiveKit, PostgreSQL analysis worker, SQLAlchemy, and Alembic code lives in `backend/`. Architecture notes and phase-specific manual checks belong in `docs/`; active work belongs in `TODO.md`.
+EchoTalk is a pnpm/Turborepo monorepo with a Python backend. The sole product frontend and Capacitor client live in `apps/vite-app`; brand SVG assets are in `docs/assets/branding` and reusable tooling configuration is under `packages/configs`. FastAPI, LiveKit, PostgreSQL analysis worker, SQLAlchemy, and Alembic code lives in `backend/`. Architecture notes and phase-specific manual checks belong in `docs/`; the root `TODO.md` is the single source of truth for feature/subfeature status, progress, unverified items, backlog, blockers, and issue tracking.
 
 ## Build, Test, and Development Commands
 

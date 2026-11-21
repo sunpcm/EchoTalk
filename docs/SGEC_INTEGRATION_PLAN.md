@@ -1,19 +1,21 @@
-# SGEC 正式接线方案（只设计，不实施正式接线）
+# SGEC 接线方案与验收边界
 
-> 状态：本文是文件/函数级接线设计，不实施、不改 runtime/依赖/迁移、不接真实 Provider/DB。
-> 本包完成不等于正式接线完成；真实 LLM Provider、人工 gold、BKT/learning events 接线仍待另行裁定。
+> 本文记录 SGEC 接线方案、文件/函数级改动与验收边界，作为实施参考；SGEC 开关默认 false，
+> 运行仍走 DemoRule。接线是否合入、合成 PG 计数、真实 API 与人工 gold 评估的当前状态见
+> 根目录 [TODO 总账](../TODO.md)，不在本文维护第二份进度。
 
 ## 1. 目标与边界
 
-把现有 SGEC 严格离线结构校验（`offline_synthetic`）映射为 I1 领域评估结果
-`GrammarEvaluation`/`GrammarFinding`，并说明接入默认分析链、BKT 与 learning events 的精确位置。
-现 SGEC-OFF 输出固定 `source="offline_synthetic"`、`provider=null`、`model_version=null`，**不能**改为 real
-或直接持久化；不把 offline 受控 synthetic 对象升级成 real。
+把现有 SGEC 严格离线结构校验映射为 I1 领域评估结果
+`GrammarEvaluation`/`GrammarFinding`，并把新 `SGECGrammarProvider` 接入默认分析链、BKT 与
+learning events。SGEC-OFF 仍是结构校验输入，其固定
+`source="offline_synthetic"`、`provider=null`、`model_version=null` 不直接进入 real 持久化；
+真实 SGEC 身份事实来自受信调用配置。
 
 复用严格核心校验，不重复造结构校验；标签集合由调用方注入，不硬编码周报六类、不回退 `other`。
 任一坏项整批拒绝，不部分接受、不伪造 unknown 版本。
 
-## 2. 现状事实（已读源码）
+## 2. 原实施基线（已读源码；当前进度见 TODO）
 
 ### 2.1 I1 类型与校验
 
@@ -26,11 +28,12 @@
 - `validate_grammar_evaluation`：遇重复 `skill_tag` 是**拒绝**（`ValueError("Duplicate grammar skill")`），
   不是去重；`DemoRuleGrammarProvider` 内部才用 `detected` set 避免重复。
 
-### 2.2 当前接线点
+### 2.2 原实施方案的接线点
 
 `backend/services/analysis_service.py`：
 
-- `_select_grammar_provider()` 返回 `DemoRuleGrammarProvider()`。
+- `_select_grammar_provider()` 默认返回 `DemoRuleGrammarProvider()`；仅在
+  `SGEC_GRAMMAR_PROVIDER_ENABLED=true` 且受信配置齐全时构造 `SGECGrammarProvider`。
 - `_detect_grammar_errors(session_id, text, db, *, progress)` 调用 `provider.evaluate` →
   `validate_grammar_evaluation` → 逐 finding 构造 `GrammarError`（id/session_id/skill_tag/original/
   corrected/error_type/source/provider/model_version/is_synthetic/confidence）→ `flush` → 返回 created。
@@ -53,8 +56,8 @@
 - 完整批次、七键 coverage、同事务 events/真实 BKT/Job succeeded、生命周期锁 Job→User 均沿 B2。
 
 **关键差异**：I1 按 `skill_tag` 去重拒绝；B2 按 `(skill_tag, error_type)` 排序。首期不能静默压缩多错
-或放宽 I1；扩展另行裁定。SGEC 结构允许空 `original/corrected/error_type`，但 B2 的 mapped
-`observation_code` 有非空约束，adapter 需额外门禁——结构接受不等于可入账。
+或放宽 I1；扩展另行裁定。SGEC adapter 已显式拒绝空 `original/corrected/error_type`，不让
+「SGEC 结构接受」直接等于「可入账」。
 
 ## 3. 接线方案
 
@@ -75,16 +78,16 @@ payload；SGEC 结构校验的 `offline_synthetic`/null 元数据不直接进入
 可空数值，按 SGEC finding 的 `confidence` 保真映射到 `GrammarFinding.metadata.confidence`
 （null 保持 null），不参与身份判定，也不从原始模型 payload 接收受控身份事实。
 
-### 3.2 文件/函数级改动（建议，不实施）
+### 3.2 文件/函数级改动（已交付）
 
 1. 新增纯模块 `backend/services/sgec_adapter.py`：
    - `build_grammar_evaluation(sgec_batch, allowed_skill_tags, metadata) -> GrammarEvaluation`。
    - 先 `validate_sgec_batch` 整批原子校验，再重建 `GrammarFinding` 并 `validate_grammar_evaluation`。
    - 对多错同 `skill_tag` 不做静默压缩：缺省整批拒绝并返回稳定错误码，是否允许去重/合并为待裁定项。
-2. 新增 `GrammarProvider` 实现（或扩展 `assessment_providers.py`）：
+2. 新增 `backend/services/sgec_provider.py` 的 `GrammarProvider` 实现：
    - `metadata` 来自受信事实；`evaluate` 内部调用 adapter。
    - 保持 `DemoRuleGrammarProvider` 为默认，新 provider 由显式配置门控，默认关闭。
-3. `analysis_service._select_grammar_provider()` 增加门控分支（默认仍 demo_rule）。
+3. `analysis_service._select_grammar_provider()` 已增加门控分支（默认仍 demo_rule）。
 4. B2 记账前门禁（**已批准契约，不能自行在 unmapped 与拒绝之间二选一**）：
    - `skill_tag ∉ valid_skill_ids`：计入 `unmapped_grammar` 并跳过观察，**不是**整批拒绝；
    - `skill_tag ∈ valid_skill_ids` 但 `model_version` 为空串：`build_canonical_observations`
@@ -95,7 +98,8 @@ payload；SGEC 结构校验的 `offline_synthetic`/null 元数据不直接进入
    七键 coverage、零错误 `evaluated/0`、provider 可 null、mapped 版本 known 非空、完整批次、
    同 Job retry、Job→User 锁、同事务 events/真实 BKT/succeeded 均沿 B2。
 
-5. 解释/建议只存在于离线材料，不进 DB/API。
+5. 真实传输模块 `backend/services/sgec_llm.py` 保持显式参数、默认关闭、严格 JSON、有限超时、
+   `max_retries=0` 与安全关闭；解释/建议只存在于离线材料，不进 DB/API。
 
 ### 3.3 拆卡
 
@@ -111,7 +115,7 @@ payload；SGEC 结构校验的 `offline_synthetic`/null 元数据不直接进入
 - 合法最小批次、整批坏值零接受、未知 skill_tag、extra/unknown 字段、坏 confidence。
 - 重复 `skill_tag`：I1 校验拒绝；B2 稳定键 `(skill_tag, error_type)` 排序/重复拒绝。
 - 空 `error_type`（即 `observation_code`）：结构接受但 B2 记账门禁拒绝（mapped `observation_code` 非空）。
-  `original/corrected` 空串的业务语义仍待裁定，本包不把结构接受当作可入账，也不新增拒绝规则。
+  adapter 同时显式拒绝空 `original/corrected`，不把结构接受当作可入账。
 - mapped 版本空串：B2 整批拒绝，不伪造 `"unknown"`。
 - 零错误：`grammar.status=evaluated`、`result_count=0`、0 条观察（不写正确语法观察）。
 - 合成批次：仍保存事件但不读/建/改 `knowledge_states`。
@@ -127,10 +131,12 @@ payload；SGEC 结构校验的 `offline_synthetic`/null 元数据不直接进入
 
 - 多错同 `skill_tag` 的表示（整批拒绝 / 显式多错误结构 / 合并），首期不静默压缩。
 - 文本对齐、纠错阈值、教学准确率、新字段与真实 Provider 模型版本。
-- `original/corrected` 空串的业务语义（结构接受，是否允许入账）。
 
 ## 6. 验收边界
 
-SGEC-OFF 设计确认不等于离线实现完成；离线结构通过不等于教学质量/纠错正确性/真实模型准确率通过。
+SGEC-OFF 与 SGEC 接线代码已完成离线实现与合成测试代码；离线结构通过不等于教学质量/纠错正确性/
+真实模型准确率通过。
 `WeeklyGrammarSkillTag.other` 不在当前 `SEED_SKILLS` 十项中，周报六类不是技能全集。真实 Provider、
-人工 gold、BKT/learning events 接线与生产行为仍未验。本包完成不表示正式接线完成。
+真实 API、教学质量、生产行为与人工 gold 仍未验。代码合入只表示主线具备接线实现；
+默认启用、真实 API 与生产交付另行验收。
+当前交付、真实验收状态及待办只看根目录 [TODO 总账](../TODO.md)。

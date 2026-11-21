@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”及“合并 `RequestInit.headers` 时保留默认 Header，不允许调用方无意覆盖认证信息”实施。
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”及“合并 `RequestInit.headers` 时保留默认 Header，不允许调用方无意覆盖认证信息”实施。
 
 `apps/vite-app/src/lib/apiRequestHeaders.ts` 提供同步纯函数：
 

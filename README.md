@@ -9,21 +9,15 @@ EchoTalk 用实时 AI 对话帮助练习英语口语：选择推荐场景或导�
 
 ## 当前状态
 
-当前核验的代码冻结点与发布/CI 回执见[当前状态与变更决策](docs/PROJECT_STATUS.md)，
-未完成工作只维护在 [TODO](TODO.md)。历史阶段的固定基线不再在此重复维护。
+功能、子功能、当前进度、未验收、待办、卡点与开单**只在 [TODO](TODO.md) 维护**。
+本文只保留项目入口、开发启动/配置命令、目录与安全边界，不重复维护平台验收状态。
 
-| 平台              | 当前边界                                                                                                               |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Web               | React/Vite 产品客户端，已有本地自动化验证记录；真实 IdP、Provider、完整语音及生产验收单列。                            |
-| iOS               | 同一前端的 Capacitor 工程与构建/同步入口；代码存在不等于真机、媒体或分发通过。                                         |
-| macOS             | `tools/macos-m1-native-probe` 保留原生认证实机记录，并新增默认禁用的离线媒体接线；新包与真实媒体待验，尚非产品客户端。 |
-| Android / Windows | 后续扩展方向，当前无正式交付；平台识别分支不代表平台支持。                                                             |
+平台定位（静态介绍，验收状态见 [TODO](TODO.md)）：
 
-macOS M1 的[离线 API/媒体接线](docs/verification/cross-platform/MACOS-M1-OFFLINE-MEDIA.md)属于离线增量，
-尚欠新包原生验收、真实 Provider **5 分钟 5 轮**和设备测试；
-正式 `apps/vite-app/src-tauri/` 仍属 M2 计划，不能将原生认证通过写成 M1 整体完成。
-仅面向主流系统、浏览器和工具链；未来具体最低 OS 尚未冻结，不承诺 macOS 14 兼容。
-历史计划中的候选最低版本须以新的支持决策及设备证据为准。
+- Web：React/Vite 产品客户端。
+- iOS：同一前端的 Capacitor 工程与构建/同步入口。
+- macOS：`tools/macos-m1-native-probe` 是独立认证探针，尚非正式桌面客户端。
+- Android / Windows：后续扩展方向，当前无正式交付。
 
 ## 架构与目录
 
@@ -189,8 +183,8 @@ Fake API E2E 不代替真实 IdP、LiveKit/Provider、设备或生产验收；�
 
 ## 文档导航
 
-- [项目概览](docs/OVERVIEW.md)：技术架构、已实现功能与使用方法。
-- [文档总索引](docs/README.md) · [当前状态](docs/PROJECT_STATUS.md) · [唯一待办清单](TODO.md)
-- [跨平台架构](docs/CROSS_PLATFORM_ARCHITECTURE.md) · [MVP 重构方案](docs/MVP_REFACTORING_REMEDIATION_PLAN.md)
-- [macOS MVP 计划](docs/MACOS_MVP_DEVELOPMENT_PLAN.md) · [原生认证验证及未验边界](docs/verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)
-- [认证生命周期](docs/CROSS_PLATFORM_AUTH_LIFECYCLE.md) · [通话占用契约](docs/CROSS_PLATFORM_CALL_LEASE.md)
+- [唯一功能/进度/待办/卡点/开单总账](TODO.md)：当前状态与未验收边界以这里为准。
+- [文档总索引](docs/README.md)
+- [跨平台架构](docs/CROSS_PLATFORM_ARCHITECTURE.md) · [认证生命周期](docs/CROSS_PLATFORM_AUTH_LIFECYCLE.md) · [通话占用契约](docs/CROSS_PLATFORM_CALL_LEASE.md)
+- [原生认证验证及未验边界](docs/verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)
+- 历史状态/阶段计划归档：[文档统一归档目录](docs/archive/2026-11-21-document-consolidation/)

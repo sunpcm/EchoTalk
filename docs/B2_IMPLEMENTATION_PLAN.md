@@ -1,8 +1,7 @@
 # B2 新 main 增量实施计划
 
 > 日期：2026-11-17。基线：`5d3641203484d66454a45f6d43547648b99dc05c`。
-> S0/S1/S2 已独立 `APPROVED R1` 并本地提交。S3 已独立 `APPROVED R2` 且本地实现验证完成、
-> 未 push/合 main/部署；真实服务与 CI 均未执行。
+> 本文为当时的增量实施计划与已确认口径；进度与是否合入/生产切换见根目录 [TODO 总账](../TODO.md)。
 
 ## 1. 已确认口径
 
@@ -26,7 +25,7 @@ B2 在 EchoTalk 应用仓 `sunpcm/EchoTalk` 内增量实施。当前 main 已包
 
 - [B2 学习事件契约](./B2_LEDGER_CONTRACT.md)；
 - [学习事件设计](./LEARNING_EVENTS_DESIGN.md) 的 B2 增量附录；
-- [下一阶段决策](./NEXT_PHASE_DECISIONS.md) 的 B2 增量附录；
+- [下一阶段决策](./archive/2026-11-21-document-consolidation/NEXT_PHASE_DECISIONS.md) 的 B2 增量附录；
 - [Agent 评审手册](./agent-review-loop.md) §21 的专用 namespace 与执行边界。
 
 验收：

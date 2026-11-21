@@ -3,7 +3,7 @@
 > 规划基线：2026-11-01，`codex/macos-mvp-plan-20261101`，
 > `396f392f4e10a8320f0820e4cfd8c52c64b4b0cb`。
 > 本文是待独立 Review 的实施计划，不表示 macOS 产品、真实服务或分发已经验收。
-> 任务状态继续由 [TODO](../TODO.md#三端交付计划web--macos--ios) 维护。
+> 任务状态继续由 [TODO](./TODO.md#三端交付计划web--macos--ios) 维护。
 
 ## 1. 结论与交付边界
 
@@ -33,9 +33,9 @@
 
 ### 2.1 本地依据及证据等级
 
-- 架构与默认产品行为：[跨平台架构 §2/3/5/6](./CROSS_PLATFORM_ARCHITECTURE.md)，单账号与 Cloud 约束以[通话占用契约](./CROSS_PLATFORM_CALL_LEASE.md)为准。
-- 认证、失效清理和中断分别遵守[认证生命周期](./CROSS_PLATFORM_AUTH_LIFECYCLE.md)、[连接失败](./CROSS_PLATFORM_CONNECTION_FAILURE.md)、[原生生命周期](./CROSS_PLATFORM_NATIVE_LIFECYCLE.md)。原生生命周期文件明确当前只实现 iOS，Tauri 走 Web 分支。
-- [CP-03 记录](./verification/cross-platform/CP-03.md)是历史实验记录：arm64/macOS 27.0 下曾编译、开窗口并经用户确认短录音回放有声及结束释放音轨；不是本轮复测。
+- 架构与默认产品行为：[跨平台架构 §2/3/5/6](../../CROSS_PLATFORM_ARCHITECTURE.md)，单账号与 Cloud 约束以[通话占用契约](../../CROSS_PLATFORM_CALL_LEASE.md)为准。
+- 认证、失效清理和中断分别遵守[认证生命周期](../../CROSS_PLATFORM_AUTH_LIFECYCLE.md)、[连接失败](../../CROSS_PLATFORM_CONNECTION_FAILURE.md)、[原生生命周期](../../CROSS_PLATFORM_NATIVE_LIFECYCLE.md)。原生生命周期文件明确当前只实现 iOS，Tauri 走 Web 分支。
+- [CP-03 记录](../../verification/cross-platform/CP-03.md)是历史实验记录：arm64/macOS 27.0 下曾编译、开窗口并经用户确认短录音回放有声及结束释放音轨；不是本轮复测。
 - 本轮只核明确路径：`/Users/sunpcm/code/EchoTalk/.review/worktrees/track-c/.review/spike/` 和本 lane 的 `.review/spike/` 均不存在。未读取旧 spike 源码、历史报告或评审探针。当前 tracked 源码未发现 `Cargo.toml` 或 `tauri.conf*`，正式桌面工程尚未建立。
 - `TODO.md` CP-01～04 分项已包含 URL 隔离、本地认证/发现/恢复、占用 API/控制器等成果；相关 CP 大门禁仍未完成。TODO 中较早的“包装方案待定/比较候选”文字不推翻架构 §6 已定的独立应用/Tauri 优先决策。本计划只细化既定方向，不修改 TODO。
 - RF 方案只用于界定债务范围；其旧基线中的 Mock 认证、占位 E2E 等描述不作为当前实现事实。没有找到按 PRD 命名的独立文件，本轮不据此新增产品口径，沿用已冻结架构/跨端契约和用户本轮范围。
@@ -204,7 +204,7 @@ RF-04 的真实 CI、RF-07 的可复现依赖和 RF-11 的 Transport/state/type 
 
 ### 6.1 frontend10 + backend5
 
-保留[评审手册 §2/§17.2](./agent-review-loop.md)的原完整门禁与数据库边界，不减少用例、放宽断言、增加 skip 或用缓存日志制造通过。前端为 Node 22/pnpm 10.26，后端 Python 3.12 与当前 lane 获准解释器；缺少环境或测试库绑定则阻断，不借另一 lane 可变环境。
+保留[评审手册 §2/§17.2](../../agent-review-loop.md)的原完整门禁与数据库边界，不减少用例、放宽断言、增加 skip 或用缓存日志制造通过。前端为 Node 22/pnpm 10.26，后端 Python 3.12 与当前 lane 获准解释器；缺少环境或测试库绑定则阻断，不借另一 lane 可变环境。
 
 未来从主控指定 `<lane>`，经该轮固定验收入口执行以下**现有命令/等价映射**；不是本轮执行清单：
 

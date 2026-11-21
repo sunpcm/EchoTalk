@@ -175,7 +175,7 @@ ldd6/79均无missing、ffmpeg和各3次导入退出0，见
 `R/worker/runtime-after-services-checks-r1/summary.json` 的矩阵及runtime清理均process/
 gate0，`runtime-after-r1/cleanup/cleanup.json` 保留删除ID。**仅runtime资源已清理**；
 产品测试PG仍保留供最终pytest，不能写全部scope资源已清。最终组合frontend10/backend5
-仍待主控，整体状态以[补充轮总报告](../../../.review/reports/overnight-followup-20261104/report.md)
+仍待主控，整体状态以 `../../../.review/reports/overnight-followup-20261104/report.md`（仅原时点本地证据）
 为权威。本节点不执行安装/格式/测试/服务/DB、不改已审Worker/测试；原Compose、真实
 Provider/语音/native/设备/远端CI等仍未验证，历史137与宿主false保留。
 
@@ -187,7 +187,7 @@ Provider/语音/native/设备/远端CI等仍未验证，历史137与宿主false�
 本批运行时通过不等于整项 RF-07 或完整产品门禁通过。
 
 完整门禁与最终 Review 权威为主控
-[本轮总报告](../../../.review/reports/overnight-product-runtime-20261103/report.md)，
+`../../../.review/reports/overnight-product-runtime-20261103/report.md`（仅原时点本地证据），
 本文不替代总报告的最终状态。
 
 本批本地证据根 `R=.review/reports/overnight-product-runtime-20261103`，不纳入 Git。

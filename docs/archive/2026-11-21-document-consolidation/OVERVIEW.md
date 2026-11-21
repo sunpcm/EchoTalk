@@ -2,7 +2,7 @@
 
 > 面向首次接手的开发者兼产品使用者。本文是入口导览；深层契约、长参数表与完整测试流水按文末链接查阅，不在此重复
 > README 全文或历史过程。当前事实以 main `d33f236`（SGEC-OFF 已合并 PR194）及实际源码为准；更细的状态与边界见
-> [PROJECT_STATUS.md](./PROJECT_STATUS.md) 与 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+> [PROJECT_STATUS.md](./PROJECT_STATUS.md) 与 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
 
 ## 1. 是什么与当前交付状态
 
@@ -99,7 +99,7 @@ docs/                        架构、契约与验收资料
 | SGEC 离线校验   | 已实现               | 纯离线结构校验 + 合成 fixture CLI，未接 default 分析/DB/API/BKT/events                                          |
 | 单端通话占用    | 协议已实现，默认关闭 | `CALL_LEASE_MODE=disabled`；Cloud UI 接管与真实媒体撤销未验收                                                   |
 | 周报            | 部分实现             | Dashboard 内最近七天 completed 会话数/按日历史/语法 Top3 已上线；练习时长、掌握度环比、发音趋势、下周重点未实现 |
-| B2 学习事件表   | 未实现               | 见 [LEARNING_EVENTS_DESIGN.md](./LEARNING_EVENTS_DESIGN.md) §9                                                  |
+| B2 学习事件表   | 未实现               | 见 [LEARNING_EVENTS_DESIGN.md](../../LEARNING_EVENTS_DESIGN.md) §9                                              |
 | Android/Windows | 未实现               | 已明确后置                                                                                                      |
 
 真实 Provider、LiveKit、IdP、设备、整栈与生产部署仍未验收。
@@ -152,7 +152,7 @@ uv sync --frozen --group dev --python 3.12 --no-python-downloads
 cd ..
 ```
 
-根 `.env` 的配置（含备份/条件复制与变量说明）见 [README「冻结安装与配置」](../README.md)。本地 dev 或真实语音涉及的
+根 `.env` 的配置（含备份/条件复制与变量说明）见 [README「冻结安装与配置」](../../../README.md)。本地 dev 或真实语音涉及的
 关键变量按模式配置：`DATABASE_URL`、`AUTH_MODE`（dev 用 `DEV_AUTH_TOKEN`，oidc 用对应 OIDC 配置）、`VITE_AUTH_MODE`、`VITE_DEV_AUTH_TOKEN`、
 `CREDENTIAL_ENCRYPTION_KEYS`、`ACTIVE_CREDENTIAL_KEY_VERSION`、`LIVEKIT_URL`、`LIVEKIT_API_KEY`、
 `LIVEKIT_API_SECRET`、`DEEPGRAM_API_KEY`、`CARTESIA_API_KEY`、`DEFAULT_LLM_PROVIDER`、`DEFAULT_LLM_MODEL`
@@ -216,8 +216,8 @@ uv run --frozen python -m scripts.evaluate_sgec_offline   # 默认合成 fixture
   对照设置页是否已选 Provider、填 Key 并验证保存。
 - 结束会话后没有反馈：确认分析 Worker 进程已启动；失败 Job 有稳定错误码与显式重试入口。
 - 麦克风/证书：本地开发需信任 Vite 自签证书并授权麦克风；仓库内无生产 TLS 入口，真实 HTTPS/WSS 由外层入口终止。
-- 进一步阅读：[README](../README.md)（完整启动配置）、[ARCHITECTURE.md](./ARCHITECTURE.md)（运行时与风险）、
-  [PROJECT_STATUS.md](./PROJECT_STATUS.md)（当前状态与验证基线）、[TODO.md](../TODO.md)（唯一待办）、
-  [CROSS_PLATFORM_ARCHITECTURE.md](./CROSS_PLATFORM_ARCHITECTURE.md)（三端门禁）、
-  [FRONTEND_DATA_LAYER_CONTRACT.md](./FRONTEND_DATA_LAYER_CONTRACT.md)（前端 data 层契约）、
-  [LEARNING_EVENTS_DESIGN.md](./LEARNING_EVENTS_DESIGN.md)（B2 学习事件表）。
+- 进一步阅读：[README](../../../README.md)（完整启动配置）、[ARCHITECTURE.md](../../ARCHITECTURE.md)（运行时与风险）、
+  [PROJECT_STATUS.md](./PROJECT_STATUS.md)（当前状态与验证基线）、[TODO.md](./TODO.md)（唯一待办）、
+  [CROSS_PLATFORM_ARCHITECTURE.md](../../CROSS_PLATFORM_ARCHITECTURE.md)（三端门禁）、
+  [FRONTEND_DATA_LAYER_CONTRACT.md](../../FRONTEND_DATA_LAYER_CONTRACT.md)（前端 data 层契约）、
+  [LEARNING_EVENTS_DESIGN.md](../../LEARNING_EVENTS_DESIGN.md)（B2 学习事件表）。

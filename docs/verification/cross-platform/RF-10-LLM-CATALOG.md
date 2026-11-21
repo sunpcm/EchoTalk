@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF10“统一 Provider 能力/模型/凭据/验证元数据”与 A50 冻结契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF10“统一 Provider 能力/模型/凭据/验证元数据”与 A50 冻结契约：
 
 1. **消除重复与单一来源**：将散落在 `livekit_agent/plugin_factory.py`（`LLM_PROVIDER_BASE_URL`、`_SYSTEM_LLM_KEY_FIELD`）、`services/llm_service.py`（`PROVIDER_CONFIG`）及 `services/validation_service.py`（`validate_llm_key` 端点表）中的重复 LLM Provider 静态配置，统一收敛至标准库不可变模块 `provider_catalog.py`。
 2. **纯净标准库与不可变性**：`provider_catalog.py` 仅使用纯 Python 标准库（`dataclasses.dataclass(frozen=True)`、`types.MappingProxyType`），同时保护 mapping 与 entry 不可篡改；不存任何 key 值、不读取 `os.environ`、不导入 SDK/config/crypto/DB、不做网络或文件 I/O。

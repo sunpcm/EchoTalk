@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-10“统一 Provider Registry 和设置服务”与 A60 冻结实施规范：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-10“统一 Provider Registry 和设置服务”与 A60 冻结实施规范：
 
 1. **设置业务逻辑抽离至独立服务**：
    - 新建 `backend/services/user_settings_service.py`，集中承载设置响应构建、权限判断、按变更凭据验证、密钥读取旋转及更新加密业务逻辑。

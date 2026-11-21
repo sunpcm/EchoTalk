@@ -10,8 +10,9 @@
 > 目标预览、受控轮询、四状态与无百分比汇总。PR #197 RC1 修复两个 bot 报告的真实判定问题，将
 > evaluator 升为 `deterministic-goal-v2`；本地目标 87/87、独立 22/22。四份文档已准备本轮收口，
 > 完整 E2E 322 项已通过，12 个行为门禁全 0；四文档后的主控 format 为第 13 项。详细数字与
-> 负对照只集中在 PROJECT_STATUS.md；本文件不自称 APPROVED，用户 Review 待，最终
+> 负对照历史数字见归档 PROJECT_STATUS；本文件不自称 APPROVED，用户 Review 待，最终
 > format/Review/提交发布以主控同卡回执为准。
+> 本页保留技术设计与原时点验收边界；当前功能、实施进度、待办与未验收只以根目录 [TODO 总账](../TODO.md) 为准。
 
 ## 1. 原 GOAL-DESIGN 范围与非目标（历史）
 
@@ -195,7 +196,7 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
   R1 两锁例先为 `2 selected / 2 具体 assert fail / 34 deselected`，修四类问题后 36 绿。
 - synthetic PostgreSQL 身份已验证并清理：`stop 0`、`auto_removed=true`，exact ID
   `a97fd3ae372cfdd3021f6e1cc1c2901246ffef620def5f49a7568d3be7b84d35`，其他资源未动。详细数字
-  只集中在 [PROJECT_STATUS](./PROJECT_STATUS.md#goal-data-goal-a-持久化与合成-pg-数据层final_ready)。
+  只集中在 [PROJECT_STATUS](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#goal-data-goal-a-持久化与合成-pg-数据层final_ready)。
 
 ### 9.6 非目标
 
@@ -216,11 +217,10 @@ Provider、不新增录音。证据默认引用 transcript/assessment/job 的 ID
   75 passed / 12 项具体 AssertionError，去版本 guard 变异为 1 selected / 1 项具体
   AssertionError，两项 driver 均为 0。
 - 四份文档已完成本轮收口；完整 E2E 322/322 已通过，12 个行为门禁全 0，四文档后的主控 format
-  为第 13 项。完整实现、失败序列、保护边界和 PG 清理集中在 PROJECT_STATUS.md；最终
+  为第 13 项。完整实现、失败序列、保护边界和 PG 清理的历史数字见归档 PROJECT_STATUS；最终
   format/Review/提交推送/新 head CI/合并以主控同卡回执为准，用户 Review 待。
 - 用户已确认 goal A、首批目标内容、四终态与无百分比汇总口径。判定与持久化遵守原判不可改、
-  首期唯一 revision 1、仅学生证据、success analysis 不重跑和整账号同事务删除；详细实现与数字只在
-  PROJECT_STATUS.md。
+  首期唯一 revision 1、仅学生证据、success analysis 不重跑和整账号同事务删除；详细实现与历史数字见归档 PROJECT_STATUS。
 - 旧 pending v1 的 header/evidence 原样保留，由既有版本 guard 判 `not_assessed`；旧成功 v1 不重判。
   goal/material 版本、schema 与 20 份旧迁移保持；RC1 不新增迁移或重判入口。
 - 本文件冻结业务合同、状态/汇总不变量与拆卡边界；没有新增业务开关、分数、阈值、重判入口或用户
@@ -316,13 +316,13 @@ PROJECT_STATUS。
   事务内删除新记录。真实外部服务、生产数据、人工 gold 准确率、设备与远端 CI 未验。
 - G-VIEW 已接入用户界面目标预览、受控 pending/running 轮询、四终态与
   X / Y / Z + unknown / not_assessed 展示；严格解析、auth/session/lifecycle 隔离和未配置/404
-  区分由独立查询合同验收，browser 截图与私有控件/加载变异以 PROJECT_STATUS 为准。
+  区分由独立查询合同验收，browser 截图与私有控件/加载变异的历史证据见归档 PROJECT_STATUS。
 
 ### 10.7 四卡拆分
 
-| 卡           | 技术实现与当前验收状态                                                                                                                                                                                                                                                             |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `G-CONTRACT` | 已独立 Review `APPROVED` 并发布 `882a1a9853f37235d0a1ef5f1521e8d01d422ada`；冻结批准内容、状态含义、汇总不变量、四卡边界和文档状态，作为历史合同保留。                                                                                                                             |
-| G-WIRE       | 已独立 Review APPROVED 并发布 2d6a916；首批版本化 goals、snapshot 创建接线、curriculum opt-in 预览、旧指纹兼容和合成 PostgreSQL 验收完成。历史数字见 PROJECT_STATUS。                                                                                                              |
-| G-EVAL       | 已独立 Review APPROVED 并正常 commit/push 3889e294；PR #197 RC1 将 evaluator 升为 v2，修复两个 bot 报告的真实判定问题；目标 87/87、独立 22/22、完整 E2E 322/322 已通过。旧 pending v1 由版本 guard 判 `not_assessed`，旧成功 v1 不重判；最终发布状态以 PROJECT_STATUS 为准。       |
-| `G-VIEW`     | 已实现课程目标预览、受控 pending/running 轮询、四终态、`X / Y / Z`、独立 `unknown / not_assessed` 和未配置/404 区分；无百分比、重判入口或新业务开关。四卡实现及合成验收收口，当前范围无未实现功能；用户 Review、人工 gold、真实教学质量与外部环境未验。完整数字见 PROJECT_STATUS。 |
+| 卡           | 技术实现与当前验收状态                                                                                                                                                                                                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `G-CONTRACT` | 已独立 Review `APPROVED` 并发布 `882a1a9853f37235d0a1ef5f1521e8d01d422ada`；冻结批准内容、状态含义、汇总不变量、四卡边界和文档状态，作为历史合同保留。                                                                                                                                                                    |
+| G-WIRE       | 已独立 Review APPROVED 并发布 2d6a916；首批版本化 goals、snapshot 创建接线、curriculum opt-in 预览、旧指纹兼容和合成 PostgreSQL 验收完成。历史数字见 PROJECT_STATUS。                                                                                                                                                     |
+| G-EVAL       | 已独立 Review APPROVED 并正常 commit/push 3889e294；PR #197 RC1 将 evaluator 升为 v2，修复两个 bot 报告的真实判定问题；目标 87/87、独立 22/22、完整 E2E 322/322 已通过。旧 pending v1 由版本 guard 判 `not_assessed`，旧成功 v1 不重判；当前进度与未验边界见根目录 [TODO 总账](../TODO.md)。                              |
+| `G-VIEW`     | 已实现课程目标预览、受控 pending/running 轮询、四终态、`X / Y / Z`、独立 `unknown / not_assessed` 和未配置/404 区分；无百分比、重判入口或新业务开关。四卡实现及合成验收收口，原时点范围无未实现功能；用户 Review、人工 gold、真实教学质量与外部环境未验。完整数字见历史归档；当前状态只看根目录 [TODO 总账](../TODO.md)。 |

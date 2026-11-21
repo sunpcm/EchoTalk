@@ -9,7 +9,7 @@
 > 技术实现和合成验收也不能替代用户 Review、人工 gold、真实教学质量或真实环境验收。
 > 为适配归档目录，正文中相对链接的 `./` 基准已从原 `docs/` 改写为 `docs/history/`；除链接路径外，
 > 正文保持 B1 原时点内容。原始 Git blob 与源文件 SHA256 仍用于定位未改写的源文件。
-> 当前状态见 [PROJECT_STATUS.md](../PROJECT_STATUS.md)，待办见 [TODO.md](../../TODO.md)。
+> 当前功能、实施进度与待办见 [TODO.md](../../TODO.md)；下方 PROJECT_STATUS 快照只作原时点历史证据。
 
 <!-- BEGIN B1 PROJECT_STATUS SNAPSHOT (relative links rebased) -->
 

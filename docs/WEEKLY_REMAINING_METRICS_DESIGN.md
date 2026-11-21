@@ -5,7 +5,7 @@
 > 设计基线：`codex/B1-learning-events-20261112@9d75fb0a67c835eb7b29af6f88b284a28ca9263a`。
 > 实施节点不安装依赖、不改代码/测试/迁移/锁、不运行测试/服务/PG，不执行 Git 写操作（允许只读核基线）；主控 13 项机器门禁已全部
 > `exit 0`，数字集中在
-> [PROJECT_STATUS 的 WR-DESIGN 小节](./PROJECT_STATUS.md#wr-design-周报剩余指标设计final_ready)。
+> [PROJECT_STATUS 的 WR-DESIGN 小节](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wr-design-周报剩余指标设计final_ready)。
 > 合成验收不替代业务确认或真实环境，不称真实准确率或教学效果；最终 format/Review/commit/push
 > 以主控同卡回执为准，用户/业务确认仍待。
 
