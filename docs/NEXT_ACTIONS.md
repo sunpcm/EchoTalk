@@ -15,6 +15,10 @@
   [history](./history/2026-11-16-a18-lifecycle-testing-boundary.md)。
 - **SGEC 纯离线契约（SGEC-OFF）**：已发布（PR194 merged main `d33f236`，mainCI 43818985856 首五 success）。纯离线结构校验 + 合成 fixture CLI，未接 default 分析/DB/API/BKT/events。见 [history](./history/2026-11-16-sgec-offline-implementation.md)。
 - **Overview 文档**：已发布（PR195 merged main `dac4d25`，mainCI 43836513150 首五 success）。新增技术架构/功能/使用方法导览。
+- **SGEC 正式接线离线交付**：已新增 `backend/tests/test_sgec_pipeline.py` 与
+  `docs/SGEC_API_ACCEPTANCE.md`，并完成可评审离线接线与文档。本地合成 PG 定向回归 53 项通过，
+  完整门禁见本 PR 验证；真实 API、教学质量、人工 gold、发布与外部验收仍未完成。
+  SGEC 开关默认 false，运行仍走 DemoRule。
 
 ## 行动分层
 

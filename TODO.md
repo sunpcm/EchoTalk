@@ -146,8 +146,11 @@ macos` 产出 `dist/macos/<mode>` 与 manifest；`sync-macos.mjs` 在外部工�
 
 - [ ] 语法 LLM SGEC（方案 C-2）：纯离线 validator/CLI/测试/合成 fixture 已随 PR194 合入 main `d33f236`，
       见 [SGEC_OFFLINE_DESIGN.md](./docs/SGEC_OFFLINE_DESIGN.md) 与
-      [实施记录](./docs/history/2026-11-16-sgec-offline-implementation.md)。真实 Provider、BKT 接线、人工 gold
-      与教学质量仍未验收。
+      [实施记录](./docs/history/2026-11-16-sgec-offline-implementation.md)。
+      `codex/sgec-wiring-20261121` 已增加离线接线、`backend/tests/test_sgec_pipeline.py` 与
+      [SGEC_API_ACCEPTANCE.md](./docs/SGEC_API_ACCEPTANCE.md)。离线接线、BKT 事件路径与受控
+      smoke 文档已形成；本地合成 PG 定向回归 53 项通过，完整门禁见本 PR 验证。真实 API、
+      真实 Provider、教学质量与人工 gold 仍未验收。
 - [ ] 场景 `goals[]` + Task Completion（方案 D-1，#115）：四卡技术实现与合成验收已闭环，PR #197 RC1
       将 evaluator 升至 v2 并修复两个 bot 报告的真实判定问题；目标 87 项
       （67 纯规则 + 20 持久化 worker）与独立 22 项本地测试已通过。旧 pending v1 保留 header/evidence
@@ -605,3 +608,9 @@ Cloud 占用后端协议已于 2026-10-21 通过本地独立评审（`d76da01`�
 - 产物索引：`docs/SGEC_INTEGRATION_PLAN.md`、`docs/REAL_FLOW_ACCEPTANCE.md`、
   `docs/GOLD_ANNOTATION_GUIDE.md`、`docs/evaluation/*`、`backend/scripts/{real_flow_acceptance,gold_candidates,acceptance_common}.py`
   与对应两测试。真实 Provider/BKT/learning-events 接线、真实语音与人工 gold 审定仍待用户后续授权。
+
+## SGEC 接线当前状态（2026-11-21，追加说明）
+
+- 当前 `codex/sgec-wiring-20261121` 已形成离线接线、`backend/tests/test_sgec_pipeline.py` 与
+  `docs/SGEC_API_ACCEPTANCE.md`；纯离线实现与受控 smoke 文档可评审。
+- 本地合成 PG 定向回归 53 项通过；完整门禁见本 PR 验证。真实 API、教学质量、人工 gold、发布与生产验收仍未完成。

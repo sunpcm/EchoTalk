@@ -14,11 +14,11 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from agent_analysis_contract import AnalysisPublicErrorCode
+from agent_analysis_contract import AnalysisPublicErrorCode, KnownAnalysisErrorCode
 from config import settings
 from models.analysis import AnalysisJob, AnalysisJobStatus
 from models.exercise import GrammarError, PronunciationAssessment
-from models.knowledge import KnowledgeState, Skill
+from models.knowledge import SEED_SKILLS, KnowledgeState, Skill
 from models.learning_event import LearningEvent
 from models.session import Session, Transcript, TranscriptRole
 from services.assessment_providers import (
@@ -44,6 +44,8 @@ from services.learning_event_rules import (
     uniform_source_facts,
     validate_ledger_coverage,
 )
+from services.sgec_llm import SGECLLMPayloadSource
+from services.sgec_provider import SGECGrammarProvider, SGECProviderError
 from time_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -200,7 +202,54 @@ def _select_pronunciation_provider() -> PronunciationProvider:
 
 
 def _select_grammar_provider() -> GrammarProvider:
+    if settings.SGEC_GRAMMAR_PROVIDER_ENABLED:
+        _validate_sgec_enabled_settings()
+        seed_skill_tags = frozenset(skill["id"] for skill in SEED_SKILLS)
+        metadata = AssessmentMetadata(
+            source="sgec",
+            provider="sgec-llm",
+            model_version=settings.SGEC_LLM_MODEL_VERSION,
+            is_synthetic=False,
+            confidence=None,
+        )
+        return SGECGrammarProvider(
+            metadata,
+            seed_skill_tags,
+            _build_sgec_payload_source(seed_skill_tags),
+        )
     return DemoRuleGrammarProvider()
+
+
+def _build_sgec_payload_source(seed_skill_tags: frozenset[str]) -> SGECLLMPayloadSource:
+    """Build the configured SGEC payload source after settings validation."""
+    return SGECLLMPayloadSource(
+        model=settings.SGEC_LLM_MODEL,
+        allowed_skill_tags=seed_skill_tags,
+        base_url=settings.SGEC_LLM_BASE_URL,
+        api_key=settings.SGEC_LLM_API_KEY,
+        timeout_seconds=settings.SGEC_LLM_TIMEOUT_SECONDS,
+        max_tokens=settings.SGEC_LLM_MAX_TOKENS,
+        max_output_chars=settings.SGEC_LLM_MAX_OUTPUT_CHARS,
+    )
+
+
+def _validate_sgec_enabled_settings() -> None:
+    """Fail closed before any payload source or client is allocated."""
+    missing: list[str] = []
+    if not settings.SGEC_LLM_BASE_URL.strip():
+        missing.append("SGEC_LLM_BASE_URL")
+    if not settings.SGEC_LLM_API_KEY.strip():
+        missing.append("SGEC_LLM_API_KEY")
+    if not settings.SGEC_LLM_MODEL.strip():
+        missing.append("SGEC_LLM_MODEL")
+    if not settings.SGEC_LLM_MODEL_VERSION.strip():
+        missing.append("SGEC_LLM_MODEL_VERSION")
+    if missing:
+        raise AnalysisServiceError(
+            KnownAnalysisErrorCode.ANALYSIS_FAILED.value,
+            "SGEC grammar provider configuration is incomplete",
+            retryable=False,
+        )
 
 
 def _existing_metadata(assessment: PronunciationAssessment) -> AssessmentMetadata:
@@ -444,6 +493,15 @@ async def _detect_grammar_errors(
             "failed", reason="cancelled", metadata=metadata
         )
         raise
+    except SGECProviderError as exc:
+        progress.grammar = DirectionCoverage(
+            "failed", reason="exception", metadata=metadata
+        )
+        raise AnalysisServiceError(
+            KnownAnalysisErrorCode.ANALYSIS_FAILED.value,
+            f"Grammar provider failed: {exc.code}",
+            retryable=True,
+        ) from exc
     except Exception:
         progress.grammar = DirectionCoverage(
             "failed", reason="exception", metadata=metadata
