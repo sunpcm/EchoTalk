@@ -2,7 +2,7 @@
 
 ## 1. 背景与目标
 
-依据 [`docs/MVP_REFACTORING_REMEDIATION_PLAN.md`](../../MVP_REFACTORING_REMEDIATION_PLAN.md) RF-09“追踪后台任务，在进程退出前排空或安全取消”及 [`TODO.md`](../../../TODO.md) RF-09，解决 `backend/livekit_agent/job_orchestrator.py` 的 `on_agent_error` 中使用未追踪 `asyncio.ensure_future` 派发后台错误通知的问题，消除通知任务异常无人检索告警及 Job 关闭后仍有后台任务悬挂的风险。
+依据 [`docs/MVP_REFACTORING_REMEDIATION_PLAN.md`](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) RF-09“追踪后台任务，在进程退出前排空或安全取消”及 [`TODO.md`](../../../TODO.md) RF-09，解决 `backend/livekit_agent/job_orchestrator.py` 的 `on_agent_error` 中使用未追踪 `asyncio.ensure_future` 派发后台错误通知的问题，消除通知任务异常无人检索告警及 Job 关闭后仍有后台任务悬挂的风险。
 
 ## 2. 实施契约与边界
 

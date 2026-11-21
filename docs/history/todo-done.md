@@ -3,7 +3,7 @@
 > 已勾选事项与纯历史段落自根目录 `TODO.md` 搬运（2026-11-10），保留原标题分组与原文，除相对链接改为从本目录出发外未改动内容。未完成事项仍只在 [TODO.md](../../TODO.md)。
 >
 > 本文各条数字和“未启动”“未来协调”等状态均绑定写入时的历史快照，后续完成不改写旧值；当前状态以
-> [PROJECT_STATUS.md](../PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
+> [PROJECT_STATUS.md](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)、[LEARNING_EVENTS_DESIGN.md](../LEARNING_EVENTS_DESIGN.md)
 > 和 [TODO.md](../../TODO.md) 为准。
 
 ## 2026-11-16 HHTTP-CLOSE 历史宿主 HTTP 待办核销（`FINAL_READY`）
@@ -37,7 +37,7 @@
 - **最终验收**：主控实跑门禁全部 `exit 0`，私有变异各由选中 case 的具体断言杀死，未选用例
   不计覆盖；恢复默认源后目标回归全过。完整数字、联合子集口径、保护 SHA、Fake/浏览器真实性
   边界、截图和 PG 清理只集中在
-  [PROJECT_STATUS 的 WD-UI 小节](../PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
+  [PROJECT_STATUS 的 WD-UI 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
 - **收口边界**：宽屏与窄屏实际浏览器截图已由主控亲审，可读且无新增截断/溢出。浏览器用例走
   真实 Fake HTTP，后端使用真实 PostgreSQL 引擎上的自建合成库；两者分别实跑，不冒充浏览器直连
   后端合成 PG 的整链路。本批自有 PG 已按精确身份核验后清理，其他资源未动。本卡
@@ -67,7 +67,7 @@
   重新执行并 `exit 0`。主控最终 13 项门禁全部 `exit 0`，OpenAPI/types 已原生生成，新目标
   PG/前端/独立混合 PG 验证为 GREEN；三个私有加载变异均被原具体断言杀死。完整数字和保护、
   AST、编排诊断记录只集中在
-  [PROJECT_STATUS 的 WD-API 小节](../PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)，
+  [PROJECT_STATUS 的 WD-API 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)，
   不在此重复或改写原始证据。
 - **终态边界**：本节 HEAD 与内部“WD-UI 未实施”等状态绑定原 API 收口时点；后续该卡已独立
   Review `APPROVED` 并随 `9179050` 推送。实施节点没有自跑测试、服务、数据库、构建或生成。最终格式、Review、正常
@@ -104,13 +104,13 @@
   产品源码、测试、OpenAPI、生成类型、依赖和迁移未改。实施节点未自跑测试、服务或 PG；主控已独立
   完成本卡三测试树、13 项门禁和合成 PG 新建/迁移核验；详细机器数字、保护文件/旧迁移状态与
   PG 保留状态只集中在
-  [PROJECT_STATUS](../PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
+  [PROJECT_STATUS](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
   原设计收口时点，WD-API 与 WD-UI 尚未实施；时长父项、完整周报、三端和真实学习质量当时均不提前
   勾选。后续两卡均已实施，当前条目见本文件顶部。
 - **后续三卡**：WD-API 随后完成并进入 `FINAL_READY`，之后独立 Review `APPROVED` 并随
   `9179050` 推送；WD-UI 随后也达到 `FINAL_READY`，当前条目见本文件顶部。
   WD-DESIGN 的后续独立 Review 已 `APPROVED`，并随 `9d3ab32` 推送；上方旧条目中的等待状态只描述
-  原时点，当前以本说明和 PROJECT_STATUS 为准。
+  原时点；当前功能与实施状态以根目录 [TODO](../../TODO.md) 为准。
   合同全文见[周报“已记录会话时长”合同](../WEEKLY_RECORDED_DURATION_CONTRACT.md)。
 
 ## 2026-11-15 CP04E 认证退出与活动 Room 组合补验（FINAL_READY）
@@ -142,7 +142,7 @@
   disabled 两项核心负对照均命中具体断言。严格请求探针拒绝未知尝试，fresh-tree 重渲染通过，
   独立观察者确认发布用例真的 rerender 且未重挂载。最终 13 项同源字节门禁全 `exit 0`，正式
   实施返修 `2/2`。详细数字与证据复用边界统一见
-  [PROJECT_STATUS](../PROJECT_STATUS.md#cp04e-认证退出与活动-room-组合补验final_ready)。
+  [PROJECT_STATUS](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp04e-认证退出与活动-room-组合补验final_ready)。
 - **收口边界**：代码与测试停写，1268 个旧测试身份保留、新增 2 例，715 个保护文件字节未变。
   SDK 均为模拟，本地断言证明产品调用 stop、卸载与清空，不宣称真实 `MediaStreamTrack` 或 SDK
   网络断开已验；真实外部、原生/设备、CI 与生产未验。此次 next-local 新批合成 PG 已清理：
@@ -165,7 +165,7 @@
 - **最终验收与历史**：主控最终 target、13 门禁和两个私有负对照均通过，本次合成 PG 已精确
   清理；R0 的夹具/类型/格式失败历史未抹除，正式实施返修 `1/2`。精确机器数字、逐项断言、
   R0/R1 修正和 PG 清理细节统一见
-  [PROJECT_STATUS](../PROJECT_STATUS.md#cp04i-真实入口换号与迟到响应组合final_ready)，
+  [PROJECT_STATUS](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp04i-真实入口换号与迟到响应组合final_ready)，
   本节不重复大段计数。
 - **边界**：真实 SSO/IdP、Keychain、设备、媒体、Provider、LiveKit、外部依赖与生产未验。
   Review/commit/push 以主控最终同卡回执为准，用户 Review 待，本文不写 APPROVED。
@@ -191,7 +191,7 @@
 - **最终机器验收**：R0 target `3/3 exit 0`，恢复默认源后的 target-final 亦为 `3/3 exit 0`，
   R1 后最终 13 门禁全部 `exit 0`。1262 个旧测试身份逐条保持，713 个保护文件字节不变。其余
   完整机器数字集中在
-  [PROJECT_STATUS 的 CP05L 小节](../PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
+  [PROJECT_STATUS 的 CP05L 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
 - **负对照与返修**：WG 与 DP 两项有效私有加载期负对照均命中各自目标断言，均非通用超时；
   每项仅选中的一个 failure 可计负对照，各另有 2 个未选用例不计通过。精确 expected/actual
   集中在 PROJECT_STATUS。R1 仅在第一例 finally 的 unmount 后幂等释放 `getStateDeferred`，
@@ -221,7 +221,7 @@
   `apps/vite-app/vitest.config.ts`、`docs/verification/cross-platform/CP-02-LOCAL-COMBINATION.md`、
   `TODO.md`、`docs/PROJECT_STATUS.md` 与本文件。本卡未自跑测试/服务/构建；最终数字与
   返修历史集中在
-  [PROJECT_STATUS 的 CP02I 小节](../PROJECT_STATUS.md#cp02i-通话占用本地组合补验final_ready)，
+  [PROJECT_STATUS 的 CP02I 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp02i-通话占用本地组合补验final_ready)，
   正式实施返修 `2/2`（产品源码未改）。完整事实见
   [CP-02 本地组合补验](../verification/cross-platform/CP-02-LOCAL-COMBINATION.md)。
 
@@ -248,7 +248,7 @@
 - **边界**：CP05D、R2-11 均为历史交付；原生 desktop 关闭会话、真实 Media/设备、Provider、
   IdP、真实数据与生产未验。最终 format、独立 Review、commit 与 push 以主控同卡回执为准，
   用户 Review 待，本归档不写 APPROVED。完整事实见
-  [PROJECT_STATUS 的 CP05K 小节](../PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)。
+  [PROJECT_STATUS 的 CP05K 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)。
 
 ## 2026-11-15 CP05D 设置抽屉动态可见性
 
@@ -279,7 +279,7 @@
   Media/Provider、IdP、真实数据与生产未验；CP-05 手机动态视口/键盘/safe-area 父项继续保留
   `[ ]`。
 - 完整机器数字集中在
-  [PROJECT_STATUS 的 CP05D 小节](../PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)，验证口径见
+  [PROJECT_STATUS 的 CP05D 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)，验证口径见
   [CP-05 设置抽屉动态可见性](../verification/cross-platform/CP-05-SETTINGS-FOCUS-VIEWPORT.md)。
   下方 R2-11/R2-10 等条目均为各自历史时点，与本卡不合并计数。
 
@@ -298,7 +298,7 @@
 - [x] **最终机器验收**：13 项门禁全部 `exit 0`，含 Vitest `1255 passed / 54 files / 0 skip`、
       E2E `256 = Chromium 128 + WebKit 128`（single passed / retry 0 / 0 skip / flaky / unexpected）、
       lint `132 warning / 0 error / 0 new` 与三项有效私有 load 变异均 killed。完整机器数字集中在
-      [PROJECT_STATUS 的 R2-11 小节](../PROJECT_STATUS.md#r2-11-会话中界面本地子卡final_ready)，
+      [PROJECT_STATUS 的 R2-11 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#r2-11-会话中界面本地子卡final_ready)，
       边界与口径见
       [R2-11 验证说明](../verification/cross-platform/R2-11-SESSION-LAYOUT.md)。独立 Review 与
       正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待，不写 APPROVED。父项
@@ -327,7 +327,7 @@
 - [x] **最终机器验收**：主控确认 13 项门禁全部 `exit 0`，R2 修正后的 quality、Vitest、E2E、
       backend、format、build 与 lint 均全绿；全部私有加载变异均被目标断言杀死，独立 AST、URL
       顺序/归一化 AST 与保护文件字节核对通过。完整机器数字集中在
-      [PROJECT_STATUS 的 R2-10 小节](../PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)。
+      [PROJECT_STATUS 的 R2-10 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#r2-10-硬编码文案收口final_ready)。
       独立 Review、正常 commit/当前分支 push 以主控同卡回执为准，用户 Review 待；本归档不写
       APPROVED。该历史时点，本批独占合成 PG 仍供 R2-10/R2-11/CP05 使用；**旧 CP05D 所属
       批次**后已停止并确认自动移除，不涉及当前 `cp05k-cp02i-cp05l-20261115` 新批资源。
@@ -340,7 +340,7 @@
       五核心字段全批次严格结构校验、调用方合法 `skill_tag` 集合与受控合成元数据，`run_offline` 的
       fixture 读取归位到 scripts runner，纯模块导入/调用/序列化零副作用。完整数字、5 有效变异、
       纯模块冷进程边界、runner 真实 CLI 与边界见
-      [PROJECT_STATUS 的 SGEC-OFF 小节](../PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)，
+      [PROJECT_STATUS 的 SGEC-OFF 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#sgec-off-严格离线校验与合成评测final_ready)，
       本归档不重复抄录。SGEC 总项、真实 Provider、人工 gold、BKT/learning events 接线与生产未验，
       不称准确率。精确合同见 [SGEC_OFFLINE_CONTRACT.md](../SGEC_OFFLINE_CONTRACT.md)。独立技术
       Review、最终文档 format、正常 Husky commit/当前分支 API 发布以主控同卡回执为准，用户 Review
@@ -354,7 +354,7 @@
       `FINAL_READY`；首轮完整 Vitest 与 E2E 的失败来自旧显示定位迁移不全，不是产品、信令或行为回归。
       31 处旧定位、两处既有 E2E 同类依赖、私有 overlay 变异、最终 `allowed=24 / protected=672`、截图边界
       和最终门禁的完整事实见
-      [PROJECT_STATUS 的 R2-UI 小节](../PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
+      [PROJECT_STATUS 的 R2-UI 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
       独立技术 Review、最终 format、commit/push 以主控同卡回执为准，用户 Review 待，不写 APPROVED。
       生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收；SGEC-OFF 当时待实施（原时点），
       本批独占合成 PG 当时待 SGEC 后清理，现已完成清理。
@@ -368,7 +368,7 @@
       `3 passed / exit 0` 且无警告，冻结 RED 的全部 26 个 `expect` 经 AST 核验保持。挂载快照与
       render 快照两项私有变异均使两正向 DOM 失败、反向通过并 `exit 1`，未改跟踪源。
       主控新鲜 13 门禁全部 `exit 0`；完整数字、保护文件与边界集中在
-      [PROJECT_STATUS 的 R2-LIVE 小节](../PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
+      [PROJECT_STATUS 的 R2-LIVE 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
       本归档不重复抄录。
       本轮 GO 只授权本地实现；生产、真实 Provider/IdP/LiveKit、设备与部署从未验收。独立技术
       Review、最终文档 format、正常 Husky、提交和推送以主控同卡回执为准，用户 Review 待，不能
@@ -381,11 +381,11 @@
       [R2 活动会话生命周期与显示合同](../R2_FOLLOWUP_CONTRACT.md)与
       [SGEC 严格离线校验与合成评测合同](../SGEC_OFFLINE_CONTRACT.md)，并回写
       [前端 Data 层合同](../FRONTEND_DATA_LAYER_CONTRACT.md) §8/§9、[TODO.md](../../TODO.md)、
-      [PROJECT_STATUS.md](../PROJECT_STATUS.md) 和本归档。R2 拆为 R2-LIVE 与 R2-UI 两张未勾实施卡；
+      [PROJECT_STATUS.md](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md) 和本归档。R2 拆为 R2-LIVE 与 R2-UI 两张未勾实施卡；
       活动行和结束/恢复确认面板均不得向用户显示完整 UUID。SGEC 总项仍未勾，只确认严格离线设计，
       未产生真实质量或准确率结论。正式返修 1/2 已修正空 `errors`、标准 JSON fixture、旧挂载快照
       持续抑制事实、共享设置标题来源及最终可访问名称边界。主控 12 项与附加脚本的已回传证据和细
-      数字集中记录在 [PROJECT_STATUS 的 DEC-A 小节](../PROJECT_STATUS.md#dec-a-r2-与-sgec-设计口径回写final_ready)，
+      数字集中记录在 [PROJECT_STATUS 的 DEC-A 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#dec-a-r2-与-sgec-设计口径回写final_ready)，
       本归档不重复抄录。
       本卡为纯文档修改，没有改代码、测试、API、数据库、迁移、依赖或 CI；实施节点不跑测试、服务、
       PG 或真实外部依赖，只允许对精确六文档执行现有 Prettier。最终 13 组合（含 format）、独立
@@ -396,14 +396,14 @@
 ## 2026-11-15 RDOC 路线图历史快照口径修正
 
 - [x] **RDOC 路线图历史快照口径修正（FINAL_READY）**：RDOC 当时只修正
-      [架构演进规划](../ARCHITECTURE_ROADMAP.md) §3.4 与 B1 实施顺序中的三处时点标签、当时的
+      [架构演进规划](../archive/2026-11-21-document-consolidation/ARCHITECTURE_ROADMAP.md) §3.4 与 B1 实施顺序中的三处时点标签、当时的
       验证索引和旧暂停边界。R2-14 的 `941 / 81.57% / 246` 等历史数字，B1/WPH 的失败与证据，
       A18P2 细节，路线图架构、业务政策、范围及阶段退出条件均保持原样。RDOC 当时实现/验证指向
-      [PROJECT_STATUS 的当前验证基线](../PROJECT_STATUS.md#当前验证基线)；旧“停在此卡、不启动
+      [PROJECT_STATUS 的当前验证基线](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#当前验证基线)；旧“停在此卡、不启动
       下一卡”注明为历史暂停，RDOC 之后下一卡以其后用户授权与 [TODO.md](../../TODO.md) 为准。
       本卡为纯文档修改，实施节点未跑测试、服务或 PG，未读取 runtime 或凭据。完整机器门禁数字、
       技术 Review、最终 format、RDOC 当时任务分支提交发布与用户 Review 状态见
-      [PROJECT_STATUS 的 RDOC 小节](../PROJECT_STATUS.md#rdoc-路线图历史快照口径修正final_ready)。
+      [PROJECT_STATUS 的 RDOC 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#rdoc-路线图历史快照口径修正final_ready)。
       本归档不复制细数字。
 
 ## 2026-11-15 A18P2 启动/恢复生命周期减重与实例隔离
@@ -417,7 +417,7 @@
       resume/resume 与 cancel/late 跨实例隔离，两旧测试文件迁移到局部 platform mock。最终 13 项门禁
       组合均 `exit 0`，Vitest `1216 passed / 50 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。
       A18P2 当时详细数字、TDD/R1 历史与证据边界见
-      [PROJECT_STATUS 的 A18P2 小节](../PROJECT_STATUS.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)和
+      [PROJECT_STATUS 的 A18P2 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)和
       [CP-05 原生启动与显式恢复](../../docs/verification/cross-platform/CP-05-NATIVE-STARTUP.md)。
       A18P2 当时最终文档 format、独立 Review、当时任务分支提交和推送以该卡主控同卡回执为准，
       用户 Review 待；不开 PR、不合并、不部署，真实设备与真实外部链路仍未验收。
@@ -432,7 +432,7 @@
       夹具 setup，所有旧 `expect` 保持不变。最终 13 项门禁组合均 `exit 0`，Vitest 为
       `1211 passed / 49 files / 0 skip`，三项有效私有行为变异均被对应断言杀死。详细当前数字、
       TDD/首轮 GREEN/R1 历史与证据边界见
-      [PROJECT_STATUS 的 A19 P2 小节](../PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)和
+      [PROJECT_STATUS 的 A19 P2 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)和
       [CP-05 Native Room](../../docs/verification/cross-platform/CP-05-NATIVE-ROOM.md)。A82 旧完整失败
       因果仍未证明，A82C 历史计数不得复用。最终文档 format、独立 Review、当前任务分支提交和推送
       以主控同卡回执为准，用户 Review 待；不开 PR、不合并、不部署，真实外部链路仍未验收。
@@ -443,7 +443,7 @@
       当前 DOM 实例，再等待同一实例的 callback map 项及所需字段登记；目标断言仍在 native
       callback 返回前验证本地轨同步停止。主控当前 13 项门禁分组均 `exit 0`，两条目标在 20 个
       独立进程中按零重试执行并通过。详细计数、覆盖率、源码审计与边界见
-      [PROJECT_STATUS 的 A82C 小节](../PROJECT_STATUS.md)。
+      [PROJECT_STATUS 的 A82C 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)。
       本归档仅关闭本地夹具就绪子项；旧 A82 的 15 份 main 回执 SHA 匹配只属于历史证据，且当前
       两条目标与旧 A82 完整 callback 存在 6 处 typed store facade 标识差异，不能写成整段 AST
       完全相同。旧失败完整因果、真实设备/Provider/IdP/LiveKit、远端 CI、部署与 RF 总项仍未关闭。
@@ -460,7 +460,7 @@
       双 owner/loopback 后 stop `exit 0` 并验证 auto-remove，SDK 实际版本为 `1.6.10`；旧
       `1.4.3` 与旧 `37` 目标仍是更早历史，不与 A84C 快照结果混算。所有数字均不作为 A82C
       当前结果。独立Review/提交发布见主控同卡回执，用户Review待。详细证据与外部未验边界见
-      [PROJECT_STATUS 的 A84C 小节](../PROJECT_STATUS.md)。
+      [PROJECT_STATUS 的 A84C 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)。
 
 ## 2026-11-14 RF04E 已有远端 CI 证据核对
 
@@ -477,7 +477,7 @@
       weekly-progress route gate 为明确新增回归。
 - [x] **CF20 定向验证**：删除 helper 唯一等待的私有 mutation 被 Chromium/WebKit 各 3 次杀死；
       正式定向复验为 `80 passed / 0 failed / 0 skip / 0 flaky / 0 retry / exit 0`。详细门禁数字与
-      边界见 [PROJECT_STATUS 的 CF20 小节](../PROJECT_STATUS.md)。
+      边界见 [PROJECT_STATUS 的 CF20 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)。
 - [x] **RF04E 全量 E2E 焦点可达性**：CF20 历史快照 base
       `c5f9c7274ac85f6fb77212b8944c97e6edae41df` 上的完整双浏览器 E2E 为
       `248 passed = Chromium 124 + WebKit 124`，失败/跳过/flaky/retry 均为 0；原焦点用例已在
@@ -489,7 +489,7 @@
 
 - [x] **WG20 周语法 WebKit 重复稳定性补验**：主控实跑完整 13 项门禁及聚合均 `exit 0`；
       WebKit 零重试重复补验达到当时门槛，完整数字与证据见
-      [PROJECT_STATUS 的 WG20 小节](../PROJECT_STATUS.md)。历史“无重试 5 次失败 1 次”保留；
+      [PROJECT_STATUS 的 WG20 小节](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)。历史“无重试 5 次失败 1 次”保留；
       旧“认证刷新耗掉唯一一次 503”假说仍未证实，该历史快照夹具为持续返回 503 直到测试显式放行。
       该轮仅文档收口，无产品修改或源码修复。最终回执与用户 Review 待主控处理。
 
@@ -498,7 +498,7 @@
 - [x] **R2-13 组件目录按页面边界归位**：抽出 `Dashboard` 并按页面边界 `git mv` 38 个文件，其中
       29 个内容不变、9 个仅修改模块路径或目录注释，12 个测试文件随之移动；三测试树计数不变。
       独立代码 Review 为 APPROVED，用户 Review 待。详细门禁和边界见
-      [PROJECT_STATUS](../PROJECT_STATUS.md)。
+      [PROJECT_STATUS](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)。
 
 ## 2026-11-13 R2-12 macOS 构建产物与同步前校验
 
@@ -506,7 +506,7 @@
       `dist/macos/<mode>`、manifest、外部工具启动前的来源/平台/mode 校验，以及将 `ANALYZE`
       纳入 Turbo 缓存输入的任务。独立代码 Review 为 APPROVED，本地验收完成，用户 Review 待；
       正式壳、Tauri 选型、native 认证、真实设备、签名、公证与发布均未创建或验收。详细门禁和
-      边界见 [PROJECT_STATUS](../PROJECT_STATUS.md)。
+      边界见 [PROJECT_STATUS](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)。
 
 ## 2026-11-13 R2-14 Compose 系统就绪与一次性迁移
 
@@ -569,7 +569,7 @@
       主控实跑得到 `1 error` RED 后，已改为读取仓库 Alembic 源码 `get_current_head()` 并严格比较
       数据库 `alembic_version`；原 DB/user/PG15.19/DSN guard 不变。本轮最终门禁、backend 813、
       本机 E2E `233 passed / 1 failed / exit 1` 及唯一既有 WebKit 失败见
-      [PROJECT_STATUS B1 小节](../../docs/PROJECT_STATUS.md)，不能称本机全树全绿。生产库未执行。
+      [PROJECT_STATUS B1 小节](../../docs/archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)，不能称本机全树全绿。生产库未执行。
       无业务写入、切换、导出、删除、依赖或 UI 变更。
 
 ## 2026-11-12 B1 学习事件实施（B1-2）
@@ -1142,7 +1142,7 @@ commit/push/pull/rebase/merge/部署，当前候选远端 CI、真实 Provider/I
       返回值/状态机、原生 10 秒 deadline、同步重入/取消与请求顺序不变。R1 恢复 Web 同步 setup +
       仅 native 等待 ready 并修新 fixture 类型。13 项门禁全 `exit 0`，Vitest `1216 passed / 50 files /
 0 skip`，三项有效私有行为变异均被对应断言杀死；详细门禁与变异计数见
-      [PROJECT_STATUS.md](../PROJECT_STATUS.md) A18P2 小节。
+      [PROJECT_STATUS.md](../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md) A18P2 小节。
 - [x] 将回答推荐scope键的id/text直接拼接替换为无歧义元组编码，并覆盖分隔符外部ID（A33 本地独立完成，见 [回答推荐作用域编码验证](../../docs/verification/cross-platform/CP-05-ANSWER-SCOPE.md)）；消除冒号等外部ID边界碰撞。
 - [x] 强化 `SettingsDrawer`/`useSettingsForm` 的 LLM 模型水合回归：真实组件与 Hook 必须先
       断言初始缺省值，再覆盖 `llm_model: null` 到既有默认值、`null` 后切到合法自定义模型文本

@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF10“统一 Provider 能力/模型/凭据/验证元数据”与 A53 冻结契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF10“统一 Provider 能力/模型/凭据/验证元数据”与 A53 冻结契约：
 
 1. **消除配置分散与单一来源**：在 A50 已落地的纯标准库不可变 `provider_catalog.py` 基础上，补齐当前系统中现有的语音提供商（STT Deepgram 与 TTS Cartesia）静态元数据，使 `plugin_factory.py` 的支持集合（`SUPPORTED_STT_PROVIDERS`、`SUPPORTED_TTS_PROVIDERS`）与 `validation_service.py` 语音拨测端点（`validate_stt_key`、`validate_tts_key`）从统一不可变 Catalog 派生。
 2. **纯净标准库与不可变性**：

@@ -7,7 +7,7 @@
 > 和 [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。
 >
 > 本文描述当前实现和仍然成立的风险。最初的 2026-09-20 审计（`main@1f9a1b0`）由 Git 历史保存；
-> 逐轮实施记录见 [PROJECT_STATUS.md](./PROJECT_STATUS.md)，待办见 [TODO.md](../TODO.md)，
+> 逐轮实施记录见 [PROJECT_STATUS.md](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)，待办见 [TODO.md](../TODO.md)，
 > 三端门禁见 [CROSS_PLATFORM_ARCHITECTURE.md](./CROSS_PLATFORM_ARCHITECTURE.md)。
 > 代码存在与自动化通过不等于真实 IdP、LiveKit、Provider、设备或部署已验收，这些边界在各节单独标注。
 
@@ -43,23 +43,26 @@ EchoTalk 当前是一个以 PostgreSQL 为事实源的模块化单体，实时�
 
 这个边界适合当前体量：业务事务留在一个 FastAPI 服务内，低延迟音频处理交给 LiveKit Agent，持久化会话分析交给独立的 PostgreSQL Job Worker。现阶段继续拆分业务微服务会增加分布式事务、部署和可观测性成本，没有足够收益。
 
-## 2. 能力状态
+## 2. 能力边界（静态架构事实）
 
-| 能力            | 当前状态         | 事实边界                                                                                                                             |
-| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Web 客户端      | 已实现           | `apps/vite-app` 是交付基线；无 React Router，由 Zustand 的 `appView` 切换 Dashboard / DocTalk 设置 / Session 三个视图                |
-| iOS             | 基础接入         | Capacitor 8.5 工程、麦克风描述、`AVAudioSession`、前后台适配已存在；CI 有无签名模拟器编译；真机全链路和发布未验证                    |
-| macOS           | 仅探针           | `tools/macos-m1-native-probe` 是独立 Tauri 2 探测工程，未接入 `apps/vite-app`；正式桌面工程等 CP-03 设备证据                         |
-| Android/Windows | 未实现           | 已明确后置，仓库没有对应工程                                                                                                         |
-| API             | 已实现           | FastAPI + async SQLAlchemy，统一挂载在 `/api`                                                                                        |
-| 启动门禁        | 合并合同已定义   | 一次性 Alembic 迁移；公开 PG system-ready 探针；依赖主进程和 Web 的 DAG 门控。真实整栈/生产启动未验收                                |
-| 实时语音        | 已实现           | LiveKit Cloud + 独立 Agent；依赖外部 STT/LLM/TTS Provider，真实语音质量不由 CI 证明                                                  |
-| 鉴权            | 已实现           | `AUTH_MODE=dev` 用显式 `DEV_AUTH_TOKEN`；`oidc` 校验 issuer/audience/JWKS 签名并按 `(issuer, subject)` 隔离用户；真实 IdP 联调未验收 |
-| BYOK            | 已实现           | Key 用 Fernet 加密入库；密钥来自独立的版本化 `CREDENTIAL_ENCRYPTION_KEYS`，与认证材料无关，支持多版本读取与惰性重加密                |
-| 评估 / BKT      | 已实现           | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态；合成结果不更新真实知识状态；语法仍为 demo 规则                   |
-| 课程检索        | 已实现           | 推荐读取版本化 JSON，按 CEFR、技能、priority 与 id 确定性排序                                                                        |
-| 单端通话占用    | 协议已实现，关闭 | `CALL_LEASE_MODE` 默认 `disabled`；Cloud 模式的客户端接管 UI 与真实媒体撤销未验收                                                    |
-| 周报            | 部分实现         | completed 会话次数、按日只读历史、语法错误 Top 3 与 opt-in“已记录会话时长”已实现；后者只算会话经过时长，不等于有效练习时长           |
+本节只描述各能力的静态结构与边界，不承载“当前进度 / 是否已验证 / 是否发布”；
+那些口径统一见根目录 [TODO 总账](../TODO.md)。
+
+| 能力            | 静态架构事实                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Web 客户端      | `apps/vite-app` 是交付基线；无 React Router，由 Zustand 的 `appView` 切换 Dashboard / DocTalk 设置 / Session 三个视图 |
+| iOS             | Capacitor 8.5 工程、麦克风描述、`AVAudioSession`、前后台适配；CI 有无签名模拟器编译                                   |
+| macOS           | `tools/macos-m1-native-probe` 是独立 Tauri 2 探测工程，未接入 `apps/vite-app`                                         |
+| Android/Windows | 已明确后置，仓库没有对应工程                                                                                          |
+| API             | FastAPI + async SQLAlchemy，统一挂载在 `/api`                                                                         |
+| 启动门禁        | 一次性 Alembic 迁移；公开 PG system-ready 探针；依赖主进程和 Web 的 DAG 门控                                          |
+| 实时语音        | LiveKit Cloud + 独立 Agent；依赖外部 STT/LLM/TTS Provider                                                             |
+| 鉴权            | `AUTH_MODE=dev` 用显式 `DEV_AUTH_TOKEN`；`oidc` 校验 issuer/audience/JWKS 签名并按 `(issuer, subject)` 隔离用户       |
+| BYOK            | Key 用 Fernet 加密入库；密钥来自独立的版本化 `CREDENTIAL_ENCRYPTION_KEYS`，与认证材料无关，支持多版本读取与惰性重加密 |
+| 评估 / BKT      | 会话结束创建 PostgreSQL Job；Worker 异步执行、有限重试并持久化终态；合成结果不更新真实知识状态                        |
+| 课程检索        | 推荐读取版本化 JSON，按 CEFR、技能、priority 与 id 确定性排序                                                         |
+| 单端通话占用    | `CALL_LEASE_MODE` 默认 `disabled`；Cloud 模式的客户端接管 UI 与真实媒体撤销未验收                                     |
+| 周报            | completed 会话次数、按日只读历史、语法错误 Top 3 与 opt-in“已记录会话时长”；后者只算会话经过时长                      |
 
 ## 3. 运行时与职责
 
@@ -304,7 +307,7 @@ worker。独立容器重启不保证重新编排完整 DAG，API 在旧 schema �
 
 ## 9. 文档更新规则
 
-- 本文只记录当前实现和已经确认的风险，不写阶段待办清单，也不追加逐轮实施记录（写入 `PROJECT_STATUS.md`）。
+- 本文只记录当前实现和已经确认的风险，不写阶段待办清单，也不追加逐轮实施记录（逐轮记录写入 `docs/history/`，当前进度与待办写入根目录 `TODO.md`）。
 - 修改 §2 或 §7 时更新页首的核对日期与提交；风险解决后移入「已关闭的风险」并写明关闭方式。
 - 跨端目标与平台门禁写入 `CROSS_PLATFORM_ARCHITECTURE.md`。
 - 可执行任务与验收条件只写入根目录 `TODO.md`。

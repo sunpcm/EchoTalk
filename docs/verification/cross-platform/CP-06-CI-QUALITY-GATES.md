@@ -121,7 +121,8 @@ required check 与门禁；剩余边界仅为分支保护 required check 配置�
 §1–§6 历史冻结记录保留。自 main `76d9d6ba` 起，PR177–186 已按门禁逐包合并，最终主线为 CPB
 main `53d2a409`（tree `cec480de`，与 source `e0a6250`/CI merge 全等）。各包 PR CI/Guard/mainCI 均首轮
 全 success（无重跑），Linux 回读与 macOS 亲跑分列于
-[当前状态页](../../PROJECT_STATUS.md) 与各包 history，不在此重复堆积。
+[当前状态页](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md) 与各包 history，不在此重复堆积。
+当前功能、实施与验收状态以根目录 [TODO](../../../TODO.md) 为准。
 
 - 前端现存门禁（`test-frontend`，ubuntu）：Format、Lint、Typecheck、Vitest、build-script、Fake API、
   OpenAPI→TypeScript `check:api-types`、类型生成器 runner、Build、Chromium+WebKit Playwright；CPB main
@@ -158,7 +159,7 @@ rules/labels endpoint 不在白名单返回 INVALID_ARGUMENT。这不证明设�
 本节按安全摘要 `RF04E-remote-evidence.json` 与五个 Git 树的原生 YAML 解析结果
 `RF04E-workflow-static-audit-r1.json` 追加。初版私有 regex 提取无效，已从证据链排除。
 下列结论只覆盖所列历史提交、运行、job 和日志摘要；本轮核对时的起始树 `4ec1a4d` 上的原始本地
-E2E 失败、追加诊断与未证根因独立记录在 [PROJECT_STATUS 的 RF04E 小节](../../PROJECT_STATUS.md)，
+E2E 失败、追加诊断与未证根因独立记录在 [PROJECT_STATUS 的 RF04E 小节](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)，
 不能改写本节历史远端结果。
 
 ### §8.1 三条 main push 正向证据

@@ -44,7 +44,7 @@ r1 IndentationError 与中断 r2 失败均保留为历史，不冒充本轮 exit
 分阶段命令和证明边界见 [隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。
 实施者未运行测试/服务或读取凭据，本节读取的是主控无凭据实际回执。
 完整门禁与最终 Review 以主控
-[本轮总报告](../../../.review/reports/overnight-product-runtime-20261103/report.md) 为权威。
+`../../../.review/reports/overnight-product-runtime-20261103/report.md`（仅原时点本地证据）为权威。
 
 - 独立 offline runner 19 项通过；真实新 PG 空库门禁、普通 pgx schema/objects 非空拒绝、
   事务 rollback 后身份/四类计数复原、base→c06、初始153/最终154文件镜像源码核验和

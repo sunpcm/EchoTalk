@@ -1,9 +1,8 @@
-# SGEC 正式接线方案与离线交付状态
+# SGEC 接线方案与验收边界
 
-> 状态：本文从文件/函数级接线设计升级为当前已交付的离线接线说明。`codex/sgec-wiring-20261121`
-> 已完成 Core 纯离线接线、PG 集成测试代码与受控验收文档；本地合成 PG 定向回归 53 项通过，
-> 完整门禁见本 PR 验证。真实 API、真实密钥、生产/应用 DB、迁移、教学质量与人工 gold 仍未执行；
-> 真实 LLM Provider 与外部验收取得真实 API 配置后单独验收。SGEC 开关默认 false，运行仍走 DemoRule。
+> 本文记录 SGEC 接线方案、文件/函数级改动与验收边界，作为实施参考；SGEC 开关默认 false，
+> 运行仍走 DemoRule。接线是否合入、合成 PG 计数、真实 API 与人工 gold 评估的当前状态见
+> 根目录 [TODO 总账](../TODO.md)，不在本文维护第二份进度。
 
 ## 1. 目标与边界
 
@@ -16,7 +15,7 @@ learning events。SGEC-OFF 仍是结构校验输入，其固定
 复用严格核心校验，不重复造结构校验；标签集合由调用方注入，不硬编码周报六类、不回退 `other`。
 任一坏项整批拒绝，不部分接受、不伪造 unknown 版本。
 
-## 2. 现状事实（已读源码）
+## 2. 原实施基线（已读源码；当前进度见 TODO）
 
 ### 2.1 I1 类型与校验
 
@@ -29,7 +28,7 @@ learning events。SGEC-OFF 仍是结构校验输入，其固定
 - `validate_grammar_evaluation`：遇重复 `skill_tag` 是**拒绝**（`ValueError("Duplicate grammar skill")`），
   不是去重；`DemoRuleGrammarProvider` 内部才用 `detected` set 避免重复。
 
-### 2.2 当前接线点
+### 2.2 原实施方案的接线点
 
 `backend/services/analysis_service.py`：
 
@@ -138,6 +137,6 @@ payload；SGEC 结构校验的 `offline_synthetic`/null 元数据不直接进入
 SGEC-OFF 与 SGEC 接线代码已完成离线实现与合成测试代码；离线结构通过不等于教学质量/纠错正确性/
 真实模型准确率通过。
 `WeeklyGrammarSkillTag.other` 不在当前 `SEED_SKILLS` 十项中，周报六类不是技能全集。真实 Provider、
-真实 API、教学质量、生产行为与人工 gold 仍未验。本地合成 BKT/learning-events PG 定向回归
-53 项已通过，完整门禁见本 PR 验证。
-本包完成不表示正式接线完成。
+真实 API、教学质量、生产行为与人工 gold 仍未验。代码合入只表示主线具备接线实现；
+默认启用、真实 API 与生产交付另行验收。
+当前交付、真实验收状态及待办只看根目录 [TODO 总账](../TODO.md)。

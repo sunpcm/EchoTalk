@@ -72,7 +72,7 @@ StrictMode 资源与卸载断言未改。
 - 主控当前门禁回执中 13 项分组均 `exit 0`。两条 Native 目标在 20 个独立进程中以 `retry=0`
   执行，每次选中 2 项并全部通过，共 `40 passed`；每次另有 84 项未选，不计覆盖率，也不与 Vitest
   `1206` 相加。完整测试树、覆盖率、lint 与证据链接集中在
-  [PROJECT_STATUS 的 A82C 小节](../../PROJECT_STATUS.md#a82c-native-room-夹具就绪证据与文档核销final_ready本地夹具就绪子项完成)。
+  [PROJECT_STATUS 的 A82C 小节](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#a82c-native-room-夹具就绪证据与文档核销final_ready本地夹具就绪子项完成)。
 - 独立源码审计确认当前两条目标与旧 A82 完整 callback 并非完全相同，差异仅为 `6` 处
   `useConversationStore → useAppStore` 的 typed store facade 标识；当前 `conversation.ts` 明确以
   同一物理容器提供 typed facade。除这些标识外，guards 与 callback 返回前同步停轨断言一致；

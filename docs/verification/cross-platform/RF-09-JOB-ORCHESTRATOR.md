@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF09“拆分 LiveKit Agent：AgentJobOrchestrator 负责连接、参与者和会话生命周期”与 A51 冻结契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF09“拆分 LiveKit Agent：AgentJobOrchestrator 负责连接、参与者和会话生命周期”与 A51 冻结契约：
 
 1. **编排职责解耦**：从 `agent.py` 的 `entrypoint` 中抽取 SDK 房间连接、等待参与者、`TranscriptSink` 生命周期管理、单一 shutdown callback 挂载、`AgentSession` 事件接线（`conversation_item_added` 与 `error`）及启动异常清理至独立模块 `backend/livekit_agent/job_orchestrator.py`。
 2. **纯净边界与零循环依赖**：`AgentJobOrchestrator` 不反向 import `agent` 模块，不直接读取数据库、用户配置或 Provider 凭据；通过构造参数显式接收工厂与回调（`session_factory`、`sink_factory`、`send_error_fn`、`persist_assistant_fn`），保持既有测试针对 `agent.AgentSession`、`agent._send_error_and_disconnect` 等 patch 路径真实生效。

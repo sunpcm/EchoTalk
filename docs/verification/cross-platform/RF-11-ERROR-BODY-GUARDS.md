@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”与 A49 冻结契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”与 A49 冻结契约：
 
 1. **状态码与原始数据保全**：任何格式的异常错误响应体（包括 `detail: [null]`、非数组或非法 `loc`、非 string 的 `msg`/`errors`、原始非对象 JSON、非 JSON 响应体拒绝）均不得导致解析器抛出 `TypeError` 或将对象误赋为 `Error.message`。统一抛出 `ApiError`，准确保留 HTTP `status` 与原始 `data`。
 2. **分支优先级与有效文案保持**：完整保持既有有效分支及其优先级：

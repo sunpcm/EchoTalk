@@ -2,7 +2,7 @@
 
 ## 1. 背景与目标
 
-依据 [`docs/MVP_REFACTORING_REMEDIATION_PLAN.md`](../../MVP_REFACTORING_REMEDIATION_PLAN.md) 与 [`TODO.md`](../../../TODO.md) RF-09，上一轮独立变异测试将 `TranscriptSink` 当前任务重入查询置 `False`，真实重入测试在 Event/回调等待中互等死锁，直到 900 秒整批硬超时。这表明测试本身缺少短超时和异常清理，影响可信门禁效率。
+依据 [`docs/MVP_REFACTORING_REMEDIATION_PLAN.md`](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) 与 [`TODO.md`](../../../TODO.md) RF-09，上一轮独立变异测试将 `TranscriptSink` 当前任务重入查询置 `False`，真实重入测试在 Event/回调等待中互等死锁，直到 900 秒整批硬超时。这表明测试本身缺少短超时和异常清理，影响可信门禁效率。
 
 本轮在不改动产品源码的前提下，只增强回归保护的故障诊断与资源清理：
 

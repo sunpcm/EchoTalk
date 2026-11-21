@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF03（禁止日志、异常、响应输出明文密钥）与 §RF09（建立 `AgentErrorMapper`），结合 [Phase 5 技术架构](../../PHASE_5_TECH_STACK.md) §5 DataChannel 错误协议及 [CP-06 安全诊断一期](./CP-06-SAFE-DIAGNOSTICS.md) 控制台白名单规范落地本地实施。
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF03（禁止日志、异常、响应输出明文密钥）与 §RF09（建立 `AgentErrorMapper`），结合 [Phase 5 技术架构](../../PHASE_5_TECH_STACK.md) §5 DataChannel 错误协议及 [CP-06 安全诊断一期](./CP-06-SAFE-DIAGNOSTICS.md) 控制台白名单规范落地本地实施。
 
 此前 `agent.py` 存在以下安全隐患：
 

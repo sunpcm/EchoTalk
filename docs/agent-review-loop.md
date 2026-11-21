@@ -205,8 +205,7 @@ passed、WebKit 7 failed，定向 GREEN 为 14 passed。**该轮历史快照**�
 13 项完整门禁及聚合均 `exit 0`。Chromium/WebKit 最终均为三控件 `336x44`、`appearance:auto`、
 2px solid outline。主控代码/测试与真实截图 Review 均 APPROVED，P0/P1 未关闭为 0，正式返修
 `0/2`。整卡 Review 与提交/推送以同卡最终回执为准；用户 Review 待。上述数字只属于 WPH 当时
-快照。最新状态见
-[PROJECT_STATUS 的 R2-14 小节](./PROJECT_STATUS.md) 与
+快照。最新状态见根目录 [TODO 总账](../TODO.md) 与
 [`LEARNING_EVENTS_DESIGN.md`](./LEARNING_EVENTS_DESIGN.md)。
 
 历史 B1-4 的 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计已同卡完成；A3
@@ -572,7 +571,7 @@ tasks null 槽位、其他 pin、runtime、历史记录不改。r0 上述备份/
   | 迁移               | `backend`       | `.venv/bin/alembic upgrade head && .venv/bin/alembic current`     |
   | pytest             | `backend`       | `.venv/bin/pytest --cov=. --cov-report=term-missing`              |
 
-- **基线**：开工时先重跑一次并与 [PROJECT_STATUS.md](./PROJECT_STATUS.md) 的"当前验证基线"对照，不符先报告。
+- **基线**：开工时先重跑一次并与根目录 [TODO 总账](../TODO.md) 及相应证据对照，不符先报告。
 - **Fake API 截图或手动验证**：用与 E2E 不同的端口启动，避免与测试并行冲突，例如
   `E2E_API_PORT=18282 node e2e/fake-api.mjs` 与
   `E2E_API_URL=http://127.0.0.1:18282 VITE_AUTH_MODE=dev VITE_DEV_AUTH_TOKEN=e2e-dev-token pnpm dev --host 127.0.0.1 --port 4273 --strictPort`。

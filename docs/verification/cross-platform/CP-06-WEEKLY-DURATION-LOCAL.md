@@ -4,7 +4,7 @@
 
 - 当前状态：`FINAL_READY`。本机浏览器→真实 HTTP→FastAPI→真实 SQLAlchemy/asyncpg→自有合成 PG
   →现有 UI 的组合子范围已完成；完整机器计数与资源回执集中在
-  [PROJECT_STATUS](../../PROJECT_STATUS.md#wdi-周报时长真实本地组合补验final_ready)。
+  [PROJECT_STATUS](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wdi-周报时长真实本地组合补验final_ready)。
 - 本卡只补浏览器 → 真实 HTTP → 本地 FastAPI → 真实 SQLAlchemy/asyncpg → 自有 PostgreSQL →
   现有 parser/controller/UI 的组合缺口，不修改产品业务、默认 E2E、迁移或依赖锁。
 - 产品路径为真实默认入口中的 `Dashboard`、`WeeklyProgress`、现有 data query、`api.ts`、
@@ -100,7 +100,7 @@ controller、backend 与 Fake API 覆盖；本卡只验证所选日首次 50 条
 
 主控最终机器门禁、默认 E2E 与新增真实 HTTP+PG 的分别计账、两项语义变异、Python/Node 隔离
 guard、服务端 `POST/PUT`/unsafe GET/无认证负对照、快速连续启动及格式等价证据，统一见
-[PROJECT_STATUS 的 WDI 小节](../../PROJECT_STATUS.md#wdi-周报时长真实本地组合补验final_ready)。
+[PROJECT_STATUS 的 WDI 小节](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wdi-周报时长真实本地组合补验final_ready)。
 完整 backend 套件包含既有单元、mock 与 PostgreSQL 测试，不因包含 PG 用例而把整树描述为无 mock；
 新增真实链路只属于本卡显式 opt-in 入口。
 

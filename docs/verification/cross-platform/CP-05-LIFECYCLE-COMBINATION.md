@@ -25,7 +25,7 @@ Capacitor `App` 外部状态源只做合成，`fetch`/`Response` 为严格 fake 
   `getStateDeferred.resolve({ isActive: false })`，保证前置监听或 0 GET 断言失败时也释放
   外部状态 promise；原有断言、事件、计数与超时均未改。
 - 其余完整机器数字与两项负对照的精确 expected/actual 集中在
-  [PROJECT_STATUS](../../PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
+  [PROJECT_STATUS](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
 
 ## 场景 1：iOS pending 到 active
 
@@ -81,7 +81,7 @@ Capacitor `App` 外部状态源只做合成，`fetch`/`Response` 为严格 fake 
 ## 交接
 
 精确写入文件与测试断言已停写并冻结，正式实施返修 `1/2`。最终机器数字集中在
-[PROJECT_STATUS](../../PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
+[PROJECT_STATUS](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
 本批三卡共用合成 PG 已按精确 container ID、双 owner、`127.0.0.1` 与合成身份核验后
 `stop_exit0`、`auto_removed=true`。最终 format、独立 Review、正常 commit/当前分支 push 与
 用户 Review 状态以主控同卡回执为准。

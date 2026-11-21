@@ -2,32 +2,24 @@
 
 本目录只保留能解释当前实现、指导验收或记录仍有效设计约束的文档。
 
-- 首次接手入口见 [项目概览](./OVERVIEW.md)：技术架构、已实现功能与使用方法。
-- [下一阶段决策准备](./NEXT_PHASE_DECISIONS.md)：B2/周报口径/真实环境前置的决策表（待用户确认）。
-
-- 当前已实现功能、近期变更和取舍以
-  [EchoTalk 当前状态与变更决策](./PROJECT_STATUS.md) 为准。
-- 未完成工作统一维护在根目录 [`TODO.md`](../TODO.md)。
-- 根目录 [`README.md`](../README.md) 负责项目入口和快速启动；若历史描述与当前状态文档冲突，
-  应以当前代码、CI 和 `PROJECT_STATUS.md` 为准，并在后续 PR 中同步修正。
+- **功能、子功能、当前进度、未验收、待办、卡点、开单**统一维护在根目录 [`TODO.md`](../TODO.md)，这是唯一事实来源。
+- 根目录 [`README.md`](../README.md) 负责项目入口、开发启动/配置命令与安全边界，不维护第二份进度。
+- 有效技术契约、操作手册、验收证据与历史记录仍保留在本目录，作为实施参考与证据，不承载“当前是否完成”的口径。
 
 ## 架构与治理
 
-- [当前状态与变更决策](./PROJECT_STATUS.md)：当前功能、当前验证基线、已知限制与历史索引。
-- [MVP 技术债修复与重构方案](./MVP_REFACTORING_REMEDIATION_PLAN.md)：定义 MVP 产品化修复的范围、实施顺序、验收和回滚要求；完成状态仍以根目录 `TODO.md` 为准。
-
+- [系统架构](./ARCHITECTURE.md)：当前运行时、数据所有权、部署拓扑与仍然成立的风险。
+- [三端架构与交付门禁](./CROSS_PLATFORM_ARCHITECTURE.md)：Web/iOS/macOS 业务规则、网络/认证契约与 §8.2 构建同步契约；状态见 `TODO.md`。
 - [Agent 评审手册](./agent-review-loop.md)：三端评审循环、测试树、环境和并行边界。
 - [外部 CLI 自动评审接入](./REVIEW_LOOP_AUTOMATION.md)：本地状态门禁、授权、预算、暂停恢复及交付判定。
 
-## 当前架构与验收
+## 有效契约与验收
 
-- [系统架构](./ARCHITECTURE.md)：当前运行时、数据所有权、部署拓扑与仍然成立的风险（2026-11-10 按代码核对）。
-- [架构演进规划](./ARCHITECTURE_ROADMAP.md)：目标结构、四个阶段的先后与退出条件、待用户决定的事项；不是任务清单。
-- [三端架构与交付门禁](./CROSS_PLATFORM_ARCHITECTURE.md)：Web/iOS/macOS 当前事实与交付目标。
-- [macOS MVP 开发计划](./MACOS_MVP_DEVELOPMENT_PLAN.md)：M1 可行性至 M5 分发的分阶段门禁；正式 `apps/vite-app/src-tauri/` 仍属 M2，旧最低 OS 候选不构成兼容承诺，最新支持口径见当前状态。
-- [macOS M1 原生认证验证](./verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)：auth-only 探针已记录安装包真实冷暖回跳及取消场景；API/媒体、真实 Provider 5 分钟 5 轮与设备测试尚欠，不代表 M1 整体通过。
-
-- [macOS M1 离线媒体接线](./verification/cross-platform/MACOS-M1-OFFLINE-MEDIA.md)：默认禁用的 native API、真实 SDK 自托管和离线回归；Rust/打包以本轮独立回执为准，离线接线不代表 M1 真实通过。
+- [macOS M1 原生认证验证](./verification/cross-platform/MACOS-M1-NATIVE-AUTH.md)：auth-only 探针安装包真实冷暖回跳及取消场景；API/媒体、真实 Provider 5 分钟 5 轮与设备测试尚欠，不代表 M1 整体通过。
+- [macOS M1 离线媒体接线](./verification/cross-platform/MACOS-M1-OFFLINE-MEDIA.md)：默认禁用的 native API、真实 SDK 自托管和离线回归；离线接线不代表 M1 真实通过。
+- [CP-02 客户端占用 API 前置验证](./verification/cross-platform/CP-02-LEASE-API.md)：API 原语与本地独立证据，未开放 Cloud 通话。
+- [CP-02 独立占用控制器验证](./verification/cross-platform/CP-02-LEASE-CONTROLLER.md)：未接 UI/Cloud 的本地前置模块。
+- [CP-01/05 Web 生命周期验证](./verification/cross-platform/CP-01-WEB-LIFECYCLE.md)：事件边界、恢复快照与清理，真实原生事件后验。
 
 | 阶段               | 技术说明                                         | 验收手册                                           | 补充设计                                                     |
 | ------------------ | ------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------ |
@@ -39,18 +31,15 @@
 ## 历史实现资料
 
 `history/` 保存按月的实施记录、已合并与未采纳决策、已完成待办和评审回执；只追加不改写，
-其中的计数与结论只属于当时提交。当前状态一律以 `PROJECT_STATUS.md`、`ARCHITECTURE.md` 和 `TODO.md` 为准。
+其中的计数与结论只属于当时提交。当前状态一律以根目录 [`TODO.md`](../TODO.md) 为准。
 
-`archive/` 仅保留 Phase 1–4 仍可辅助排障或理解模块演进的技术说明与回归步骤。归档内容不代表当前配置或项目状态；执行命令前必须对照现有代码和根目录 `README.md`。
+`archive/` 保留 Phase 1–4 技术说明与回归步骤，以及
+[2026-11-21 文档统一归档](./archive/2026-11-21-document-consolidation/) 中被 `TODO.md` 取代的旧状态页与阶段计划。
+归档内容不代表当前配置或项目状态；执行命令前必须对照现有代码和根目录 `README.md`。
 
 ## 文档维护规则
 
 - 不新增阶段 Prompt、临时聊天上下文或重复的全局开发规则。
-- 计划落入 `TODO.md`；功能和关键决策落入 `PROJECT_STATUS.md`；实现细节和人工验收分别进入对应技术说明与验收手册。
+- 计划、功能、进度、卡点、待办、开单统一落入根目录 `TODO.md`；实现细节和人工验收分别进入对应技术说明与验收手册。
 - 命令、端口、依赖、功能状态或安全边界变化时，同一变更内同步更新文档。
 - 失效设计可直接删除，历史内容由 Git 保存，无需重复建立归档副本。
-
-- [CP-02 客户端占用API前置验证](./verification/cross-platform/CP-02-LEASE-API.md)：API原语与本地独立证据，未开放Cloud通话。
-
-- [CP-02 独立占用控制器验证](./verification/cross-platform/CP-02-LEASE-CONTROLLER.md)：未接UI/Cloud的本地前置模块。
-- [CP-01/05 Web生命周期验证](./verification/cross-platform/CP-01-WEB-LIFECYCLE.md)：事件边界、恢复快照与清理，真实原生事件后验。

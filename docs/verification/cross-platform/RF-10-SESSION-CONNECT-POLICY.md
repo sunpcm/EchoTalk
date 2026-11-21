@@ -88,7 +88,7 @@ read/write/pool 600 秒与 `max_retries=2`，两类策略不得互相套用。
   `29 passed`，是完整 backend
   `941 passed` 的子集。旧 A84 的 `37` 目标含另一文件，保持历史，不与当前相加。详细门禁计数、
   PG、冷导入和审计口径集中在
-  [PROJECT_STATUS 的 A84C 小节](../../PROJECT_STATUS.md)。
+  [PROJECT_STATUS 的 A84C 小节](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md)。
 - 当前实际 SDK 为 `livekit-agents 1.6.10`，四个依赖/安装来源一致，无需升级或安装；上文
   `1.4.3` 只保留为旧 A84 快照事实。当前策略仍为三个 role 的 `10s / 3 次 / 2s` 与独立错误
   阈值 3；每次创建全新公开选项，真实 entrypoint 使用动态绑定后的零参数 wrapper。

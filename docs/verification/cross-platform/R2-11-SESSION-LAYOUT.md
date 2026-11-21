@@ -39,7 +39,7 @@
   `256 = Chromium 128 + WebKit 128`（single passed / retry 0 / 0 skip / flaky / unexpected）、
   backend `1044 passed / 3 warnings / 0 skip`、lint `132 warning / 0 error / 0 new`，三项有效私有
   load 变异均 killed 且默认 26 项复核 `0` 失败。完整机器数字集中在
-  [PROJECT_STATUS 的 R2-11 小节](../../PROJECT_STATUS.md#r2-11-会话中界面本地子卡final_ready)。
+  [PROJECT_STATUS 的 R2-11 小节](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#r2-11-会话中界面本地子卡final_ready)。
 - 独立 Review、正常 commit/当前分支 push 以主控同卡最终回执为准，用户 Review 待。父项 R2-11
   保持未勾：真实 LiveKit 人工媒体验收未做。截图存于主控证据目录；截图 CLI 前置不支持不是
   产品失败。

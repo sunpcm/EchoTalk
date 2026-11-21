@@ -2,7 +2,7 @@
 
 ## 1. 背景与目标
 
-依据 [`docs/MVP_REFACTORING_REMEDIATION_PLAN.md`](../../MVP_REFACTORING_REMEDIATION_PLAN.md) RF-09 明确边界与 [`TODO.md`](../../../TODO.md) RF-09，A57 新增的 `AgentJobOrchestrator` 关闭逻辑为识别 Sink 故障通知重入，此前直接读取 `self.sink._notify_task` 私有字段，造成跨组件内部私有字段耦合。
+依据 [`docs/MVP_REFACTORING_REMEDIATION_PLAN.md`](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) RF-09 明确边界与 [`TODO.md`](../../../TODO.md) RF-09，A57 新增的 `AgentJobOrchestrator` 关闭逻辑为识别 Sink 故障通知重入，此前直接读取 `self.sink._notify_task` 私有字段，造成跨组件内部私有字段耦合。
 
 本轮在 `TranscriptSink` 建立小型公共行为查询 `is_failure_notification_task()`，只返回当前或指定 asyncio 任务是否为本 Sink 的故障通知任务（`bool`，不暴露 Task 对象），`AgentJobOrchestrator` 使用此边界彻底消除对 `sink._notify_task` 的访问。同时严格保持 `TranscriptSink` 原 `close()` 流程、8.0 秒排空预算、状态记账与 A57 错误通知 2.0 秒预算完全不变；并关闭 A57 遗留的两项文字 P2。
 
