@@ -12,6 +12,7 @@
 - [三端架构与交付门禁](./CROSS_PLATFORM_ARCHITECTURE.md)：Web/iOS/macOS 业务规则、网络/认证契约与 §8.2 构建同步契约；状态见 `TODO.md`。
 - [Agent 评审手册](./agent-review-loop.md)：三端评审循环、测试树、环境和并行边界。
 - [外部 CLI 自动评审接入](./REVIEW_LOOP_AUTOMATION.md)：本地状态门禁、授权、预算、暂停恢复及交付判定。
+- [实时语音栈选型与升级决策](./REALTIME_VOICE_SELECTION.md)：媒体、语音与教学职责分层、公开证据、候选路线及验收口径。
 
 ## 有效契约与验收
 
