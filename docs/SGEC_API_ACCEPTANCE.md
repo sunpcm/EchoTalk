@@ -65,6 +65,7 @@ async def main():
     allowed_skill_tags = frozenset(
         skill["id"]
         for skill in __import__("models.knowledge", fromlist=["SEED_SKILLS"]).SEED_SKILLS
+        if skill["category"] == "grammar"
     )
     source = SGECLLMPayloadSource(
         model=os.environ["SGEC_LLM_MODEL"],
@@ -115,7 +116,9 @@ gold 验收；结构通过不等于教学质量通过。
 2. 保持 `SGEC_GRAMMAR_PROVIDER_ENABLED=false`，运行既有离线/纯测试确认默认路径无回归。
 3. 运行上述纯模型 smoke，确认 OpenAI-compatible 响应被严格 JSON 解析为对象且只含 `errors`
    数组，并通过 `SGECGrammarProvider`/`build_grammar_evaluation` 的标签、字段类型、
-   confidence、重复 skill_tag 与空 `error_type` 门禁。
+   confidence、重复 skill_tag、空 `error_type` 与最多 50 字符的 `error_type` 门禁。
+   语法 smoke 的 `allowed_skill_tags` 只取 `category == "grammar"` 的种子技能，发音技能不得
+   进入语法 Provider 或其 prompt。
 4. 再执行主控的 PG 测试树 `backend/tests/test_sgec_pipeline.py`，确认
    `process_job`、B2 事件、`knowledge_states`、replay、导出与删除在专用库通过。
 5. 最后再做真实 API 的人工 gold 与外部验收，不把合成通过或结构通过当作真实质量通过。
@@ -132,3 +135,44 @@ gold 验收；结构通过不等于教学质量通过。
   [TODO 总账](../TODO.md)；本文只定义验收命令与预期，不维护进度。
 - PG 测试树：`backend/tests/test_sgec_pipeline.py` 定义专用库合成集成用例；其通过计数与
   合入状态见根目录 [TODO 总账](../TODO.md)，本文不单独维护进度。
+
+## 5. SGEC API 脱敏只读前检
+
+`backend/scripts/siliconflow_preflight.py` 用于真实验收前的显式只读核验。默认 `plan`
+完全离线，不读取环境变量、应用配置、数据库或网络；只有 `execute` 才读取固定
+`SILICONFLOW_API_KEY`，并分别执行一次以下固定 HTTPS GET：
+
+- `https://api.siliconflow.cn/v1/models?sub_type=chat`
+- `https://api.siliconflow.cn/v1/user/info`
+
+```bash
+cd backend
+.venv/bin/python -m scripts.siliconflow_preflight plan
+op run --environment '<Environment ID>' -- \
+  .venv/bin/python -m scripts.siliconflow_preflight execute \
+  --model 'Qwen/Qwen3-30B-A3B-Instruct-2507'
+```
+
+`plan` 不读取凭据，可独立先行执行。受控 `execute` 示例只展示占位 Environment ID；实际运行时由
+`op run` 将 Environment 中已有的 `SILICONFLOW_API_KEY` 注入子进程，不在命令、聊天、历史或仓库中
+展示或粘贴 Key。
+
+`--model` 只用于本地目录匹配，不会追加到请求 URL；默认模型为
+`Qwen/Qwen3-30B-A3B-Instruct-2507`。两次请求均禁止重定向、不重试、单次 8 秒有界超时、
+响应最多 2 MiB，并保留 Python 标准库默认的 HTTPS 证书校验。
+
+退出码固定为：
+
+- `0`：目录为 `200`，根 `object` 为官方 schema 的 `list`，`data` 数组中的字符串 `id`
+  可验证，选定模型真实列出，且旧 `/v1/user/info` 门禁精确返回 `200`；
+- `1`：前检已执行但目录/网络/模型/旧门禁任一核验失败；
+- `2`：命令参数、Key 缺失或 Key 格式不合格；此时不创建 transport、不发请求。
+
+Key 必须是非空的可打印 ASCII 值；`op://` 引用、未解析的 `{{...}}` 模板、控制字符和非 ASCII
+值均按用法错误处理且不发请求。输出只包含固定检查 ID、公开模型名、目录状态码/固定错误类别/schema/数量/模型列出状态、
+旧门禁状态及固定限制说明。目录非 `200`、响应格式不可验证或网络错误时，
+`selected_model_listed` 为 `null` 且 `permission` 为 `NOT_VERIFIED`，不会把异常伪装成模型
+未列出。`/v1/user/info` 返回 `410` 时明确输出 `LEGACY_GONE` 并使前检失败。
+
+本命令不输出或保存请求 header、原始响应正文、Key、上游错误正文或异常正文；它不调用收费推理，
+也不能证明余额、计费状态、实际推理能力或教学质量。

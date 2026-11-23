@@ -154,6 +154,10 @@ async def test_fake_client_receives_explicit_sdk_arguments():
     assert kwargs["temperature"] == 0.0
     assert kwargs["max_tokens"] == 123
     assert kwargs["messages"][0]["role"] == "system"
+    assert (
+        "error_type value must be at most 50 characters"
+        in kwargs["messages"][0]["content"]
+    )
     assert kwargs["messages"][1] == {"role": "user", "content": "a elephant"}
 
 

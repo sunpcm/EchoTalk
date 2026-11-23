@@ -206,6 +206,50 @@ def test_blank_core_fields_reject(field, value):
     assert exc_info.value.code == expected_code
 
 
+def test_error_type_at_50_character_boundary_is_accepted():
+    error_type = "错" * 50
+
+    evaluation = build_grammar_evaluation(
+        _batch([_finding({"error_type": error_type})]),
+        {"article_usage"},
+        TRUSTED_METADATA,
+    )
+
+    assert evaluation.findings[0].error_type == error_type
+
+
+def test_error_type_over_50_unicode_characters_rejects_stably():
+    with pytest.raises(SGECAdapterError) as exc_info:
+        build_grammar_evaluation(
+            _batch([_finding({"error_type": "错" * 51})]),
+            {"article_usage"},
+            TRUSTED_METADATA,
+        )
+
+    assert exc_info.value.code == "error_type_too_long"
+
+
+def test_one_error_type_over_50_characters_rejects_whole_batch():
+    with pytest.raises(SGECAdapterError) as exc_info:
+        build_grammar_evaluation(
+            _batch(
+                [
+                    _finding(),
+                    _finding(
+                        {
+                            "skill_tag": "subject_verb_agreement",
+                            "error_type": "x" * 51,
+                        }
+                    ),
+                ]
+            ),
+            {"article_usage", "subject_verb_agreement"},
+            TRUSTED_METADATA,
+        )
+
+    assert exc_info.value.code == "error_type_too_long"
+
+
 @pytest.mark.parametrize("model_version", [None, "", "   "])
 def test_blank_model_version_rejects_when_findings_exist(model_version):
     metadata = AssessmentMetadata(

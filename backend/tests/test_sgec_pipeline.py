@@ -43,11 +43,11 @@ from models.session import (
 from models.user import User
 from services import analysis_jobs
 from services import analysis_service as service
-from services.assessment_providers import AssessmentMetadata
+from services.assessment_providers import AssessmentMetadata, TranscriptAssessmentInput
 from services.knowledge.bkt_model import BKTParams, update_mastery
 from services.learning_event_replay import validate_learning_event_replay
 from services.sgec_llm import SGECLLMError
-from services.sgec_provider import SGECGrammarProvider
+from services.sgec_provider import SGECGrammarProvider, SGECProviderError
 from services.user_account_deletion import delete_user_account
 from services.user_data_export import build_user_data_export
 from time_utils import utc_now
@@ -141,13 +141,12 @@ def _inject_provider(monkeypatch, *, metadata, allowed_skill_tags, source):
     return provider
 
 
-def _patch_real_selection_source(monkeypatch, *, source):
-    """Exercise the real ``_select_grammar_provider`` branch with valid settings.
+GRAMMAR_SEED_SKILL_TAGS = frozenset(
+    skill["id"] for skill in SEED_SKILLS if skill["category"] == "grammar"
+)
 
-    The fake factory must provide every value Core's new pre-flight gate
-    requires, otherwise the provider will be rejected before the test payload
-    is evaluated.
-    """
+
+def _patch_real_sgec_settings(monkeypatch):
     monkeypatch.setattr(service.settings, "USE_MOCK_ELSA", False)
     monkeypatch.setattr(service.settings, "SGEC_GRAMMAR_PROVIDER_ENABLED", True)
     monkeypatch.setattr(service.settings, "SGEC_LLM_MODEL", "sgec-test-model")
@@ -158,16 +157,67 @@ def _patch_real_selection_source(monkeypatch, *, source):
     monkeypatch.setattr(service.settings, "SGEC_LLM_MAX_TOKENS", 1024)
     monkeypatch.setattr(service.settings, "SGEC_LLM_MAX_OUTPUT_CHARS", 65536)
 
+
+def _patch_real_selection_source(monkeypatch, *, source):
+    """Exercise the real ``_select_grammar_provider`` branch with valid settings.
+
+    The fake factory must provide every value Core's new pre-flight gate
+    requires, otherwise the provider will be rejected before the test payload
+    is evaluated.
+    """
+    _patch_real_sgec_settings(monkeypatch)
+
     def fake_source(**kwargs):
         assert kwargs["model"] == "sgec-test-model"
         assert kwargs["base_url"] == "https://sgec.invalid"
         assert kwargs["api_key"] == "sgec-test-key"
-        assert kwargs["allowed_skill_tags"] == frozenset(
-            skill["id"] for skill in SEED_SKILLS
-        )
+        assert kwargs["allowed_skill_tags"] == GRAMMAR_SEED_SKILL_TAGS
         return source
 
     monkeypatch.setattr(service, "SGECLLMPayloadSource", fake_source)
+
+
+@pytest.mark.asyncio
+async def test_real_selection_uses_only_grammar_seed_tags(monkeypatch):
+    source = QueuePayloadSource(
+        payloads=[
+            _mapped_payload(),
+            {
+                "errors": [
+                    _mapped_payload()["errors"][0],
+                    _mapped_payload(skill_tag="vowel_sounds")["errors"][0],
+                ]
+            },
+        ]
+    )
+    source_tags = []
+    _patch_real_sgec_settings(monkeypatch)
+
+    def fake_source(**kwargs):
+        source_tags.append(kwargs["allowed_skill_tags"])
+        return source
+
+    monkeypatch.setattr(service, "SGECLLMPayloadSource", fake_source)
+
+    provider = service._select_grammar_provider()
+
+    assert source_tags == [GRAMMAR_SEED_SKILL_TAGS]
+    assert provider._allowed_skill_tags is source_tags[0]
+    assert GRAMMAR_SEED_SKILL_TAGS == {
+        "article_usage",
+        "preposition",
+        "subject_verb_agreement",
+        "verb_tense_past",
+        "verb_tense_present",
+    }
+    assert "vowel_sounds" not in GRAMMAR_SEED_SKILL_TAGS
+
+    evaluation = await provider.evaluate(TranscriptAssessmentInput("I go yesterday"))
+    assert evaluation.findings[0].skill_tag == "verb_tense_past"
+
+    with pytest.raises(SGECProviderError) as exc_info:
+        await provider.evaluate(TranscriptAssessmentInput("mixed batch"))
+    assert exc_info.value.code == "invalid_sgec_batch"
 
 
 async def _add_skill(pipeline, skill_id):

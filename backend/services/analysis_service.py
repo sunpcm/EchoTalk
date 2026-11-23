@@ -204,7 +204,9 @@ def _select_pronunciation_provider() -> PronunciationProvider:
 def _select_grammar_provider() -> GrammarProvider:
     if settings.SGEC_GRAMMAR_PROVIDER_ENABLED:
         _validate_sgec_enabled_settings()
-        seed_skill_tags = frozenset(skill["id"] for skill in SEED_SKILLS)
+        grammar_skill_tags = frozenset(
+            skill["id"] for skill in SEED_SKILLS if skill["category"] == "grammar"
+        )
         metadata = AssessmentMetadata(
             source="sgec",
             provider="sgec-llm",
@@ -214,8 +216,8 @@ def _select_grammar_provider() -> GrammarProvider:
         )
         return SGECGrammarProvider(
             metadata,
-            seed_skill_tags,
-            _build_sgec_payload_source(seed_skill_tags),
+            grammar_skill_tags,
+            _build_sgec_payload_source(grammar_skill_tags),
         )
     return DemoRuleGrammarProvider()
 

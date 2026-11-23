@@ -73,6 +73,7 @@ def _system_prompt(allowed_skill_tags: Collection[str]) -> str:
         'whose only key is "errors" and whose value is an array. Each array '
         'item must be an object containing exactly "skill_tag", "original", '
         '"corrected", "error_type" and optional numeric "confidence" in [0,1]. '
+        "The error_type value must be at most 50 characters. "
         f"The allowed skill_tag values are: {tags}. "
         "Do not return markdown, explanations, or extra fields."
     )

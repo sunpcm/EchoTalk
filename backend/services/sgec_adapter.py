@@ -17,6 +17,9 @@ from services.assessment_providers import (
 )
 from services.sgec_offline import SGECBatchResult, validate_sgec_batch
 
+# Mirrors ``GrammarError.error_type = String(50)`` without importing ORM models.
+_MAX_ERROR_TYPE_CHARS = 50
+
 
 class SGECAdapterError(RuntimeError):
     """A stable, machine-readable SGEC adapter rejection.
@@ -70,6 +73,8 @@ def _validate_adapter_gates(
 
         if _is_blank(item.error_type):
             raise SGECAdapterError(code="empty_error_type")
+        if len(item.error_type) > _MAX_ERROR_TYPE_CHARS:
+            raise SGECAdapterError(code="error_type_too_long")
         if _is_blank(item.original):
             raise SGECAdapterError(code="empty_original")
         if _is_blank(item.corrected):
