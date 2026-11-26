@@ -50,8 +50,9 @@
   `Qwen/Qwen3-30B-A3B-Instruct-2507` 在列；STT `200`、TTS `200`、LiveKit 过滤房间查询成功。
   同一有效 Key 对历史 `GET /v1/user/info` 返回 `410`，该地址仅保留诊断；另一个旧 Key 返回
   `401`，不能与本次有效 Key 的结果混淆。
-- 2026-11-26 生产凭据校验：SiliconFlow `verified`、TTS `verified`；STT 本次为
-  `timeout`，其先前独立 GET 曾返回 `200`，不能据此声称 Provider 已失效。
+- 2026-11-26 生产凭据校验：SiliconFlow、Deepgram、Cartesia 最终真实运行时
+  validator 均为 `verified`。Deepgram 初次校验为 `timeout`，此前独立 GET 已返回 `200`，
+  提交后最终 validator 复验为 `verified`，故该超时按瞬时失败保留为时间顺序，不是最终结论。
 - 2026-11-26 SGEC 实际发送：选定模型一次 POST 返回 HTTP `402`，错误为
   `sgec_llm_transport_failed`，没有有效响应；按
   [官方错误码 FAQ](https://docs.siliconflow.cn/docs/userguide/faqs/error-code)，`402` 表示
