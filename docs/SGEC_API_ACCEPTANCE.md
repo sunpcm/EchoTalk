@@ -139,7 +139,7 @@ gold 验收；结构通过不等于教学质量通过。
 ## 5. SGEC API 脱敏只读前检
 
 `backend/scripts/siliconflow_preflight.py` 用于真实验收前的显式只读核验。默认 `plan`
-完全离线，不读取环境变量、应用配置、数据库或网络；只有 `execute` 才读取固定
+完全离线，不读取环境变量、应用配置、数据库或网络；只有 `execute` 才读取一次固定
 `SILICONFLOW_API_KEY`，并分别执行一次以下固定 HTTPS GET：
 
 - `https://api.siliconflow.cn/v1/models?sub_type=chat`
@@ -148,31 +148,67 @@ gold 验收；结构通过不等于教学质量通过。
 ```bash
 cd backend
 .venv/bin/python -m scripts.siliconflow_preflight plan
-op run --environment '<Environment ID>' -- \
+op run --environment '<Environment reference>' -- \
   .venv/bin/python -m scripts.siliconflow_preflight execute \
   --model 'Qwen/Qwen3-30B-A3B-Instruct-2507'
 ```
 
-`plan` 不读取凭据，可独立先行执行。受控 `execute` 示例只展示占位 Environment ID；实际运行时由
-`op run` 将 Environment 中已有的 `SILICONFLOW_API_KEY` 注入子进程，不在命令、聊天、历史或仓库中
-展示或粘贴 Key。
+`plan` 不读取凭据，可独立先行执行。受控 `execute` 示例只展示占位 Environment reference；
+实际运行时由 `op run` 将 Environment 中已有的 `SILICONFLOW_API_KEY` 注入子进程，不在命令、
+聊天、历史或仓库中展示或粘贴 Key、账号或 Environment ID。
+
+### 5.1 生产鉴权与命令前检的差异
+
+生产 `ProviderValidationService.validate_llm_key("siliconflow", ...)` 使用固定 Bearer Header
+请求 `GET https://api.siliconflow.cn/v1/models?sub_type=chat`，只把精确 HTTP `200` 视为
+`verified`；`401/403`、`429` 等既有稳定分类不变。该生产门禁**不解析响应 schema，也不按
+选定模型在列与否做二次判断**。
+
+`siliconflow_preflight execute` 是更严格的验收前检：除目录 HTTP `200` 外，还要求响应符合
+官方 `object=list` / `data[].id` schema，并在本地匹配到 `--model` 指定的模型。只有这两项也
+通过，前检的 `current_gate` 才是 `PASS`。因此生产 `verified` 与命令 `PREFLIGHT_OK` 证明的
+范围不同，不能互相替代。
+
+历史 `/v1/user/info` 只保留为诊断项；其 `200`、`401/403`、`429`、`410`、其他 HTTP 状态或
+网络错误都不改变新目录门禁。`410` 明确记为 `LEGACY_GONE`，不得写成 verified。
+
+### 5.2 受控凭据来源
+
+真实验收使用专用 1Password Environment，其中仅保留依赖所需的 6 个字段；旧重复
+Environment 已确认无挂载并采用可逆归档。本文不记录 Key、账号 ID 或 Environment ID。前检与
+SGEC 实际进程统一复用该 Environment 中单一的 `SILICONFLOW_API_KEY`，同一进程不重复读取或
+要求二次输入。
 
 `--model` 只用于本地目录匹配，不会追加到请求 URL；默认模型为
 `Qwen/Qwen3-30B-A3B-Instruct-2507`。两次请求均禁止重定向、不重试、单次 8 秒有界超时、
-响应最多 2 MiB，并保留 Python 标准库默认的 HTTPS 证书校验。
+响应最多 2 MiB，并保留 Python 标准库默认的 HTTPS 证书校验。命令前检门禁只取模型目录：
+必须精确返回 `200`、符合官方 `object=list` / `data[].id` schema，且本地选定模型在目录中
+列出；生产鉴权门禁则只要求该目录返回 `200`，边界见 §5.1。目录契约依据
+[官方模型列表 API](https://docs.siliconflow.cn/docs/api/models-get)。`/v1/user/info` 保留为
+历史地址诊断，返回 `200`、`401`、`403`、`410`、其他 HTTP
+状态或网络错误都不改变目录门禁结果。
 
 退出码固定为：
 
 - `0`：目录为 `200`，根 `object` 为官方 schema 的 `list`，`data` 数组中的字符串 `id`
-  可验证，选定模型真实列出，且旧 `/v1/user/info` 门禁精确返回 `200`；
-- `1`：前检已执行但目录/网络/模型/旧门禁任一核验失败；
+  可验证，选定模型真实列出；
+- `1`：前检已执行，但目录状态/schema/模型列出核验失败；
 - `2`：命令参数、Key 缺失或 Key 格式不合格；此时不创建 transport、不发请求。
 
 Key 必须是非空的可打印 ASCII 值；`op://` 引用、未解析的 `{{...}}` 模板、控制字符和非 ASCII
-值均按用法错误处理且不发请求。输出只包含固定检查 ID、公开模型名、目录状态码/固定错误类别/schema/数量/模型列出状态、
-旧门禁状态及固定限制说明。目录非 `200`、响应格式不可验证或网络错误时，
+值均按用法错误处理且不发请求。输出只包含固定检查 ID、公开模型名、`current_gate`、目录状态码/
+固定错误类别/schema/数量/模型列出状态、历史地址诊断及固定限制说明。目录非 `200`、响应格式
+不可验证或网络错误时，
 `selected_model_listed` 为 `null` 且 `permission` 为 `NOT_VERIFIED`，不会把异常伪装成模型
-未列出。`/v1/user/info` 返回 `410` 时明确输出 `LEGACY_GONE` 并使前检失败。
+未列出；此时 `current_gate` 也是 `NOT_VERIFIED`。目录合法但未列出选定模型时
+`current_gate` 为 `FAIL`，目录通过时为 `PASS`。`/v1/user/info` 返回 `410` 时仍明确输出
+`LEGACY_GONE`，但不再阻断已通过的目录门禁。
 
 本命令不输出或保存请求 header、原始响应正文、Key、上游错误正文或异常正文；它不调用收费推理，
 也不能证明余额、计费状态、实际推理能力或教学质量。
+
+本轮真实 Key 的目录 `current_gate` 已通过，历史 `/v1/user/info` 的 `410` 只作诊断；生产
+`ProviderValidationService` 对同一目录的鉴权结果为 `verified`。选定模型的实际 SGEC POST
+返回 HTTP `402`，只形成本地 `sgec_llm_transport_failed` 类别，没有有效推理响应。官方
+[错误码 FAQ](https://docs.siliconflow.cn/docs/userguide/faqs/error-code) 将该状态解释为账户
+欠费、应充值后再试；本轮不充值，也不把这次发送计为成功推理或完整链路通过。

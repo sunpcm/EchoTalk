@@ -21,9 +21,10 @@
 “代码已做”不等于“自动化通过”；“自动化通过”不等于“真实验收”；“发布候选通过”不等于“已发布”。
 未验证一律写“未验/待验”，不写“已完成”“已通过”“已上线”。
 
-小功能状态格使用 `代码/自动/真实/交付` 四档标签；“全量矩阵”仅指 PR203 候选分支的全量回归，
-不代替未单独追溯项目的逐项自动化证据。核验锚点为
-`main@8c2c1b995f76a98772665d070586cf98e25385fe` 与 `PR203@cce1d5de`，均于 2026-11-21 核对。
+小功能状态格使用 `代码/自动/真实/交付` 四档标签；“全量矩阵”仅指 PR203 候选分支的历史全量
+回归，不代替未单独追溯项目的逐项自动化证据。历史矩阵继续绑定
+`main@8c2c1b995f76a98772665d070586cf98e25385fe` 与 `PR203@cce1d5de`（2026-11-21 核对）；
+2026-11-26 当前验收 worktree 基线为 `ccc258442be841a59bb19a3f1c9b061fe55b7d1e`。
 
 ## 当前版本与 PR/main 关系
 
@@ -36,25 +37,46 @@
   - [PR202](https://github.com/sunpcm/EchoTalk/pull/202) `8c2c1b9`：B2 学习事件 / 无 Key 资产。
 - 当前 open PR 共 2 条：
   - [PR142](https://github.com/sunpcm/EchoTalk/pull/142)（历史 Draft，head `2de5184`）：A4a 只读查询控制器。相关只读 data 能力后来已通过 PR149 进入 `main`，本 PR 剩余旧分支差异待核对，由用户决定关闭或保留，不自动 merge/close，也不是“A4a 还没开发”。
-  - [PR203](https://github.com/sunpcm/EchoTalk/pull/203)（head `cce1d5de`）：SGEC 接线（14 文件，SGEC 开关默认 false），open/unmerged，**不得写成已合 main 或已上线**。
+  - [PR203](https://github.com/sunpcm/EchoTalk/pull/203)：SGEC 接线，当前验收基线
+    `ccc2584`，open/unmerged；新修复候选未合 `main`，远端 CI 以实际 PR head 为准，
+    **不得写成已合 main 或已上线**。
 - 2026-11-21 曾暂停 iOS 及全部后续产品开发；2026-11-23 已改为有界恢复：受控读取凭据状态 →
   两次固定只读 GET → 仅按实测做最小修复 → 真实验收 → 再判断新功能。总产品验收预算为
   **10 USD**，仅限隔离验收范围并沿用既有逐步授权；不部署、不扩 iOS、不自动启动服务或超预算。
-- 截至 2026-11-23，新 Key 已隐藏更新，但最新 MCP 回读为 `Account is locked`，reauth 300 秒
-  超时；新 Key 尚无已确认 HTTP 请求，旧 Key 的两次 401 不足以判断模型无权限或接口退役。
-  原生账号尚待解锁，真实验收仍为 pending；脱敏双 GET 前检和本轮两评论最小修复为本分支新增，
-  未合 `main`/未真实验收；本轮远端 CI 以 PR203 当前 head 检查为准。
+- 2026-11-26 凭据来源：专用 1Password Environment 已整理为唯一 6 字段；旧重复
+  Environment 已确认无挂载并进入可逆归档路径。SGEC 进程统一复用单一
+  `SILICONFLOW_API_KEY`；本页不记录 Key、账号 ID 或 Environment ID。
+- 2026-11-26 只读鉴权：中国站目录 `GET /v1/models?sub_type=chat` 返回 `200`，列出 59 个模型且
+  `Qwen/Qwen3-30B-A3B-Instruct-2507` 在列；STT `200`、TTS `200`、LiveKit 过滤房间查询成功。
+  同一有效 Key 对历史 `GET /v1/user/info` 返回 `410`，该地址仅保留诊断；另一个旧 Key 返回
+  `401`，不能与本次有效 Key 的结果混淆。
+- 2026-11-26 生产凭据校验：SiliconFlow `verified`、TTS `verified`；STT 本次为
+  `timeout`，其先前独立 GET 曾返回 `200`，不能据此声称 Provider 已失效。
+- 2026-11-26 SGEC 实际发送：选定模型一次 POST 返回 HTTP `402`，错误为
+  `sgec_llm_transport_failed`，没有有效响应；按
+  [官方错误码 FAQ](https://docs.siliconflow.cn/docs/userguide/faqs/error-code)，`402` 表示
+  账户欠费，应充值后再试，本轮不自充。本机受限 `.env` 已完成受控注入实测（不记录路径或
+  密钥）；目录实际列出的公开 free 模型 `Qwen/Qwen2.5-7B-Instruct` 一次 POST 也返回 HTTP
+  `402`。原模型与 free 均无有效推理响应；此前 exit `9` 只是历史未确认试次，不再重试或充值。
+- 上述状态只证明鉴权/目录与本轮请求边界。正确 SDK HTTP context 后，Cartesia
+  `sonic-3` 合成 16 帧/1.61 秒通过；该音频交给 Deepgram `nova-3` 未识别出文本，
+  独立本机 16k、2.053 秒合成句识别通过且预期词语完全匹配。初次两次 `APIConnectionError` 是
+  harness 缺少 `http_context.open()`，不作为 Provider 失败。完整双向 LiveKit 媒体、账本、
+  Gold、付费金额及完整 SGEC 链路仍未验，不能计为完成。
 
 ## 历史验证矩阵（PR203 候选分支，主控 2026-11-21 实际回读）
 
 以下数字只绑定 PR203 分支 `cce1d5de`，不等同 `main`，也不证明真实外部依赖已验收。
 
-2026-11-23 当前最小修复节点：backend 全树 1778 passed / 3 warnings / coverage 81.90%
-（PG 15.19 专用库）；Vitest 1429、Playwright 326 通过，前端/依赖相关文件相对 baseline
-逐字节未改，沿用本轮新鲜前端树证据。另有 132 项定向纯测试、22 项私有探针（原 2 RED
-现 GREEN）、运行时 4 变异 + 前检 4 变异均杀死并原字节恢复为 GREEN。以上自动化不等于真实
-API；真实请求仍为 pending，远端 CI 以 PR203 当前 head 检查为准，不能用下方 11/21 历史
-矩阵代替本轮结果。
+2026-11-23 历史最小修复节点（继续绑定 `cce1d5de`）：backend 全树 1778 passed / 3 warnings /
+coverage 81.90%（PG 15.19 专用库）；Vitest 1429、Playwright 326 通过，前端/依赖相关文件
+相对该历史 baseline 逐字节未改。另有 132 项定向纯测试、22 项私有探针（原 2 RED 现 GREEN）、
+运行时 4 变异 + 前检 4 变异均杀死并原字节恢复为 GREEN。这组历史自动化不证明真实 API。
+
+2026-11-26 当前候选的 backend 全树为 1787 passed / 3 warnings / coverage 81.94%
+（PG 15.19 专用库从 tmpfs 空库重建，未变更迁移源码）；独立定向 90、私有 17、Vitest 1429、
+Playwright 326 已通过。另有 3 项私有变异（旧 URL、redirect、旧 gate）均
+GREEN→RED→恢复 GREEN。远端 CI 以 PR 实际 head 为准，不能用上述历史或局部结果替代。
 
 | 项目                | 结果                                                                                            |
 | ------------------- | ----------------------------------------------------------------------------------------------- |
@@ -176,14 +198,14 @@ docs/                          架构、契约与验收资料
 
 ### ANAL 分析、发音、语法与 SGEC
 
-| 稳定 ID   | 已做内容                                                                                                                                    | 代码归属                                                                                                                                                                                 | 自动化与真实边界                                                                                                           | 剩余项                                  |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `ANAL-01` | 持久化分析 Job：会话结束事务建唯一 Job、Worker 领取、有限重试、stale 恢复、队列诊断；成功 Job 不开放重分析                                  | [analysis_worker.py](backend/workers/analysis_worker.py)、[test_analysis_jobs.py](backend/tests/test_analysis_jobs.py)、[test_analysis_worker.py](backend/tests/test_analysis_worker.py) | 代码：已实现<br>自动：全量矩阵<br>真实：未验<br>交付：已合入主线；未部署/上架                                              | —                                       |
-| `ANAL-02` | 发音 Provider `DemoMockPronunciationProvider`（文本模拟音素）；`USE_MOCK_ELSA=False` 为 not_called/disabled，不调真实 Provider、不阻断语法  | [assessment_providers.py](backend/services/assessment_providers.py)、[test_assessment_providers.py](backend/tests/test_assessment_providers.py)                                          | 代码：仅文本模拟<br>自动：全量矩阵<br>真实：未验<br>交付：已合入主线；真实发音未交付                                       | 真声学 ELSA/第三方评分                  |
-| `ANAL-03` | 语法评估：DemoRule 文本规则；真实 SGEC 经 `GrammarProvider` 提供 source/provider/model_version/synthetic/confidence；synthetic 不写真实知识 | [assessment_providers.py](backend/services/assessment_providers.py)、[test_assessment_providers.py](backend/tests/test_assessment_providers.py)                                          | 代码：Demo 已实现；真实语法在 PR203<br>自动：全量矩阵<br>真实：真实 Provider 未验<br>交付：Demo 已合入主线；真实语法未交付 | 真实 API model/version/key、人工 gold=0 |
-| `ANAL-04` | SGEC 离线契约（**仅**结构 validator、CLI、24 合成候选）已合 main PR194                                                                      | [sgec_offline.py](backend/services/sgec_offline.py)、[test_sgec_offline.py](backend/tests/test_sgec_offline.py)、[CLI](backend/scripts/evaluate_sgec_offline.py)                         | 代码：已实现<br>自动：全量矩阵<br>真实：不调用真实 Provider<br>交付：已合入主线；未部署/上架                               | 不含 adapter/transport/wiring           |
-| `ANAL-05` | SGEC 接线：Adapter、OpenAI-compatible Provider、HTTPS transport、严格 JSON/超时/取消/关闭、整批拒绝/duplicate/unknown/blank/confidence 保真 | [PR203](https://github.com/sunpcm/EchoTalk/pull/203)、[test_sgec_adapter.py](backend/tests/test_sgec_adapter.py)、[test_sgec_pipeline.py](backend/tests/test_sgec_pipeline.py)           | 代码：PR203 候选<br>自动：全量矩阵及 PG 定向<br>真实：API/gold=0 未验<br>交付：PR203 未合入 main                           | 真实 API model/version/key、人工 gold=0 |
-| `ANAL-06` | 未实现：发音真实评估的音频切片采集设计                                                                                                      | —                                                                                                                                                                                        | 代码：未实现<br>自动：未测试<br>真实：未验<br>交付：未交付                                                                 | 全部                                    |
+| 稳定 ID   | 已做内容                                                                                                                                                                | 代码归属                                                                                                                                                                                 | 自动化与真实边界                                                                                                                                                                                                        | 剩余项                                              |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `ANAL-01` | 持久化分析 Job：会话结束事务建唯一 Job、Worker 领取、有限重试、stale 恢复、队列诊断；成功 Job 不开放重分析                                                              | [analysis_worker.py](backend/workers/analysis_worker.py)、[test_analysis_jobs.py](backend/tests/test_analysis_jobs.py)、[test_analysis_worker.py](backend/tests/test_analysis_worker.py) | 代码：已实现<br>自动：全量矩阵<br>真实：未验<br>交付：已合入主线；未部署/上架                                                                                                                                           | —                                                   |
+| `ANAL-02` | 发音 Provider `DemoMockPronunciationProvider`（文本模拟音素）；`USE_MOCK_ELSA=False` 为 not_called/disabled，不调真实 Provider、不阻断语法                              | [assessment_providers.py](backend/services/assessment_providers.py)、[test_assessment_providers.py](backend/tests/test_assessment_providers.py)                                          | 代码：仅文本模拟<br>自动：全量矩阵<br>真实：未验<br>交付：已合入主线；真实发音未交付                                                                                                                                    | 真声学 ELSA/第三方评分                              |
+| `ANAL-03` | 语法评估：DemoRule 文本规则；真实 SGEC 经 `GrammarProvider` 提供 source/provider/model_version/synthetic/confidence；synthetic 不写真实知识                             | [assessment_providers.py](backend/services/assessment_providers.py)、[test_assessment_providers.py](backend/tests/test_assessment_providers.py)                                          | 代码：Demo 已实现；真实语法在 PR203<br>自动：历史矩阵绑定 `cce1d5de`；11/26 定向结果见验收状态<br>真实：鉴权局部通过，SGEC POST HTTP 402 且无有效响应<br>交付：Demo 已合入主线；真实语法未交付                          | 账户欠费充值/真实推理/version、人工 gold=0          |
+| `ANAL-04` | SGEC 离线契约（**仅**结构 validator、CLI、24 合成候选）已合 main PR194                                                                                                  | [sgec_offline.py](backend/services/sgec_offline.py)、[test_sgec_offline.py](backend/tests/test_sgec_offline.py)、[CLI](backend/scripts/evaluate_sgec_offline.py)                         | 代码：已实现<br>自动：全量矩阵<br>真实：不调用真实 Provider<br>交付：已合入主线；未部署/上架                                                                                                                            | 不含 adapter/transport/wiring                       |
+| `ANAL-05` | SGEC 接线：Adapter、OpenAI-compatible Provider、HTTPS transport、严格 JSON/超时/取消/关闭、整批拒绝/duplicate/unknown/blank/confidence 保真；validator 改用模型目录鉴权 | [PR203](https://github.com/sunpcm/EchoTalk/pull/203)、[test_sgec_adapter.py](backend/tests/test_sgec_adapter.py)、[test_sgec_pipeline.py](backend/tests/test_sgec_pipeline.py)           | 代码：PR203 validator 修复候选待 Review<br>自动：历史矩阵绑定 `cce1d5de`；11/26 backend 全树 1787 passed / 3 warnings / coverage 81.94%<br>真实：四家鉴权局部通过；SGEC HTTP 402，无有效响应<br>交付：PR203 未合入 main | 账户欠费、成功推理、完整语音媒体/账本/Gold/付费金额 |
+| `ANAL-06` | 未实现：发音真实评估的音频切片采集设计                                                                                                                                  | —                                                                                                                                                                                        | 代码：未实现<br>自动：未测试<br>真实：未验<br>交付：未交付                                                                                                                                                              | 全部                                                |
 
 PR202 已合入主线的无 Key 预备资产（合成候选与待标模板，非人工 gold；本任务人工 gold=0）：
 [SGEC 24 条合成候选](docs/evaluation/sgec_candidates.v1.json)、
@@ -192,6 +214,12 @@ PR202 已合入主线的无 Key 预备资产（合成候选与待标模板，非
 [盲标指南](docs/GOLD_ANNOTATION_GUIDE.md)、
 [真实流程受控工具](backend/scripts/real_flow_acceptance.py)（plan/probe/verify/execute 计划、探测、校验、执行阶段）。
 这些资产为后续真实 API 与人工标注提供准备；现有离线脚本不证明真实链路通过，真实环境仍未验。
+
+2026-11-26 validator 存在两层不同门禁，详细契约见
+[SGEC API 验收 §5](docs/SGEC_API_ACCEPTANCE.md#5-sgec-api-脱敏只读前检)：生产
+`ProviderValidationService` 对 `GET /v1/models?sub_type=chat` 只要求 HTTP `200`；
+`siliconflow_preflight execute` 在 `200` 之外还要求合法 schema 与选定模型在列。历史
+`/v1/user/info` 仅作前检诊断，`410`/`401`/网络失败都不否定已通过的新目录门禁。
 
 ### BKT 与学习事件
 
@@ -248,31 +276,31 @@ PR202 已合入主线的无 Key 预备资产（合成候选与待标模板，非
 每项给稳定任务 ID，标明关联模块、当前状态、下一步与验收条件、卡点/前提、是否待用户裁定。
 “本地 ID”指未在 GitHub 单独开单，仅在本总账维护；11/23 的有界恢复不等于扩大 iOS 或其他待裁定范围。
 
-| 任务 ID    | 关联模块                | 当前状态                                                    | 下一步与验收条件                                                                                                                                                                                                          | 卡点/前提                            | 待裁定 |
-| ---------- | ----------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------ |
-| `AUTH-T1`  | AUTH-03                 | 独立 macOS 探针已实现，产品集成未完成                       | 原生认证/长期凭据/并发续期接入共享产品，验证账号切换、取消/错误回调、音频安全清理；真机组合闭环                                                                                                                           | 真实 IdP、iOS 设备；产品暂停         | 是     |
-| `AUTH-T2`  | AUTH-04/05              | API 已实现，前端入口未接                                    | 前端导出/注销入口，生产数据验证                                                                                                                                                                                           | 产品 UI 决策                         | 是     |
-| `VOICE-T1` | VOICE-01/07、SESS-01/02 | 基础语音已实现、待真实验收；Cloud 多端接管待接线            | `CALL_LEASE_MODE=disabled` 时独立验收基础语音：真实 IdP→LiveKit/Agent 双向语音→结束→分析→报告全链路，5 分钟 5 轮，并覆盖失败类（拒绝权限/弱网/中断/重启/账号切换）；Cloud 多端接管部分在完成 SESS-T1 后再验（含双端冲突） | 真实密钥/设备/媒体                   | 是     |
-| `SESS-T1`  | SESS-02                 | 原语+独立 controller 已实现，产品 Cloud 启动/恢复/UI 未接线 | 产品共享启动/恢复/UI 接线；Cloud 多端真实接管/旧端媒体撤销/失效清理                                                                                                                                                       | 真实环境                             | 是     |
-| `DOC-T1`   | DOC-03                  | 真机文件选择未验                                            | DocTalk 真机文件导入，验证取消不丢草稿、读取失败/空文件/编码/超限提示                                                                                                                                                     | iOS 设备                             | 是     |
-| `ANAL-T1`  | ANAL-03/05              | PR203 待合；前检及两评论最小修复在分支 Review；真实 pending | 按“受控读取→两 GET→按实测最小修复→真实 API smoke/人工 gold→新功能”推进；PG/全树/远端 CI 由主控执行                                                                                                                        | 原生解锁；10 USD 隔离预算；gold 标注 | 是     |
-| `ANAL-T2`  | ANAL-06                 | 未实现                                                      | 设计音频切片采集（存储/保留期/授权/删除）                                                                                                                                                                                 | 隐私口径                             | 是     |
-| `BKT-T1`   | BKT-06                  | 真实生产未验                                                | 另定生产变更计划（迁移/维护窗口/备份恢复）                                                                                                                                                                                | 生产授权                             | 是     |
-| `GOAL-T1`  | GOAL-01/03              | 技术已实现，真实教学未验                                    | 人工 gold 与真实教学泛化                                                                                                                                                                                                  | 教学标注                             | 是     |
-| `WEEK-T1`  | WEEK-03/04              | 未实现                                                      | 明确有效时长/掌握度环比/发音/焦虑语速/下周重点口径并实现                                                                                                                                                                  | 指标口径与真实输入                   | 是     |
-| `BYOK-T1`  | BYOK-01/02              | 新 Key 已隐藏更新但账号锁定；尚无确认 HTTP                  | 真实 Provider 校验与凭据轮换/撤销，验证脱敏、失败短路、不静默回退                                                                                                                                                         | 原生解锁；旧 Key 两 401 不足         | 是     |
-| `BYOK-T2`  | BYOK-04                 | i18n 框架未实施                                             | 正式 i18n 框架、语言切换、多语言                                                                                                                                                                                          | 范围决策                             | 是     |
-| `BYOK-T3`  | BYOK-03                 | 深色可读性/设备读屏未验                                     | 全产品可访问性审计，覆盖暖/冷/暗深浅主题的对比度、键盘与读屏；真实 iOS/macOS 设备读屏、深色模式实测；以真实 IdP/LiveKit/媒体环境可用为前提                                                                                | 产品恢复后的设备与真实环境授权       | 是     |
-| `PLAT-T1`  | PLAT-01                 | iOS 暂停                                                    | 真机登录/音频/中断/签名/TestFlight                                                                                                                                                                                        | 设备、签名；已暂停                   | 是     |
-| `PLAT-T2`  | PLAT-02                 | macOS 未接产品 UI                                           | CP-03 方案定案后接产品 UI 与设备验证                                                                                                                                                                                      | 设备证据                             | 是     |
-| `PLAT-T3`  | PLAT-04                 | required-check 未核                                         | 核验分支保护与 mass-deletion guard 配置                                                                                                                                                                                   | 仓库管理权限                         | 是     |
-| `PLAT-T4`  | PLAT-03                 | 真实整栈未验                                                | 真实 Compose 起栈/宿主入口/生产部署，验证发布回滚与回退                                                                                                                                                                   | 环境与部署授权                       | 是     |
-| `PLAT-T5`  | PLAT-05                 | 未实现                                                      | 数字人前端与音视频同步 + 独立设计                                                                                                                                                                                         | 范围决策                             | 是     |
-| `PLAT-T6`  | PLAT-06/07              | 未实现                                                      | Android/Windows/后台语音/接力等按需立项                                                                                                                                                                                   | 产品范围                             | 是     |
-| `OPS-T1`   | 工程                    | 遗留                                                        | WebKit weekly-grammar 偶发：先复现并确认根因，修复后 WebKit 无重试重复 ≥20 次全过，不放宽断言/不增重试                                                                                                                    | 复现与根因                           | 否     |
-| `OPS-T2`   | 部署                    | 未验                                                        | #102 Chroma CVE 旧部署适用性核验；部署日志 Key 排查与轮换                                                                                                                                                                 | 部署环境                             | 是     |
-| `OPS-T3`   | 工程                    | 遗留                                                        | 本地 worktree 清理                                                                                                                                                                                                        | 用户决定                             | 是     |
-| `OPS-T4`   | 依赖/安全               | 未做                                                        | SDK 升级（LiveKit/OpenAI/Vite/Vitest/TS）与 Turn Detector/language_hint 评估；#200/#201 补丁候选只作待核建议，不自动升级依赖                                                                                              | RF-12 前置；#30/#116/#127            | 是     |
+| 任务 ID    | 关联模块                | 当前状态                                                                     | 下一步与验收条件                                                                                                                                                                                                          | 卡点/前提                            | 待裁定 |
+| ---------- | ----------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------ |
+| `AUTH-T1`  | AUTH-03                 | 独立 macOS 探针已实现，产品集成未完成                                        | 原生认证/长期凭据/并发续期接入共享产品，验证账号切换、取消/错误回调、音频安全清理；真机组合闭环                                                                                                                           | 真实 IdP、iOS 设备；产品暂停         | 是     |
+| `AUTH-T2`  | AUTH-04/05              | API 已实现，前端入口未接                                                     | 前端导出/注销入口，生产数据验证                                                                                                                                                                                           | 产品 UI 决策                         | 是     |
+| `VOICE-T1` | VOICE-01/07、SESS-01/02 | 基础语音已实现、待真实验收；Cloud 多端接管待接线                             | `CALL_LEASE_MODE=disabled` 时独立验收基础语音：真实 IdP→LiveKit/Agent 双向语音→结束→分析→报告全链路，5 分钟 5 轮，并覆盖失败类（拒绝权限/弱网/中断/重启/账号切换）；Cloud 多端接管部分在完成 SESS-T1 后再验（含双端冲突） | 真实密钥/设备/媒体                   | 是     |
+| `SESS-T1`  | SESS-02                 | 原语+独立 controller 已实现，产品 Cloud 启动/恢复/UI 未接线                  | 产品共享启动/恢复/UI 接线；Cloud 多端真实接管/旧端媒体撤销/失效清理                                                                                                                                                       | 真实环境                             | 是     |
+| `DOC-T1`   | DOC-03                  | 真机文件选择未验                                                             | DocTalk 真机文件导入，验证取消不丢草稿、读取失败/空文件/编码/超限提示                                                                                                                                                     | iOS 设备                             | 是     |
+| `ANAL-T1`  | ANAL-03/05              | PR203 待合；最小修复在分支 Review；鉴权/目录局部通过，真实推理被账户欠费阻塞 | 按“受控读取→两 GET→按实测最小修复→真实 API smoke/人工 gold→新功能”推进；成功推理须先完成账户充值边界，人工 gold 仍为 0                                                                                                    | 账户欠费；10 USD 隔离预算；gold 标注 | 是     |
+| `ANAL-T2`  | ANAL-06                 | 未实现                                                                       | 设计音频切片采集（存储/保留期/授权/删除）                                                                                                                                                                                 | 隐私口径                             | 是     |
+| `BKT-T1`   | BKT-06                  | 真实生产未验                                                                 | 另定生产变更计划（迁移/维护窗口/备份恢复）                                                                                                                                                                                | 生产授权                             | 是     |
+| `GOAL-T1`  | GOAL-01/03              | 技术已实现，真实教学未验                                                     | 人工 gold 与真实教学泛化                                                                                                                                                                                                  | 教学标注                             | 是     |
+| `WEEK-T1`  | WEEK-03/04              | 未实现                                                                       | 明确有效时长/掌握度环比/发音/焦虑语速/下周重点口径并实现                                                                                                                                                                  | 指标口径与真实输入                   | 是     |
+| `BYOK-T1`  | BYOK-01/02              | 新 Key 已隐藏更新但账号锁定；尚无确认 HTTP                                   | 真实 Provider 校验与凭据轮换/撤销，验证脱敏、失败短路、不静默回退                                                                                                                                                         | 原生解锁；旧 Key 两 401 不足         | 是     |
+| `BYOK-T2`  | BYOK-04                 | i18n 框架未实施                                                              | 正式 i18n 框架、语言切换、多语言                                                                                                                                                                                          | 范围决策                             | 是     |
+| `BYOK-T3`  | BYOK-03                 | 深色可读性/设备读屏未验                                                      | 全产品可访问性审计，覆盖暖/冷/暗深浅主题的对比度、键盘与读屏；真实 iOS/macOS 设备读屏、深色模式实测；以真实 IdP/LiveKit/媒体环境可用为前提                                                                                | 产品恢复后的设备与真实环境授权       | 是     |
+| `PLAT-T1`  | PLAT-01                 | iOS 暂停                                                                     | 真机登录/音频/中断/签名/TestFlight                                                                                                                                                                                        | 设备、签名；已暂停                   | 是     |
+| `PLAT-T2`  | PLAT-02                 | macOS 未接产品 UI                                                            | CP-03 方案定案后接产品 UI 与设备验证                                                                                                                                                                                      | 设备证据                             | 是     |
+| `PLAT-T3`  | PLAT-04                 | required-check 未核                                                          | 核验分支保护与 mass-deletion guard 配置                                                                                                                                                                                   | 仓库管理权限                         | 是     |
+| `PLAT-T4`  | PLAT-03                 | 真实整栈未验                                                                 | 真实 Compose 起栈/宿主入口/生产部署，验证发布回滚与回退                                                                                                                                                                   | 环境与部署授权                       | 是     |
+| `PLAT-T5`  | PLAT-05                 | 未实现                                                                       | 数字人前端与音视频同步 + 独立设计                                                                                                                                                                                         | 范围决策                             | 是     |
+| `PLAT-T6`  | PLAT-06/07              | 未实现                                                                       | Android/Windows/后台语音/接力等按需立项                                                                                                                                                                                   | 产品范围                             | 是     |
+| `OPS-T1`   | 工程                    | 遗留                                                                         | WebKit weekly-grammar 偶发：先复现并确认根因，修复后 WebKit 无重试重复 ≥20 次全过，不放宽断言/不增重试                                                                                                                    | 复现与根因                           | 否     |
+| `OPS-T2`   | 部署                    | 未验                                                                         | #102 Chroma CVE 旧部署适用性核验；部署日志 Key 排查与轮换                                                                                                                                                                 | 部署环境                             | 是     |
+| `OPS-T3`   | 工程                    | 遗留                                                                         | 本地 worktree 清理                                                                                                                                                                                                        | 用户决定                             | 是     |
+| `OPS-T4`   | 依赖/安全               | 未做                                                                         | SDK 升级（LiveKit/OpenAI/Vite/Vitest/TS）与 Turn Detector/language_hint 评估；#200/#201 补丁候选只作待核建议，不自动升级依赖                                                                                              | RF-12 前置；#30/#116/#127            | 是     |
 
 ## GitHub open issues 索引（17 条，2026-11-21 只读快照）
 

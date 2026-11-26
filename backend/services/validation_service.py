@@ -55,13 +55,19 @@ class ProviderValidationService:
         *,
         url: str,
         headers: dict[str, str],
+        allow_redirects: bool | None = None,
     ) -> ProviderValidationResult:
         if not api_key:
             return ProviderValidationResult(False, "missing_key")
         timeout = aiohttp.ClientTimeout(total=cls.REQUEST_TIMEOUT_SECONDS)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, headers=headers) as response:
+                request_options: dict[str, bool] = {}
+                if allow_redirects is not None:
+                    request_options["allow_redirects"] = allow_redirects
+                async with session.get(
+                    url, headers=headers, **request_options
+                ) as response:
                     if response.status == 200:
                         return ProviderValidationResult(True, "verified")
                     if response.status in {401, 403}:
@@ -107,6 +113,7 @@ class ProviderValidationService:
             api_key,
             url=meta.validation_url,
             headers={"Authorization": f"Bearer {api_key}"},
+            allow_redirects=False if provider == "siliconflow" else None,
         )
 
     @classmethod

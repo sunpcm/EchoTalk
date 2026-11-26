@@ -60,7 +60,7 @@ async def test_unsupported_provider_has_stable_error(method, provider):
         (
             "validate_llm_key",
             "siliconflow",
-            "https://api.siliconflow.cn/v1/user/info",
+            "https://api.siliconflow.cn/v1/models?sub_type=chat",
             {"Authorization": "Bearer secret-value"},
         ),
         (
@@ -86,23 +86,30 @@ async def test_successful_provider_validation(
         )
     assert result.ok is True
     assert result.code == "verified"
-    request.assert_called_once_with(expected_url, headers=expected_headers)
+    expected_kwargs = {"headers": expected_headers}
+    if provider == "siliconflow":
+        expected_kwargs["allow_redirects"] = False
+    request.assert_called_once_with(expected_url, **expected_kwargs)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("status", "code"),
+    ("provider", "status", "code"),
     [
-        (401, "auth_error"),
-        (403, "auth_error"),
-        (429, "rate_limited"),
-        (500, "provider_error"),
+        ("siliconflow", 401, "auth_error"),
+        ("siliconflow", 403, "auth_error"),
+        ("siliconflow", 429, "rate_limited"),
+        ("siliconflow", 500, "provider_error"),
+        ("openrouter", 401, "auth_error"),
+        ("openrouter", 403, "auth_error"),
+        ("openrouter", 429, "rate_limited"),
+        ("openrouter", 500, "provider_error"),
     ],
 )
-async def test_http_failures_are_classified(status, code):
+async def test_http_failures_are_classified(provider, status, code):
     with mock_aiohttp_get(status=status):
         result = await ProviderValidationService.validate_llm_key(
-            "openrouter", "secret-value"
+            provider, "secret-value"
         )
     assert result.ok is False
     assert result.code == code
@@ -144,10 +151,34 @@ async def test_validate_llm_key_derived_from_catalog():
             )
             assert res.ok is True
             assert res.code == "verified"
+            expected_kwargs = {"headers": {"Authorization": "Bearer catalog-secret"}}
+            if provider == "siliconflow":
+                expected_kwargs["allow_redirects"] = False
             request.assert_called_once_with(
                 meta.validation_url,
-                headers={"Authorization": "Bearer catalog-secret"},
+                **expected_kwargs,
             )
+
+
+@pytest.mark.asyncio
+async def test_siliconflow_validation_uses_models_directory_without_redirects():
+    """生产校验只直连当前目录 URL，不跟随重定向或调用退役 user/info。"""
+    models_url = "https://api.siliconflow.cn/v1/models?sub_type=chat"
+    legacy_url = "https://api.siliconflow.cn/v1/user/info"
+
+    with mock_aiohttp_get(status=200) as request:
+        result = await ProviderValidationService.validate_llm_key(
+            "siliconflow", "catalog-secret"
+        )
+
+    assert result.ok is True
+    assert result.code == "verified"
+    request.assert_called_once_with(
+        models_url,
+        headers={"Authorization": "Bearer catalog-secret"},
+        allow_redirects=False,
+    )
+    assert request.call_args.args[0] != legacy_url
 
 
 @pytest.mark.asyncio

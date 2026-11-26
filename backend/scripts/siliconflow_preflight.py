@@ -360,25 +360,24 @@ def execute_preflight(
     model_ids = directory.pop("_model_ids", None)
     if model_ids is None:
         permission = "NOT_VERIFIED"
+        current_gate = "NOT_VERIFIED"
     elif selected_model in model_ids:
         directory["selected_model_listed"] = True
         permission = "MODEL_LISTED"
+        current_gate = "PASS"
     else:
         directory["selected_model_listed"] = False
         permission = "MODEL_NOT_LISTED"
+        current_gate = "FAIL"
 
     legacy = _legacy_facts(legacy_response)
-    passed = (
-        directory["error_category"] is None
-        and directory["selected_model_listed"] is True
-        and legacy["error_category"] is None
-        and legacy["gate"] == "HTTP_200"
-    )
+    passed = current_gate == "PASS"
     return {
         "check_id": CHECK_ID,
         "mode": "execute",
         "selected_model": selected_model,
         "result": "PREFLIGHT_OK" if passed else "PREFLIGHT_FAILED",
+        "current_gate": current_gate,
         "permission": permission,
         "directory": directory,
         "legacy_validation": legacy,

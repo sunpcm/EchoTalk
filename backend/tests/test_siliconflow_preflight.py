@@ -215,6 +215,7 @@ def test_directory_200_listed_and_legacy_200_pass():
         TransportResponse(http_status=200, body=b'{"balance":"not-whitelisted"}'),
     )
     assert document["result"] == "PREFLIGHT_OK"
+    assert document["current_gate"] == "PASS"
     assert document["permission"] == "MODEL_LISTED"
     assert document["directory"] == {
         "http_status": 200,
@@ -238,6 +239,7 @@ def test_directory_200_unlisted_is_verified_failure():
         TransportResponse(http_status=200, body=b"{}"),
     )
     assert document["result"] == "PREFLIGHT_FAILED"
+    assert document["current_gate"] == "FAIL"
     assert document["permission"] == "MODEL_NOT_LISTED"
     assert document["directory"]["selected_model_listed"] is False
     assert execution_exit_code(document) == EXIT_VERIFICATION_FAILED
@@ -253,6 +255,7 @@ def test_directory_http_failures_never_claim_unlisted(status: int, category: str
         TransportResponse(http_status=200, body=b"{}"),
     )
     assert document["result"] == "PREFLIGHT_FAILED"
+    assert document["current_gate"] == "NOT_VERIFIED"
     assert document["permission"] == "NOT_VERIFIED"
     assert document["directory"] == {
         "http_status": status,
@@ -263,7 +266,7 @@ def test_directory_http_failures_never_claim_unlisted(status: int, category: str
     }
 
 
-def test_legacy_410_is_explicit_failure():
+def test_directory_200_and_legacy_410_pass_current_gate():
     document, _ = _execute(
         TransportResponse(
             http_status=200,
@@ -271,28 +274,45 @@ def test_legacy_410_is_explicit_failure():
         ),
         TransportResponse(http_status=410, body=b"upstream body"),
     )
-    assert document["result"] == "PREFLIGHT_FAILED"
+    assert document["result"] == "PREFLIGHT_OK"
+    assert document["current_gate"] == "PASS"
     assert document["legacy_validation"] == {
         "http_status": 410,
         "error_category": "legacy_gone",
         "gate": "LEGACY_GONE",
     }
-    assert execution_exit_code(document) == EXIT_VERIFICATION_FAILED
+    assert execution_exit_code(document) == EXIT_OK
 
 
-@pytest.mark.parametrize("status", [201, 204])
-def test_legacy_other_2xx_statuses_do_not_pass(status: int):
+@pytest.mark.parametrize(
+    ("legacy", "error_category"),
+    [
+        (TransportResponse(http_status=401, body=b"{}"), "auth_rejected"),
+        (TransportResponse(http_status=403, body=b"{}"), "auth_rejected"),
+        (TransportResponse(http_status=429, body=b"{}"), "rate_limited"),
+        (TransportResponse(http_status=201, body=b"{}"), "http_error"),
+        (TransportResponse(http_status=204, body=b"{}"), "http_error"),
+        (
+            TransportResponse(error_category="network_error"),
+            "network_error",
+        ),
+    ],
+)
+def test_legacy_status_is_diagnostic_only(
+    legacy: TransportResponse,
+    error_category: str | None,
+):
     document, _ = _execute(
         TransportResponse(
             http_status=200,
             body=_model_document(DEFAULT_MODEL),
         ),
-        TransportResponse(http_status=status, body=b"{}"),
+        legacy,
     )
-    assert document["result"] == "PREFLIGHT_FAILED"
-    assert document["legacy_validation"]["gate"] == "HTTP_ERROR"
-    assert document["legacy_validation"]["error_category"] == "http_error"
-    assert execution_exit_code(document) == EXIT_VERIFICATION_FAILED
+    assert document["result"] == "PREFLIGHT_OK"
+    assert document["current_gate"] == "PASS"
+    assert document["legacy_validation"]["error_category"] == error_category
+    assert execution_exit_code(document) == EXIT_OK
 
 
 def test_transport_errors_are_fixed_and_selected_state_is_null():
@@ -302,6 +322,7 @@ def test_transport_errors_are_fixed_and_selected_state_is_null():
             TransportResponse(error_category=category),
         )
         assert document["permission"] == "NOT_VERIFIED"
+        assert document["current_gate"] == "NOT_VERIFIED"
         assert document["directory"]["selected_model_listed"] is None
         assert document["directory"]["error_category"] == category
         assert document["legacy_validation"]["gate"] == "NOT_VERIFIED"
@@ -334,6 +355,7 @@ def test_malformed_or_duplicate_directory_is_not_verified(body: bytes):
         TransportResponse(http_status=200, body=b"{}"),
     )
     assert document["directory"]["selected_model_listed"] is None
+    assert document["current_gate"] == "NOT_VERIFIED"
     assert document["permission"] == "NOT_VERIFIED"
     assert document["directory"]["error_category"] in {
         "invalid_json",
@@ -505,6 +527,7 @@ def test_directory_contract_rejects_missing_or_wrong_root_object():
         )
         assert document["directory"]["error_category"] == "unexpected_schema"
         assert document["directory"]["selected_model_listed"] is None
+        assert document["current_gate"] == "NOT_VERIFIED"
         assert document["permission"] == "NOT_VERIFIED"
 
 
