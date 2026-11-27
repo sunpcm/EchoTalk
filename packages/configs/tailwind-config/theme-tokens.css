@@ -9,28 +9,28 @@
  * bg-surface / text-muted / bg-accent 这类 utility class。
  */
 
-/* ============ 暖色（默认，橙色系）============ */
+/* ============ 暖色（默认，纸墨绿系）============ */
 :root {
-  --bg: #fbf7f1;
+  --bg: #faf7f1;
   --surface: #ffffff;
-  --surface-alt: #fbf7f1;
+  --surface-alt: #faf7f1;
   --border: #efe7dc;
   --border-soft: #f0e7da;
   --control-border: #857b70;
   --text: #2c2620;
-  --text-muted: #6e6760;
+  --text-muted: #6b645c;
   --text-faint: #766f67;
-  --accent: #af4c35;
-  --accent-hover: #963f2b;
-  --accent-grad-1: #fb9268;
-  --accent-soft-bg: #fdebe3;
-  --accent-soft-bg-strong: #fbdccd;
-  --accent-soft-text: #af3f25;
-  --accent-soft-border: #f9c7b4;
+  --accent: #17402c;
+  --accent-hover: #0e2b1d;
+  --accent-grad-1: #3f7653;
+  --accent-soft-bg: #e8efe9;
+  --accent-soft-bg-strong: #d8e6dc;
+  --accent-soft-text: #17402c;
+  --accent-soft-border: #c3d6c9;
   --accent-contrast: #ffffff;
-  --accent-shadow: rgba(247, 107, 74, 0.45);
-  --card-shadow: rgba(80, 50, 20, 0.18);
-  --panel-gradient: linear-gradient(105deg, #fdebe3 0%, #fce3d6 55%, #fbefd6 100%);
+  --accent-shadow: rgba(23, 64, 44, 0.42);
+  --card-shadow: rgba(23, 64, 44, 0.13);
+  --panel-gradient: linear-gradient(105deg, #e8efe9 0%, #dfeae2 55%, #eff3ea 100%);
   --success: #287850;
   --success-bg: #e4f3ea;
   --success-border: #bee3cd;

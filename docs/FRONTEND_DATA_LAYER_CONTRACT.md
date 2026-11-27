@@ -5,11 +5,11 @@
 本文档是前端 data 层的现行只读契约，记录四个数据区块
 （`WeeklyGrammar`、`WeeklyProgress`、`DailyProgress`、`ActiveSessions`）的**实际行为**、
 已落地的**只读 data 层接口边界**与一组**不依赖具体组件的契约测试矩阵**。
-该契约经 A4a–A4e 落地并合入；未完成工作见 [TODO.md](../TODO.md)，已归档收口见
-[todo-done.md](./history/todo-done.md)。[PR #138](https://github.com/sunpcm/EchoTalk/pull/138) 是引入该规划的来源。
+该契约经 A4a–A4e 落地并合入；未完成工作与后续实施状态只以根目录 [TODO.md](../TODO.md) 为准。
+[PR #138](https://github.com/sunpcm/EchoTalk/pull/138) 是引入该规划的来源。
 
 - 语义以现有代码为准，逐条落到代码行；差异之处列明，并按用户已确认的方案 A 保留现状。
-- data 层的目标结构与"契约先于实现"原则见 [ARCHITECTURE_ROADMAP.md](../docs/ARCHITECTURE_ROADMAP.md#L35-L57) §3.1。
+- data 层的目标结构与"契约先于实现"原则见 [ARCHITECTURE_ROADMAP.md](../docs/archive/2026-11-21-document-consolidation/ARCHITECTURE_ROADMAP.md#L35-L57) §3.1。
 - 本文只定义"读"路径；变更（end/resume）、Cloud 门禁、会话 store 状态机、API URL/解析、
   组件渲染、i18n 均不在 data 层职责内。
 - A4a 不引入新依赖、不迁移任何组件；契约测试只依赖通用注入源，不 import 四个业务组件。
@@ -318,7 +318,7 @@ WP 是 weekly 成功后释放自身槽位、再启动单日 history 的依赖链
   合格事件才可只读刷新。`Dashboard` 提供的共享设置标题、活动行和结束/恢复确认面板的 UUID 展示
   也按同一 A 决策收敛为“设置”及“现有模式 + 开始时间”；完整 UUID 只保留内部用途。精确目标行为与两卡边界见
   [R2_FOLLOWUP_CONTRACT.md](./R2_FOLLOWUP_CONTRACT.md)。本轮设计回写时两卡均未实施；后续实施状态以
-  [TODO.md](../TODO.md) 和 [PROJECT_STATUS.md](./PROJECT_STATUS.md) 为准。
+  [TODO.md](../TODO.md) 为准。
 - 差异点 1/2/3（挂起可见数据、abort 传输、分页统一）按 §5/§7 的方案 A 保留现状，不再请求
   A4a 确认；未来是否统一属于后续独立范围。
 

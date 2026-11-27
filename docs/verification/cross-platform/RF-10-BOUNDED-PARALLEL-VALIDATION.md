@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-10“多个独立 Provider 需要验证时可以并行执行，但必须限制总超时”与 A55 冻结行为契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-10“多个独立 Provider 需要验证时可以并行执行，但必须限制总超时”与 A55 冻结行为契约：
 
 1. **可复用有界并行验证入口**：
    - `backend/services/validation_service.py` 提供 `ProviderValidationService.validate_parallel(validations, *, total_timeout=None)`。

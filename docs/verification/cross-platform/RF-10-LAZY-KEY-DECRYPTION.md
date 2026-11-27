@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF10“非敏感设置不解密旧凭据”与 A54 冻结契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF10“非敏感设置不解密旧凭据”与 A54 冻结契约：
 
 1. **非敏感更新与旧密文解密彻底解耦**：用户更新设置时（`PUT /api/user/settings`），主题、模型偏好等非敏感设置不得因为旧密钥无法解密而更新失败。此前 `_validate_provider_keys` 在执行任何更新前无条件解密三路凭据（`_decrypt_and_rotate`），导致旧密文损坏或版本未配置时非敏感更新失败。
 2. **Role 变化严格判定**：

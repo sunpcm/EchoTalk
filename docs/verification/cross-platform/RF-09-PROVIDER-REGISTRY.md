@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF09“拆分 LiveKit Agent：ProviderRegistry 承担 Provider 能力和插件构造”与 A48 冻结契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF09“拆分 LiveKit Agent：ProviderRegistry 承担 Provider 能力和插件构造”与 A48 冻结契约：
 
 1. **构造收口与纯净边界**：新增独立 `backend/livekit_agent/provider_registry.py`，提供 `ProviderRegistry.from_custom(resolved: ResolvedCustomCredentials)` 与 `ProviderRegistry.from_system_defaults()` 收口双轨插件集组织。
 2. **零 ORM / 零解密 / 零环境改写**：`ProviderRegistry` 仅接收已解密的不可变快照 `ResolvedCustomCredentials`。不接触 ORM 对象（非 snapshot 输入抛出 `TypeError`），不自行解密，不改写进程环境变量，不自行兜底配置。实际插件实例创建严格委托 `PluginFactory.create_*` 与 `PluginFactory.from_system_defaults()`。

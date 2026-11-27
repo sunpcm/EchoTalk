@@ -44,7 +44,7 @@ RED 一致；独立 Review、正常 commit/当前分支 push 以主控同卡最�
   未选用例不计覆盖。
 
 详细最终门禁数字与边界集中在
-[PROJECT_STATUS 的 CP05D 小节](../../PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)。
+[PROJECT_STATUS 的 CP05D 小节](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#cp05d-设置抽屉动态可见性)。
 
 真实 OS 键盘、非零 safe-area、设备、Media/Provider、IdP 与生产未验；本说明不勾选 CP-05 手机
 动态视口/键盘/safe-area 父项。所有数据库验证已完成；本批自有合成 PG 已 `stop_exit0`、

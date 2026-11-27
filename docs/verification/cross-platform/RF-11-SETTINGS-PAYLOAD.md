@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-11“按行为拆分 SettingsDrawer”与 A61 冻结实施规范：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-11“按行为拆分 SettingsDrawer”与 A61 冻结实施规范：
 
 1. **设置更新载荷构建抽取为纯函数**：
    - 新建 `apps/vite-app/src/components/settings/settingsPayload.ts`，提供 `buildSettingsUpdate` 纯计算函数。

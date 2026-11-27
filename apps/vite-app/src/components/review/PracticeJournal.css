@@ -1,0 +1,388 @@
+.practice-journal {
+  --practice-journal-serif: Georgia, "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+
+  width: min(100%, 44rem);
+  margin-inline: auto;
+  padding-block: clamp(2rem, 6vw, 3.5rem) clamp(3rem, 9vw, 6rem);
+}
+
+.practice-journal__intro {
+  max-width: 38rem;
+  margin-bottom: clamp(2rem, 6vw, 3rem);
+}
+
+.practice-journal__eyebrow,
+.practice-journal__hint {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.practice-journal__eyebrow {
+  font-size: 0.76rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+
+.practice-journal__title {
+  margin: 0.35rem 0 0.65rem;
+  color: var(--text);
+  font-family: var(--practice-journal-serif);
+  font-size: clamp(2.2rem, 8vw, 3.75rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: 0.015em;
+  text-wrap: balance;
+}
+
+.practice-journal__hint {
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.practice-journal__content,
+.practice-journal__feedback {
+  display: grid;
+  min-width: 0;
+  gap: clamp(1.5rem, 5vw, 2.4rem);
+}
+
+.practice-journal__section {
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding-left: clamp(1rem, 4vw, 2rem);
+}
+
+.practice-journal__section-title {
+  margin: 0 0 0.9rem;
+  color: var(--accent);
+  font-family: var(--practice-journal-serif);
+  font-size: clamp(1.2rem, 4vw, 1.45rem);
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.practice-journal__section-heading,
+.practice-journal__correction-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.practice-journal__section-heading {
+  justify-content: space-between;
+}
+
+.practice-journal__section-heading .practice-journal__section-title {
+  margin-bottom: 0.9rem;
+}
+
+.practice-journal__count,
+.practice-journal__tag,
+.practice-journal__goal-status {
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.practice-journal__count {
+  min-width: 1.65rem;
+  padding: 0.12rem 0.5rem;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.practice-journal__tag {
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.practice-journal__tag--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.practice-journal__synthetic,
+.practice-journal__notice,
+.practice-journal__state,
+.practice-journal__error-card {
+  border-left: 0.2rem solid var(--accent-soft-border);
+  background: var(--surface);
+  padding: clamp(1rem, 4vw, 1.35rem);
+}
+
+.practice-journal__synthetic {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.practice-journal__error-card {
+  border-left-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.practice-journal__synthetic {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
+.practice-journal__notice {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.practice-journal__state {
+  display: grid;
+  justify-items: start;
+  gap: 0.55rem;
+}
+
+.practice-journal__state--muted {
+  border-left-color: var(--border);
+  background: var(--surface-alt);
+}
+
+.practice-journal__state-title,
+.practice-journal__state-copy,
+.practice-journal__fine-print {
+  margin: 0;
+}
+
+.practice-journal__state-title {
+  color: var(--text);
+  font-family: var(--practice-journal-serif);
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.practice-journal__state-copy {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.practice-journal__fine-print {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
+.practice-journal__spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 0.22rem solid var(--accent-soft-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: practice-journal-spin 900ms linear infinite;
+}
+
+.practice-journal__score {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-bottom: 1.35rem;
+}
+
+.practice-journal__score-value {
+  font-family: var(--practice-journal-serif);
+  font-size: clamp(2.8rem, 10vw, 4.2rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.practice-journal__score-scale {
+  color: var(--text-faint);
+  font-size: 1rem;
+}
+
+.practice-journal__subsection {
+  min-width: 0;
+}
+
+.practice-journal__subsection-title {
+  margin: 0 0 0.55rem;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.practice-journal__corrections,
+.practice-journal__goal-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.practice-journal__correction {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-block: 1rem;
+}
+
+.practice-journal__comparison {
+  display: grid;
+  min-width: 0;
+  gap: 0.8rem;
+  margin: 0.75rem 0 0;
+}
+
+.practice-journal__comparison-row {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.practice-journal__comparison dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.practice-journal__comparison dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.practice-journal__sentence {
+  font-family: var(--practice-journal-serif);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.practice-journal__sentence--original {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+.practice-journal__sentence--corrected {
+  color: var(--accent);
+  font-size: clamp(1.08rem, 4vw, 1.3rem);
+}
+
+.practice-journal__original-sentence {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--text-muted);
+  text-underline-offset: 0.22em;
+}
+
+.practice-journal__corrected-sentence {
+  color: inherit;
+  font-weight: 650;
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
+.practice-journal__error-card {
+  color: var(--danger-text);
+}
+
+.practice-journal__error-copy {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.practice-journal__retry,
+.practice-journal__return {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.practice-journal__retry {
+  margin-top: 0.85rem;
+}
+
+.practice-journal__return {
+  margin-top: 2.5rem;
+  padding-inline: 1.5rem;
+}
+
+.practice-journal__retry:focus-visible,
+.practice-journal__return:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.practice-journal__goal-body {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.practice-journal__goal-summary {
+  display: grid;
+  gap: 0.2rem;
+  border-radius: 0.35rem;
+  background: var(--surface-alt);
+  padding: 0.75rem 0.85rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.practice-journal__goal-summary p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.practice-journal__goal-row {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-block: 0.75rem;
+}
+
+.practice-journal__goal-status {
+  flex: 0 0 auto;
+  padding: 0.18rem 0.55rem;
+  white-space: nowrap;
+}
+
+@media (min-width: 40em) {
+  .practice-journal__comparison-row {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practice-journal__spinner {
+    animation: none;
+  }
+}
+
+@keyframes practice-journal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

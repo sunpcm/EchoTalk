@@ -1,0 +1,351 @@
+/*
+ * 练习手记：首页主场景。
+ * 颜色全部走主题语义 token，随 warm/cool/dark 三主题生效。
+ */
+
+.journal-home {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1.75rem, 4vw, 2.75rem);
+  min-width: 0;
+}
+
+.journal-home__masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.journal-home__brand {
+  margin: 0;
+  font-family: Georgia, "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+  font-size: clamp(1.2rem, 3vw, 1.45rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+}
+
+.journal-home__legacy-title {
+  margin: 0.2rem 0 0;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.journal-home__settings {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--text-muted);
+  background: transparent;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.journal-home__settings:hover {
+  color: var(--accent);
+  border-color: var(--border);
+}
+
+.journal-home__settings:focus-visible,
+.journal-practice-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.journal-home__notice {
+  margin: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.journal-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.journal-recommendations {
+  min-width: 0;
+}
+
+.journal-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1.75rem, 4vw, 2.75rem);
+  align-items: start;
+  min-width: 0;
+  padding-top: clamp(0.5rem, 2vw, 1.25rem);
+}
+
+.journal-hero__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.journal-hero__title {
+  margin: 0;
+  font-size: clamp(2.25rem, 5vw, 3.6rem);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+}
+
+.journal-hero__scene {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+  margin: 0.55rem 0 0;
+  color: var(--text-muted);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  font-style: italic;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+
+.journal-hero__cefr,
+.journal-scenario-card__cefr {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  width: fit-content;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.journal-eyebrow {
+  margin: 0 0 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.09em;
+}
+
+.journal-hero__skills {
+  margin-top: 1.4rem;
+}
+
+.journal-hero__skill-list,
+.journal-scenario-card__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.journal-skill-tag {
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--accent-soft-border);
+  border-radius: 1px;
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.journal-hero__goals {
+  width: 100%;
+  margin-top: 1.4rem;
+}
+
+.journal-hero__goal-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.journal-hero__goal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.15rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.journal-hero__goal-zh {
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.journal-hero__goal-en {
+  color: var(--text-muted);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+}
+
+.journal-practice-cta {
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 0;
+  border-radius: 2px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.journal-practice-cta:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.journal-hero__photo {
+  order: 2;
+  margin: 0;
+  overflow: hidden;
+  background: var(--surface-alt);
+}
+
+.journal-hero__photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+
+.journal-recommendations__alternatives {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+}
+
+.journal-scenario-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.journal-scenario-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.journal-scenario-card__title {
+  margin: 0;
+  color: var(--accent);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.journal-scenario-card__scene {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.journal-scenario-card__body {
+  flex: 1;
+  margin-top: 1rem;
+}
+
+.journal-scenario-card__goals {
+  margin-top: 1rem;
+}
+
+.journal-scenario-card__goals ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journal-scenario-card__goals li {
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.journal-scenario-card__cta {
+  margin-top: 1rem;
+}
+
+@media (min-width: 40em) {
+  .journal-hero__goal {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+    gap: 1rem;
+  }
+
+  .journal-hero__goal-en {
+    text-align: right;
+  }
+
+  .journal-recommendations__alternatives {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2rem;
+  }
+}
+
+@media (min-width: 52em) {
+  .journal-hero {
+    grid-template-columns: 0.92fr 1.08fr;
+    gap: clamp(2rem, 5vw, 4rem);
+  }
+
+  .journal-practice-cta {
+    width: auto;
+    min-width: 10rem;
+  }
+
+  .journal-hero__photo img {
+    aspect-ratio: 3 / 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journal-home__settings,
+  .journal-practice-cta {
+    transition: none;
+  }
+}

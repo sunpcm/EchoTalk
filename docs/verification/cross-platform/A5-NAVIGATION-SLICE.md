@@ -81,8 +81,8 @@ coordinator 的 `isRoomOwningState: (state) => state.appView === "session"` 仍�
 
 - [App.tsx](../../../apps/vite-app/src/App.tsx) 经 `useAppStore` 读取 `appView` 与
   `openDocChatSetup`，会话字段仍走 `useConversationStore`。
-- [ConversationStatusViews.tsx](../../../apps/vite-app/src/components/conversation/ConversationStatusViews.tsx)、
-  [EndedConversation.tsx](../../../apps/vite-app/src/components/conversation/EndedConversation.tsx)、
+- [ConversationStatusViews.tsx](../../../apps/vite-app/src/components/session/ConversationStatusViews.tsx)、
+  [EndedConversation.tsx](../../../apps/vite-app/src/components/review/EndedConversation.tsx)、
   [DocChatSetup.tsx](../../../apps/vite-app/src/components/doc-chat/DocChatSetup.tsx)、
   [user-state.ts](../../../apps/vite-app/src/store/user-state.ts) 的 `goHome` 改走 `useAppStore`，
   会话字段仍走 `useConversationStore`。

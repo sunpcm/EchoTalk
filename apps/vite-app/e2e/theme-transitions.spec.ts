@@ -87,7 +87,7 @@ test.describe("CP-05 / A35 主要容器主题颜色过渡 E2E", () => {
     });
 
     const rootContainer = page.locator("#root > div.bg-bg").first();
-    const card = page.locator(".border-border-default.bg-surface").first();
+    const card = page.getByRole("button", { name: /文档对话/ });
     const titleText = page.locator("h1").first();
 
     // 1. computed transition 验证 (0.25s 与 0.15s box-shadow)

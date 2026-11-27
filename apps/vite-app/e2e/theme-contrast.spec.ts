@@ -49,7 +49,7 @@ async function openWithTheme(page: Page, theme: (typeof THEMES)[number]) {
 async function waitForThemeReady(page: Page, theme: (typeof THEMES)[number]) {
   // 已有 tokens 的终值；只等待水合/样式前提，不重复执行或轮询 AA 扫描。
   const colors = {
-    warm: { background: "rgb(251, 247, 241)", color: "rgb(44, 38, 32)" },
+    warm: { background: "rgb(250, 247, 241)", color: "rgb(44, 38, 32)" },
     cool: { background: "rgb(241, 245, 251)", color: "rgb(32, 38, 52)" },
     dark: { background: "rgb(23, 24, 27)", color: "rgb(237, 235, 230)" },
   }[theme];

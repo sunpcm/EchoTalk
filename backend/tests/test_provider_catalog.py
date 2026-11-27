@@ -50,7 +50,7 @@ def test_catalog_structure_and_exact_values():
     assert sf.id == "siliconflow"
     assert sf.base_url == "https://api.siliconflow.cn/v1"
     assert sf.api_key_field == "SILICONFLOW_API_KEY"
-    assert sf.validation_url == "https://api.siliconflow.cn/v1/user/info"
+    assert sf.validation_url == "https://api.siliconflow.cn/v1/models?sub_type=chat"
     assert sf.role == "llm"
     assert sf.label == "SiliconFlow"
     assert sf.is_default is True
@@ -276,9 +276,12 @@ async def test_consumer_wiring_validation_service_llm(provider):
         result = await ProviderValidationService.validate_llm_key(provider, "test-key")
         assert result.ok is True
         assert result.code == "verified"
+        expected_kwargs = {"headers": {"Authorization": "Bearer test-key"}}
+        if provider == "siliconflow":
+            expected_kwargs["allow_redirects"] = False
         mock_get.assert_called_once_with(
             meta.validation_url,
-            headers={"Authorization": "Bearer test-key"},
+            **expected_kwargs,
         )
 
 

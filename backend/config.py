@@ -3,6 +3,7 @@ EchoTalk 后端配置模块。
 使用 pydantic-settings 从项目根目录 .env 文件读取环境变量。
 """
 
+import math
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -74,6 +75,18 @@ class Settings(BaseSettings):
     DEFAULT_LLM_PROVIDER: str = "siliconflow"
     DEFAULT_LLM_MODEL: str = "Qwen/Qwen2.5-7B-Instruct"
 
+    # SGEC 语法评估 Provider（默认关闭，保持 DemoRuleGrammarProvider 默认行为）。
+    # 开启后由 OpenAI-compatible payload 源驱动；缺失 base URL / key / model
+    # 时在构造阶段 fail closed，不在 import 或构造时发起任何网络请求。
+    SGEC_GRAMMAR_PROVIDER_ENABLED: bool = False
+    SGEC_LLM_BASE_URL: str = ""
+    SGEC_LLM_API_KEY: str = ""
+    SGEC_LLM_MODEL: str = ""
+    SGEC_LLM_MODEL_VERSION: str = ""
+    SGEC_LLM_TIMEOUT_SECONDS: float = 30.0
+    SGEC_LLM_MAX_TOKENS: int = 1024
+    SGEC_LLM_MAX_OUTPUT_CHARS: int = 65536
+
     # 语音服务
     DEEPGRAM_API_KEY: str = ""
     CARTESIA_API_KEY: str = ""
@@ -100,6 +113,32 @@ class Settings(BaseSettings):
         if normalized not in {"disabled", "livekit_cloud"}:
             raise ValueError("CALL_LEASE_MODE 仅允许 'disabled' 或 'livekit_cloud'")
         return normalized
+
+    @field_validator(
+        "SGEC_LLM_TIMEOUT_SECONDS",
+        "SGEC_LLM_MAX_TOKENS",
+        "SGEC_LLM_MAX_OUTPUT_CHARS",
+        mode="before",
+    )
+    @classmethod
+    def validate_sgec_positive_number(cls, value: object) -> object:
+        if isinstance(value, bool):
+            raise ValueError("SGEC 数值配置必须是有限正数")
+        if isinstance(value, (int, float)):
+            try:
+                number = float(value)
+            except (OverflowError, ValueError):
+                raise ValueError("SGEC 数值配置必须是有限正数") from None
+        elif isinstance(value, str):
+            try:
+                number = float(value)
+            except (TypeError, ValueError, OverflowError):
+                raise ValueError("SGEC 数值配置必须是有限正数") from None
+        else:
+            raise ValueError("SGEC 数值配置必须是有限正数")
+        if not math.isfinite(number) or number <= 0:
+            raise ValueError("SGEC 数值配置必须是有限正数")
+        return value
 
     @field_validator("AUTH_MODE")
     @classmethod

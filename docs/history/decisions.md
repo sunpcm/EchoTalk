@@ -1,6 +1,6 @@
 # EchoTalk 已合并与未采纳决策流水
 
-> 原文自 `docs/PROJECT_STATUS.md` 搬运（2026-11-10），除相对链接上移一层外未改动内容；各节只代表当时提交的事实，不外推为当前状态。当前状态见 [PROJECT_STATUS.md](../PROJECT_STATUS.md)。
+> 原文自 `docs/PROJECT_STATUS.md` 搬运（2026-11-10），除相对链接上移一层外未改动内容；各节只代表当时提交的事实，不外推为当前状态。当前状态见根目录 [TODO.md](../../TODO.md)。
 
 ## 2026-10-20 PR 评审与处理
 

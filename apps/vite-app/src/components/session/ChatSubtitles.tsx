@@ -4,7 +4,7 @@
  * Agent 和 User 的转录流，合并后渲染为聊天气泡。
  */
 
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   useVoiceAssistant,
   useLocalParticipant,
@@ -19,6 +19,7 @@ const t = zhCN.chat;
 interface ChatMessage {
   id: string;
   text: string;
+  language?: string;
   sender: "user" | "agent";
   timestamp: number;
   isFinal: boolean;
@@ -26,6 +27,9 @@ interface ChatMessage {
 
 export function ChatSubtitles() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
+  const transcriptId = useId();
   const voiceAssistant = useVoiceAssistant();
   const { localParticipant, microphoneTrack } = useLocalParticipant();
 
@@ -51,6 +55,7 @@ export function ChatSubtitles() {
       .map((seg) => ({
         id: `agent-${seg.id}`,
         text: seg.text,
+        language: seg.language || undefined,
         sender: "agent" as const,
         timestamp: seg.firstReceivedTime,
         isFinal: seg.final,
@@ -61,6 +66,7 @@ export function ChatSubtitles() {
       .map((seg) => ({
         id: `user-${seg.id}`,
         text: seg.text,
+        language: seg.language || undefined,
         sender: "user" as const,
         timestamp: seg.firstReceivedTime,
         isFinal: seg.final,
@@ -69,61 +75,102 @@ export function ChatSubtitles() {
     return [...agentMsgs, ...userMsgs].sort((a, b) => a.timestamp - b.timestamp);
   }, [agentTranscription.segments, userTranscription.segments]);
 
-  // 自动滚动到底部
+  const latestMessage = messages[messages.length - 1];
+  const latestMessageKey = latestMessage
+    ? JSON.stringify([latestMessage.id, latestMessage.text, latestMessage.isFinal])
+    : "";
+
+  // 新转录到达时仅跟随最新消息；折叠开关不会触发转录订阅或此滚动效应。
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) {
+    if (el && followLatestRef.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+  }, [latestMessageKey]);
+
+  const handleTranscriptScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    followLatestRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  };
+
+  const foldLabel = isTranscriptExpanded ? t.collapseTranscript : t.expandTranscript;
 
   return (
-    <div className="border-border-default bg-surface flex h-full flex-col rounded-[20px] border shadow-[0_6px_22px_-14px_var(--card-shadow)]">
+    <div className="practice-transcript h-full">
       {/* 标题栏 */}
-      <div className="border-border-soft border-b px-4 py-3">
-        <h3 className="text-text-default text-sm font-semibold">{t.title}</h3>
+      <div className="practice-transcript__header">
+        <h3 className="practice-transcript__title">{t.title}</h3>
+        <button
+          type="button"
+          aria-expanded={isTranscriptExpanded}
+          aria-controls={transcriptId}
+          onClick={() => setIsTranscriptExpanded((expanded) => !expanded)}
+          className="practice-transcript__fold"
+        >
+          {foldLabel}
+        </button>
       </div>
 
       {/* 消息列表 */}
       <div
+        id={transcriptId}
         ref={scrollRef}
         role="log"
         aria-live="polite"
         aria-relevant="additions text"
         aria-label={t.title}
-        className="flex-1 space-y-3 overflow-y-auto p-4"
+        onScroll={handleTranscriptScroll}
+        className="practice-transcript__log"
+        data-expanded={isTranscriptExpanded}
       >
         {messages.length === 0 ? (
-          <p className="text-text-faint py-8 text-center text-sm">{t.empty}</p>
+          <p className="practice-transcript__empty">{t.empty}</p>
         ) : (
-          messages.map((msg) => <ChatBubble key={msg.id} message={msg} />)
+          messages.map((msg, index) => (
+            <ChatBubble
+              key={msg.id}
+              message={msg}
+              isLatest={index === messages.length - 1}
+              hidden={!isTranscriptExpanded && index < messages.length - 1}
+            />
+          ))
         )}
       </div>
     </div>
   );
 }
 
-function ChatBubble({ message }: { message: ChatMessage }) {
+function ChatBubble({
+  message,
+  isLatest,
+  hidden,
+}: {
+  message: ChatMessage;
+  isLatest: boolean;
+  hidden: boolean;
+}) {
   const isUser = message.sender === "user";
   const senderLabel = isUser ? t.you : t.aiCoach;
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        aria-label={`${senderLabel}: ${message.text}`}
-        className={`max-w-[80%] rounded-lg p-3 ${
-          isUser ? "bg-accent text-accent-contrast" : "bg-surface-alt text-text-default"
-        } ${!message.isFinal ? "opacity-70" : ""}`}
-      >
-        {/* 发送者标签 */}
-        <p
-          className={`mb-1 text-xs font-medium ${isUser ? "text-accent-contrast/80" : "text-text-faint"}`}
-        >
-          {senderLabel}
-        </p>
-        {/* 消息文本 */}
-        <p className="text-sm leading-relaxed">{message.text}</p>
+    <article
+      hidden={hidden}
+      aria-label={`${senderLabel}: ${message.text}`}
+      aria-current={isLatest ? "true" : undefined}
+      data-latest={isLatest}
+      data-final={message.isFinal}
+      className={`practice-transcript__turn ${
+        isUser ? "practice-transcript__turn--user" : "practice-transcript__turn--agent"
+      }`}
+    >
+      <div className="practice-transcript__role">
+        {isLatest ? <span aria-hidden="true" className="practice-transcript__latest-mark" /> : null}
+        <span>{senderLabel}</span>
       </div>
-    </div>
+      <p className="practice-transcript__text" lang={message.language}>
+        {message.text}
+      </p>
+    </article>
   );
 }

@@ -64,7 +64,7 @@ localStorage、账号级 `ui_locale` 或本地覆盖等持久化方案。
 未来验收至少需要现有中文与 ARIA 的语义对照、所有资源的实际渲染回归、Chromium/WebKit 关键路径、
 宽窄屏与键盘/读屏检查。以上是未来门槛。实施节点未运行测试、服务、数据库或真实外部依赖；主控
 本卡实跑数字见
-[PROJECT_STATUS 的 I18N-DESIGN 小节](./PROJECT_STATUS.md#i18n-design-正式-i18n-迁移设计final_ready)，
+[PROJECT_STATUS 的 I18N-DESIGN 小节](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#i18n-design-正式-i18n-迁移设计final_ready)，
 合成检查不能替代业务确认或真实环境验收。
 
 ## 官方能力依据

@@ -1,9 +1,9 @@
 # EchoTalk 架构演进规划
 
 > 撰写：2026-11-11，基于 `claude/cloud-review-2026-11` 分支的代码阅读与
-> [2026-11 云端评审](./reviews/2026-11-cloud-review.md)。
+> [2026-11 云端评审](../../reviews/2026-11-cloud-review.md)。
 > 本文回答"接下来半年到一年，结构往哪里走、先后顺序是什么、每一步怎样算完成"。
-> 它不是任务清单：可执行任务仍只写在 [TODO.md](../TODO.md)，现状见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+> 它不是任务清单：可执行任务仍只写在 [TODO.md](./TODO.md)，现状见 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
 > 文中的判断来自读代码和云端自动化，没有真实 LiveKit、Provider、IdP 或设备的证据；涉及这些的部分标为假设。
 
 ## 1. 一句话判断
@@ -182,7 +182,7 @@ macOS 沿用已规划的路径（正式壳放在 `apps/vite-app/src-tauri/`，�
 ### 3.6 交付：建立一个能说"验证过"的环境
 
 目前所有"未验证"条目的共同原因是没有一个带真实依赖的环境。这不是某一项功能的缺口，而是整个验证体系缺了一层。R2-14 已把一次性迁移、公开 PostgreSQL system-ready、API healthcheck 和容器启动顺序落成
-[本地 Compose 合同](./COMPOSE_STARTUP_CONTRACT.md)，但它只证明本地合成编排，不替代下面的预发布环境：
+[本地 Compose 合同](../../COMPOSE_STARTUP_CONTRACT.md)，但它只证明本地合成编排，不替代下面的预发布环境：
 
 ```text
 单元与组件测试        ← 已有，强
@@ -212,7 +212,7 @@ Fake API 浏览器 E2E   ← 已有，强
 
 #### B1 实施顺序
 
-五张卡按 B1-1～B1-5 的顺序推进，具体写集与验收见 [`TODO.md`](../TODO.md)。B1-5 已新增 HTTP
+五张卡按 B1-1～B1-5 的顺序推进，具体写集与验收见 [`TODO.md`](./TODO.md)。B1-5 已新增 HTTP
 接口，并在同一卡完成 Fake API 成功响应 fixture、Node 契约测试和 A3 operation 覆盖审计；
 OpenAPI/TypeScript 更新不能替代这些测试，也不能静默扩大 missing/空 schema 豁免。本批不新增
 产品 UI 或真实依赖。
@@ -272,7 +272,7 @@ Review 与发布以同卡回执为准；用户 Review 待。不开 PR、不合�
 B1-0～B1-5、独立 WPH 与 R2-14 的本地实现及主控代码/测试 Review 已收口，完成记录归档；R2-14
 整卡最终 Review、提交/推送以主控同卡回执为准，用户 Review 待。旧“停在此卡、不启动下一卡”只是
 当时交付暂停边界；后续已按用户授权继续多卡工作，下一卡及当前未完成项始终以用户最新授权和
-[TODO.md](../TODO.md) 为准。原 Compose 整栈、生产切换、真实数据、真实不可恢复删除、真实外部
+[TODO.md](./TODO.md) 为准。原 Compose 整栈、生产切换、真实数据、真实不可恢复删除、真实外部
 依赖和音频采集另走独立授权与发布门禁；B1 人工切换期间全部新旧 worker 仍须保持停止到
 `traffic_resumed`。
 

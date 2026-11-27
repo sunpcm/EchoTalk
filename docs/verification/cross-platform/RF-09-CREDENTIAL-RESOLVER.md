@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF03（秘密不入日志与响应、版本化密钥解密）与 §RF09（提取 `CredentialResolver` 边界），落实本地单轮实施：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF03（秘密不入日志与响应、版本化密钥解密）与 §RF09（提取 `CredentialResolver` 边界），落实本地单轮实施：
 
 1. **统一异常隔离**：将 `PluginInitError` 抽离至无 SDK、无网络依赖的标准库模块 `backend/livekit_agent/plugin_errors.py`，`plugin_factory.py` 保持向后兼容导出，保证类身份单一（`is` 恒真）与异常捕获兼容。
 2. **凭据解析边界**：新增 `backend/livekit_agent/credential_resolver.py`，提供 `CredentialResolver.resolve_custom(user_settings, default_llm_model)`，生成不可变 `ResolvedCustomCredentials` 快照。

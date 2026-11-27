@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”与 A62 实施指令规范：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF-11“保留小型自定义 Transport，统一处理认证、超时、取消、错误解析和 API Origin”与 A62 实施指令规范：
 
 1. **错误解析纯计算抽离为独立纯函数**：
    - 新建 `apps/vite-app/src/lib/apiErrorMessage.ts`，导出 `getApiErrorMessage(status: number, body: unknown): string` 纯计算函数。

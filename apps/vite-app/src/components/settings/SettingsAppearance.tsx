@@ -4,7 +4,7 @@ import { zhCN } from "@/i18n/zh-CN";
 const t = zhCN.settings;
 
 const THEME_SWATCHES: { value: ThemeName; label: string; bg: string; accent: string }[] = [
-  { value: "warm", label: t.themeWarm, bg: "#FBF7F1", accent: "#F76B4A" },
+  { value: "warm", label: t.themeWarm, bg: "#FAF7F1", accent: "#17402C" },
   { value: "cool", label: t.themeCool, bg: "#F1F5FB", accent: "#3D6FE0" },
   { value: "dark", label: t.themeDark, bg: "#17181B", accent: "#E8A23D" },
 ];

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ChatSubtitles } from "./ChatSubtitles";
 import { zhCN } from "@/i18n/zh-CN";
@@ -83,5 +83,95 @@ describe("ChatSubtitles accessibility & display", () => {
     expect(userBubble).toBeInTheDocument();
     expect(userBubble).toHaveTextContent(t.you);
     expect(userBubble).toHaveTextContent("Hi, I want to practice English.");
+  });
+
+  it("preserves segment language metadata and omits an empty language", () => {
+    mockUseTrackTranscription.mockImplementation((trackRef: unknown) => {
+      if (trackRef && !(trackRef as { source?: unknown }).source) {
+        return {
+          segments: [
+            {
+              id: "seg-zh",
+              text: "早上好，今天想练习什么？",
+              language: "zh-CN",
+              firstReceivedTime: 1000,
+              final: true,
+            },
+          ],
+        };
+      }
+
+      return {
+        segments: [
+          {
+            id: "seg-mixed",
+            text: "I want to practice English.",
+            language: "",
+            firstReceivedTime: 2000,
+            final: true,
+          },
+        ],
+      };
+    });
+
+    render(<ChatSubtitles />);
+
+    const agentText = screen
+      .getByLabelText(`${t.aiCoach}: 早上好，今天想练习什么？`)
+      .querySelector("p");
+    const userText = screen
+      .getByLabelText(`${t.you}: I want to practice English.`)
+      .querySelector("p");
+
+    expect(agentText).toHaveAttribute("lang", "zh-CN");
+    expect(userText).not.toHaveAttribute("lang");
+  });
+
+  it("collapses earlier turns while keeping the latest turn and log semantics", () => {
+    mockUseTrackTranscription.mockImplementation((trackRef: unknown) => {
+      if (trackRef && !(trackRef as { source?: unknown }).source) {
+        return {
+          segments: [
+            {
+              id: "seg-1",
+              text: "What did you do today?",
+              firstReceivedTime: 1000,
+              final: true,
+            },
+          ],
+        };
+      }
+      return {
+        segments: [
+          {
+            id: "seg-2",
+            text: "I practiced speaking after work.",
+            firstReceivedTime: 2000,
+            final: true,
+          },
+        ],
+      };
+    });
+
+    render(<ChatSubtitles />);
+
+    const log = screen.getByRole("log");
+    const foldButton = screen.getByRole("button", { name: t.collapseTranscript });
+    expect(foldButton).toHaveAttribute("aria-expanded", "true");
+    expect(foldButton).toHaveAttribute("aria-controls", log.id);
+
+    fireEvent.click(foldButton);
+
+    expect(screen.getByRole("button", { name: t.expandTranscript })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.getByRole("log", { name: t.title })).toBe(log);
+
+    const turns = log.querySelectorAll("article");
+    expect(turns).toHaveLength(2);
+    expect(turns[0]).toHaveAttribute("hidden");
+    expect(turns[1]).not.toHaveAttribute("hidden");
+    expect(turns[1]).toHaveAttribute("aria-current", "true");
   });
 });

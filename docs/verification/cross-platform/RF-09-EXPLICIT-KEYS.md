@@ -6,7 +6,7 @@
 
 ## 1. 契约与设计依据
 
-依据 [MVP 重构方案](../../MVP_REFACTORING_REMEDIATION_PLAN.md) §RF09“无敏感环境变量临时删除”与 A46 冻结契约：
+依据 [MVP 重构方案](../../archive/2026-11-21-document-consolidation/MVP_REFACTORING_REMEDIATION_PLAN.md) §RF09“无敏感环境变量临时删除”与 A46 冻结契约：
 
 1. **零进程环境变量改写**：彻底移除 `backend/livekit_agent/agent.py` 中的 `import os`、`_SENSITIVE_ENV_VARS` 敏感环境变量列表，以及 `_build_custom_plugins` 内对 `os.environ` 的 `pop()` / `update()` 操作。构造全流程实现零 `os.environ` 写，杜绝并发竞争与环境污染隐患。
 2. **显式凭据直连构造**：`CredentialResolver.resolve_custom` 产出的不可变凭据直接显式传参给 `PluginFactory` 对应的 `create_stt`、`create_llm`、`create_tts` 与 `create_vad`。

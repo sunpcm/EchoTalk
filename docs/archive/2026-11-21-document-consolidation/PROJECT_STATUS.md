@@ -3,7 +3,7 @@
 > 最后核对：2026-11-17。本页以 main `da37683e6579e479f0ab46315555b24c850360da` 的精简状态页为骨架，
 > 并入 B1 `46ef95494b23c3dcdc05a0ddbc18f03856c2462e` 已验收的功能事实。SGEC-OFF 已通过 PR194 合入
 > main `d33f236`；真实 Provider、BKT、人工 gold 与教学质量仍未验收。未完成与待决策事项只在根目录
-> [`TODO.md`](../TODO.md)。
+> [`TODO.md`](./TODO.md)。
 >
 > PR #197 / RC1 的完整 E2E 322（Chromium 161 + WebKit 161）与更早 main 的 321+1 flaky 均为历史快照。
 > CGC 的初始 C0 目标 18、80 次重复与完整 E2E 324 也是前一阶段历史，不能代替 R2 最终结果。R2
@@ -22,13 +22,13 @@
 > 最终 format/Review/提交/推送/新 head CI/合并以主控同卡回执为准；本文不自批 Independent Review，
 > 也不预填远端 CI 通过。
 > B1 的完整历史与逐卡数字只保存在
-> [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。
+> [B1 实施历史快照](../../history/b1-implementation-2026-11-16.md)。
 
 ## 文档职责与更新规则
 
 当前页面维护当前功能、发布时点验证基线、已知限制与历史索引；未完成事项维护在根目录
-[`TODO.md`](../TODO.md)，逐轮记录维护在 `docs/history/`。历史计数只属于各自原时点。B1 原始的
-完整职责说明与逐卡证据见 [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。
+[`TODO.md`](./TODO.md)，逐轮记录维护在 `docs/history/`。历史计数只属于各自原时点。B1 原始的
+完整职责说明与逐卡证据见 [B1 实施历史快照](../../history/b1-implementation-2026-11-16.md)。
 
 ## 当前功能
 
@@ -59,7 +59,7 @@
 以下数字只绑定各自已发布提交，是 main 发布时点基线，不是本次 B1 主集成工作树的新结果。
 SGEC-OFF 已通过 [PR194](https://github.com/sunpcm/EchoTalk/pull/194) 合入 main `d33f236`，对应 mainCI
 `43818985856` 首五 success；B1 在合入前的候选亲跑、goals 四卡门禁与各历史卡计数只保存在
-[B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。
+[B1 实施历史快照](../../history/b1-implementation-2026-11-16.md)。
 
 | 测试树 / 门禁       | main 发布时点证据          |
 | ------------------- | -------------------------- |
@@ -153,7 +153,7 @@ loopback 与合成身份，`auto_removed: true`，其他资源未动。当前没
 
 > 以下保留 B1 `46ef95494b23c3dcdc05a0ddbc18f03856c2462e` 原有 H3 标题与锚点，便于既有文档链接继续指向当时事实。每一节只给当前读取所需的边界；
 > 完整正文、计数、失败、PG 清理与 Review 回执统一保存在
-> [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)。本索引不是合并后新验证结果。
+> [B1 实施历史快照](../../history/b1-implementation-2026-11-16.md)。本索引不是合并后新验证结果。
 >
 > 旧 `FINAL_READY` 显式 ID 只在自然标题 slug 无法兼容时保留，并贴近对应历史小节；
 > 不表示相应父项或真实环境验收已经完成。
@@ -162,25 +162,25 @@ loopback 与合成身份，`auto_removed: true`，其他资源未动。当前没
 
 goals 链在该卡时点的设计、数据层、接线、判定/导出或展示事实已归档；当前父项仍待用户 Review、人工 gold、真实教学质量与外部环境验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#g-view-目标预览与结果展示final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#g-view-目标预览与结果展示final_ready)。
 
 ### G-EVAL 场景目标自动判定、持久化与导出（FINAL_READY）
 
 goals 链在该卡时点的设计、数据层、接线、判定/导出或展示事实已归档；当前父项仍待用户 Review、人工 gold、真实教学质量与外部环境验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#g-eval-场景目标自动判定持久化与导出final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#g-eval-场景目标自动判定持久化与导出final_ready)。
 
 ### G-WIRE 首期课程目标与会话创建接线（`FINAL_READY`）
 
 goals 链在该卡时点的设计、数据层、接线、判定/导出或展示事实已归档；当前父项仍待用户 Review、人工 gold、真实教学质量与外部环境验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#g-wire-首期课程目标与会话创建接线final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#g-wire-首期课程目标与会话创建接线final_ready)。
 
 ### G-CONTRACT 场景目标实施合同（历史快照；已 `APPROVED` 并发布 `882a1a9`）
 
 goals 链在该卡时点的设计、数据层、接线、判定/导出或展示事实已归档；当前父项仍待用户 Review、人工 gold、真实教学质量与外部环境验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#g-contract-场景目标实施合同历史快照已-approved-并发布-882a1a9)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#g-contract-场景目标实施合同历史快照已-approved-并发布-882a1a9)。
 
 <a id="goal-data-goal-a-持久化与合成-pg-数据层final_ready"></a>
 
@@ -188,43 +188,43 @@ goals 链在该卡时点的设计、数据层、接线、判定/导出或展示�
 
 goals 链在该卡时点的设计、数据层、接线、判定/导出或展示事实已归档；当前父项仍待用户 Review、人工 gold、真实教学质量与外部环境验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#goal-data-goal-a-持久化与合成-pg-数据层历史快照已-approved-并发布-353e0c9)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#goal-data-goal-a-持久化与合成-pg-数据层历史快照已-approved-并发布-353e0c9)。
 
 ### HHTTP-CLOSE 历史宿主 HTTP 待办核销（`FINAL_READY`）
 
 只用后来的 host-gateway 合成拓扑核销历史宿主 HTTP 两条记录；原失败文字保留，不代表原 Compose、真实外链或父项通过。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#hhttp-close-历史宿主-http-待办核销final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#hhttp-close-历史宿主-http-待办核销final_ready)。
 
 ### I18N-DESIGN 正式 i18n 迁移设计（`FINAL_READY`）
 
 该卡保存设计结论与未决业务口径；路线、fallback、指标窗口或历史快照策略仍以用户最新确认状态为准。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#i18n-design-正式-i18n-迁移设计final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#i18n-design-正式-i18n-迁移设计final_ready)。
 
 ### GOAL-DESIGN 场景 goals 与 Task Completion 设计（`FINAL_READY`）
 
 该卡保存设计结论与未决业务口径；路线、fallback、指标窗口或历史快照策略仍以用户最新确认状态为准。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#goal-design-场景-goals-与-task-completion-设计final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#goal-design-场景-goals-与-task-completion-设计final_ready)。
 
 ### WR-DESIGN 周报剩余指标设计（`FINAL_READY`）
 
 该卡保存设计结论与未决业务口径；路线、fallback、指标窗口或历史快照策略仍以用户最新确认状态为准。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#wr-design-周报剩余指标设计final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#wr-design-周报剩余指标设计final_ready)。
 
 ### WDI 周报时长真实本地组合补验（`FINAL_READY`）
 
 该卡完成本地组合验证或状态核对，范围仅限原时点的合成/文档证据，不延伸为真实外部链路或当前合并结果。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#wdi-周报时长真实本地组合补验final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#wdi-周报时长真实本地组合补验final_ready)。
 
 ### TDOC 剩余待办与项目状态核对（`FINAL_READY`）
 
 该卡完成本地组合验证或状态核对，范围仅限原时点的合成/文档证据，不延伸为真实外部链路或当前合并结果。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#tdoc-剩余待办与项目状态核对final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#tdoc-剩余待办与项目状态核对final_ready)。
 
 <a id="wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready"></a>
 
@@ -232,7 +232,7 @@ goals 链在该卡时点的设计、数据层、接线、判定/导出或展示�
 
 “已记录会话时长”合同、opt-in 聚合或前端显示按原时点归档；它不等于有效说话时长，其他周报指标仍待决策。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#wd-ui-周报已记录会话时长前端显示与浏览器验收历史快照原时点-final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#wd-ui-周报已记录会话时长前端显示与浏览器验收历史快照原时点-final_ready)。
 
 <a id="wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施"></a>
 
@@ -240,13 +240,13 @@ goals 链在该卡时点的设计、数据层、接线、判定/导出或展示�
 
 “已记录会话时长”合同、opt-in 聚合或前端显示按原时点归档；它不等于有效说话时长，其他周报指标仍待决策。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析历史快照后续-approved9179050)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析历史快照后续-approved9179050)。
 
 ### WD-DESIGN 已确认周报时长合同（设计 `FINAL_READY`；API/UI 未实施）
 
 “已记录会话时长”合同、opt-in 聚合或前端显示按原时点归档；它不等于有效说话时长，其他周报指标仍待决策。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#wd-design-已确认周报时长合同设计-final_readyapiui-未实施)。
 
 <a id="cp04e-认证退出与活动-room-组合补验final_ready"></a>
 
@@ -254,91 +254,91 @@ goals 链在该卡时点的设计、数据层、接线、判定/导出或展示�
 
 对应认证退出、身份切换、Dashboard/通话占用或布局可见性的本地子卡已完成；CP-04/CP-05 父项的真实 IdP、设备、媒体与 production 条件仍待。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#cp04e-认证退出与活动-room-组合补验2026-11-15-历史快照final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#cp04e-认证退出与活动-room-组合补验2026-11-15-历史快照final_ready)。
 
 ### CP04I 真实入口换号与迟到响应组合（FINAL_READY）
 
 对应认证退出、身份切换、Dashboard/通话占用或布局可见性的本地子卡已完成；CP-04/CP-05 父项的真实 IdP、设备、媒体与 production 条件仍待。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#cp04i-真实入口换号与迟到响应组合final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#cp04i-真实入口换号与迟到响应组合final_ready)。
 
 ### CP05L Dashboard 生命周期实际组合缺口（FINAL_READY）
 
 对应认证退出、身份切换、Dashboard/通话占用或布局可见性的本地子卡已完成；CP-04/CP-05 父项的真实 IdP、设备、媒体与 production 条件仍待。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#cp05l-dashboard-生命周期实际组合缺口final_ready)。
 
 ### CP02I 通话占用本地组合补验（FINAL_READY）
 
 对应认证退出、身份切换、Dashboard/通话占用或布局可见性的本地子卡已完成；CP-04/CP-05 父项的真实 IdP、设备、媒体与 production 条件仍待。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#cp02i-通话占用本地组合补验final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#cp02i-通话占用本地组合补验final_ready)。
 
 ### CP05K 会话界面动态桌面与键盘覆盖（FINAL_READY）
 
 对应认证退出、身份切换、Dashboard/通话占用或布局可见性的本地子卡已完成；CP-04/CP-05 父项的真实 IdP、设备、媒体与 production 条件仍待。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#cp05k-会话界面动态桌面与键盘覆盖final_ready)。
 
 ### CP05D 设置抽屉动态可见性
 
 对应认证退出、身份切换、Dashboard/通话占用或布局可见性的本地子卡已完成；CP-04/CP-05 父项的真实 IdP、设备、媒体与 production 条件仍待。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#cp05d-设置抽屉动态可见性)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#cp05d-设置抽屉动态可见性)。
 
 ### R2-11 会话中界面本地子卡（FINAL_READY）
 
 本地会话中界面子卡已完成并归档；真实 LiveKit 人工媒体与设备验收仍未完成，父项保持未勾。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#r2-11-会话中界面本地子卡final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#r2-11-会话中界面本地子卡final_ready)。
 
 ### R2-10 硬编码文案收口（FINAL_READY）
 
 硬编码文案、设置标题与活动记录去 UUID 的技术收口已完成并归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#r2-10-硬编码文案收口final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#r2-10-硬编码文案收口final_ready)。
 
 ### SGEC-OFF 严格离线校验与合成评测（FINAL_READY）
 
 严格离线校验与固定合成评测已实现并随 PR194 合入 main `d33f236`；真实 Provider、BKT、人工 gold 与真实教学质量仍待。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#sgec-off-严格离线校验与合成评测final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#sgec-off-严格离线校验与合成评测final_ready)。
 
 ### R2-UI 设置标题与活动记录去 UUID（FINAL_READY）
 
 对应 R2 本地 UI/生命周期门禁已完成并归档；真实媒体、设备和生产边界不连带核销。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
 
 ### R2-LIVE 活动会话生命周期实时门禁（FINAL_READY）
 
 对应 R2 本地 UI/生命周期门禁已完成并归档；真实媒体、设备和生产边界不连带核销。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#r2-live-活动会话生命周期实时门禁final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#r2-live-活动会话生命周期实时门禁final_ready)。
 
 ### DEC-A R2 与 SGEC 设计口径回写（FINAL_READY）
 
 该卡保存 R2/SGEC 或路线图的历史口径修正与证据索引，不改变后续产品政策。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#dec-a-r2-与-sgec-设计口径回写final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#dec-a-r2-与-sgec-设计口径回写final_ready)。
 
 ### RDOC 路线图历史快照口径修正（FINAL_READY）
 
 该卡保存 R2/SGEC 或路线图的历史口径修正与证据索引，不改变后续产品政策。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#rdoc-路线图历史快照口径修正final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#rdoc-路线图历史快照口径修正final_ready)。
 
 ### A18P2 启动/恢复生命周期减重与实例隔离（FINAL_READY）
 
 启动/恢复生命周期或 Room 快照所有权的技术维护已完成；真实设备与外部链路仍按父项边界保留。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a18p2-启动恢复生命周期减重与实例隔离final_ready)。
 
 ### A19 P2 Room 快照与引用所有权（FINAL_READY）
 
 启动/恢复生命周期或 Room 快照所有权的技术维护已完成；真实设备与外部链路仍按父项边界保留。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a19-p2-room-快照与引用所有权final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a19-p2-room-快照与引用所有权final_ready)。
 
 <a id="a82c-native-room-夹具就绪证据与文档核销final_ready本地夹具就绪子项完成"></a>
 
@@ -346,108 +346,108 @@ goals 链在该卡时点的设计、数据层、接线、判定/导出或展示�
 
 Native Room 夹具/语音连接策略文档证据按原时点归档，不表示真机或真实 LiveKit 验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a82c-native-room-夹具就绪证据与文档核销历史快照当时-final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a82c-native-room-夹具就绪证据与文档核销历史快照当时-final_ready)。
 
 ### A84C LiveKit 语音连接策略文档收口（2026-11-14 历史快照；当时 FINAL_READY）
 
 Native Room 夹具/语音连接策略文档证据按原时点归档，不表示真机或真实 LiveKit 验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a84c-livekit-语音连接策略文档收口2026-11-14-历史快照当时-final_ready)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a84c-livekit-语音连接策略文档收口2026-11-14-历史快照当时-final_ready)。
 
 ### RF04E 已有远端 CI 证据核对（2026-11-14 历史快照）
 
 三条历史 main push、iOS failure 传播反证与 required-check 未核边界存档；不同提交和历史运行的数字不能相加。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#rf04e-已有远端-ci-证据核对2026-11-14-历史快照)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#rf04e-已有远端-ci-证据核对2026-11-14-历史快照)。
 
 ### CF20 Chromium 焦点就绪竞态回归（2026-11-14 历史快照；最终 Review/发布见主控回执）
 
 对应 Chromium 焦点就绪或 WebKit 周语法重复稳定性证据按原时点归档；历史根因与当前全树结果分别核验。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#cf20-chromium-焦点就绪竞态回归2026-11-14-历史快照最终-review发布见主控回执)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#cf20-chromium-焦点就绪竞态回归2026-11-14-历史快照最终-review发布见主控回执)。
 
 ### WG20（WebKit 周语法重复稳定性补验）历史快照；最终回执与用户 Review 待
 
 原时点技术验收、失败与边界保存在新历史快照；不得外推为合并后当前结果。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#wg20webkit-周语法重复稳定性补验历史快照最终回执与用户-review-待)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#wg20webkit-周语法重复稳定性补验历史快照最终回执与用户-review-待)。
 
 ### R2-13（历史快照：组件目录按页面边界归位）本地实施/验收完成；用户 Review 待
 
 按页面边界的组件目录归位与 Dashboard 抽取已完成；正式桌面客户端仍受 CP-03 设备证据阻断。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#r2-13历史快照组件目录按页面边界归位本地实施验收完成用户-review-待)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#r2-13历史快照组件目录按页面边界归位本地实施验收完成用户-review-待)。
 
 ### R2-12（macOS 构建产物与同步脚本）本地实施/验收完成；用户 Review 待
 
 macOS 构建产物与同步脚本已完成；正式壳、Tauri 选型、签名与真机未验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#r2-12macos-构建产物与同步脚本本地实施验收完成用户-review-待)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#r2-12macos-构建产物与同步脚本本地实施验收完成用户-review-待)。
 
 ### R2-14（Compose 系统就绪与一次性迁移）当次快照；用户 Review 待
 
 公开 PG system-ready 与一次性迁移 DAG 的本地合成合同已实现；真实迁移容器、整栈启动、生产与外部依赖仍未验收。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#r2-14compose-系统就绪与一次性迁移当次快照用户-review-待)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#r2-14compose-系统就绪与一次性迁移当次快照用户-review-待)。
 
 ### A3（Fake API 契约校验，PR #141/#147）合并收口
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a3fake-api-契约校验pr-141147合并收口)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a3fake-api-契约校验pr-141147合并收口)。
 
 ### A4a（只读 data 层，PR #149）合并收口
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a4a只读-data-层pr-149合并收口)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a4a只读-data-层pr-149合并收口)。
 
 ### A4b（WeeklyGrammar 数据查询迁移，PR #151）合并收口
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a4bweeklygrammar-数据查询迁移pr-151合并收口)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a4bweeklygrammar-数据查询迁移pr-151合并收口)。
 
 ### A4c（WeeklyProgress 数据查询迁移，PR #152）合并收口
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a4cweeklyprogress-数据查询迁移pr-152合并收口)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a4cweeklyprogress-数据查询迁移pr-152合并收口)。
 
 ### A4d（DailyProgress 数据查询迁移，PR #153）合并收口
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a4ddailyprogress-数据查询迁移pr-153合并收口)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a4ddailyprogress-数据查询迁移pr-153合并收口)。
 
 ### A4e（ActiveSessions 只读迁移，PR #154）合并收口
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a4eactivesessions-只读迁移pr-154合并收口)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a4eactivesessions-只读迁移pr-154合并收口)。
 
 ### A6（分层依赖门禁，PR #155）代码验收完成
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a6分层依赖门禁pr-155代码验收完成)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a6分层依赖门禁pr-155代码验收完成)。
 
 ### A5（导航切片，PR #148）合并收口
 
 对应 Fake API、只读 data 层、导航切片或分层依赖门禁的合入/技术验收事实已归档。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#a5导航切片pr-148合并收口)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#a5导航切片pr-148合并收口)。
 
 ### B1（学习事件台账）与 WPH 历史收口快照；用户 Review 待
 
 B1 §9 七项业务政策已于 2026-11-12 确认；本地四迁移、ledger、冻结 `bkt-v1`、隐私导出/整账号删除与合成 PG 验证已完成。B2 的生产维护窗口/停写、真实 DDL 与数据切换、备份复活/法定特殊保留、真实环境仍未完成；本次合并集成本地验证已完成，最终以同卡回执为准。
 
-详细历史见 [B1 对应小节](./history/b1-implementation-2026-11-16.md#b1学习事件台账与-wph-历史收口快照用户-review-待)。
+详细历史见 [B1 对应小节](../../history/b1-implementation-2026-11-16.md#b1学习事件台账与-wph-历史收口快照用户-review-待)。
 
 ## 已知限制和近期风险
 
 - 架构层面的风险（无 TLS 入口、分析可观测性、Compose 就绪门禁、原生认证未适配等）统一维护在
-  [ARCHITECTURE.md §7](./ARCHITECTURE.md)，本文不重复。
+  [ARCHITECTURE.md §7](../../ARCHITECTURE.md)，本文不重复。
 - CI 前端固定使用与锁文件一致的 Playwright 1.62.1 / Ubuntu 26.04 官方预装镜像及 digest，避免运行时
   安装浏览器系统依赖反复受软件源 DNS 故障阻断；保留 Node 22、全部原有测试与检查名，并在运行 E2E 前
   核验两个浏览器可执行文件。具体结果仍需绑定相应 head 的 CI 日志。
@@ -473,30 +473,30 @@ B1 §9 七项业务政策已于 2026-11-12 确认；本地四迁移、ledger、�
 
 ## 历史与决策
 
-| 内容                                                                         | 位置                                                                                                                                                                                                |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Room 所有权收窄（A19，已发布 PR190 main015）                                 | [验收记录](./history/2026-11-16-a19-room-ownership-maintenance.md)                                                                                                                                  |
-| 生命周期测试边界（A18，已发布 PR191）                                        | [验收记录](./history/2026-11-16-a18-lifecycle-testing-boundary.md)                                                                                                                                  |
-| SGEC 纯离线契约实施（SGEC-OFF，PR194/main d33f236）                          | [实施记录](./history/2026-11-16-sgec-offline-implementation.md)                                                                                                                                     |
-| CI 首失败取证（EV，源码 APPROVED；已发布 main bf4becd，mainCI 首五 success） | [验收记录](./history/2026-11-16-e2e-first-failure-evidence.md)                                                                                                                                      |
-| Compose 启动门禁方案 B（CPB，已发布 PR186/main 53d2a409）                    | [验收记录](./history/2026-11-15-compose-startup-gates.md)                                                                                                                                           |
-| Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）               | [验收记录](./history/2026-11-15-dashboard-extraction.md)                                                                                                                                            |
-| 遗留产品润色（ACT，三处产品修复 + R2-10 剩余 UI，本机 17 门禁）              | [验收记录](./history/2026-11-15-legacy-product-polish.md)                                                                                                                                           |
-| Token 失败自动清理测试前提（ST2，已发布 PR183/main 7780c718）                | [验收记录](./history/2026-11-15-session-token-error-test-barrier.md)                                                                                                                                |
-| 主题按钮大字号重排（READ2，已发布 PR182/main 3d246c3）                       | [验收记录](./history/2026-11-15-theme-swatch-reflow.md)                                                                                                                                             |
-| 键盘焦点遍历可靠性（A11Y，已发布 PR181/main cf104bb）                        | [验收记录](./history/2026-11-15-dashboard-focus-test-reliability.md)                                                                                                                                |
-| 启动视图测试前提（ST，已发布 PR180/main f915157）                            | [验收记录](./history/2026-11-15-session-start-test-barrier.md)                                                                                                                                      |
-| 设置可读性（READ，已发布 PR179/main c9f3131a）                               | [验收记录](./history/2026-11-15-settings-readability.md)                                                                                                                                            |
-| theme-storage 冷启动/水合/零写（TS，已发布 PR178）                           | [验收记录](./history/2026-11-15-theme-storage-reliability.md)                                                                                                                                       |
-| I1评估提供方设计与实施（源码APPROVED R0，已发布main76d9d6ba）                | [ASSESSMENT_PROVIDER_DESIGN.md](./ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](./history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](./history/2026-11-15-i1-provider-implementation.md) |
-| 遗留台账对账（LGR，纯文档）                                                  | [对账记录](./history/2026-11-15-legacy-reconciliation.md)                                                                                                                                           |
-| H1设计与实施（已发布，保留首失败）                                           | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](./CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](./history/2026-11-15-h1-startup-implementation.md)                                             |
-| G3同源契约本机验收补齐与历史草稿                                             | [history/2026-11-15-g3-contract-implementation.md](./history/2026-11-15-g3-contract-implementation.md)                                                                                              |
-| B1 完整原状态快照（绑定 HEAD `46ef954`，只代表原时点）                       | [B1 实施历史快照](./history/b1-implementation-2026-11-16.md)                                                                                                                                        |
-| 2026 年 11 月各轮实施记录与当时基线                                          | [history/2026-11.md](./history/2026-11.md)                                                                                                                                                          |
-| 2026 年 10 月各轮实施记录                                                    | [history/2026-10.md](./history/2026-10.md)                                                                                                                                                          |
-| 已合并与明确未采纳的方案                                                     | [history/decisions.md](./history/decisions.md)                                                                                                                                                      |
-| 已完成的待办事项                                                             | [history/todo-done.md](./history/todo-done.md)                                                                                                                                                      |
-| 评审手册的单轮回执                                                           | [history/review-loop-receipts.md](./history/review-loop-receipts.md)                                                                                                                                |
+| 内容                                                                         | 位置                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Room 所有权收窄（A19，已发布 PR190 main015）                                 | [验收记录](../../history/2026-11-16-a19-room-ownership-maintenance.md)                                                                                                                                          |
+| 生命周期测试边界（A18，已发布 PR191）                                        | [验收记录](../../history/2026-11-16-a18-lifecycle-testing-boundary.md)                                                                                                                                          |
+| SGEC 纯离线契约实施（SGEC-OFF，PR194/main d33f236）                          | [实施记录](../../history/2026-11-16-sgec-offline-implementation.md)                                                                                                                                             |
+| CI 首失败取证（EV，源码 APPROVED；已发布 main bf4becd，mainCI 首五 success） | [验收记录](../../history/2026-11-16-e2e-first-failure-evidence.md)                                                                                                                                              |
+| Compose 启动门禁方案 B（CPB，已发布 PR186/main 53d2a409）                    | [验收记录](../../history/2026-11-15-compose-startup-gates.md)                                                                                                                                                   |
+| Dashboard 抽取（DASH，源码 APPROVED，三树计数相对 ACT 零变化）               | [验收记录](../../history/2026-11-15-dashboard-extraction.md)                                                                                                                                                    |
+| 遗留产品润色（ACT，三处产品修复 + R2-10 剩余 UI，本机 17 门禁）              | [验收记录](../../history/2026-11-15-legacy-product-polish.md)                                                                                                                                                   |
+| Token 失败自动清理测试前提（ST2，已发布 PR183/main 7780c718）                | [验收记录](../../history/2026-11-15-session-token-error-test-barrier.md)                                                                                                                                        |
+| 主题按钮大字号重排（READ2，已发布 PR182/main 3d246c3）                       | [验收记录](../../history/2026-11-15-theme-swatch-reflow.md)                                                                                                                                                     |
+| 键盘焦点遍历可靠性（A11Y，已发布 PR181/main cf104bb）                        | [验收记录](../../history/2026-11-15-dashboard-focus-test-reliability.md)                                                                                                                                        |
+| 启动视图测试前提（ST，已发布 PR180/main f915157）                            | [验收记录](../../history/2026-11-15-session-start-test-barrier.md)                                                                                                                                              |
+| 设置可读性（READ，已发布 PR179/main c9f3131a）                               | [验收记录](../../history/2026-11-15-settings-readability.md)                                                                                                                                                    |
+| theme-storage 冷启动/水合/零写（TS，已发布 PR178）                           | [验收记录](../../history/2026-11-15-theme-storage-reliability.md)                                                                                                                                               |
+| I1评估提供方设计与实施（源码APPROVED R0，已发布main76d9d6ba）                | [ASSESSMENT_PROVIDER_DESIGN.md](../../ASSESSMENT_PROVIDER_DESIGN.md)；[设计记录](../../history/2026-11-15-i1-assessment-provider-design.md)；[实施记录](../../history/2026-11-15-i1-provider-implementation.md) |
+| 遗留台账对账（LGR，纯文档）                                                  | [对账记录](../../history/2026-11-15-legacy-reconciliation.md)                                                                                                                                                   |
+| H1设计与实施（已发布，保留首失败）                                           | [CONVERSATION_STARTUP_EXTRACTION_DESIGN.md](../../CONVERSATION_STARTUP_EXTRACTION_DESIGN.md)；[实施记录](../../history/2026-11-15-h1-startup-implementation.md)                                                 |
+| G3同源契约本机验收补齐与历史草稿                                             | [history/2026-11-15-g3-contract-implementation.md](../../history/2026-11-15-g3-contract-implementation.md)                                                                                                      |
+| B1 完整原状态快照（绑定 HEAD `46ef954`，只代表原时点）                       | [B1 实施历史快照](../../history/b1-implementation-2026-11-16.md)                                                                                                                                                |
+| 2026 年 11 月各轮实施记录与当时基线                                          | [history/2026-11.md](../../history/2026-11.md)                                                                                                                                                                  |
+| 2026 年 10 月各轮实施记录                                                    | [history/2026-10.md](../../history/2026-10.md)                                                                                                                                                                  |
+| 已合并与明确未采纳的方案                                                     | [history/decisions.md](../../history/decisions.md)                                                                                                                                                              |
+| 已完成的待办事项                                                             | [history/todo-done.md](../../history/todo-done.md)                                                                                                                                                              |
+| 评审手册的单轮回执                                                           | [history/review-loop-receipts.md](../../history/review-loop-receipts.md)                                                                                                                                        |
 
 历史文件只追加、不改写；其中的计数和结论只属于当时的提交。

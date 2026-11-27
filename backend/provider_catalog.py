@@ -124,7 +124,7 @@ _LLM_PROVIDERS: dict[str, LLMProviderMetadata] = {
         id="siliconflow",
         base_url="https://api.siliconflow.cn/v1",
         api_key_field="SILICONFLOW_API_KEY",
-        validation_url="https://api.siliconflow.cn/v1/user/info",
+        validation_url="https://api.siliconflow.cn/v1/models?sub_type=chat",
         label="SiliconFlow",
         is_default=True,
     ),

@@ -126,10 +126,11 @@ R2-LIVE 不改变：
 预期触及 `useActiveSessionsLifecycle.ts` 及 `ActiveSessions.test.tsx` 或同职责行为测试；实际写集以
 该卡任务说明为准。先写有效 RED，再写最小修复。
 
-当前实施时点为 **FINAL_READY（2026-11-15，本地实现）**。有效 TDD 链
+原时点实施状态为 **FINAL_READY（2026-11-15，本地实现）**；当前功能与实施进度只看根目录
+[TODO 总账](../TODO.md)。有效 TDD 链
 `2 failed / 1 passed → 3 passed → 2 failed / 1 passed`、修正后的新测试 `3 passed / exit 0`
 且无 `act` 警告，以及两项有效私有变异均由主控新鲜执行。完整数字、保护文件与边界集中于
-[PROJECT_STATUS 的 R2-LIVE 小节](./PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
+[归档 PROJECT_STATUS 的 R2-LIVE 小节](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#r2-live-活动会话生命周期实时门禁final_ready)，
 本文件不重复。最小实现只在生命周期事件发生时读取同一 conversation store，并复用
 `isStartingConversationSession`；未改 data/auth/store/platform 或新增订阅。
 
@@ -171,7 +172,7 @@ hooks/auth/store/data、请求、复制、格式、超时、重试和业务时�
 Provider 或生产。
 
 TDD、首轮失败、全仓 format 链、最终门禁、变异/hash、保护集、截图与 Review 边界集中在
-[PROJECT_STATUS 的 R2-UI 小节](./PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
+[PROJECT_STATUS 的 R2-UI 小节](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#r2-ui-设置标题与活动记录去-uuidfinal_ready)。
 独立技术 Review、最终文档 format、commit/push 以主控同卡回执为准；用户 Review 待，本文件不写
 APPROVED。生产、真实 Provider/IdP/LiveKit、设备、部署和真实数据未验收；SGEC-OFF 仍待实施。
 

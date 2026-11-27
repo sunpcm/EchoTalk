@@ -1,0 +1,505 @@
+:where(.practice-session, .practice-recommendations, .practice-status-view) {
+  --practice-serif: "Songti SC", "Noto Serif SC", "STSong", "SimSun", Georgia, serif;
+}
+
+.practice-session {
+  gap: clamp(1.15rem, 3vw, 1.75rem);
+}
+
+.practice-session__status {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  overflow: hidden;
+  padding: clamp(1.1rem, 3vw, 1.5rem);
+}
+
+.practice-session__status::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.2rem;
+  background: var(--accent-soft-border);
+  content: "";
+}
+
+.practice-session__meta {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.practice-session__scene {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+}
+
+.practice-session__timer {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.practice-session__state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 10rem;
+  padding-block: 1.5rem 1.25rem;
+}
+
+.practice-session__state-title {
+  max-width: 100%;
+  margin: 0;
+  color: var(--text);
+  font-family: var(--practice-serif);
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.015em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.practice-session__state[data-state="listening"] .practice-session__state-title {
+  color: var(--success-text);
+}
+
+.practice-session__state[data-state="thinking"] .practice-session__state-title {
+  color: var(--warning);
+}
+
+.practice-session__state[data-state="speaking"] .practice-session__state-title {
+  color: var(--accent);
+}
+
+.practice-session__visualizer {
+  width: min(100%, 14rem);
+  height: 4rem;
+  margin-top: 0.8rem;
+}
+
+.practice-session__controls {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.practice-session__audio-controls {
+  flex: 1 1 8rem;
+}
+
+.practice-session__audio-controls > * {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.practice-session__end {
+  min-width: 7.5rem;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--danger-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--danger-text);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.practice-session__end:hover {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.practice-session__error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.practice-session__recommendations-toggle {
+  border-radius: 0.35rem;
+}
+
+.practice-transcript {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  box-shadow: 0 0.7rem 1.6rem -1.1rem var(--card-shadow);
+}
+
+.practice-transcript__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.practice-transcript__title {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--practice-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.practice-transcript__fold {
+  min-height: 44px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.practice-transcript__fold:hover {
+  border-color: var(--accent-soft-border);
+  color: var(--accent);
+}
+
+.practice-transcript__fold:focus-visible,
+.practice-session__end:focus-visible,
+.practice-session__recommendations-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.practice-transcript__log {
+  flex: 1;
+  min-height: 15rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.practice-transcript__empty {
+  display: grid;
+  min-height: 15rem;
+  place-items: center;
+  margin: 0;
+  padding: 2rem;
+  color: var(--text-faint);
+  font-family: var(--practice-serif);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.practice-transcript__turn {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.35rem;
+  padding: 1.1rem 1.15rem;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface);
+}
+
+.practice-transcript__turn:last-child {
+  border-bottom: 0;
+}
+
+.practice-transcript__turn[data-latest="true"] {
+  border-left: 0.2rem solid var(--accent);
+  background: var(--surface-alt);
+}
+
+.practice-transcript__role {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.5;
+  letter-spacing: 0.1em;
+}
+
+.practice-transcript__turn--user .practice-transcript__role {
+  color: var(--success-text);
+}
+
+.practice-transcript__latest-mark {
+  width: 0.42rem;
+  height: 0.42rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.practice-transcript__text {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-family: var(--practice-serif);
+  font-size: clamp(1rem, 2.8vw, 1.12rem);
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.practice-transcript__turn[data-final="false"] .practice-transcript__text {
+  color: var(--text-muted);
+}
+
+.practice-recommendations {
+  border: 1px solid var(--success-border);
+  border-radius: 0.4rem;
+  background: var(--success-bg);
+  padding: clamp(0.85rem, 2.4vw, 1.1rem);
+  box-shadow: 0 0.7rem 1.6rem -1.15rem var(--card-shadow);
+}
+
+.practice-recommendations__heading {
+  margin: 0 0 0.35rem;
+  color: var(--success-text);
+  font-family: var(--practice-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.practice-recommendations__hint,
+.practice-recommendations__waiting {
+  margin: 0;
+  color: var(--success-text);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.practice-recommendations__list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.practice-recommendations__item {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--success-border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--success-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.practice-recommendations__item:hover {
+  border-color: var(--success);
+  background: var(--surface-alt);
+}
+
+.practice-recommendations__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.practice-recommendations__number {
+  display: inline-flex;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--success-contrast);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.practice-recommendations__text {
+  min-width: 0;
+}
+
+.practice-status-view {
+  display: flex;
+  min-height: 20rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: clamp(1.5rem, 5vw, 3.5rem);
+  text-align: center;
+}
+
+.practice-status-view__title {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--text);
+  font-family: var(--practice-serif);
+  font-size: clamp(1.65rem, 5vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.practice-status-view__message {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.75;
+}
+
+.practice-status-view__panel {
+  width: min(100%, 34rem);
+  border: 1px solid var(--border);
+  border-left: 0.2rem solid var(--accent-soft-border);
+  background: var(--surface);
+  padding: clamp(1.1rem, 4vw, 1.75rem);
+  text-align: left;
+}
+
+.practice-status-view__panel--danger {
+  border-color: var(--danger-border);
+  border-left-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.practice-status-view__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.practice-status-view__actions > button {
+  min-height: 44px;
+}
+
+.practice-status-view__spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0.25rem solid var(--accent-soft-border);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: practice-status-spin 900ms linear infinite;
+}
+
+.practice-status-view__mark {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.practice-status-view__mark--danger {
+  background: var(--danger);
+}
+
+@keyframes practice-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 40rem) {
+  .practice-transcript__turn {
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 1rem;
+    padding: 1.25rem 1.4rem;
+  }
+
+  .practice-transcript__role {
+    align-items: flex-start;
+    padding-top: 0.32rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .practice-session__status {
+    padding: 1.25rem;
+  }
+
+  .practice-session__state {
+    min-height: 13rem;
+  }
+
+  .practice-session__state-title {
+    font-size: clamp(1.8rem, 2.7vw, 2.35rem);
+  }
+
+  .practice-transcript {
+    min-height: 100%;
+  }
+}
+
+@media (max-width: 22.5rem) {
+  .practice-session {
+    padding-inline: 0.75rem;
+  }
+
+  .practice-recommendations {
+    padding: 0.45rem;
+  }
+
+  .practice-recommendations__item {
+    padding: 0.55rem 0.45rem;
+  }
+
+  .practice-recommendations__item > div:first-child {
+    gap: 0.25rem;
+  }
+
+  .practice-transcript__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .practice-transcript__fold {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practice-session__end,
+  .practice-transcript__fold,
+  .practice-recommendations__item,
+  .practice-status-view__spinner {
+    transition: none;
+  }
+
+  .practice-status-view__spinner {
+    animation: none;
+    border-top-color: var(--accent);
+  }
+}

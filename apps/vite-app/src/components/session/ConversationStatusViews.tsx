@@ -1,6 +1,8 @@
+import { ConnectionState } from "livekit-client";
 import { useConversationStore } from "@/store/conversation";
 import { useAppStore } from "@/store/appStore";
 import { zhCN } from "@/i18n/zh-CN";
+import "./SessionPracticeJournal.css";
 
 const tConv = zhCN.conversation;
 const tDash = zhCN.dashboard;
@@ -11,16 +13,18 @@ export function IdleView() {
   const goHome = useAppStore((state) => state.goHome);
 
   return (
-    <div className="flex flex-col items-center gap-6 py-12">
+    <div className="practice-status-view">
       {error && (
-        <div className="bg-danger-bg text-danger-text w-full max-w-sm rounded-lg p-4 text-center text-sm">
-          <p className="font-medium">{tConv.errorTitle}</p>
-          <p>{error}</p>
+        <div className="practice-status-view__panel practice-status-view__panel--danger">
+          <h1 className="practice-status-view__title">{tConv.errorTitle}</h1>
+          <p className="practice-status-view__message mt-2 text-sm">{error}</p>
         </div>
       )}
-      <button onClick={goHome} className="btn-primary px-8 py-3 text-lg">
-        {tDash.goHome}
-      </button>
+      <div className="practice-status-view__actions">
+        <button type="button" onClick={goHome} className="btn-primary px-8 py-3 text-lg">
+          {tDash.goHome}
+        </button>
+      </div>
     </div>
   );
 }
@@ -30,8 +34,8 @@ export function DispatchFailedView() {
   const goHome = useAppStore((state) => state.goHome);
 
   return (
-    <div className="flex flex-col items-center gap-6 py-8" data-testid="dispatch-failed-view">
-      <div className="border-danger-border bg-danger-bg w-full max-w-md rounded-[20px] border p-6 shadow-sm">
+    <div className="practice-status-view" data-testid="dispatch-failed-view">
+      <div className="practice-status-view__panel practice-status-view__panel--danger">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 shrink-0">
             <svg className="text-danger h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -43,17 +47,21 @@ export function DispatchFailedView() {
             </svg>
           </div>
           <div className="flex-1 text-left">
-            <h3 className="text-danger-text text-base font-semibold">
+            <h1 className="practice-status-view__title text-danger-text">
               {tConv.dispatchFailedTitle}
-            </h3>
-            <p className="text-danger-text mt-1 text-sm leading-relaxed">
+            </h1>
+            <p className="practice-status-view__message text-danger-text mt-2 text-sm">
               {tConv.dispatchFailedMessage}
             </p>
           </div>
         </div>
       </div>
-      <div className="flex gap-4">
-        <button onClick={goHome} className="btn-primary px-6 py-2.5 text-sm font-medium">
+      <div className="practice-status-view__actions">
+        <button
+          type="button"
+          onClick={goHome}
+          className="btn-primary px-6 py-2.5 text-sm font-medium"
+        >
           {tDash.goHome}
         </button>
       </div>
@@ -61,12 +69,35 @@ export function DispatchFailedView() {
   );
 }
 
-/** 连接中视图：loading 状态 */
-export function ConnectingView() {
+/** 连接状态视图：默认用于首次连接，也显示真实的断连与重连状态。 */
+export function ConnectingView({
+  connectionState = ConnectionState.Connecting,
+}: {
+  connectionState?: ConnectionState;
+}) {
+  const isDisconnected = connectionState === ConnectionState.Disconnected;
+  const statusLabel = isDisconnected ? tConv.connectionFailedTitle : tConv.connecting;
+
   return (
-    <div className="flex flex-col items-center gap-4 py-12">
-      <div className="border-accent h-10 w-10 animate-spin rounded-full border-4 border-t-transparent" />
-      <p className="text-text-muted">{tConv.connecting}</p>
+    <div
+      className="practice-status-view"
+      data-testid="connecting-view"
+      data-connection-state={connectionState}
+      role={isDisconnected ? "alert" : "status"}
+      aria-live="polite"
+    >
+      {isDisconnected ? (
+        <span
+          aria-hidden="true"
+          className="practice-status-view__mark practice-status-view__mark--danger"
+        />
+      ) : (
+        <span aria-hidden="true" className="practice-status-view__spinner" />
+      )}
+      <h1 className="practice-status-view__title">{statusLabel}</h1>
+      {isDisconnected ? (
+        <p className="practice-status-view__message">{tConv.connectionFailedMessage}</p>
+      ) : null}
     </div>
   );
 }
@@ -76,13 +107,15 @@ export function EndingView() {
   const goHome = useAppStore((state) => state.goHome);
 
   return (
-    <div className="flex flex-col items-center gap-4 py-12 text-center" data-testid="ending-view">
-      <div className="border-accent h-10 w-10 animate-spin rounded-full border-4 border-t-transparent" />
-      <h3 className="text-text-default text-lg font-semibold">{tConv.ending}</h3>
-      <p className="text-text-muted text-sm">{tConv.endingHint}</p>
-      <button onClick={goHome} className="btn-secondary mt-4 px-6 py-2 text-sm">
-        {tDash.goHome}
-      </button>
+    <div className="practice-status-view" data-testid="ending-view">
+      <span aria-hidden="true" className="practice-status-view__spinner" />
+      <h1 className="practice-status-view__title">{tConv.ending}</h1>
+      <p className="practice-status-view__message">{tConv.endingHint}</p>
+      <div className="practice-status-view__actions">
+        <button type="button" onClick={goHome} className="btn-secondary px-6 py-2 text-sm">
+          {tDash.goHome}
+        </button>
+      </div>
     </div>
   );
 }
@@ -94,8 +127,8 @@ export function EndFailedView() {
   const error = useConversationStore((state) => state.error);
 
   return (
-    <div className="flex flex-col items-center gap-6 py-8" data-testid="end-failed-view">
-      <div className="border-danger-border bg-danger-bg w-full max-w-md rounded-[20px] border p-6 shadow-sm">
+    <div className="practice-status-view" data-testid="end-failed-view">
+      <div className="practice-status-view__panel practice-status-view__panel--danger">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 shrink-0">
             <svg className="text-danger h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -107,19 +140,27 @@ export function EndFailedView() {
             </svg>
           </div>
           <div className="flex-1 text-left">
-            <h3 className="text-danger-text text-base font-semibold">{tConv.endFailedTitle}</h3>
-            <p className="text-danger-text mt-1 text-sm leading-relaxed">
+            <h1 className="practice-status-view__title text-danger-text">{tConv.endFailedTitle}</h1>
+            <p className="practice-status-view__message text-danger-text mt-2 text-sm">
               {tConv.endFailedMessage}
             </p>
             {error && <p className="text-danger mt-2 font-mono text-xs">{error}</p>}
           </div>
         </div>
       </div>
-      <div className="flex gap-4">
-        <button onClick={endSession} className="btn-primary px-6 py-2.5 text-sm font-medium">
+      <div className="practice-status-view__actions">
+        <button
+          type="button"
+          onClick={endSession}
+          className="btn-primary px-6 py-2.5 text-sm font-medium"
+        >
           {tConv.retryEndButton}
         </button>
-        <button onClick={goHome} className="btn-secondary px-6 py-2.5 text-sm font-medium">
+        <button
+          type="button"
+          onClick={goHome}
+          className="btn-secondary px-6 py-2.5 text-sm font-medium"
+        >
           {tDash.goHome}
         </button>
       </div>
@@ -132,14 +173,16 @@ export function RoomUnavailableView() {
   const goHome = useAppStore((state) => state.goHome);
 
   return (
-    <div className="flex flex-col items-center gap-4 py-12">
-      <div className="bg-danger-bg text-danger-text w-full max-w-sm rounded-[20px] p-6 text-center text-sm">
-        <p className="font-semibold">{tConv.errorTitle}</p>
-        <p className="mt-1">{tConv.roomUnavailable}</p>
+    <div className="practice-status-view">
+      <div className="practice-status-view__panel practice-status-view__panel--danger">
+        <h1 className="practice-status-view__title">{tConv.errorTitle}</h1>
+        <p className="practice-status-view__message mt-2">{tConv.roomUnavailable}</p>
       </div>
-      <button onClick={goHome} className="btn-primary px-6 py-2.5">
-        {tDash.goHome}
-      </button>
+      <div className="practice-status-view__actions">
+        <button type="button" onClick={goHome} className="btn-primary px-6 py-2.5">
+          {tDash.goHome}
+        </button>
+      </div>
     </div>
   );
 }
@@ -149,8 +192,8 @@ export function ConnectionFailedView() {
   const goHome = useAppStore((state) => state.goHome);
 
   return (
-    <div className="flex flex-col items-center gap-6 py-8" data-testid="connection-failed-view">
-      <div className="border-danger-border bg-danger-bg w-full max-w-md rounded-[20px] border p-6 shadow-sm">
+    <div className="practice-status-view" data-testid="connection-failed-view">
+      <div className="practice-status-view__panel practice-status-view__panel--danger">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 shrink-0">
             <svg className="text-danger h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -162,17 +205,21 @@ export function ConnectionFailedView() {
             </svg>
           </div>
           <div className="flex-1 text-left">
-            <h3 className="text-danger-text text-base font-semibold">
+            <h1 className="practice-status-view__title text-danger-text">
               {tConv.connectionFailedTitle}
-            </h3>
-            <p className="text-danger-text mt-1 text-sm leading-relaxed">
+            </h1>
+            <p className="practice-status-view__message text-danger-text mt-2 text-sm">
               {tConv.connectionFailedMessage}
             </p>
           </div>
         </div>
       </div>
-      <div className="flex gap-4">
-        <button onClick={goHome} className="btn-primary px-6 py-2.5 text-sm font-medium">
+      <div className="practice-status-view__actions">
+        <button
+          type="button"
+          onClick={goHome}
+          className="btn-primary px-6 py-2.5 text-sm font-medium"
+        >
           {tDash.goHome}
         </button>
       </div>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { EndedConversation } from "./EndedConversation";
 import { PronunciationFeedback } from "./PronunciationFeedback";
@@ -76,14 +76,35 @@ describe("PronunciationFeedback", () => {
     expect(noteBanner).toHaveTextContent(t.syntheticHint);
   });
 
+  it("marks synthetic grammar output while real pronunciation remains distinct", () => {
+    render(
+      <PronunciationFeedback
+        assessment={{ ...mockAssessment, is_synthetic: false }}
+        grammarErrors={[{ ...mockGrammarErrors[0], is_synthetic: true }]}
+      />,
+    );
+
+    expect(screen.getByRole("note")).toHaveTextContent(t.syntheticBadge);
+    expect(screen.getAllByText(t.syntheticBadge)).toHaveLength(2);
+  });
+
   it("renders grammar errors with semantic del and ins tags and ARIA labels", () => {
     render(<PronunciationFeedback assessment={mockAssessment} grammarErrors={mockGrammarErrors} />);
+
+    const grammarHeading = screen.getByRole("heading", {
+      level: 2,
+      name: `${t.grammarTitle} (${mockGrammarErrors.length})`,
+    });
+    expect(grammarHeading).toHaveTextContent(`${t.grammarTitle} (${mockGrammarErrors.length})`);
 
     // Verify del element for first error using i18n label definition
     const expectedOriginalLabel = t.grammarOriginalLabel.replace("{text}", "He go there yesterday");
     const delElem = screen.getByLabelText(expectedOriginalLabel);
     expect(delElem.tagName.toLowerCase()).toBe("del");
     expect(delElem).toHaveTextContent("He go there yesterday");
+    const originalDefinition = delElem.closest("dd");
+    expect(originalDefinition).toHaveTextContent("He go there yesterday");
+    expect(originalDefinition).toHaveAttribute("lang", "en");
 
     // Verify ins element for corrected version using i18n label definition
     const expectedCorrectedLabel = t.grammarCorrectedLabel.replace(
@@ -93,14 +114,43 @@ describe("PronunciationFeedback", () => {
     const insElem = screen.getByLabelText(expectedCorrectedLabel);
     expect(insElem.tagName.toLowerCase()).toBe("ins");
     expect(insElem).toHaveTextContent("He went there yesterday");
+    const correctedDefinition = insElem.closest("dd");
+    expect(correctedDefinition).toHaveTextContent("He went there yesterday");
+    expect(correctedDefinition).toHaveAttribute("lang", "en");
 
-    // Verify directional arrow exists
-    expect(screen.getByText("→")).toBeInTheDocument();
+    const firstItem = delElem.closest("li");
+    expect(within(firstItem!).getByText(t.originalCaption)).toBeInTheDocument();
+    expect(within(firstItem!).getByText(t.correctedCaption)).toBeInTheDocument();
 
     // Verify second error without correction does not render ins
     const expectedOriginalLabel2 = t.grammarOriginalLabel.replace("{text}", "She don't know");
     const delElem2 = screen.getByLabelText(expectedOriginalLabel2);
     expect(delElem2.tagName.toLowerCase()).toBe("del");
+  });
+
+  it("preserves complete sentences and emoji in whole-sentence corrections", () => {
+    const original = "I love this cafe 😊☕";
+    const corrected = "I really love this cafe 😊☕";
+
+    render(
+      <PronunciationFeedback
+        assessment={mockAssessment}
+        grammarErrors={[
+          {
+            ...mockGrammarErrors[0],
+            original,
+            corrected,
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText(t.grammarOriginalLabel.replace("{text}", original)),
+    ).toHaveTextContent(original);
+    expect(
+      screen.getByLabelText(t.grammarCorrectedLabel.replace("{text}", corrected)),
+    ).toHaveTextContent(corrected);
   });
 
   it("maps every seeded backend skill ID to Chinese without changing established labels", () => {
@@ -205,11 +255,19 @@ describe("PronunciationFeedback", () => {
     try {
       render(<EndedConversation />);
 
+      expect(screen.getByRole("heading", { level: 1, name: t.journalTitle })).toBeInTheDocument();
+      expect(screen.getByText(zhCN.conversation.ended)).toBeInTheDocument();
       expect(screen.getByText(t.pronunciationUnavailable)).toBeInTheDocument();
-      expect(screen.getByText("He go there yesterday")).toBeInTheDocument();
-      expect(screen.getByText("He went there yesterday")).toBeInTheDocument();
+      const definitions = screen.getAllByRole("definition");
+      expect(
+        definitions.some((definition) => definition.textContent === "He go there yesterday"),
+      ).toBe(true);
+      expect(
+        definitions.some((definition) => definition.textContent === "He went there yesterday"),
+      ).toBe(true);
       expect(screen.queryByText(t.scoreLabel)).not.toBeInTheDocument();
       expect(screen.queryByRole("group")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: zhCN.dashboard.goHome })).toBeInTheDocument();
     } finally {
       useAssessmentStore.setState({
         refreshAnalysis: originalRefresh,

@@ -42,7 +42,7 @@ arrange setup，并让纯 getter 与 adapter 共享同一快照读取事实，�
 
 R1 后 13 项门禁组合均 `exit 0`，完整 Vitest 为 `1211 passed / 49 files / 0 skip`，三项有效
 私有行为变异均被对应断言杀死；完整数字集中在
-[PROJECT_STATUS 的 A19 P2 小节](../../PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)。
+[PROJECT_STATUS 的 A19 P2 小节](../../archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#a19-p2-room-快照与引用所有权final_ready)。
 A19P2 只进入当前任务分支的最终提交与推送；最终文档 format、独立 Review、提交和推送以主控同卡
 回执为准，用户 Review 待，不开 PR、不合并、不部署。真实设备、真实 LiveKit/Provider/IdP、远端
 新 CI、部署和生产链路仍未验收。

@@ -177,7 +177,7 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
 最终 13 项机器门禁全部 `exit 0`；R1 首轮 TS `unknown` 收窄问题通过 const 原始值捕获修正，
 随后 quality、完整 Vitest 与全量 E2E 均复跑通过。正式返修 `1/2`、TDD 中间修正 `1`，
 详细数字、负向变异、AST/保护和编排诊断只集中在
-[PROJECT_STATUS 的 WD-API 小节](./PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)。
+[PROJECT_STATUS 的 WD-API 小节](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wd-api-周报已记录会话时长opt-in-聚合与兼容解析final_readyui-未实施)。
 原 API 收口时点，`getWeeklyProgress` 仍不发送 flag；WD-UI 随后才实施。
 
 本卡已按“真实合成 PostgreSQL RED → opt-in 聚合/schema/生成类型/parser 兼容扩展 → 完整门禁”
@@ -200,12 +200,12 @@ WD-API 阶段先让 parser 能接受并保留白名单扩展，但 `getWeeklyPro
   非法时仅降级未知；WD-API 的 `getWeeklyProgress` 尚不请求该能力。
 
 以上验收目标对应原 API 收口时点，最终均由主控机器回执覆盖；当时产品、测试与生成文件已停写，
-时长父项仍因 WD-UI 未实施而保持未勾，本批合成 PG 当时继续活动供 WD-UI 使用。最终状态以上方
-WD-UI 小节与 PROJECT_STATUS 为准。
+时长父项仍因 WD-UI 未实施而保持未勾，本批合成 PG 当时继续活动供 WD-UI 使用。当前进度与未验边界见根目录 [TODO 总账](../TODO.md)。
 
 ### WD-UI：前端显示与真实浏览器
 
-当前状态为 `FINAL_READY`。客户端只固定请求 `include_recorded_duration=true`，服务端默认
+原时点状态为 `FINAL_READY`（2026-11-15，本地实现）；当前功能与实施进度只看根目录
+[TODO 总账](../TODO.md)。客户端只固定请求 `include_recorded_duration=true`，服务端默认
 `false` 的旧响应/count-only 路径继续兼容；周总、选中日、缺失提示和旧 API 未知态均已实现。
 实现锚点为 `apps/vite-app/src/lib/api.ts`、`apps/vite-app/src/lib/weekly-recorded-duration.ts`、
 `apps/vite-app/src/components/dashboard/WeeklyProgress.tsx` 与本卡 i18n 文案。周总与 selected
@@ -216,8 +216,8 @@ WD-UI 小节与 PROJECT_STATUS 为准。
 主控已完成后续 RED、修复、完整门禁与独立 Review 前置验证；目标失败在修复后全部通过，最终
 门禁全部 `exit 0`，私有变异均由具体断言杀死，双浏览器与宽窄实际截图通过主控亲审。详细机器
 数字、联合子集口径与保护 SHA，以及浏览器真实 Fake HTTP、后端真实 PostgreSQL 引擎上的自建
-合成库分别实跑且未冒充整链路的边界，只集中在
-[PROJECT_STATUS 的 WD-UI 小节](./PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
+合成库分别实跑且未冒充整链路的边界，只集中在原时点
+[归档 PROJECT_STATUS 的 WD-UI 小节](./archive/2026-11-21-document-consolidation/PROJECT_STATUS.md#wd-ui-周报已记录会话时长前端显示与浏览器验收final_ready)。
 最终格式、commit、push 以主控同卡回执为准，用户 Review 待，本文不自批 `APPROVED`。
 
 以下为原卡验收范围，已由上述实现和主控证据覆盖：

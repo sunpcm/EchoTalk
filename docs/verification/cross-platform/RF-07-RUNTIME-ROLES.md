@@ -36,7 +36,7 @@ ffmpeg/native 通过。修复前 network=none PID1 的 docker stop 约2.1秒 exi
 > C2 配对测量、最终组合两角色重建、真实服务/补充 HTTP 与清理已完成。见 §8 和
 > [隔离服务验收](./RF-07-ISOLATED-SERVICES.md)。以下 A79 安装/验证结论保留历史时点。
 > 完整门禁与最终 Review 以主控
-> [本轮总报告](../../../.review/reports/overnight-product-runtime-20261103/report.md) 为权威。
+> `../../../.review/reports/overnight-product-runtime-20261103/report.md`（仅原时点本地证据）为权威。
 >
 > 历史状态：A79 已 Review APPROVED，单提交 `eaac89d0f4f008e77ba51b26a590412a03541acb`
 > 已精确 fast-forward 本地 main，并通过完整 15 项 main 门禁。真实 Linux/Docker 镜像、

@@ -1,5 +1,6 @@
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { ConnectionState } from "livekit-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActiveConversation } from "./ActiveConversation";
 import { useAppStore } from "@/store/appStore";
@@ -20,10 +21,11 @@ type AppStoreWithSessionPresentation = ReturnType<typeof useAppStore.getState> &
 
 const h = vi.hoisted(() => ({
   voiceState: { state: "listening", audioTrack: null as unknown },
+  connectionState: "connected",
 }));
 
 vi.mock("@livekit/components-react", () => ({
-  useConnectionState: () => "connected",
+  useConnectionState: () => h.connectionState,
   useVoiceAssistant: () => h.voiceState,
   useRoomContext: () => ({}),
   useDataChannel: () => undefined,
@@ -79,6 +81,7 @@ describe("R2-11 ActiveConversation header & layout", () => {
     useAppStore.getState().goHome();
     setPresentation(null);
     h.voiceState = { state: "listening", audioTrack: null };
+    h.connectionState = ConnectionState.Connected;
   });
 
   afterEach(() => {
@@ -91,6 +94,36 @@ describe("R2-11 ActiveConversation header & layout", () => {
     renderActive();
     expect(screen.getByText("正在思考...")).toBeInTheDocument();
     expect(screen.queryByText(zhCN.conversation.connecting)).not.toBeInTheDocument();
+  });
+
+  it("初次 Disconnected 仍展示连接中，不误标为失联", () => {
+    h.connectionState = ConnectionState.Disconnected;
+
+    renderActive();
+
+    const connectionView = screen.getByTestId("connecting-view");
+    expect(connectionView).toHaveAttribute("data-connection-state", ConnectionState.Connecting);
+    expect(connectionView).toHaveTextContent(zhCN.conversation.connecting);
+    expect(connectionView).not.toHaveTextContent(zhCN.conversation.connectionFailedTitle);
+  });
+
+  it("成功连接后失联才展示断连标题", () => {
+    h.connectionState = ConnectionState.Disconnected;
+    const { rerender } = renderActive();
+    expect(screen.getByTestId("connecting-view")).toHaveAttribute(
+      "data-connection-state",
+      ConnectionState.Connecting,
+    );
+
+    h.connectionState = ConnectionState.Connected;
+    rerender(<ActiveConversation {...baseProps} />);
+    expect(screen.getByTestId("session-scenario")).toBeInTheDocument();
+
+    h.connectionState = ConnectionState.Disconnected;
+    rerender(<ActiveConversation {...baseProps} />);
+    const connectionView = screen.getByTestId("connecting-view");
+    expect(connectionView).toHaveAttribute("data-connection-state", ConnectionState.Disconnected);
+    expect(connectionView).toHaveTextContent(zhCN.conversation.connectionFailedTitle);
   });
 
   it("startedAt 为 null 时显示不可用文案", () => {
