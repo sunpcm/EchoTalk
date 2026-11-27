@@ -1,6 +1,7 @@
 @import "@biu/tailwind-config";
 @import "tailwindcss";
 @import "./fonts.css";
+@import "./journal-home.css";
 
 /* Tailwind v4 CSS-first: 把扫描路径写在 CSS 里（替代 tailwind.config.js 的 content） */
 @source "./**/*.{js,jsx,ts,tsx}";
@@ -19,12 +20,12 @@
       color 0.25s ease;
   }
 
-  /* Phase 8：标题统一 Baloo 2 */
+  /* 练习手记：标题统一主题衬线（英文衬线 + 中文衬线兜底） */
   h1,
   h2,
   h3 {
-    font-family: "Baloo 2", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-    letter-spacing: -0.01em;
+    font-family: "Georgia", "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+    letter-spacing: 0.01em;
   }
 }
 

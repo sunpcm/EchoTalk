@@ -87,7 +87,7 @@ describe("RecommendedScenarios UX & Accessibility", () => {
 
     render(<RecommendedScenarios />);
 
-    expect(await screen.findByRole("heading", { name: "Restaurant Ordering" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Restaurant Ordering/ })).toBeInTheDocument();
     for (const label of [
       "冠词使用",
       "过去时态",

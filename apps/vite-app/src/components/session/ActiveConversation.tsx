@@ -19,6 +19,7 @@ import type { SessionPresentation } from "@/store/conversationSlice";
 import { parseAgentErrorMessage } from "./agentErrorMessage";
 import { ConnectingView } from "./ConversationStatusViews";
 import { stopRoomLocalTracks } from "./roomAudio";
+import "./SessionPracticeJournal.css";
 
 const tConv = zhCN.conversation;
 
@@ -43,6 +44,7 @@ export function ActiveConversation({
   const endError = useConversationStore((state) => state.error);
   const sessionPresentation = useConversationStore((state) => state.sessionPresentation);
   const isMountedRef = useRef(true);
+  const hasConnectedRef = useRef(false);
   const [recommendationsOpen, setRecommendationsOpen] = useState(false);
 
   useEffect(() => {
@@ -105,12 +107,19 @@ export function ActiveConversation({
       ) {
         return;
       }
+      hasConnectedRef.current = true;
       setActive(sessionId, sessionGen);
     }
   }, [connectionState, setActive, sessionId, sessionGen, boundPrincipal, authorizedRevision]);
 
   if (connectionState !== ConnectionState.Connected) {
-    return <ConnectingView />;
+    // LiveKit 首次挂载可能先暴露 Disconnected，随后才进入 Connecting；
+    // 只有本会话曾成功连接时，Disconnected 才代表真实失联。
+    const visibleConnectionState =
+      connectionState === ConnectionState.Disconnected && !hasConnectedRef.current
+        ? ConnectionState.Connecting
+        : connectionState;
+    return <ConnectingView connectionState={visibleConnectionState} />;
   }
 
   const currentPresentation =
@@ -119,42 +128,51 @@ export function ActiveConversation({
       : null;
 
   return (
-    <div className="session-layout w-full min-w-0 flex-1 p-4">
-      <section className="session-layout__status border-border-default bg-surface min-w-0 rounded-[20px] border p-4 shadow-[0_6px_22px_-14px_var(--card-shadow)]">
-        <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+    <div className="session-layout practice-session w-full min-w-0 flex-1 p-4 sm:p-6">
+      <section className="session-layout__status practice-session__status border-border-default bg-surface min-w-0 rounded-[20px] border shadow-[0_6px_22px_-14px_var(--card-shadow)]">
+        <div className="practice-session__meta">
           <p
             data-testid="session-scenario"
-            className="text-text-default min-w-0 text-sm font-semibold [overflow-wrap:anywhere]"
+            className="practice-session__scene text-text-muted min-w-0 [overflow-wrap:anywhere]"
           >
             {resolveScenarioLabel(currentPresentation)}
           </p>
           <SessionTimer startedAt={currentPresentation?.startedAt ?? null} />
         </div>
 
-        {voiceAssistant.audioTrack ? (
-          <div className="mb-4 h-24 w-full">
-            <BarVisualizer
-              state={voiceAssistant.state}
-              trackRef={voiceAssistant.audioTrack}
-              barCount={7}
-              className="h-full w-full"
-            />
-          </div>
-        ) : null}
-
-        <AgentStatusText state={voiceAssistant.state} />
-
-        <div className="mt-3 min-w-0">
-          <VoiceAssistantControlBar controls={{ leave: false }} />
+        <div
+          className="practice-session__state"
+          data-state={normalizeAssistantState(voiceAssistant.state)}
+          role="status"
+          aria-live="polite"
+        >
+          <AgentStatusHeading state={voiceAssistant.state} />
+          {voiceAssistant.audioTrack ? (
+            <div className="practice-session__visualizer">
+              <BarVisualizer
+                state={voiceAssistant.state}
+                trackRef={voiceAssistant.audioTrack}
+                barCount={7}
+                className="h-full w-full"
+              />
+            </div>
+          ) : null}
         </div>
 
-        <button
-          onClick={handleEnd}
-          className="bg-danger hover:bg-danger-hover focus-visible:ring-danger text-danger-contrast mt-3 w-full rounded-[14px] px-6 py-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-        >
-          {tConv.endButton}
-        </button>
-        {endError ? <p className="text-danger mt-2 text-sm">{endError}</p> : null}
+        <div className="practice-session__controls">
+          <div className="practice-session__audio-controls min-w-0">
+            <VoiceAssistantControlBar controls={{ leave: false }} />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleEnd}
+            className="practice-session__end focus-visible:outline-accent"
+          >
+            {tConv.endButton}
+          </button>
+          {endError ? <p className="text-danger practice-session__error">{endError}</p> : null}
+        </div>
       </section>
 
       <div className="session-layout__subtitles min-w-0">
@@ -168,7 +186,7 @@ export function ActiveConversation({
           aria-expanded={recommendationsOpen}
           aria-controls="answer-recommendations-panel"
           onClick={() => setRecommendationsOpen((open) => !open)}
-          className="border-border-default bg-surface text-text-default hover:bg-surface-alt flex min-h-[44px] w-full items-center justify-between gap-3 rounded-[14px] border px-4 py-2 text-left text-sm font-semibold transition-colors lg:hidden"
+          className="practice-session__recommendations-toggle border-border-default bg-surface text-text-default hover:bg-surface-alt flex min-h-[44px] w-full items-center justify-between gap-3 rounded-[14px] border px-4 py-2 text-left text-sm font-semibold transition-colors lg:hidden"
         >
           <span>{zhCN.answerRecommendations.title}</span>
           <span aria-hidden="true" className="text-text-muted text-lg leading-none">
@@ -204,7 +222,7 @@ function SessionTimer({ startedAt }: { startedAt: string | null }) {
     <time
       data-testid="session-timer"
       dateTime={startedAt ?? undefined}
-      className="text-text-muted shrink-0 text-sm font-medium tabular-nums"
+      className="practice-session__timer text-text-muted shrink-0 tabular-nums"
     >
       {elapsed}
     </time>
@@ -242,7 +260,11 @@ function formatElapsed(startedAt: string | null, now: number): string {
   return [minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
-function AgentStatusText({ state }: { state: string }) {
+function normalizeAssistantState(state: string): string {
+  return ["listening", "thinking", "speaking"].includes(state) ? state : "idle";
+}
+
+function AgentStatusHeading({ state }: { state: string }) {
   const text = (() => {
     switch (state) {
       case "listening":
@@ -256,5 +278,5 @@ function AgentStatusText({ state }: { state: string }) {
     }
   })();
 
-  return <p className="text-text-muted text-center text-sm font-medium">{text}</p>;
+  return <h1 className="practice-session__state-title">{text}</h1>;
 }

@@ -1,5 +1,6 @@
 import { ANALYSIS_UNSUPPORTED } from "@/lib/agentAnalysisContract";
-import { useCallback } from "react";
+import type { ReactNode } from "react";
+import { useCallback, useId } from "react";
 import { GoalResults } from "./GoalResults";
 import { PronunciationFeedback } from "./PronunciationFeedback";
 import { SkillTree } from "@/components/shared/SkillTree";
@@ -8,11 +9,13 @@ import { zhCN } from "@/i18n/zh-CN";
 import { useAssessmentStore } from "@/store/assessment";
 import { useConversationStore } from "@/store/conversation";
 import { useAppStore } from "@/store/appStore";
+import "./PracticeJournal.css";
 
 const tAssess = zhCN.assessment;
 const tAgentErr = zhCN.agentError;
 const tConv = zhCN.conversation;
 const tDash = zhCN.dashboard;
+const tGoals = zhCN.sessionGoals;
 
 /** 已结束视图：展示评估结果和技能树，或 Agent 错误卡片。 */
 export function EndedConversation() {
@@ -37,35 +40,35 @@ export function EndedConversation() {
   }, [resetAssessment, goHome]);
 
   const handleRetry = useCallback(() => {
-    if (sessionId) void retryFailedAnalysis(sessionId);
-  }, [retryFailedAnalysis, sessionId]);
+    if (!sessionId) return;
+
+    if (loadState === "failed") {
+      void retryFailedAnalysis(sessionId).catch(() => undefined);
+      return;
+    }
+
+    useAssessmentStore.setState((state) => ({ pollVersion: state.pollVersion + 1 }));
+  }, [loadState, retryFailedAnalysis, sessionId]);
 
   // 无 ID 在途取消：展示本地取消状态，不启动分析
   if (!sessionId) {
     return (
-      <div className="flex flex-col items-center gap-6 py-8" data-testid="cancelled-local-view">
-        <div className="text-center">
-          <h2 className="text-text-default mb-2 text-2xl font-bold">
-            {tConv.cancelledBeforeStartTitle}
-          </h2>
-          <p className="text-text-muted text-sm leading-relaxed">
-            {tConv.cancelledBeforeStartMessage}
-          </p>
-        </div>
-        <button
-          onClick={handleGoHome}
-          className="btn-primary inline-flex items-center gap-2 px-8 py-3 text-lg"
+      <JournalShell onGoHome={handleGoHome}>
+        <div
+          className="practice-journal__state practice-journal__state--muted"
+          data-testid="cancelled-local-view"
         >
-          {tDash.goHome}
-        </button>
-      </div>
+          <p className="practice-journal__state-title">{tConv.cancelledBeforeStartTitle}</p>
+          <p className="practice-journal__state-copy">{tConv.cancelledBeforeStartMessage}</p>
+        </div>
+      </JournalShell>
     );
   }
 
   if (agentError) {
     return (
-      <div className="flex flex-col items-center gap-6 py-8">
-        <div className="border-danger-border bg-danger-bg w-full max-w-sm rounded-[20px] border p-6 shadow-sm">
+      <JournalShell status={tConv.ended} onGoHome={handleGoHome}>
+        <div className="practice-journal__error-card" role="alert">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 shrink-0">
               <svg className="text-danger h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -76,32 +79,30 @@ export function EndedConversation() {
                 />
               </svg>
             </div>
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <h3 className="text-danger-text text-sm font-semibold">{tAgentErr.title}</h3>
-              <p className="text-danger-text mt-1 text-sm leading-relaxed">{agentError.message}</p>
-              <p className="text-danger mt-0.5 font-mono text-xs">{agentError.code}</p>
+              <p className="text-danger-text mt-1 text-sm leading-relaxed [overflow-wrap:anywhere]">
+                {agentError.message}
+              </p>
+              <p className="text-danger mt-0.5 font-mono text-xs [overflow-wrap:anywhere]">
+                {agentError.code}
+              </p>
             </div>
           </div>
         </div>
         <GoalResults sessionId={sessionId} />
-        <div className="flex gap-3">
-          <button onClick={handleGoHome} className="btn-primary px-6 py-2.5">
-            {tAgentErr.goHome}
-          </button>
-        </div>
-      </div>
+      </JournalShell>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-6 py-8">
-      <div className="text-center">
-        <h2 className="text-text-default mb-2 text-2xl font-bold">{tConv.ended}</h2>
-      </div>
-
-      <GoalResults sessionId={sessionId} />
-
-      {(loadState === "pending" || loadState === "running") && <AnalyzingView state={loadState} />}
+    <JournalShell status={tConv.ended} onGoHome={handleGoHome}>
+      {loadState === "loaded" && (
+        <PronunciationFeedback assessment={assessment} grammarErrors={grammarErrors} />
+      )}
+      {(loadState === "idle" || loadState === "pending" || loadState === "running") && (
+        <AnalyzingView state={loadState === "running" ? "running" : "pending"} />
+      )}
       {(loadState === "failed" || loadState === "error") && (
         <AssessmentErrorView
           failed={loadState === "failed"}
@@ -110,36 +111,57 @@ export function EndedConversation() {
           onRetry={handleRetry}
         />
       )}
-      {loadState === "loaded" && (
-        <div className="w-full max-w-md space-y-8">
-          <PronunciationFeedback assessment={assessment} grammarErrors={grammarErrors} />
-          {knowledgeStates.length > 0 && (
-            <div>
-              <h3 className="text-text-default mb-3 text-lg font-semibold">
-                {tAssess.skillTreeTitle}
-              </h3>
-              <SkillTree states={knowledgeStates} />
-            </div>
-          )}
-        </div>
-      )}
 
-      <button
-        onClick={handleGoHome}
-        className="btn-primary inline-flex items-center gap-2 px-8 py-3 text-lg"
-      >
+      <GoalResults sessionId={sessionId} />
+
+      {loadState === "loaded" && knowledgeStates.length > 0 && (
+        <section className="practice-journal__section" aria-label={tAssess.skillTreeTitle}>
+          <h2 className="practice-journal__section-title">{tAssess.skillTreeTitle}</h2>
+          <SkillTree states={knowledgeStates} />
+        </section>
+      )}
+    </JournalShell>
+  );
+}
+
+function JournalShell({
+  status,
+  hint,
+  onGoHome,
+  children,
+}: {
+  status?: string;
+  hint?: string;
+  onGoHome: () => void;
+  children: ReactNode;
+}) {
+  const titleId = useId();
+
+  return (
+    <article className="practice-journal" aria-labelledby={titleId}>
+      <header className="practice-journal__intro">
+        {status ? <p className="practice-journal__eyebrow">{status}</p> : null}
+        <h1 id={titleId} className="practice-journal__title">
+          {tAssess.journalTitle}
+        </h1>
+        {hint ? <p className="practice-journal__hint">{hint}</p> : null}
+      </header>
+      <div className="practice-journal__content">{children}</div>
+      <button type="button" onClick={onGoHome} className="practice-journal__return btn-primary">
         {tDash.goHome}
       </button>
-    </div>
+    </article>
   );
 }
 
 function AnalyzingView({ state }: { state: "pending" | "running" }) {
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="border-accent h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
-      <p className="text-text-muted">{state === "pending" ? tAssess.pending : tAssess.analyzing}</p>
-      <p className="text-text-faint text-sm">
+    <div className="practice-journal__state" role="status" aria-live="polite" aria-atomic="true">
+      <span className="practice-journal__spinner" aria-hidden="true" />
+      <p className="practice-journal__state-title">
+        {state === "pending" ? tAssess.pending : tAssess.analyzing}
+      </p>
+      <p className="practice-journal__state-copy">
         {state === "pending" ? tAssess.pendingHint : tAssess.analyzingHint}
       </p>
     </div>
@@ -157,18 +179,20 @@ function AssessmentErrorView({
   retryable: boolean;
   onRetry: () => void;
 }) {
+  const showRetry = !failed || (retryable && errorCode !== ANALYSIS_UNSUPPORTED);
+
   return (
-    <div className="bg-danger-bg rounded-lg p-4 text-center">
-      <p className="text-danger text-sm">
+    <div className="practice-journal__error-card" role="alert">
+      <p className="practice-journal__error-copy">
         {failed
           ? errorCode === ANALYSIS_UNSUPPORTED
             ? tAssess.unsupported
             : tAssess.failed
           : tAssess.loadError}
       </p>
-      {failed && retryable ? (
-        <button onClick={onRetry} className="btn-primary mt-3 px-4 py-2 text-sm">
-          {tAssess.retry}
+      {showRetry ? (
+        <button type="button" onClick={onRetry} className="practice-journal__retry btn-primary">
+          {failed ? tAssess.retry : tGoals.retry}
         </button>
       ) : null}
     </div>

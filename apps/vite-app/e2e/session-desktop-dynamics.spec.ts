@@ -40,7 +40,16 @@ export function useLocalParticipant() {
 }
 
 export function useTrackTranscription() {
-  return { segments: [] };
+  return {
+    segments: [
+      {
+        id: "fixture-transcript",
+        text: "I want to practice English.",
+        final: true,
+        firstReceivedTime: Date.now(),
+      },
+    ],
+  };
 }
 
 export function BarVisualizer() {
@@ -102,6 +111,28 @@ function recommendationRegion(page: Page) {
 
 function recommendationToggle(page: Page) {
   return page.getByTestId("answer-recs-toggle");
+}
+
+function transcriptFoldToggle(page: Page) {
+  return page.locator(".practice-transcript__fold");
+}
+
+async function expectTranscriptFolded(page: Page, folded: boolean): Promise<void> {
+  const log = page.getByRole("log", { name: zhCN.chat.title });
+  const turns = log.locator("article");
+
+  await expect(turns).toHaveCount(2);
+  await expect(transcriptFoldToggle(page)).toHaveAttribute(
+    "aria-expanded",
+    folded ? "false" : "true",
+  );
+  if (folded) {
+    await expect(turns.first()).toBeHidden();
+  } else {
+    await expect(turns.first()).toBeVisible();
+  }
+  await expect(turns.last()).toBeVisible();
+  await expect(turns.last()).toHaveAttribute("aria-current", "true");
 }
 
 async function expectNarrowOrder(page: Page): Promise<void> {
@@ -271,11 +302,16 @@ test.describe("CP-05 会话界面动态桌面与键盘", () => {
 
     const tabKey = browserName === "webkit" ? "Alt+Tab" : "Tab";
     const endButton = page.getByRole("button", { name: zhCN.conversation.endButton });
+    const foldToggle = transcriptFoldToggle(page);
     const toggle = recommendationToggle(page);
 
     await page.locator("body").click({ position: { x: 1, y: 1 } });
     await page.keyboard.press(tabKey);
     await expect(endButton).toBeFocused();
+    await page.keyboard.press(tabKey);
+    await expect(foldToggle).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expectTranscriptFolded(page, true);
     await page.keyboard.press(tabKey);
     await expect(toggle).toBeFocused();
     await page.keyboard.press("Enter");
@@ -306,9 +342,14 @@ test.describe("CP-05 会话界面动态桌面与键盘", () => {
     await openSession(page, 390, 844);
 
     const tabKey = browserName === "webkit" ? "Alt+Tab" : "Tab";
+    const foldToggle = transcriptFoldToggle(page);
     const toggle = recommendationToggle(page);
     await page.locator("body").click({ position: { x: 1, y: 1 } });
     await page.keyboard.press(tabKey);
+    await page.keyboard.press(tabKey);
+    await expect(foldToggle).toBeFocused();
+    await page.keyboard.press("Space");
+    await expectTranscriptFolded(page, true);
     await page.keyboard.press(tabKey);
     await expect(toggle).toBeFocused();
     await page.keyboard.press("Enter");

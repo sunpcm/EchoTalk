@@ -7,6 +7,7 @@
 import React, { useState, useMemo, useRef, useLayoutEffect, useEffect } from "react";
 import { useVoiceAssistant } from "@livekit/components-react";
 import { zhCN } from "@/i18n/zh-CN";
+import "./SessionPracticeJournal.css";
 
 const t = zhCN.answerRecommendations;
 
@@ -220,18 +221,15 @@ export function AnswerRecommendations() {
   };
 
   return (
-    <section
-      aria-label={t.title}
-      className="border-success-border bg-success-bg rounded-[20px] border p-3 shadow-[0_6px_22px_-14px_var(--card-shadow)] sm:p-4"
-    >
-      <h3 className="text-success-text mb-2 text-sm font-semibold">{t.title}</h3>
+    <section aria-label={t.title} className="practice-recommendations">
+      <h3 className="practice-recommendations__heading">{t.title}</h3>
 
       {isWaiting ? (
-        <p className="text-success text-xs">{t.waiting}</p>
+        <p className="practice-recommendations__waiting">{t.waiting}</p>
       ) : (
         <>
-          <p className="text-success mb-3 text-xs">{t.hint}</p>
-          <div className="space-y-2">
+          <p className="practice-recommendations__hint">{t.hint}</p>
+          <div className="practice-recommendations__list">
             {recommendations.map((rec, i) => {
               const isCopied =
                 copiedState !== null &&
@@ -248,13 +246,11 @@ export function AnswerRecommendations() {
                   aria-label={t.copyAriaLabel
                     .replace("{index}", String(i + 1))
                     .replace("{text}", rec)}
-                  className="border-success-border bg-surface text-success-text hover:border-success focus-visible:ring-accent flex min-h-[44px] w-full flex-col justify-center rounded-[12px] border p-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:p-3"
+                  className="practice-recommendations__item"
                 >
                   <div className="flex w-full items-start gap-2">
-                    <span className="bg-success text-success-contrast mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold">
-                      {i + 1}
-                    </span>
-                    <span className="min-w-0 flex-1 text-sm leading-snug [overflow-wrap:anywhere] break-words whitespace-normal">
+                    <span className="practice-recommendations__number mt-0.5">{i + 1}</span>
+                    <span className="practice-recommendations__text text-sm leading-snug [overflow-wrap:anywhere] break-words whitespace-normal">
                       {rec}
                     </span>
                   </div>

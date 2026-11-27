@@ -119,7 +119,7 @@ describe("RecommendedScenarios goal preview draft", () => {
     render(<RecommendedScenarios />);
 
     expect(
-      await screen.findByRole("heading", { name: "Business Meeting Greetings" }),
+      await screen.findByRole("heading", { name: /Business Meeting Greetings/ }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(3);
     expect(screen.getAllByTestId("recommendation-goal")).toHaveLength(6);
@@ -142,7 +142,7 @@ describe("RecommendedScenarios goal preview draft", () => {
       "Hotel Checkin Roleplay",
       "Restaurant Ordering",
     ]) {
-      const heading = screen.getByRole("heading", { name: scenarioName });
+      const heading = screen.getByRole("heading", { name: new RegExp(scenarioName) });
       const card = heading.closest("article");
       expect(card, "recommendation cards should expose an article element").not.toBeNull();
       const preview = within(card!).getByRole("region", { name: "本课目标" });

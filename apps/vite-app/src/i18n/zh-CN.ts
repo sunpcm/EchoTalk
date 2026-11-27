@@ -138,6 +138,9 @@ export const zhCN = {
     tooltipSubstitution: "替换：期望 {expected}，实际 {actual}",
     tooltipDeletion: "缺失：{expected}",
     tooltipInsertion: "多余：{actual}",
+    journalTitle: "练习手记",
+    originalCaption: "你说的",
+    correctedCaption: "建议说法",
   },
   sessionGoals: {
     title: "会话目标",
@@ -155,10 +158,16 @@ export const zhCN = {
     total: "目标总数",
   },
   dashboard: {
+    brand: "EchoTalk",
     recommendTitle: "今日专属推荐",
     difficulty: "难度",
     focusSkills: "重点技能",
     goalPreview: "本课目标",
+    scenarioTitles: {
+      business_meeting_greetings: "职场问候",
+      hotel_checkin_roleplay: "酒店入住",
+      restaurant_ordering: "餐厅点餐",
+    },
     enterPractice: "进入练习",
     checkingService: "检测服务中...",
     retry: "重试",
@@ -278,6 +287,8 @@ export const zhCN = {
     you: "你",
     aiCoach: "AI 外教",
     empty: "对话开始后，实时字幕将显示在这里",
+    collapseTranscript: "收起转录",
+    expandTranscript: "展开转录",
   },
   answerRecommendations: {
     title: "回答推荐",

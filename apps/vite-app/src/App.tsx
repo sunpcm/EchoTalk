@@ -39,7 +39,7 @@ const App = () => {
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
-      <main className="mx-auto max-w-3xl">
+      <main className="mx-auto max-w-[66rem]">
         {appView === "dashboard" ? (
           <Dashboard onOpenSettings={() => setDrawerOpen(true)} />
         ) : appView === "doc-chat-setup" ? (

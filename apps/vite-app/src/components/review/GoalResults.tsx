@@ -32,9 +32,9 @@ export function GoalResults({ sessionId }: GoalResultsProps) {
     <section
       data-testid="goal-results"
       aria-label={t.title}
-      className="border-border-default bg-surface w-full max-w-md rounded-[20px] border p-5 shadow-sm"
+      className="practice-journal__section practice-journal__goals"
     >
-      <h2 className="text-text-default mb-4 text-lg font-semibold">{t.title}</h2>
+      <h2 className="practice-journal__section-title">{t.title}</h2>
       {children}
     </section>
   );
@@ -49,14 +49,10 @@ export function GoalResults({ sessionId }: GoalResultsProps) {
     }
     return frame(
       <div className="flex flex-col items-start gap-3">
-        <p role="status" className="text-danger text-sm leading-relaxed">
+        <p role="alert" className="text-danger text-sm leading-relaxed">
           {t.loadError}
         </p>
-        <button
-          type="button"
-          onClick={query.retry}
-          className="btn-primary focus-visible:outline-accent inline-flex min-h-11 min-w-11 items-center justify-center px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
+        <button type="button" onClick={query.retry} className="practice-journal__retry btn-primary">
           {t.retry}
         </button>
       </div>,
@@ -93,37 +89,33 @@ export function GoalResults({ sessionId }: GoalResultsProps) {
   const summary = response.summary;
   if (!summary) {
     return frame(
-      <p role="status" className="text-danger text-sm">
-        {t.loadError}
-      </p>,
+      <div className="flex flex-col items-start gap-3">
+        <p role="alert" className="text-danger text-sm">
+          {t.loadError}
+        </p>
+        <button type="button" onClick={query.retry} className="practice-journal__retry btn-primary">
+          {t.retry}
+        </button>
+      </div>,
     );
   }
 
   return frame(
-    <div className="space-y-4">
-      <div
-        data-testid="goal-summary"
-        className="bg-surface-alt text-text-default space-y-1 rounded-lg px-3 py-2 text-sm"
-      >
+    <div className="practice-journal__goal-body">
+      <div data-testid="goal-summary" className="practice-journal__goal-summary">
         <p>{`${t.achieved} ${summary.achieved} / ${t.assessed} ${summary.assessed} / ${t.total} ${summary.total}`}</p>
         <p className="text-text-muted">{`${t.unknown} ${summary.unknown}`}</p>
         <p className="text-text-muted">{`${t.notAssessed} ${summary.not_assessed}`}</p>
       </div>
-      <ul className="space-y-2">
+      <ul className="practice-journal__goal-list">
         {response.goals.map((goal) => {
           if (goal.result === null) return null;
           return (
-            <li
-              key={goal.goal_id}
-              data-testid="goal-result"
-              className="border-border-default flex items-start justify-between gap-3 rounded-lg border px-3 py-2"
-            >
-              <p className="text-text-default min-w-0 text-sm leading-relaxed break-words">
+            <li key={goal.goal_id} data-testid="goal-result" className="practice-journal__goal-row">
+              <p className="text-text-default min-w-0 text-sm leading-relaxed [overflow-wrap:anywhere] break-words">
                 {goal.description_zh}
               </p>
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${resultClasses[goal.result]}`}
-              >
+              <span className={`practice-journal__goal-status ${resultClasses[goal.result]}`}>
                 {resultLabels[goal.result]}
               </span>
             </li>

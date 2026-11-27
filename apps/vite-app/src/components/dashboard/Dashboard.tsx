@@ -13,6 +13,7 @@ import { zhCN } from "@/i18n/zh-CN";
 const tConv = zhCN.conversation;
 const tAssess = zhCN.assessment;
 const tDocChat = zhCN.docChat;
+const tDashboard = zhCN.dashboard;
 
 /** Dashboard 视图：推荐场景 + 每日进度 + 技能树 */
 export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -29,15 +30,16 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
   }, [fetchKnowledgeStates]);
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="relative text-center">
-        <h1 className="text-accent mb-1 text-3xl font-bold">{tConv.title}</h1>
-        <p className="text-text-muted">{tConv.subtitle}</p>
-        {/* 设置按钮 */}
+    <div className="journal-home">
+      <header className="journal-home__masthead">
+        <div>
+          <p className="journal-home__brand">{tDashboard.brand}</p>
+          <h1 className="journal-home__legacy-title text-text-muted">{tConv.title}</h1>
+        </div>
         <button
+          type="button"
           onClick={onOpenSettings}
-          className="text-text-muted hover:bg-surface-alt hover:text-accent focus-visible:ring-accent absolute top-0 right-0 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          className="journal-home__settings"
           title={zhCN.settings.title}
           aria-label={zhCN.settings.title}
         >
@@ -49,7 +51,7 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
             />
           </svg>
         </button>
-      </div>
+      </header>
 
       {/* Connection error feedback */}
       {error && !readinessIssue && (
@@ -89,16 +91,19 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
       )}
       {readinessNotice && (
-        <p role="status" className="text-text-default rounded-lg p-4 text-center text-sm">
+        <p role="status" className="journal-home__notice">
           {zhCN.practiceReadiness.ready}
         </p>
       )}
+
+      {/* Recommended Scenarios */}
+      <RecommendedScenarios />
 
       {/* Active Sessions */}
       <ActiveSessions />
 
       {/* DocTalk Entry Card */}
-      <section>
+      <section className="journal-home__doc-chat">
         <button
           onClick={() => {
             useAppStore.getState().openDocChatSetup();
@@ -134,9 +139,6 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
           </svg>
         </button>
       </section>
-
-      {/* Recommended Scenarios */}
-      <RecommendedScenarios />
 
       {/* Daily Progress */}
       <DailyProgress />
